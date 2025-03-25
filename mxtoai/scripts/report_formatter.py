@@ -81,7 +81,8 @@ class ReportFormatter:
 
 ---
 
-**MXtoAI Assistant**  
+**MXtoAI Assistant**
+
 _Feel free to reply to this email to continue our conversation._
 """
     
