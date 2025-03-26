@@ -293,6 +293,42 @@ The system now supports:
 - Fallback responses for partial failures
 - Comprehensive error logging
 
+## Load Testing
+
+The project uses Locust for load testing various email processing scenarios.
+
+### Setup & Run
+
+1. Install and setup:
+```bash
+pip install locust
+mkdir -p test_files
+# Add 2-3 PDF files to test_files/ directory
+```
+
+2. Run tests:
+```bash
+# Interactive mode (Recommended)
+locust --host=http://localhost:8000
+
+# Or headless mode
+locust --host=http://localhost:8000 --users 10 --spawn-rate 2 --run-time 1m --headless
+```
+
+### Test Scenarios
+
+- Simple queries (50%): Complex questions to summarise@mxtoai.com
+- Translation requests (20%): Technical content to translate@mxtoai.com
+- Document analysis (30%): PDF attachments to ask@mxtoai.com
+
+### Results & Monitoring
+
+- Real-time stats in Web UI (http://localhost:8089)
+- System metrics in results/system_stats.csv
+- HTML report and logs in results/ directory
+
+For detailed configuration, check `locustfile.py`.
+
 ## License
 
 MIT
