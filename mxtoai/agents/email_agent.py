@@ -231,11 +231,11 @@ class EmailAgent:
         
         return processed_results
 
-    def _create_task(self, email_data: Dict[str, Any], mode: str) -> str:
-        """Create a task description for the agent."""
-        # Create attachment details with explicit paths
+    def _create_task(self, email_data: Dict[str, Any], email_instructions: 'EmailHandleInstructions') -> str:
+        """Create a task description for the agent based on email handle instructions."""
+        # Create attachment details with explicit paths if needed
         attachment_details = []
-        if email_data.get("attachments"):
+        if email_instructions.process_attachments and email_data.get("attachments"):
             for att in email_data["attachments"]:
                 # Quote the file path to handle spaces correctly
                 quoted_path = f'"{att["path"]}"'
@@ -244,42 +244,66 @@ class EmailAgent:
                     f"  EXACT FILE PATH: {quoted_path}"
                 )
 
-        # Create research instructions depending on mode
-        research_instructions = ""
-        if mode in ["research", "full"]:
-            research_instructions = """
-Step 3 - Deep Research (only if explicitly required):
-- Use the deep_research tool only when the email requires extensive factual information or detailed investigation
-- Provide the specific query, and any relevant context from the email
-- Include processed attachments in the research query if relevant
-"""
+        # Build list of steps
+        steps = []
+        
+        # Add attachment processing step if needed
+        if email_instructions.process_attachments and attachment_details:
+            steps.append(f'''Attachment Processing:
+Process these attachments carefully. For images, use the azure_visualizer tool. For other files, use the attachment_processor tool. IMPORTANT: Use these EXACT file paths when processing (including the quotes):
 
-        task = f"""Process this email and provide a professional, helpful response. Remember that you are MXtoAI Assistant, a friendly and knowledgeable AI that helps users with their inquiries.
-
-Step 1 - Attachment Processing:
-{f'Process these attachments carefully. For images, use the azure_visualizer tool. For other files, use the attachment_processor tool. IMPORTANT: Use these EXACT file paths when processing (including the quotes):\n\n{chr(10).join(attachment_details)}' if email_data.get("attachments") else '- No attachments to process'}
+{chr(10).join(attachment_details)}
 
 IMPORTANT ATTACHMENT GUIDELINES:
 - If an attachment fails to process, acknowledge it briefly but continue with the rest of the task
 - Focus on successfully processed attachments and provide value from what you can understand
-- Never include error messages or technical details in the final response to the user
+- Never include error messages or technical details in the final response to the user''')
 
-Step 2 - Email Summary:
-- Create a clear, concise summary of the email content
-- Include insights from successfully processed attachments
-- Focus on the key points and questions raised in the email
-- Maintain a positive, solution-oriented tone
+        # Add email content processing step
+        steps.append(f'''Process Email Content:
+{email_instructions.specific_research_instructions or "Process the email content according to the user's request"}''')
 
-{research_instructions}
+        # Add deep research step if required
+        if email_instructions.deep_research_mandatory:
+            steps.append(f'''Deep Research:
+- Use the deep_research tool only when the email requires extensive factual information or detailed investigation
+- Provide the specific query, and any relevant context from the email
+- Include processed attachments in the research query if relevant
 
-Step {4 if mode in ["research", "full"] else 3} - Generate Response:
+{email_instructions.specific_research_instructions}''')
+
+        # Add response generation step
+        response_step = '''Generate Response:
 - Write a friendly, professional response that directly addresses the user's needs
-- Start with a warm greeting (e.g., "Hello [Name]," or "Hi [Name],")
+- Start with a warm greeting (e.g., "Hello [Name]," or "Hi [Name],")'''
+
+        # Add summary instruction if needed
+        if email_instructions.add_summary:
+            response_step += '''
+- Start with a brief summary of the key points
+- Then provide the detailed response'''
+
+        response_step += '''
 - Address all key points from the email
-- Include relevant insights from attachments and research
+- Include relevant insights from attachments and research if available
 - Use clear, concise language
 - Maintain a helpful and positive tone throughout
-- DO NOT include a signature - it will be added automatically
+- DO NOT include a signature - it will be added automatically'''
+
+        steps.append(response_step)
+
+        # Use custom task template if provided, otherwise use default
+        if email_instructions.task_template:
+            task = email_instructions.task_template
+        else:
+            # Create numbered steps
+            numbered_steps = []
+            for i, step in enumerate(steps, 1):
+                numbered_steps.append(f"Step {i} - {step}")
+            
+            task = f"""Process this email according to the '{email_instructions.handle}' instruction type. You are MXtoAI Assistant, a friendly and knowledgeable AI that helps users with their inquiries.
+
+{chr(10).join(numbered_steps)}
 
 CONTENT FORMATTING GUIDELINES:
 - Use markdown for rich text formatting:
@@ -291,18 +315,18 @@ CONTENT FORMATTING GUIDELINES:
   * Use > for quotations
 - Use proper paragraphs with blank lines between them
 - Format lists and technical content appropriately
-- DO NOT add any signature or closing - this will be handled automatically
+- DO NOT add any signature or closing - it will be handled automatically
 
 Email Details:
-- Subject: {email_data.get('subject', 'No subject')}
+- Subject: {email_data.get('subject', '')}
 - From: {email_data.get('sender', 'Unknown')}
 - Date: {email_data.get('date', 'Unknown')}
 
 Email Content:
 {email_data.get('body', '')}
 
-Processing Mode: {mode}
-Required Actions: {', '.join(self._get_required_actions(mode))}
+Handle-Specific Instructions:
+{email_instructions.specific_research_instructions or "No specific instructions provided"}
 
 Remember:
 - Focus on providing value even if some processing steps fail
@@ -311,7 +335,7 @@ Remember:
 - Always provide a complete, well-formatted response
 - DO NOT add any signature or closing - it will be added automatically
 """
-        
+
         return task
     
     def _process_agent_result(self, agent_result: Any) -> Dict[str, Any]:
@@ -564,39 +588,21 @@ Remember:
     def process_email(
         self,
         email_data: Dict[str, Any],
-        mode: str = "full"
+        email_instructions: 'EmailHandleInstructions'  # Type hint as string to avoid circular import
     ) -> Dict[str, Any]:
         """
-        Process an email using the agent, ensuring a response is always generated even if some steps fail.
+        Process an email using the agent based on the provided email handle instructions.
         
         Args:
             email_data: Dictionary containing email data
-            mode: Processing mode: 'reply', 'summary', 'research', or 'full'
-                  When mode is 'research' or 'full', deep research will be enabled if not already enabled.
-                  Other modes will disable deep research unless it was explicitly enabled during initialization.
+            email_instructions: EmailHandleInstructions object containing processing configuration
             
         Returns:
             Dictionary with processing results including any error information
         """
         try:
-            # Check if deep research was enabled during initialization (its current state)
-            initially_enabled = False
-            if self.research_tool and hasattr(self.research_tool, 'deep_research_enabled'):
-                initially_enabled = self.research_tool.deep_research_enabled
-            
-            # Only modify deep research state based on mode if it wasn't explicitly enabled during initialization
-            if self.research_tool and not initially_enabled:
-                if mode in ["research", "full"]:
-                    self.research_tool.enable_deep_research()
-                    logger.info(f"Deep research enabled for mode: {mode}")
-                else:
-                    self.research_tool.disable_deep_research()
-                    logger.info(f"Deep research disabled for mode: {mode}")
-            elif self.research_tool and initially_enabled:
-                logger.info("Deep research remains enabled as set during initialization")
-            
-            # Process attachments first
-            if email_data.get("attachments"):
+            # Process attachments first if required
+            if email_instructions.process_attachments and email_data.get("attachments"):
                 try:
                     attachment_results = self._process_attachments(email_data["attachments"])
                     if attachment_results.get("errors"):
@@ -604,8 +610,8 @@ Remember:
                 except Exception as e:
                     logger.error(f"Error processing attachments: {str(e)}")
 
-            # Create task with error information if needed
-            task = self._create_task(email_data, mode)
+            # Create task with specific instructions
+            task = self._create_task(email_data, email_instructions)
 
             # Run the agent
             try:
@@ -617,7 +623,7 @@ Remember:
                 if not processed_result.get("email_content"):
                     raise ValueError("No reply text was generated")
                 
-                logger.info(f"Email processed successfully in {mode} mode")
+                logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
                 return processed_result
                 
             except Exception as e:
@@ -640,7 +646,7 @@ Remember:
                         "text": None
                     },
                     "processed_at": datetime.now().isoformat(),
-                    "mode": mode,
+                    "handle": email_instructions.handle,
                     "errors": [error_msg],
                     "email_sent": {
                         "status": "error",
@@ -668,7 +674,7 @@ Remember:
                     "text": None
                 },
                 "processed_at": datetime.now().isoformat(),
-                "mode": mode,
+                "handle": email_instructions.handle,
                 "errors": [error_msg],
                 "email_sent": {
                     "status": "error",

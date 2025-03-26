@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from mxtoai.ai import ask_llm
 from mxtoai.email import email_sender
 from mxtoai.agents.email_agent import EmailAgent
+from handle_configuration import HANDLE_MAP
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
@@ -538,6 +539,34 @@ async def process_email(
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
     try:
+        # Extract handle from email
+        handle = to.split('@')[0].lower()
+        
+        # Check if handle is supported
+        email_instructions = HANDLE_MAP.get(handle)
+        if not email_instructions:
+            # Send rejection email
+            rejection_msg = "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+            await email_sender.send_reply(
+                {
+                    "from": from_email,
+                    "to": to,
+                    "subject": f"Re: {subject}",
+                    "messageId": messageId,
+                },
+                rejection_msg,
+                rejection_msg
+            )
+            return Response(
+                content=json.dumps({
+                    "message": "Unsupported email handle",
+                    "handle": handle,
+                    "rejection_sent": True
+                }),
+                status_code=status.HTTP_400_BAD_REQUEST,
+                media_type="application/json",
+            )
+
         # Construct email data from form fields
         email_data = EmailRequest(
             from_email=from_email,
@@ -555,15 +584,20 @@ async def process_email(
         log_received_email(email_data)
         email_id = generate_email_id(email_data)
         
-        # Handle attachments
-        email_attachments_dir, attachment_info = await handle_file_attachments(files, email_id, email_data)
+        # Handle attachments only if the handle requires it
+        email_attachments_dir = ""
+        attachment_info = []
+        if email_instructions.process_attachments and files:
+            email_attachments_dir, attachment_info = await handle_file_attachments(files, email_id, email_data)
         
         # Prepare email data for AI processing
         email_dict = prepare_email_for_ai(email_data, attachment_info)
         
-        # Determine processing mode based on recipient email
-        processing_mode = EmailAgent.determine_mode_from_email(to)
-        logger.info(f"Determined processing mode '{processing_mode}' from recipient email: {to}")
+        # Enable/disable deep research based on handle configuration
+        if email_instructions.deep_research_mandatory:
+            email_agent.research_tool.enable_deep_research()
+        else:
+            email_agent.research_tool.disable_deep_research()
         
         # Run the sync agent in a thread pool
         with ThreadPoolExecutor() as pool:
@@ -571,14 +605,14 @@ async def process_email(
                 pool,
                 email_agent.process_email,
                 email_dict,
-                processing_mode
+                email_instructions  # Pass the entire instructions object instead of just mode
             )
         
         # Send reply email if generated
         if processing_result and "email_content" in processing_result:
             email_sent_result = await send_agent_email_reply(
                 email_data, 
-                processing_result  # Pass the entire processing_result
+                processing_result
             )
             # Update the email_sent status in metadata
             if "metadata" in processing_result:
