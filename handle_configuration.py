@@ -33,7 +33,7 @@ EMAIL_HANDLES = [
     ),
     EmailHandleInstructions(
         handle="ask",
-        aliases=[],
+        aliases=["custom", "agent", "assist", "assistant"],
         process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions=None,
@@ -57,7 +57,7 @@ EMAIL_HANDLES = [
     ),
     EmailHandleInstructions(
         handle="background-research",
-        aliases=[],
+        aliases=["background-check"],
         process_attachments=True,
         deep_research_mandatory=True,
         specific_research_instructions="Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.",
@@ -66,7 +66,7 @@ EMAIL_HANDLES = [
     EmailHandleInstructions(
         handle="translate",
         aliases=[],
-        process_attachments=False,
+        process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions="Detect language if not specified. If non-English, translate to English. If English, look for requested target language or ask user.",
         add_summary=False  # Direct translation without summary
@@ -86,4 +86,4 @@ HANDLE_MAP = {}
 for config in EMAIL_HANDLES:
     HANDLE_MAP[config.handle] = config
     for alias in config.aliases:
-        HANDLE_MAP[alias] = config 
+        HANDLE_MAP[alias] = config

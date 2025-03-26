@@ -14,6 +14,7 @@ from mxtoai.ai import ask_llm
 from mxtoai.email import email_sender
 from mxtoai.agents.email_agent import EmailAgent
 from handle_configuration import HANDLE_MAP
+from mxtoai.config import SKIP_EMAIL_DELIVERY
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
@@ -391,6 +392,15 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: Di
         return {
             "status": "error",
             "error": "Invalid processing result format",
+            "timestamp": datetime.now().isoformat()
+        }
+    
+    # Skip email delivery for test emails
+    if email_data.from_email in SKIP_EMAIL_DELIVERY:
+        logger.info(f"Skipping email delivery for test email: {email_data.from_email}")
+        return {
+            "status": "skipped",
+            "message": "Email delivery skipped for test email",
             "timestamp": datetime.now().isoformat()
         }
     
