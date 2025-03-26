@@ -1,0 +1,5 @@
+name = "frosty-resonance-f5ad"
+main = "src/worker.js"
+compatibility_date = "2000-01-01"
+workers_dev = true
+preview_urls = false

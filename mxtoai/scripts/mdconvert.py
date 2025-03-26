@@ -134,16 +134,35 @@ class PlainTextConverter(DocumentConverter):
         # Only accept text files
         if content_type is None:
             return None
-        # elif "text/" not in content_type.lower():
-        #     return None
+        elif not content_type.startswith('text/'):
+            return None
 
-        text_content = ""
-        with open(local_path, "rt", encoding="utf-8") as fh:
-            text_content = fh.read()
-        return DocumentConverterResult(
-            title=None,
-            text_content=text_content,
-        )
+        # Try to detect if file is binary
+        try:
+            with open(local_path, 'rb') as file:
+                # Read first chunk of the file
+                chunk = file.read(1024)
+                if b'\0' in chunk:  # Binary file detection
+                    return None
+                
+                # Try to decode as UTF-8
+                try:
+                    chunk.decode('utf-8')
+                except UnicodeDecodeError:
+                    return None
+        except Exception:
+            return None
+
+        # If we got here, it's safe to read as text
+        try:
+            with open(local_path, "rt", encoding="utf-8") as fh:
+                text_content = fh.read()
+            return DocumentConverterResult(
+                title=None,
+                text_content=text_content,
+            )
+        except UnicodeDecodeError:
+            return None
 
 
 class HtmlConverter(DocumentConverter):
