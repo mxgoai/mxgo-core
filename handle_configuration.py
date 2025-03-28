@@ -44,7 +44,7 @@ EMAIL_HANDLES = [
         aliases=["deep-research"],
         process_attachments=True,
         deep_research_mandatory=True,
-        specific_research_instructions="Conduct comprehensive research on the email content using all available sources",
+        specific_research_instructions="Conduct comprehensive research on the email content using all available sources. Return a detailed report with all findings and citations.",
         add_summary=True
     ),
     EmailHandleInstructions(

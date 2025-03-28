@@ -35,7 +35,7 @@ os.makedirs(ATTACHMENTS_DIR, exist_ok=True)
 email_agent = EmailAgent(
     attachment_dir=ATTACHMENTS_DIR,
     verbose=True,
-    enable_deep_research=False
+    enable_deep_research=True
 )
 
 

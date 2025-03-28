@@ -77,8 +77,8 @@ class EmailAgent:
         
         # Collect tools to be used with the agent
         self.available_tools = [self.summary_tool, self.attachment_tool, azure_visualizer]
-        # if self.research_tool:
-        #     self.available_tools.append(self.research_tool)
+        if self.research_tool:
+            self.available_tools.append(self.research_tool)
         
         # Initialize the agent
         self._init_agent()
@@ -266,9 +266,20 @@ IMPORTANT ATTACHMENT GUIDELINES:
         # Add deep research step if required
         if email_instructions.deep_research_mandatory:
             steps.append(f'''Deep Research:
-- Use the deep_research tool only when the email requires extensive factual information or detailed investigation
-- Provide the specific query, and any relevant context from the email
-- Include processed attachments in the research query if relevant
+- Use the deep_research tool for comprehensive research on the topic
+- The tool will return structured research findings with:
+  * Table of Contents
+  * Executive Summary
+  * Detailed sections with citations
+  * References section
+- IMPORTANT: Preserve this structure in your final response:
+  * Keep all section headers (###)
+  * Maintain all citations [1], [2], etc.
+  * Include the complete References section
+  * Keep all tables and formatted content
+- Do not summarize or simplify the research findings
+- Include the complete research output in your response
+- Add your own insights and analysis after the research content
 
 {email_instructions.specific_research_instructions}''')
 
@@ -283,10 +294,16 @@ IMPORTANT ATTACHMENT GUIDELINES:
 - Start with a brief summary of the key points
 - Then provide the detailed response'''
 
+        # Update response step and handle research content
         response_step += '''
 - Address all key points from the email
-- Include relevant insights from attachments and research if available
-- Use clear, concise language
+- For research queries:
+  * Include the complete research findings with all sections and citations
+  * Add your own analysis and insights after the research content
+  * Maintain all formatting, tables, and references
+- For other queries:
+  * Include relevant insights from attachments if available
+  * Use clear, concise language
 - Maintain a helpful and positive tone throughout
 - DO NOT include a signature - it will be added automatically'''
 
@@ -378,7 +395,8 @@ Remember:
         }
         
         try:
-            # Process attachments first
+            research_content = None
+            # Process attachments and research first
             if hasattr(agent_result, 'steps'):
                 for step in agent_result.steps:
                     # Process attachment results
@@ -441,9 +459,11 @@ Remember:
                     if hasattr(step, 'tool_name') and step.tool_name == 'deep_research' and hasattr(step, 'tool_output'):
                         try:
                             research_output = step.tool_output
+                            # Store the complete research findings for preservation
+                            research_content = research_output.get("findings", "")
                             result["research"] = {
                                 "query": research_output.get("query", ""),
-                                "findings": research_output.get("findings", ""),
+                                "findings": research_content,
                                 "sources": research_output.get("visited_urls", []),
                                 "timestamp": research_output.get("timestamp", "")
                             }
@@ -471,6 +491,51 @@ Remember:
                 ]
                 for marker in signature_markers:
                     final_answer = final_answer.replace(marker, "").strip()
+                
+                # If we have research content and it's not already in the final answer,
+                # ensure it's included in the response
+                if research_content and research_content not in final_answer:
+                    # Find a suitable position to insert the research content
+                    # Look for common section markers
+                    insert_markers = [
+                        "\n## Research Findings",
+                        "\n## Detailed Analysis",
+                        "\n## Results",
+                        "\n\nBased on my research",
+                        "\n\nHere are my findings"
+                    ]
+                    
+                    insert_pos = -1
+                    for marker in insert_markers:
+                        pos = final_answer.find(marker)
+                        if pos != -1:
+                            insert_pos = pos
+                            break
+                    
+                    if insert_pos != -1:
+                        # Insert at the found position
+                        final_answer = (
+                            final_answer[:insert_pos] + 
+                            "\n\n" + research_content + 
+                            final_answer[insert_pos:]
+                        )
+                    else:
+                        # Append to the end before any signature
+                        signature_pos = float('inf')
+                        for marker in signature_markers:
+                            pos = final_answer.find(marker)
+                            if pos != -1:
+                                signature_pos = min(signature_pos, pos)
+                        
+                        if signature_pos != float('inf'):
+                            final_answer = (
+                                final_answer[:signature_pos] + 
+                                "\n\n" + research_content + 
+                                "\n\n" + 
+                                final_answer[signature_pos:]
+                            )
+                        else:
+                            final_answer += "\n\n" + research_content
                 
                 # Format base response in both HTML and plain text
                 result["email_content"]["html"] = self.report_formatter.format_report(

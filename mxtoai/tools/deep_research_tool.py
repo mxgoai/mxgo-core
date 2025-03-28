@@ -4,8 +4,11 @@ import base64
 import logging
 import mimetypes
 import requests
+import urllib.parse
 from typing import Dict, List, Any, Optional, Generator
 from smolagents import Tool
+
+from mxtoai.scripts.toc_generator import TOCGenerator
 
 # Configure logger with more detailed format
 logging.basicConfig(
@@ -30,6 +33,9 @@ class DeepResearchTool(Tool):
         # Log tool initialization
         logger.debug("Initializing DeepResearchTool")
         
+        # Flag to enable URL encoding of messages
+        self.should_encode_messages = True
+        
         # Define input schema before super().__init__() to ensure proper validation
         self.inputs = {
             "query": {
@@ -39,52 +45,47 @@ class DeepResearchTool(Tool):
             "context": {
                 "type": "string",
                 "description": "Additional context from email thread or other sources",
-                "required": False,
                 "nullable": True
             },
             "attachments": {
                 "type": "array",
                 "description": "List of file attachments to include in research",
-                "required": False,
                 "nullable": True,
-                "default": [],
                 "items": {
                     "type": "object",
                     "properties": {
                         "path": {"type": "string"},
                         "type": {"type": "string"},
                         "filename": {"type": "string"}
-                    }
+                    },
+                    "required": ["path", "type", "filename"]
                 }
             },
             "thread_messages": {
                 "type": "array",
                 "description": "Previous messages in the email thread for context",
-                "required": False,
                 "nullable": True,
-                "default": [],
                 "items": {
                     "type": "object",
                     "properties": {
                         "role": {"type": "string"},
                         "content": {"type": "string"}
-                    }
+                    },
+                    "required": ["role", "content"]
                 }
             },
             "stream": {
                 "type": "boolean",
                 "description": "Whether to stream the response",
-                "required": False,
-                "nullable": True,
-                "default": True
+                "default": False,
+                "nullable": True
             },
             "reasoning_effort": {
                 "type": "string",
                 "description": "Level of reasoning effort ('low', 'medium', 'high')",
-                "required": False,
-                "nullable": True,
+                "enum": ["low", "medium", "high"],
                 "default": "medium",
-                "enum": ["low", "medium", "high"]
+                "nullable": True
             }
         }
         
@@ -166,6 +167,20 @@ class DeepResearchTool(Tool):
             logger.error(f"Error encoding file {file_path}: {str(e)}")
             return None
     
+    def _encode_text(self, text: str) -> str:
+        """
+        URL encode text content to handle special characters.
+        
+        Args:
+            text: Text content to encode
+            
+        Returns:
+            URL encoded text
+        """
+        if self.should_encode_messages:
+            return urllib.parse.quote(text)
+        return text
+    
     def _prepare_messages(
         self,
         query: str,
@@ -183,32 +198,37 @@ class DeepResearchTool(Tool):
             thread_messages: Previous messages in thread
             
         Returns:
-            List of messages in Jina API format
+            List of messages in Jina API format with a single message containing all content
         """
-        messages = []
-        
         # Ensure array parameters are properly initialized
         attachments = attachments if isinstance(attachments, list) else []
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
         
-        # Add thread messages if available
-        if thread_messages:
-            messages.extend(thread_messages)
+        # Prepare content array for the single message
+        message_content = []
         
-        # Prepare user message with query and files
-        user_message_content = []
-        
-        # Add query as text
-        user_message_content.append({
+        # Add query as text (encoded if enabled)
+        message_content.append({
             "type": "text",
-            "text": query
+            "text": self._encode_text(query)
         })
+        
+        # Add thread messages content if available
+        if thread_messages:
+            thread_context = "\nPrevious Messages:\n" + "\n".join(
+                f"{msg['role']}: {msg['content']}" 
+                for msg in thread_messages
+            )
+            message_content.append({
+                "type": "text",
+                "text": self._encode_text(thread_context)
+            })
         
         # Add context if available
         if context:
-            user_message_content.append({
+            message_content.append({
                 "type": "text",
-                "text": f"\nAdditional Context:\n{context}"
+                "text": self._encode_text(f"\nAdditional Context:\n{context}")
             })
         
         # Add encoded files
@@ -216,62 +236,252 @@ class DeepResearchTool(Tool):
             for attachment in attachments:
                 file_data = self._encode_file(attachment["path"])
                 if file_data:
-                    user_message_content.append(file_data)
+                    message_content.append(file_data)
         
-        # Add the complete user message
-        messages.append({
+        # Return a single message with all content
+        return [{
             "role": "user",
-            "content": user_message_content
-        })
-        
-        return messages
+            "content": message_content
+        }]
     
-    def _process_stream_response(self, response: requests.Response) -> Generator[Dict[str, Any], None, None]:
-        """
-        Process streaming response from Jina AI DeepSearch API.
+    def _process_stream_response(self, response):
+        """Process a streaming response from the API.
         
         Args:
-            response: Streaming response from the API
+            response: The streaming response object
             
-        Yields:
-            Processed chunks of the response
+        Returns:
+            dict: Processed results containing findings and metadata
         """
-        buffer = ""
-        for line in response.iter_lines():
-            if line:
+        findings = []
+        annotations = []
+        visited_urls = set()
+        read_urls = set()
+        timestamp = response.headers.get('date')
+        current_type = None  # Track current message type (think/text)
+        
+        try:
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                    
                 try:
-                    # Decode the line and remove 'data: ' prefix if present
-                    decoded_line = line.decode('utf-8')
-                    if decoded_line.startswith('data: '):
-                        decoded_line = decoded_line[6:]
+                    # Remove 'data: ' prefix if present and decode
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        line_str = line_str[6:]
                     
-                    # Parse JSON response
-                    chunk = json.loads(decoded_line)
+                    # Skip empty messages
+                    if line_str.strip() in ('', '[DONE]'):
+                        continue
+                        
+                    data = json.loads(line_str)
                     
-                    # Extract content and annotations
-                    if 'choices' in chunk and chunk['choices']:
-                        delta = chunk['choices'][0].get('delta', {})
-                        content = delta.get('content', '')
-                        annotations = delta.get('annotations', [])
-                        
-                        if content:
-                            buffer += content
-                        
-                        # Yield accumulated content and annotations
-                        yield {
-                            'content': buffer,
-                            'annotations': annotations,
-                            'visited_urls': chunk.get('visitedURLs', []),
-                            'read_urls': chunk.get('readURLs', [])
-                        }
-                        
-                        # Clear buffer after yielding
-                        buffer = ""
+                    # Handle error messages
+                    if 'error' in data:
+                        error_msg = data['error'].get('message', str(data['error']))
+                        logger.error(f"API returned error: {error_msg}")
+                        return {"error": error_msg}
+                    
+                    # Process choices
+                    if 'choices' in data and len(data['choices']) > 0:
+                        choice = data['choices'][0]
+                        if 'delta' in choice:
+                            delta = choice['delta']
+                            
+                            # Handle role change
+                            if 'role' in delta:
+                                continue  # Skip role messages
+                            
+                            # Handle content type change
+                            if 'type' in delta:
+                                current_type = delta['type']
+                                # Handle opening/closing think tags
+                                if 'content' in delta and delta['content'] in ('<think>', '</think>'):
+                                    continue
+                            
+                            # Handle content
+                            if 'content' in delta and delta['content']:
+                                # Only append text content (ignore think content)
+                                if current_type != 'think':
+                                    findings.append(delta['content'])
+                            
+                            # Handle annotations
+                            if 'annotations' in delta:
+                                annotations.extend(delta['annotations'])
+                    
+                    # Handle URLs from the final chunk
+                    if 'visitedURLs' in data:
+                        visited_urls.update(data['visitedURLs'])
+                    if 'readURLs' in data:
+                        read_urls.update(data['readURLs'])
                         
                 except json.JSONDecodeError as e:
-                    logger.error(f"Error decoding JSON response: {e}")
+                    logger.warning(f"Failed to decode streaming response line: {line_str}")
+                    continue
                 except Exception as e:
-                    logger.error(f"Error processing stream response: {e}")
+                    logger.warning(f"Error processing stream chunk: {str(e)}")
+                    continue
+            
+            # Combine all findings into a single string
+            combined_findings = ''.join(findings).strip()
+            if not combined_findings:
+                return {
+                    "error": "No content received in streaming response"
+                }
+            
+            return {
+                "findings": combined_findings,
+                "annotations": annotations,
+                "visited_urls": list(visited_urls),
+                "read_urls": list(read_urls),
+                "timestamp": timestamp
+            }
+            
+        except Exception as e:
+            error_msg = f"Error processing streaming response: {str(e)}"
+            logger.error(error_msg)
+            return {"error": error_msg}
+    
+    def _structure_research_content(self, content: str) -> str:
+        """
+        Structure research content using TOC generator.
+        
+        Args:
+            content: Raw research content
+            
+        Returns:
+            Structured research content with TOC
+        """
+        try:
+            toc_gen = TOCGenerator()
+            
+            # Extract sections from content
+            sections = {}
+            current_section = "Overview"
+            current_content = []
+            
+            for line in content.split('\n'):
+                if line.startswith('###'):
+                    # Save previous section
+                    if current_content:
+                        sections[current_section] = '\n'.join(current_content)
+                    # Start new section
+                    current_section = line.strip('# ')
+                    current_content = []
+                else:
+                    current_content.append(line)
+            
+            # Save last section
+            if current_content:
+                sections[current_section] = '\n'.join(current_content)
+            
+            # Generate TOC prompt and structure the report
+            toc = toc_gen.generate_toc_prompt("Research Findings", "Structure the research findings into a comprehensive report")
+            structured_content = toc_gen.structure_report_from_toc(toc, sections)
+            
+            return structured_content
+            
+        except Exception as e:
+            logger.error(f"Error structuring research content: {str(e)}")
+            return content
+    
+    def _format_research_content(
+        self,
+        content: str,
+        annotations: List[Dict[str, Any]],
+        visited_urls: List[str],
+        read_urls: List[str]
+    ) -> str:
+        """
+        Format research content with proper citations and structure.
+        
+        Args:
+            content: Raw research content
+            annotations: List of annotations with citations
+            visited_urls: List of all URLs visited
+            read_urls: List of URLs actually read
+            
+        Returns:
+            Formatted research content with citations and references
+        """
+        try:
+            # Create a mapping of URLs to citation numbers
+            url_citations = {}
+            citation_counter = 1
+            
+            # First process read URLs as they're more relevant
+            for url in read_urls:
+                if url not in url_citations:
+                    url_citations[url] = citation_counter
+                    citation_counter += 1
+            
+            # Then process visited URLs
+            for url in visited_urls:
+                if url not in url_citations:
+                    url_citations[url] = citation_counter
+                    citation_counter += 1
+            
+            # Format the content sections
+            sections = content.split('\n\n')
+            formatted_sections = []
+            
+            # Process each section
+            for section in sections:
+                if not section.strip():
+                    continue
+                    
+                # Format citations in the section
+                formatted_section = section
+                
+                # Replace URL citations with numbered citations
+                for annotation in annotations:
+                    if annotation.get('type') == 'url_citation':
+                        url_info = annotation.get('url_citation', {})
+                        url = url_info.get('url', '')
+                        if url in url_citations:
+                            citation_num = url_citations[url]
+                            # Replace the citation in the text
+                            formatted_section = formatted_section.replace(
+                                f"|^{url_info.get('id', '')}]",
+                                f"[{citation_num}]"
+                            )
+                
+                formatted_sections.append(formatted_section)
+            
+            # Join formatted sections
+            formatted_content = '\n\n'.join(formatted_sections)
+            
+            # Structure the content
+            formatted_content = self._structure_research_content(formatted_content)
+            
+            # Add references section
+            references = ["\n\n### References"]
+            for url, citation_num in sorted(url_citations.items(), key=lambda x: x[1]):
+                # Find annotation for this URL to get title and date
+                url_annotation = next(
+                    (a for a in annotations if a.get('type') == 'url_citation' 
+                     and a.get('url_citation', {}).get('url') == url),
+                    None
+                )
+                
+                if url_annotation:
+                    url_info = url_annotation.get('url_citation', {})
+                    title = url_info.get('title', url)
+                    date = url_info.get('dateTime', '').split()[0]  # Get just the date part
+                    references.append(f"{citation_num}. {title}. Retrieved on {date} from [{url}]({url})")
+                else:
+                    references.append(f"{citation_num}. Retrieved from [{url}]({url})")
+            
+            # Add references to the content
+            formatted_content += '\n'.join(references)
+            
+            return formatted_content
+            
+        except Exception as e:
+            logger.error(f"Error formatting research content: {str(e)}")
+            # Return original content if formatting fails
+            return content
     
     def forward(
         self,
@@ -279,7 +489,7 @@ class DeepResearchTool(Tool):
         context: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         thread_messages: Optional[List[Dict[str, str]]] = None,
-        stream: bool = True,
+        stream: bool = False,  # Default to non-streaming for first iteration
         reasoning_effort: str = "medium"
     ) -> Dict[str, Any]:
         """
@@ -290,13 +500,12 @@ class DeepResearchTool(Tool):
             context: Optional additional context
             attachments: Optional list of file attachments
             thread_messages: Optional list of previous messages
-            stream: Whether to stream the response
+            stream: Whether to stream the response (default False)
             reasoning_effort: Level of reasoning effort ("low", "medium", "high")
             
         Returns:
-            Research results including findings and sources
+            Research results including findings, citations, and sources
         """
-        import ipdb; ipdb.set_trace()
         # Ensure array parameters are always treated as arrays
         attachments = attachments if isinstance(attachments, list) else []
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
@@ -305,7 +514,6 @@ class DeepResearchTool(Tool):
             return {
                 "query": query,
                 "findings": "Research functionality is not available. JINA_API_KEY is required.",
-                "sources": [],
                 "error": "API key not configured"
             }
         
@@ -314,7 +522,6 @@ class DeepResearchTool(Tool):
             return {
                 "query": query,
                 "findings": "Deep research functionality is currently disabled. Enable it explicitly before use.",
-                "sources": [],
                 "error": "Deep research disabled"
             }
         
@@ -336,6 +543,12 @@ class DeepResearchTool(Tool):
                 "no_direct_answer": False
             }
             
+            # Log the complete request data
+            logger.info("Request data being sent to Jina AI:")
+            logger.info(f"URL: {self.api_url}")
+            logger.info(f"Headers: {json.dumps({k: v for k, v in self.headers.items() if k != 'Authorization'})}")
+            logger.info(f"Request Body: {json.dumps(data, indent=2)}")
+            
             logger.info(f"Sending research query to Jina AI: {query}")
             
             # Make API request
@@ -343,8 +556,11 @@ class DeepResearchTool(Tool):
                 self.api_url,
                 headers=self.headers,
                 data=json.dumps(data),
-                stream=stream
+                stream=stream,
+                timeout=600  # 10 minute timeout
             )
+            
+            logger.debug(f"Response status: {response.status_code}")
             
             if not response.ok:
                 error_msg = f"API request failed with status {response.status_code}"
@@ -352,51 +568,102 @@ class DeepResearchTool(Tool):
                 return {
                     "query": query,
                     "findings": f"An error occurred during research: {error_msg}",
-                    "sources": [],
                     "error": error_msg
                 }
             
-            if stream:
-                # Process streaming response
-                full_content = ""
-                all_annotations = []
-                visited_urls = set()
-                read_urls = set()
+            try:
+                if not stream:
+                    # Process non-streaming response
+                    response_data = response.json()
+                    logger.debug(f"Non-streaming response data: {json.dumps(response_data, indent=2)}")
+                    
+                    # Check for error in the response content
+                    if (response_data.get('choices') and 
+                        response_data['choices'][0].get('message', {}).get('type') == 'error'):
+                        error_msg = response_data['choices'][0]['message'].get('content', 'Unknown error from API')
+                        logger.error(f"API returned error in response: {error_msg}")
+                        return {
+                            "query": query,
+                            "findings": f"An error occurred during research: {error_msg}",
+                            "error": error_msg
+                        }
+                    
+                    if not response_data.get('choices') or not response_data['choices'][0].get('message'):
+                        error_msg = "Invalid response format from API"
+                        logger.error(error_msg)
+                        return {
+                            "query": query,
+                            "findings": f"An error occurred during research: {error_msg}",
+                            "error": error_msg
+                        }
+                    
+                    # Extract message content and annotations
+                    message = response_data['choices'][0]['message']
+                    content = message.get('content', '')
+                    annotations = message.get('annotations', [])
+                    
+                    # Format content with proper citations
+                    formatted_content = self._format_research_content(
+                        content=content,
+                        annotations=annotations,
+                        visited_urls=response_data.get('visitedURLs', []),
+                        read_urls=response_data.get('readURLs', [])
+                    )
+                    
+                    research_results = {
+                        "query": query,
+                        "findings": formatted_content,
+                        "annotations": annotations,
+                        "visited_urls": response_data.get('visitedURLs', []),
+                        "read_urls": response_data.get('readURLs', []),
+                        "timestamp": response.headers.get('date'),
+                        "usage": response_data.get('usage', {}),
+                        "num_urls": response_data.get('numURLs', len(response_data.get('visitedURLs', [])))
+                    }
+                else:
+                    # Process streaming response
+                    stream_results = self._process_stream_response(response)
+                    if "error" in stream_results:
+                        return {
+                            "query": query,
+                            "findings": f"An error occurred during research: {stream_results['error']}",
+                            "error": stream_results['error']
+                        }
+                    research_results = {
+                        "query": query,
+                        "findings": stream_results["findings"],
+                        "annotations": stream_results.get("annotations", []),
+                        "visited_urls": stream_results.get("visited_urls", []),
+                        "read_urls": stream_results.get("read_urls", []),
+                        "timestamp": stream_results.get("timestamp") or response.headers.get('date')
+                    }
                 
-                for chunk in self._process_stream_response(response):
-                    full_content = chunk['content']  # Always contains full content
-                    all_annotations.extend(chunk.get('annotations', []))
-                    visited_urls.update(chunk.get('visited_urls', []))
-                    read_urls.update(chunk.get('read_urls', []))
+                # Validate research results
+                if not research_results.get("findings") or research_results["findings"].startswith("Error:"):
+                    error_msg = research_results["findings"] if research_results.get("findings") else "No research findings returned"
+                    logger.error(f"Invalid research results: {error_msg}")
+                    return {
+                        "query": query,
+                        "findings": f"An error occurred during research: {error_msg}",
+                        "error": error_msg
+                    }
                 
-                research_results = {
+                logger.info(f"Research complete for query: {query}")
+                return research_results
+                
+            except Exception as e:
+                error_msg = f"Error processing research results: {str(e)}"
+                logger.error(error_msg)
+                return {
                     "query": query,
-                    "findings": full_content,
-                    "annotations": all_annotations,
-                    "visited_urls": list(visited_urls),
-                    "read_urls": list(read_urls),
-                    "timestamp": response.headers.get('date')
+                    "findings": f"An error occurred during research: {error_msg}",
+                    "error": error_msg
                 }
-            else:
-                # Process non-streaming response
-                response_data = response.json()
-                research_results = {
-                    "query": query,
-                    "findings": response_data['choices'][0]['message']['content'],
-                    "annotations": response_data['choices'][0]['message'].get('annotations', []),
-                    "visited_urls": response_data.get('visitedURLs', []),
-                    "read_urls": response_data.get('readURLs', []),
-                    "timestamp": response.headers.get('date')
-                }
-            
-            logger.info(f"Research complete for query: {query}")
-            return research_results
             
         except Exception as e:
             logger.error(f"Error performing research: {str(e)}")
             return {
                 "query": query,
                 "findings": f"An error occurred during research: {str(e)}",
-                "sources": [],
                 "error": str(e)
             }

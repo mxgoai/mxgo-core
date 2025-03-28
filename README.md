@@ -43,37 +43,52 @@ mxtoai/
 
 ```mermaid
 graph TD
-    A[Incoming Email] --> B[EmailAgent]
-    B --> C{Process Mode}
+    A[Incoming Email] --> B[Email Routing]
+    B --> C{Determine Mode}
     
-    C -->|Summary/Full| D[Generate Summary]
-    C -->|Reply/Full| E[Generate Reply]
-    C -->|Research/Full| F[Conduct Research]
+    C -->|summarize@| D[Summary Mode]
+    C -->|reply@| E[Reply Mode]
+    C -->|research@| F[Research Mode]
+    C -->|ask@| G[Full Mode]
     
-    B --> G[Process Attachments]
-    G --> H{Attachment Type}
-    H -->|Images| I[Azure Vision Analysis]
-    H -->|Documents| J[Document Processing]
-    H -->|Other| K[Metadata Extraction]
+    %% Attachment Processing
+    A --> H[Attachment Detection]
+    H --> I{File Type}
+    I -->|Images| J[Azure Vision Analysis]
+    I -->|Documents| K[Document Processing]
+    I -->|Other| L[Metadata Extraction]
     
-    I --> L[Generate Captions]
-    J --> M[Extract Content]
-    K --> N[Basic Info]
+    J --> M[Generate Captions]
+    K --> N[Extract Content]
+    L --> O[Basic Info]
     
-    L --> O[Attachment Summary]
-    M --> O
-    N --> O
+    M & N & O --> P[Attachment Summary]
     
-    D --> P[Format Response]
-    E --> P
-    F --> P
-    O --> P
+    %% Mode Processing
+    D & E & F & G --> Q[Process Request]
+    P --> Q
     
-    P --> Q[Generate HTML Version]
-    P --> R[Generate Text Version]
+    Q --> R[Format Response]
+    R --> S[Generate HTML]
+    R --> T[Generate Text]
     
-    Q --> S[Final Response]
-    R --> S
+    %% Error Handling
+    Q --> U{Errors?}
+    U -->|Yes| V[Fallback Response]
+    U -->|No| R
+    
+    %% Final Response
+    S & T --> W[Final Response]
+    V --> W
+    
+    %% Styling
+    classDef email fill:#f9f,stroke:#333,stroke-width:2px
+    classDef process fill:#bbf,stroke:#333,stroke-width:2px
+    classDef error fill:#fbb,stroke:#333,stroke-width:2px
+    
+    class A,B email
+    class D,E,F,G,Q,R process
+    class U,V error
 ```
 
 ## Setup and Installation

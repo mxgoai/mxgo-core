@@ -75,6 +75,49 @@ class ReportFormatter:
                 padding-left: 1em;
                 color: #666666;
             }
+            /* Citation and reference styles */
+            .citation {
+                font-size: 0.8em;
+                vertical-align: super;
+                color: #666666;
+            }
+            .citation a {
+                color: #666666;
+                text-decoration: none;
+            }
+            .citation a:hover {
+                text-decoration: underline;
+            }
+            .references {
+                margin-top: 2em;
+                padding-top: 1em;
+                border-top: 1px solid #e0e0e0;
+            }
+            .reference {
+                margin: 0.5em 0;
+                padding: 0.5em;
+                background-color: #f8f9fa;
+                border-left: 3px solid #e0e0e0;
+                font-size: 0.9em;
+            }
+            .reference-number {
+                color: #666666;
+                font-weight: bold;
+                margin-right: 0.5em;
+            }
+            .toc {
+                background-color: #f8f9fa;
+                padding: 1em;
+                margin: 1em 0;
+                border-radius: 5px;
+            }
+            .toc ul {
+                list-style-type: none;
+                padding-left: 1em;
+            }
+            .toc li {
+                margin: 0.5em 0;
+            }
         """
         
         self.signature_block = """
@@ -101,6 +144,10 @@ _Feel free to reply to this email to continue our conversation._
         # Remove any existing signatures
         content = self._remove_existing_signatures(content)
         
+        # Process citations and references before converting format
+        if format_type == "html":
+            content = self._process_citations(content)
+        
         # Add signature if requested
         if include_signature:
             content = content.rstrip() + self.signature_block
@@ -110,6 +157,61 @@ _Feel free to reply to this email to continue our conversation._
         elif format_type == "html":
             return self._to_html(content)
         else:  # markdown (default)
+            return content
+    
+    def _process_citations(self, content: str) -> str:
+        """Process citations and references in the content."""
+        try:
+            # Find all references sections
+            reference_sections = list(re.finditer(r'(?:###\s*References|\n## References)(.*?)(?=###|\Z|\n## )', content, re.DOTALL))
+            
+            if not reference_sections:
+                return content
+                
+            # Get the last references section (usually the most complete one)
+            references_match = reference_sections[-1]
+            references_section = references_match.group(1).strip()
+            
+            # Create a mapping of reference numbers to their full citations
+            ref_map = {}
+            for ref in re.finditer(r'(?:^|\n)(?:\[)?(\d+)(?:\])?\.\s*(.*?)(?=(?:\n(?:\[)?\d+(?:\])?\.|$))', references_section, re.DOTALL):
+                ref_num = ref.group(1)
+                ref_text = ref.group(2).strip()
+                ref_map[ref_num] = ref_text
+            
+            # Replace citations in the main text with HTML formatted versions
+            def replace_citation(match):
+                num = match.group(1)
+                if num in ref_map:
+                    return f'<sup class="citation">[<a href="#ref-{num}" title="{ref_map[num]}">{num}</a>]</sup>'
+                return match.group(0)
+            
+            # Replace citations in the content
+            content = re.sub(r'\[(\d+)\]', replace_citation, content)
+            
+            # Format the references section
+            formatted_refs = ['<div class="references">', '<h2>References</h2>']
+            for num, text in sorted(ref_map.items(), key=lambda x: int(x[0])):
+                formatted_refs.append(
+                    f'<div class="reference" id="ref-{num}">'
+                    f'<span class="reference-number">[{num}]</span> {text}'
+                    '</div>'
+                )
+            formatted_refs.append('</div>')
+            
+            # Remove all existing references sections
+            for section in reversed(reference_sections):
+                content = content[:section.start()] + content[section.end():]
+            
+            # Add the formatted references section at the end
+            content = content.strip() + '\n\n' + '\n'.join(formatted_refs)
+            
+            return content
+            
+        except Exception as e:
+            # Log error but don't break formatting
+            import logging
+            logging.error(f"Error processing citations: {str(e)}")
             return content
     
     def _remove_existing_signatures(self, content: str) -> str:
@@ -128,7 +230,7 @@ _Feel free to reply to this email to continue our conversation._
     
     def _to_plain_text(self, markdown: str) -> str:
         """
-        Convert markdown to plain text.
+        Convert markdown to plain text while preserving citations.
         
         Args:
             markdown: Markdown content
@@ -136,15 +238,15 @@ _Feel free to reply to this email to continue our conversation._
         Returns:
             Plain text version
         """
-        # Remove heading markers
-        text = re.sub(r"#+\s+", "", markdown)
+        # Remove heading markers but preserve citations
+        text = re.sub(r"#+\s+(?!References)", "", markdown)  # Don't remove "References" header
         # Remove bold markers
         text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
         text = re.sub(r"__(.*?)__", r"\1", text)
         # Remove italic markers (both * and _)
         text = re.sub(r"(?<!\\)\*((?:[^*]|\\[*])+?)(?<!\\)\*", r"\1", text)
         text = re.sub(r"(?<!\\)_((?:[^_]|\\_)+?)(?<!\\)_", r"\1", text)
-        # Remove link formatting
+        # Remove link formatting but preserve URLs in references
         text = re.sub(r"\[(.*?)\]\((.*?)\)", r"\1 (\2)", text)
         # Remove code blocks
         text = re.sub(r"```.*?\n(.*?)```", r"\1", text, flags=re.DOTALL)
@@ -154,7 +256,7 @@ _Feel free to reply to this email to continue our conversation._
     
     def _to_html(self, markdown: str) -> str:
         """
-        Convert markdown to HTML.
+        Convert markdown to HTML while preserving citations and references.
         
         Args:
             markdown: Markdown content
@@ -164,7 +266,12 @@ _Feel free to reply to this email to continue our conversation._
         """
         try:
             import markdown
-            html_content = markdown.markdown(markdown, extensions=['tables', 'fenced_code', 'nl2br'])
+            # Convert markdown to HTML
+            html_content = markdown.markdown(
+                markdown,
+                extensions=['tables', 'fenced_code', 'nl2br', 'toc']
+            )
+            
             return f"""
                 <html>
                 <head>
