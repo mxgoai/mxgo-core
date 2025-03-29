@@ -228,114 +228,82 @@ class EmailAgent:
                     f"  EXACT FILE PATH: {quoted_path}"
                 )
 
-        # Build list of steps
+        # Use handle-specific template if provided
+        if email_instructions.task_template:
+            task = f"""Process this email according to the '{email_instructions.handle}' instruction type.
+
+Email Content:
+Subject: {email_data.get('subject', '')}
+From: {email_data.get('sender', 'Unknown')}
+Body: {email_data.get('body', '')}
+
+{f'''Available Attachments:
+{chr(10).join(attachment_details)}''' if attachment_details else 'No attachments provided.'}
+
+{email_instructions.task_template}
+
+{email_instructions.specific_research_instructions or ''}
+
+CRITICAL FORMATTING REQUIREMENTS:
+1. ALWAYS use proper markdown syntax - this will be converted to HTML
+2. Ensure proper spacing between paragraphs (use blank lines)
+3. Use appropriate list formatting (- for bullets, 1. for numbered)
+4. Format emphasis correctly (**bold**, _italic_)
+5. Use proper heading levels (###) where specified
+6. Remove any unnecessary sections or headers
+7. Keep the response focused and relevant
+8. DO NOT add any signature - it will be added automatically
+"""
+            return task
+
+        # Default task creation (fallback)
         steps = []
         
         # Add attachment processing step if needed
         if email_instructions.process_attachments and attachment_details:
-            steps.append(f'''Attachment Processing:
-Process these attachments carefully. For images, use the azure_visualizer tool. For other files, use the attachment_processor tool. IMPORTANT: Use these EXACT file paths when processing (including the quotes):
-
-{chr(10).join(attachment_details)}
-
-IMPORTANT ATTACHMENT GUIDELINES:
-- If an attachment fails to process, acknowledge it briefly but continue with the rest of the task
-- Focus on successfully processed attachments and provide value from what you can understand
-- Never include error messages or technical details in the final response to the user''')
+            steps.append(f'''Process these attachments:
+{chr(10).join(attachment_details)}''')
 
         # Add email content processing step
         steps.append(f'''Process Email Content:
-{email_instructions.specific_research_instructions or "Process the email content according to the user's request"}''')
+{email_instructions.specific_research_instructions or "Process the email content according to the user's request"}
 
-        # Add deep research step if required
-        if email_instructions.deep_research_mandatory:
-            steps.append(f'''Deep Research:
-- Use the deep_research tool for comprehensive research on the topic
-- The tool will return structured research findings with:
-  * Table of Contents
-  * Executive Summary
-  * Detailed sections with citations
-  * References section
-- IMPORTANT: Preserve this structure in your final response:
-  * Keep all section headers (###)
-  * Maintain all citations [1], [2], etc.
-  * Include the complete References section
-  * Keep all tables and formatted content
-- Do not summarize or simplify the research findings
-- Include the complete research output in your response
-- Add your own insights and analysis after the research content
-
-{email_instructions.specific_research_instructions}''')
+Use proper markdown formatting:
+- **bold** for emphasis
+- _italics_ for quotes
+- ### for section headers (if needed)
+- Proper bullet points and numbered lists
+- Clear paragraph spacing''')
 
         # Add response generation step
-        response_step = '''Generate Response:
-- Write a friendly, professional response that directly addresses the user's needs
-- Start with a warm greeting (e.g., "Hello [Name]," or "Hi [Name],")'''
+        steps.append('''Generate Response:
+- Write in proper markdown format
+- Include only relevant information
+- Maintain appropriate tone and style
+- Use proper spacing and formatting
+- DO NOT add any signature - it will be added automatically''')
 
-        # Add summary instruction if needed
-        if email_instructions.add_summary:
-            response_step += '''
-- Start with a brief summary of the key points
-- Then provide the detailed response'''
-
-        # Update response step and handle research content
-        response_step += '''
-- Address all key points from the email
-- For research queries:
-  * Include the complete research findings with all sections and citations
-  * Add your own analysis and insights after the research content
-  * Maintain all formatting, tables, and references
-- For other queries:
-  * Include relevant insights from attachments if available
-  * Use clear, concise language
-- Maintain a helpful and positive tone throughout
-- DO NOT include a signature - it will be added automatically'''
-
-        steps.append(response_step)
-
-        # Use custom task template if provided, otherwise use default
-        if email_instructions.task_template:
-            task = email_instructions.task_template
-        else:
-            # Create numbered steps
-            numbered_steps = []
-            for i, step in enumerate(steps, 1):
-                numbered_steps.append(f"Step {i} - {step}")
-            
-            task = f"""Process this email according to the '{email_instructions.handle}' instruction type. You are MXtoAI Assistant, a friendly and knowledgeable AI that helps users with their inquiries.
-
-{chr(10).join(numbered_steps)}
-
-CONTENT FORMATTING GUIDELINES:
-- Use markdown for rich text formatting:
-  * Use ### for section headers
-  * Use **bold** for emphasis and important terms
-  * Use _italics_ for subtle emphasis
-  * Use proper bullet points and numbered lists
-  * Use [text](url) format for links
-  * Use > for quotations
-- Use proper paragraphs with blank lines between them
-- Format lists and technical content appropriately
-- DO NOT add any signature or closing - it will be handled automatically
+        # Create numbered steps
+        numbered_steps = []
+        for i, step in enumerate(steps, 1):
+            numbered_steps.append(f"Step {i}:\n{step}")
+        
+        task = f"""Process this email according to the '{email_instructions.handle}' instruction type.
 
 Email Details:
 - Subject: {email_data.get('subject', '')}
 - From: {email_data.get('sender', 'Unknown')}
-- Date: {email_data.get('date', 'Unknown')}
+- Body: {email_data.get('body', '')}
 
-Email Content:
-{email_data.get('body', '')}
+{chr(10).join(numbered_steps)}
 
-Handle-Specific Instructions:
-{email_instructions.specific_research_instructions or "No specific instructions provided"}
-
-Remember:
-- Focus on providing value even if some processing steps fail
-- Maintain a professional, helpful tone throughout
-- Never expose technical errors or processing issues to the user
-- Always provide a complete, well-formatted response
-- DO NOT add any signature or closing - it will be added automatically
-"""
+CRITICAL FORMATTING REQUIREMENTS:
+1. ALWAYS use proper markdown syntax - this will be converted to HTML
+2. Ensure proper spacing between paragraphs (use blank lines)
+3. Use appropriate list formatting (- for bullets, 1. for numbered)
+4. Format emphasis correctly (**bold**, _italic_)
+5. Keep the response focused and relevant
+6. DO NOT add any signature - it will be added automatically"""
 
         return task
     

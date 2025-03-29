@@ -264,72 +264,88 @@ _Feel free to reply to this email to continue our conversation._
         Returns:
             HTML version
         """
-        def convert_lists(html_content):
-            """Convert markdown lists to HTML with proper nesting."""
-            lines = html_content.split('\n')
-            result = []
-            list_stack = []  # Stack to track nested lists
-            
-            for line in lines:
-                # Count leading spaces to determine indentation level
-                indent = len(re.match(r'^\s*', line).group())
-                line = line.strip()
-                
-                # Check if line is a list item
-                ordered_match = re.match(r'^\d+\.\s+(.+)$', line)
-                unordered_match = re.match(r'^[-*]\s+(.+)$', line)
-                
-                if ordered_match or unordered_match:
-                    # Get the list item content
-                    content = ordered_match.group(1) if ordered_match else unordered_match.group(1)
-                    is_ordered = bool(ordered_match)
-                    
-                    # Close lists that are too deep
-                    while list_stack and list_stack[-1]['indent'] > indent:
-                        list_type = 'ol' if list_stack[-1]['ordered'] else 'ul'
-                        result.append(' ' * list_stack[-1]['indent'] + f'</{list_type}>')
-                        list_stack.pop()
-                    
-                    # Start new list if needed
-                    if not list_stack or indent > list_stack[-1]['indent']:
-                        list_type = 'ol' if is_ordered else 'ul'
-                        result.append(' ' * indent + f'<{list_type}>')
-                        list_stack.append({'indent': indent, 'ordered': is_ordered})
-                    
-                    # Add list item
-                    result.append(' ' * indent + f'<li>{content}</li>')
-                else:
-                    # Close all open lists when encountering non-list content
-                    while list_stack:
-                        list_type = 'ol' if list_stack[-1]['ordered'] else 'ul'
-                        result.append(' ' * list_stack[-1]['indent'] + f'</{list_type}>')
-                        list_stack.pop()
-                    result.append(line)
-            
-            # Close any remaining open lists
-            while list_stack:
-                list_type = 'ol' if list_stack[-1]['ordered'] else 'ul'
-                result.append(' ' * list_stack[-1]['indent'] + f'</{list_type}>')
-                list_stack.pop()
-            
-            return '\n'.join(result)
-
         try:
             import markdown as md_converter
-            # Convert markdown to HTML
-            html_content = md_converter.markdown(
-                markdown_content,
-                extensions=['tables', 'fenced_code', 'nl2br', 'toc']
-            )
+            from markdown.extensions.tables import TableExtension
+            from markdown.extensions.fenced_code import FencedCodeExtension
+            from markdown.extensions.sane_lists import SaneListExtension
+            from markdown.extensions.nl2br import Nl2BrExtension
+            from markdown.extensions.toc import TocExtension
+            from markdown.extensions.attr_list import AttrListExtension
+
+            # Configure extensions with specific settings
+            extensions = [
+                TableExtension(),  # Support for tables
+                FencedCodeExtension(),  # Support for fenced code blocks
+                SaneListExtension(),  # Better list handling
+                Nl2BrExtension(),  # Convert newlines to line breaks
+                TocExtension(permalink=False),  # Table of contents support without permalinks
+                AttrListExtension(),  # Support for attributes
+            ]
             
-            # Apply list conversion
-            html = convert_lists(html_content)
+            # Convert markdown to HTML with configured extensions
+            html = md_converter.markdown(
+                markdown_content,
+                extensions=extensions
+            )
             
             return f"""
                 <html>
                 <head>
                 <style>
                 {self.html_style}
+                /* Additional styles for tables */
+                table {{
+                    border-collapse: collapse;
+                    width: 100%;
+                    margin: 1em 0;
+                }}
+                th, td {{
+                    border: 1px solid #ddd;
+                    padding: 8px;
+                    text-align: left;
+                }}
+                th {{
+                    background-color: #f5f5f5;
+                }}
+                tr:nth-child(even) {{
+                    background-color: #f9f9f9;
+                }}
+                /* Enhanced list styling */
+                ol {{
+                    counter-reset: item;
+                    list-style-type: decimal;
+                }}
+                ul {{
+                    list-style-type: disc;
+                }}
+                ol ol {{
+                    list-style-type: lower-alpha;
+                }}
+                ul ul {{
+                    list-style-type: circle;
+                }}
+                ol ul {{
+                    list-style-type: circle;
+                }}
+                ul ol {{
+                    list-style-type: lower-alpha;
+                }}
+                /* Ensure proper list indentation */
+                ol, ul {{
+                    padding-left: 2em;
+                    margin-bottom: 1em;
+                }}
+                ol ol, ul ul, ol ul, ul ol {{
+                    margin-left: 1em;
+                    margin-bottom: 0;
+                }}
+                li {{
+                    margin-bottom: 0.5em;
+                }}
+                li li {{
+                    margin-bottom: 0.25em;
+                }}
                 </style>
                 </head>
                 <body>
@@ -338,45 +354,8 @@ _Feel free to reply to this email to continue our conversation._
                 </html>
             """
         except ImportError:
-            # Fallback if markdown package is not available
-            html = markdown_content
-            
-            # Convert headings (improved to handle multiple lines)
-            for i in range(6, 0, -1):
-                pattern = r"^#{" + str(i) + r"}\s+(.+)$"
-                repl = f"<h{i}>\g<1></h{i}>"
-                html = re.sub(pattern, repl, html, flags=re.MULTILINE)
-            
-            # Convert lists using the same improved handler
-            html = convert_lists(html)
-            
-            # Convert bold
-            html = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", html)
-            # Convert italic (both * and _ styles)
-            html = re.sub(r"(?<!\\)_([^_]+?)(?<!\\)_", r"<em>\1</em>", html)
-            html = re.sub(r"(?<!\\)\*([^\*]+?)(?<!\\)\*", r"<em>\1</em>", html)
-            # Convert links
-            html = re.sub(r"\[(.*?)\]\((.*?)\)", r'<a href="\2">\1</a>', html)
-            # Convert code blocks
-            html = re.sub(r"```.*?\n(.*?)```", r"<pre><code>\1</code></pre>", html, flags=re.DOTALL)
-            # Convert horizontal rules
-            html = re.sub(r"^---+$", r"<hr/>", html, flags=re.MULTILINE)
-            # Convert paragraphs (improved)
-            html = re.sub(r"\n\n+", "\n</p>\n<p>", html)
-            html = f"<p>{html}</p>"
-            
-            return f"""
-                <html>
-                <head>
-                <style>
-                {self.html_style}
-                </style>
-                </head>
-                <body>
-                {html}
-                </body>
-                </html>
-            """
+            logger.error("Markdown package not available - this should never happen as it's a required dependency")
+            raise  # We should always have markdown package available
     
     def add_email_header_footer(self, content: str, metadata: Dict[str, Any] = None) -> str:
         """
