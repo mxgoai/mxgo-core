@@ -12,6 +12,7 @@ class EmailHandleInstructions(BaseModel):
     requires_language_detection: bool = False  # Specifically for translate handle
     requires_schedule_extraction: bool = False  # Specifically for schedule handle
     add_summary: bool = True  # Whether to add a summary section in the response
+    target_model: Optional[str] = "gpt-4"  # Default to gpt-4, can be overridden per handle
 
 # Define all email handle configurations
 EMAIL_HANDLES = [
@@ -21,7 +22,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions=None,
-        add_summary=True
+        add_summary=True,
+        target_model="gpt-4"  # Standard GPT-4 for summarization
     ),
     EmailHandleInstructions(
         handle="simplify",
@@ -29,7 +31,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions=None,
-        add_summary=False  # Direct simplified explanation without summary
+        add_summary=False,  # Direct simplified explanation without summary
+        target_model="gpt-4"  # Standard GPT-4 for simplification
     ),
     EmailHandleInstructions(
         handle="ask",
@@ -37,7 +40,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions=None,
-        add_summary=True
+        add_summary=True,
+        target_model="gpt-4"  # Standard GPT-4 for general assistance
     ),
     EmailHandleInstructions(
         handle="research",
@@ -45,7 +49,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=True,
         specific_research_instructions="Conduct comprehensive research on the email content using all available sources. Return a detailed report with all findings and citations.",
-        add_summary=True
+        add_summary=True,
+        target_model="gpt-4-reasoning"  # Use reasoning model for deep research
     ),
     EmailHandleInstructions(
         handle="fact-check",
@@ -53,7 +58,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=True,
         specific_research_instructions="Validate all facts claimed in the email and provide citations from reliable sources",
-        add_summary=False  # Direct fact-checking without summary
+        add_summary=False,  # Direct fact-checking without summary
+        target_model="gpt-4-reasoning"  # Use reasoning model for fact checking
     ),
     EmailHandleInstructions(
         handle="background-research",
@@ -61,7 +67,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=True,
         specific_research_instructions="Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.",
-        add_summary=True
+        add_summary=True,
+        target_model="gpt-4-reasoning"  # Use reasoning model for background research
     ),
     EmailHandleInstructions(
         handle="translate",
@@ -69,7 +76,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions="Detect language if not specified. If non-English, translate to English. If English, look for requested target language or ask user.",
-        add_summary=False  # Direct translation without summary
+        add_summary=False,  # Direct translation without summary
+        target_model="gpt-4"  # Standard GPT-4 for translation
     ),
     EmailHandleInstructions(
         handle="schedule",
@@ -77,7 +85,8 @@ EMAIL_HANDLES = [
         process_attachments=True,
         deep_research_mandatory=False,
         specific_research_instructions="Extract meeting/scheduling related information including participants, timing, and location details to provide scheduling recommendations",
-        add_summary=True
+        add_summary=True,
+        target_model="gpt-4"  # Standard GPT-4 for scheduling
     )
 ]
 

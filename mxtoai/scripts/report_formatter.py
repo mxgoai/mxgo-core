@@ -254,23 +254,76 @@ _Feel free to reply to this email to continue our conversation._
         text = re.sub(r"---+", "-" * 40, text)
         return text
     
-    def _to_html(self, markdown: str) -> str:
+    def _to_html(self, markdown_content: str) -> str:
         """
         Convert markdown to HTML while preserving citations and references.
         
         Args:
-            markdown: Markdown content
+            markdown_content: Markdown content
             
         Returns:
             HTML version
         """
+        def convert_lists(html_content):
+            """Convert markdown lists to HTML with proper nesting."""
+            lines = html_content.split('\n')
+            result = []
+            list_stack = []  # Stack to track nested lists
+            
+            for line in lines:
+                # Count leading spaces to determine indentation level
+                indent = len(re.match(r'^\s*', line).group())
+                line = line.strip()
+                
+                # Check if line is a list item
+                ordered_match = re.match(r'^\d+\.\s+(.+)$', line)
+                unordered_match = re.match(r'^[-*]\s+(.+)$', line)
+                
+                if ordered_match or unordered_match:
+                    # Get the list item content
+                    content = ordered_match.group(1) if ordered_match else unordered_match.group(1)
+                    is_ordered = bool(ordered_match)
+                    
+                    # Close lists that are too deep
+                    while list_stack and list_stack[-1]['indent'] > indent:
+                        list_type = 'ol' if list_stack[-1]['ordered'] else 'ul'
+                        result.append(' ' * list_stack[-1]['indent'] + f'</{list_type}>')
+                        list_stack.pop()
+                    
+                    # Start new list if needed
+                    if not list_stack or indent > list_stack[-1]['indent']:
+                        list_type = 'ol' if is_ordered else 'ul'
+                        result.append(' ' * indent + f'<{list_type}>')
+                        list_stack.append({'indent': indent, 'ordered': is_ordered})
+                    
+                    # Add list item
+                    result.append(' ' * indent + f'<li>{content}</li>')
+                else:
+                    # Close all open lists when encountering non-list content
+                    while list_stack:
+                        list_type = 'ol' if list_stack[-1]['ordered'] else 'ul'
+                        result.append(' ' * list_stack[-1]['indent'] + f'</{list_type}>')
+                        list_stack.pop()
+                    result.append(line)
+            
+            # Close any remaining open lists
+            while list_stack:
+                list_type = 'ol' if list_stack[-1]['ordered'] else 'ul'
+                result.append(' ' * list_stack[-1]['indent'] + f'</{list_type}>')
+                list_stack.pop()
+            
+            return '\n'.join(result)
+
         try:
-            import markdown
+            import markdown as md_converter
             # Convert markdown to HTML
-            html_content = markdown.markdown(
-                markdown,
+            html_content = md_converter.markdown(
+                markdown_content,
                 extensions=['tables', 'fenced_code', 'nl2br', 'toc']
             )
+            
+            # Apply list conversion
+            html = convert_lists(html_content)
             
             return f"""
                 <html>
@@ -280,13 +333,13 @@ _Feel free to reply to this email to continue our conversation._
                 </style>
                 </head>
                 <body>
-                {html_content}
+                {html}
                 </body>
                 </html>
             """
         except ImportError:
             # Fallback if markdown package is not available
-            html = markdown
+            html = markdown_content
             
             # Convert headings (improved to handle multiple lines)
             for i in range(6, 0, -1):
@@ -294,10 +347,8 @@ _Feel free to reply to this email to continue our conversation._
                 repl = f"<h{i}>\g<1></h{i}>"
                 html = re.sub(pattern, repl, html, flags=re.MULTILINE)
             
-            # Convert lists
-            html = re.sub(r"^\d+\.\s+(.+)$", r"<li>\1</li>", html, flags=re.MULTILINE)
-            html = re.sub(r"^-\s+(.+)$", r"<li>\1</li>", html, flags=re.MULTILINE)
-            html = re.sub(r"(<li>.*?</li>\n)+", r"<ul>\g<0></ul>", html, flags=re.DOTALL)
+            # Convert lists using the same improved handler
+            html = convert_lists(html)
             
             # Convert bold
             html = re.sub(r"\*\*(.*?)\*\*", r"<strong>\1</strong>", html)

@@ -15,6 +15,7 @@ from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.scripts.report_formatter import ReportFormatter
+from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 
 # Load environment variables
 load_dotenv(override=True)
@@ -87,29 +88,12 @@ class EmailAgent:
     
     def _init_agent(self):
         """Initialize the ToolCallingAgent with Azure OpenAI."""
-        # Check for required model configuration
-        if not all([
-            os.getenv("MODEL_ENDPOINT"),
-            os.getenv("MODEL_API_KEY")
-        ]):
-            raise ValueError(
-                "Missing model configuration. Please provide all required parameters in .env: "
-                "MODEL_ENDPOINT, MODEL_API_KEY"
-            )
-
-        # Initialize the model
-        model = AzureOpenAIServerModel(
-            model_id=os.getenv("MODEL_NAME", "gpt-4o-2"),
-            azure_endpoint=os.getenv("MODEL_ENDPOINT"),
-            api_key=os.getenv("MODEL_API_KEY"),
-            api_version=os.getenv("MODEL_API_VERSION", "2025-01-01-preview"),
-            custom_role_conversions=custom_role_conversions,
-            max_completion_tokens=8192
-        )
+        # Initialize the model with routing capabilities
+        self.routed_model = RoutedLiteLLMModel()  # Store as instance variable to update handle later
 
         # Initialize the agent
         self.agent = ToolCallingAgent(
-            model=model,
+            model=self.routed_model,
             tools=self.available_tools,
             max_steps=12,
             verbosity_level=2,
@@ -119,7 +103,7 @@ class EmailAgent:
             provide_run_summary=True
         )
         
-        logger.debug(f"Agent initialized with model: {os.getenv('MODEL_NAME', 'gpt-4o-2')}")
+        logger.debug(f"Agent initialized with routed model configuration")
     
     def _get_required_actions(self, mode: str) -> List[str]:
         """Get list of required actions based on mode."""
@@ -666,6 +650,9 @@ Remember:
             Dictionary with processing results including any error information
         """
         try:
+            # Update the model's current handle
+            self.routed_model.current_handle = email_instructions
+            
             # Process attachments first if required
             if email_instructions.process_attachments and email_data.get("attachments"):
                 try:

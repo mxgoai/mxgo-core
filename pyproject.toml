@@ -26,7 +26,8 @@ dependencies = [
     "speechrecognition (>=3.14.2,<4.0.0)",
     "youtube-transcript-api (>=1.0.2,<2.0.0)",
     "ipdb (>=0.13.13,<0.14.0)",
-    "openpyxl (>=3.1.5,<4.0.0)"
+    "openpyxl (>=3.1.5,<4.0.0)",
+    "markdown (>=3.7,<4.0)"
 ]
 
 
