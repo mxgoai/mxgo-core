@@ -2,7 +2,6 @@ import random
 import time
 import json
 from typing import Dict, Any, Generator
-import lorem
 import faker
 
 fake = faker.Faker()
@@ -69,7 +68,7 @@ class MockJinaService:
             
             # Generate 2-3 paragraphs for each section
             for _ in range(random.randint(2, 3)):
-                paragraph = lorem.paragraph()
+                paragraph = fake.paragraph()
                 
                 # Add 1-2 random citations to each paragraph
                 for _ in range(random.randint(1, 2)):
