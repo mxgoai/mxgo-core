@@ -9,6 +9,7 @@ from typing import Dict, List, Any, Optional, Generator
 from smolagents import Tool
 
 from mxtoai.scripts.toc_generator import TOCGenerator
+from mxtoai.tools.mock_jina_service import MockJinaService
 
 # Configure logger with more detailed format
 logging.basicConfig(
@@ -28,13 +29,22 @@ class DeepResearchTool(Tool):
     # Define output type for the tool
     output_type = "object"  # Returns a dictionary with research findings and sources
     
-    def __init__(self):
-        """Initialize the deep research tool."""
+    def __init__(self, use_mock_service: bool = False):
+        """
+        Initialize the deep research tool.
+        
+        Args:
+            use_mock_service: Whether to use the mock service for load testing
+        """
         # Log tool initialization
         logger.debug("Initializing DeepResearchTool")
         
         # Flag to enable URL encoding of messages
         self.should_encode_messages = True
+        
+        # Flag for using mock service
+        self.use_mock_service = use_mock_service
+        self.mock_service = MockJinaService() if use_mock_service else None
         
         # Define input schema before super().__init__() to ensure proper validation
         self.inputs = {
@@ -489,7 +499,7 @@ class DeepResearchTool(Tool):
         context: Optional[str] = None,
         attachments: Optional[List[Dict[str, Any]]] = None,
         thread_messages: Optional[List[Dict[str, str]]] = None,
-        stream: bool = False,  # Default to non-streaming for first iteration
+        stream: bool = False,
         reasoning_effort: str = "medium"
     ) -> Dict[str, Any]:
         """
@@ -510,7 +520,7 @@ class DeepResearchTool(Tool):
         attachments = attachments if isinstance(attachments, list) else []
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
         
-        if not self.api_key:
+        if not self.api_key and not self.use_mock_service:
             return {
                 "query": query,
                 "findings": "Research functionality is not available. JINA_API_KEY is required.",
@@ -526,6 +536,51 @@ class DeepResearchTool(Tool):
             }
         
         try:
+            if self.use_mock_service:
+                logger.info("Using mock Jina service for load testing")
+                response_data = self.mock_service.process_request(
+                    query=query,
+                    stream=stream,
+                    reasoning_effort=reasoning_effort
+                )
+                
+                if stream:
+                    # Process streaming response from mock service
+                    stream_results = self._process_stream_response(response_data)
+                    if "error" in stream_results:
+                        return {
+                            "query": query,
+                            "findings": f"An error occurred during research: {stream_results['error']}",
+                            "error": stream_results['error']
+                        }
+                    return {
+                        "query": query,
+                        **stream_results
+                    }
+                else:
+                    # Process non-streaming response from mock service
+                    content = response_data["choices"][0]["message"]["content"]
+                    annotations = response_data["choices"][0]["message"]["annotations"]
+                    
+                    # Format content with proper citations
+                    formatted_content = self._format_research_content(
+                        content=content,
+                        annotations=annotations,
+                        visited_urls=response_data.get("visitedURLs", []),
+                        read_urls=response_data.get("readURLs", [])
+                    )
+                    
+                    return {
+                        "query": query,
+                        "findings": formatted_content,
+                        "annotations": annotations,
+                        "visited_urls": response_data.get("visitedURLs", []),
+                        "read_urls": response_data.get("readURLs", []),
+                        "timestamp": response_data.get("timestamp"),
+                        "usage": response_data.get("usage", {}),
+                        "num_urls": response_data.get("numURLs", 0)
+                    }
+            
             # Prepare messages including files and context
             messages = self._prepare_messages(
                 query=query,

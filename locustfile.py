@@ -8,10 +8,15 @@ import csv
 from datetime import datetime
 import logging
 import glob
+from mxtoai.tools.deep_research_tool import DeepResearchTool
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("load_test")
+
+# Initialize deep research tool with mock service
+deep_research_tool = DeepResearchTool(use_mock_service=True)
+deep_research_tool.enable_deep_research()  # Enable deep research functionality
 
 def get_random_test_files(num_files: int = 2) -> List[str]:
     """Get random PDF files from test_files directory"""
@@ -41,10 +46,30 @@ superficial_presets = [
     }
 ]
 
+# Deep research topics
+research_presets = [
+    {
+        "subject": "Latest Advancements in Large Language Models",
+        "textContent": """Research the latest advancements in large language models, focusing on improvements in reasoning, 
+        factuality, and efficiency. What are the current state-of-the-art architectures? How do different training approaches 
+        like instruction tuning and RLHF impact model performance? What are the main challenges in reducing hallucinations 
+        and improving reliability? Include specific examples from recent research papers and industry implementations.""",
+        "files": []
+    },
+    {
+        "subject": "Sustainable Computing and Green AI",
+        "textContent": """Investigate current approaches to making AI more environmentally sustainable. What are the latest 
+        techniques for reducing the carbon footprint of large model training? How effective are methods like pruning, 
+        quantization, and distillation in reducing computational costs while maintaining performance? What are the 
+        trade-offs between model size, accuracy, and energy consumption? Include specific metrics and case studies.""",
+        "files": []
+    }
+]
+
 # Test scenarios with weights
 EMAIL_SCENARIOS = [
     {
-        "weight": 50,  # 70% of requests will use this scenario
+        "weight": 40,  # 40% of requests will use this scenario
         "data": {
             "from_email": "test@example.com",
             "to": random.choice(["summarise@mxtoai.com", "eli5@mxtoai.com"]),
@@ -52,7 +77,7 @@ EMAIL_SCENARIOS = [
         }
     },
     {
-        "weight": 20,  # 20% of requests
+        "weight": 15,  # 15% of requests
         "data": {
             "from_email": "test@example.com",
             "to": "translate@mxtoai.com",
@@ -60,15 +85,36 @@ EMAIL_SCENARIOS = [
         }
     },
     {
-        "weight": 30,  # 10% of requests
+        "weight": 15,  # 15% of requests
         "data": {
             "from_email": "test@example.com",
             "to": "ask@mxtoai.com",
             "subject": "Please find attachments",
             "textContent": random.choice(
-                ["Please analyse and summarise each of the attached documents", "Please analyse and summarise each of the attached documents", "Please analyse and summarise each of the attached documents",
+                ["Please analyse and summarise each of the attached documents", 
+                 "Please analyse and summarise each of the attached documents",
                  "Please analyse and leave detailed feedback about the formatting of each of the attached documents"]),
             "files": get_random_test_files(2)  # Two random PDF files
+        }
+    },
+    {
+        "weight": 17,  # 17% deep research without files (increased from 15%)
+        "data": {
+            "from_email": "test@example.com",
+            "to": "research@mxtoai.com",
+            **random.choice(research_presets),
+            "deep_research": True
+        }
+    },
+    {
+        "weight": 13,  # 13% deep research with files (increased from 10%)
+        "data": {
+            "from_email": "test@example.com",
+            "to": "research@mxtoai.com",
+            "subject": "Research with Attachments",
+            "textContent": "Please conduct deep research on these documents and provide comprehensive findings.",
+            "files": get_random_test_files(2),
+            "deep_research": True
         }
     }
 ]
@@ -117,6 +163,44 @@ class EmailProcessingUser(HttpUser):
             for file_path in scenario["data"].get("files", []):
                 if not os.path.exists(file_path):
                     logger.warning(f"Test file not found: {file_path}")
+    
+    def _process_deep_research(self, data: Dict) -> Dict:
+        """Process deep research request using mock service"""
+        try:
+            # Extract parameters for deep research
+            query = data.get("textContent", "")
+            context = data.get("subject", "")
+            stream = data.get("stream", False)
+            
+            # Process attachments if present
+            attachments = []
+            for file_path in data.get("files", []):
+                attachments.append({
+                    "path": file_path,
+                    "type": "application/pdf",
+                    "filename": os.path.basename(file_path)
+                })
+            
+            # Call deep research tool with mock service
+            result = deep_research_tool.forward(
+                query=query,
+                context=context,
+                attachments=attachments,
+                stream=stream
+            )
+            
+            return {
+                "status": "success",
+                "message": "Research completed successfully",
+                "data": result
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in deep research processing: {str(e)}")
+            return {
+                "status": "error",
+                "message": str(e)
+            }
 
     @task
     def process_email(self):
@@ -132,7 +216,38 @@ class EmailProcessingUser(HttpUser):
         if scenario["data"]["to"] == "full-analysis@mxtoai.com":
             scenario["data"]["files"] = get_random_test_files(2)
         
-        # Prepare the request data
+        # Check if this is a deep research request
+        if scenario["data"].get("deep_research"):
+            start_time = datetime.now()
+            result = self._process_deep_research(scenario["data"])
+            end_time = datetime.now()
+            
+            # Record response time for deep research
+            response_time = (end_time - start_time).total_seconds() * 1000
+            
+            # Record system stats
+            stats_writer.write_stats(get_system_stats())
+            
+            # Log the result
+            if result["status"] == "success":
+                events.request.fire(
+                    request_type="Deep Research",
+                    name=scenario["data"]["to"],
+                    response_time=response_time,
+                    response_length=len(json.dumps(result)),
+                    exception=None
+                )
+            else:
+                events.request.fire(
+                    request_type="Deep Research",
+                    name=scenario["data"]["to"],
+                    response_time=response_time,
+                    response_length=0,
+                    exception=result["message"]
+                )
+            return
+        
+        # Prepare the request data for regular email processing
         data = scenario["data"].copy()
         files = []
         
