@@ -182,13 +182,13 @@ class AttachmentProcessingTool(Tool):
                     logger.error(f"File not found error: {e}")
                     processed_attachments.append({
                         **attachment,
-                        "error": f"File not found: {str(e)}"
+                        "error": f"File not found: {e!s}"
                     })
                 except Exception as e:
                     logger.error(f"Error processing file {file_path}: {e!s}")
                     processed_attachments.append({
                         **attachment,
-                        "error": f"Processing error: {str(e)}"
+                        "error": f"Processing error: {e!s}"
                     })
 
             except Exception as e:

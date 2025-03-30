@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -7,7 +8,6 @@ from typing import Annotated, Any, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Response, UploadFile, status
-import base64
 
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY

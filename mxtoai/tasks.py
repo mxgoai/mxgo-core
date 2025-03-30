@@ -1,16 +1,15 @@
+import asyncio
 import json
 import os
 from typing import Any
-import asyncio
 
 import dramatiq
 from dramatiq.brokers.redis import RedisBroker
 from loguru import logger
 
 from mxtoai.agents.email_agent import EmailAgent
-
-from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.email_sender import send_email_reply
+from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailRequest
 
 # Initialize Redis broker
@@ -73,7 +72,7 @@ def process_email_task(
             # Get the enhanced content if available, otherwise use base content
             html_content = email_content.get("enhanced", {}).get("html") or email_content.get("html")
             text_content = email_content.get("enhanced", {}).get("text") or email_content.get("text")
-            
+
             if text_content:  # Only send if we have at least text content
                 # Create email dict for sending reply
                 email_dict = {
@@ -84,7 +83,7 @@ def process_email_task(
                     "references": email_request.references,
                     "cc": email_request.cc
                 }
-                
+
                 # Run the async function in the sync context
                 email_sent_result = asyncio.run(send_email_reply(
                     email_dict,
@@ -99,11 +98,11 @@ def process_email_task(
 
         # Log the processing result
         # Only log serializable parts of metadata
-        metadata = processing_result.get('metadata', {}).copy()
-        if 'email_sent' in metadata:
+        metadata = processing_result.get("metadata", {}).copy()
+        if "email_sent" in metadata:
             # Convert email_sent result to a simple status dict
-            metadata['email_sent'] = {
-                'status': 'sent' if metadata['email_sent'] else 'failed'
+            metadata["email_sent"] = {
+                "status": "sent" if metadata["email_sent"] else "failed"
             }
         logger.info(f"Email processed successfully: {json.dumps(metadata)}")
 
