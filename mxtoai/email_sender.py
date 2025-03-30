@@ -209,16 +209,21 @@ class EmailSender:
                 "Message": message
             }
 
+            # Add headers to the message if present
+            if headers:
+                for name, value in headers.items():
+                    if name == "InReplyTo":
+                        email_params["ReplyToAddresses"] = [value["Data"]]
+                    elif name == "References":
+                        # References can't be added directly in SES, we'll skip it
+                        continue
+
             # Add CC if present in original email
             cc_addresses = []
             if original_email.get("cc"):
                 cc_addresses.append(original_email["cc"])
             if cc_addresses:
                 email_params["Destination"]["CcAddresses"] = cc_addresses
-
-            # Add headers if present
-            if headers:
-                email_params["Message"]["Headers"] = headers
 
             # Send the email
             logger.info(f"Sending reply from {sender_email} to {to_address} with subject: {subject}")
