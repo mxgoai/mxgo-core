@@ -9,14 +9,16 @@ from typing import Optional
 import requests
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
-from PIL import Image
 from litellm import completion
-
+from PIL import Image
 from smolagents import Tool, tool
 
+from mxtoai._logging import get_logger
 
 load_dotenv(override=True)
 
+# Configure logger
+logger = get_logger("azure_visualizer")
 
 def process_images_and_text(image_path, query, client):
     from transformers import AutoProcessor
@@ -46,9 +48,8 @@ def process_images_and_text(image_path, query, client):
         base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
         # add string formatting required by the endpoint
-        image_string = f"data:image/jpeg;base64,{base64_image}"
+        return f"data:image/jpeg;base64,{base64_image}"
 
-        return image_string
 
     image_string = encode_local_image(image_path)
     prompt_with_images = prompt_with_template.replace("<image>", "![]({}) ").format(image_string)
@@ -130,7 +131,6 @@ class VisualQATool(Tool):
         try:
             output = process_images_and_text(image_path, question, self.client)
         except Exception as e:
-            print(e)
             if "Payload Too Large" in str(e):
                 new_image_path = resize_image(image_path)
                 output = process_images_and_text(new_image_path, question, self.client)
@@ -145,19 +145,21 @@ class VisualQATool(Tool):
 
 @tool
 def visualizer(image_path: str, question: Optional[str] = None) -> str:
-    """A tool that can answer questions about attached images.
+    """
+    A tool that can answer questions about attached images.
 
     Args:
         image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
         question: The question to answer.
-    """
 
+    """
     add_note = False
     if not question:
         add_note = True
         question = "Please write a detailed caption for this image."
     if not isinstance(image_path, str):
-        raise Exception("You should provide at least `image_path` string argument to this tool!")
+        msg = "You should provide at least `image_path` string argument to this tool!"
+        raise Exception(msg)
 
     mime_type, _ = mimetypes.guess_type(image_path)
     base64_image = encode_image(image_path)
@@ -179,7 +181,8 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
     try:
         output = response.json()["choices"][0]["message"]["content"]
     except Exception:
-        raise Exception(f"Response format unexpected: {response.json()}")
+        msg = f"Response format unexpected: {response.json()}"
+        raise Exception(msg)
 
     if add_note:
         output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
@@ -189,15 +192,14 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
 
 @tool
 def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
-    """A tool that can answer questions about attached images using Azure OpenAI.
+    """
+    A tool that can answer questions about attached images using Azure OpenAI.
 
     Args:
         image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
         question: The question to answer.
+
     """
-    import logging
-    logger = logging.getLogger("azure_visualizer")
-    
     add_note = False
     if not question:
         add_note = True
@@ -208,22 +210,22 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
         mime_type, _ = mimetypes.guess_type(image_path)
         if not mime_type:
             mime_type = "image/jpeg"  # Default to JPEG if can't determine
-            
+
         # Encode the image to base64
         base64_image = encode_image(image_path)
-        
+
         # Format the content for the Azure OpenAI API
         content = [
             {"type": "text", "text": question},
             {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
         ]
-        
+
         # Get Azure OpenAI configuration
         model = f"azure/{os.getenv('MODEL_NAME', 'gpt-4o')}"
-        api_key = os.getenv('MODEL_API_KEY')
-        api_base = os.getenv('MODEL_ENDPOINT')
-        api_version = os.getenv('MODEL_API_VERSION')
-        
+        api_key = os.getenv("MODEL_API_KEY")
+        api_base = os.getenv("MODEL_ENDPOINT")
+        api_version = os.getenv("MODEL_API_VERSION")
+
         logger.info(f"Sending image to Azure OpenAI model: {model}")
         # Call Azure OpenAI using litellm
         response = completion(
@@ -234,10 +236,10 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
             api_version=api_version,
             max_tokens=1000
         )
-        
+
         # Extract content from response
-        if hasattr(response, 'choices') and response.choices:
-            if hasattr(response.choices[0], 'message') and hasattr(response.choices[0].message, 'content'):
+        if hasattr(response, "choices") and response.choices:
+            if hasattr(response.choices[0], "message") and hasattr(response.choices[0].message, "content"):
                 output = response.choices[0].message.content
             else:
                 # Fallback if direct access doesn't work
@@ -245,25 +247,26 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
         else:
             # Handle unusual response format
             output = str(response)
-            
+
         if not output:
-            raise Exception("Empty response from Azure OpenAI")
-            
+            msg = "Empty response from Azure OpenAI"
+            raise Exception(msg)
+
         # Add note if no question was provided
         if add_note:
             output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
-            
+
         return output
-        
+
     except Exception as e:
-        logger.error(f"Error in azure_visualizer: {str(e)}")
-        
+        logger.error(f"Error in azure_visualizer: {e!s}")
+
         # Try resizing the image if it might be too large
         if "too large" in str(e).lower() or "payload" in str(e).lower():
             try:
                 new_image_path = resize_image(image_path)
                 return azure_visualizer(new_image_path, question)
             except Exception as resize_error:
-                logger.error(f"Error resizing image: {str(resize_error)}")
-                
-        return f"Error processing image: {str(e)}"
+                logger.error(f"Error resizing image: {resize_error!s}")
+
+        return f"Error processing image: {e!s}"

@@ -1,10 +1,10 @@
 import re
-from typing import Dict, Any, Optional
+from typing import Any
 
 
 class ReportFormatter:
     """Format research reports and emails for delivery."""
-    
+
     def __init__(self):
         """Initialize the ReportFormatter."""
         self.html_style = """
@@ -119,7 +119,7 @@ class ReportFormatter:
                 margin: 0.5em 0;
             }
         """
-        
+
         self.signature_block = """
 
 ---
@@ -128,92 +128,92 @@ class ReportFormatter:
 
 _Feel free to reply to this email to continue our conversation._
 """
-    
+
     def format_report(self, content: str, format_type: str = "markdown", include_signature: bool = True) -> str:
         """
         Format the research report in the specified format.
-        
+
         Args:
             content: Report content
             format_type: Output format (text, html, markdown)
             include_signature: Whether to include the signature block
-            
+
         Returns:
             Formatted report
+
         """
         # Remove any existing signatures
         content = self._remove_existing_signatures(content)
-        
+
         # Process citations and references before converting format
         if format_type == "html":
             content = self._process_citations(content)
-        
+
         # Add signature if requested
         if include_signature:
             content = content.rstrip() + self.signature_block
-        
+
         if format_type == "text":
             return self._to_plain_text(content)
-        elif format_type == "html":
+        if format_type == "html":
             return self._to_html(content)
-        else:  # markdown (default)
-            return content
-    
+        # markdown (default)
+        return content
+
     def _process_citations(self, content: str) -> str:
         """Process citations and references in the content."""
         try:
             # Find all references sections
-            reference_sections = list(re.finditer(r'(?:###\s*References|\n## References)(.*?)(?=###|\Z|\n## )', content, re.DOTALL))
-            
+            reference_sections = list(re.finditer(r"(?:###\s*References|\n## References)(.*?)(?=###|\Z|\n## )", content, re.DOTALL))
+
             if not reference_sections:
                 return content
-                
+
             # Get the last references section (usually the most complete one)
             references_match = reference_sections[-1]
             references_section = references_match.group(1).strip()
-            
+
             # Create a mapping of reference numbers to their full citations
             ref_map = {}
-            for ref in re.finditer(r'(?:^|\n)(?:\[)?(\d+)(?:\])?\.\s*(.*?)(?=(?:\n(?:\[)?\d+(?:\])?\.|$))', references_section, re.DOTALL):
+            for ref in re.finditer(r"(?:^|\n)(?:\[)?(\d+)(?:\])?\.\s*(.*?)(?=(?:\n(?:\[)?\d+(?:\])?\.|$))", references_section, re.DOTALL):
                 ref_num = ref.group(1)
                 ref_text = ref.group(2).strip()
                 ref_map[ref_num] = ref_text
-            
+
             # Replace citations in the main text with HTML formatted versions
             def replace_citation(match):
                 num = match.group(1)
                 if num in ref_map:
                     return f'<sup class="citation">[<a href="#ref-{num}" title="{ref_map[num]}">{num}</a>]</sup>'
                 return match.group(0)
-            
+
             # Replace citations in the content
-            content = re.sub(r'\[(\d+)\]', replace_citation, content)
-            
+            content = re.sub(r"\[(\d+)\]", replace_citation, content)
+
             # Format the references section
-            formatted_refs = ['<div class="references">', '<h2>References</h2>']
+            formatted_refs = ['<div class="references">', "<h2>References</h2>"]
             for num, text in sorted(ref_map.items(), key=lambda x: int(x[0])):
                 formatted_refs.append(
                     f'<div class="reference" id="ref-{num}">'
                     f'<span class="reference-number">[{num}]</span> {text}'
                     '</div>'
                 )
-            formatted_refs.append('</div>')
-            
+            formatted_refs.append("</div>")
+
             # Remove all existing references sections
             for section in reversed(reference_sections):
                 content = content[:section.start()] + content[section.end():]
-            
+
             # Add the formatted references section at the end
-            content = content.strip() + '\n\n' + '\n'.join(formatted_refs)
-            
-            return content
-            
+            return content.strip() + "\n\n" + "\n".join(formatted_refs)
+
+
         except Exception as e:
             # Log error but don't break formatting
             import logging
-            logging.error(f"Error processing citations: {str(e)}")
+            logging.error(f"Error processing citations: {e!s}")
             return content
-    
+
     def _remove_existing_signatures(self, content: str) -> str:
         """Remove any existing signature blocks from the content."""
         signature_patterns = [
@@ -227,16 +227,17 @@ _Feel free to reply to this email to continue our conversation._
         for pattern in signature_patterns:
             result = re.sub(pattern, "", result, flags=re.IGNORECASE)
         return result
-    
+
     def _to_plain_text(self, markdown: str) -> str:
         """
         Convert markdown to plain text while preserving citations.
-        
+
         Args:
             markdown: Markdown content
-            
+
         Returns:
             Plain text version
+
         """
         # Remove heading markers but preserve citations
         text = re.sub(r"#+\s+(?!References)", "", markdown)  # Don't remove "References" header
@@ -251,27 +252,27 @@ _Feel free to reply to this email to continue our conversation._
         # Remove code blocks
         text = re.sub(r"```.*?\n(.*?)```", r"\1", text, flags=re.DOTALL)
         # Remove horizontal rules
-        text = re.sub(r"---+", "-" * 40, text)
-        return text
-    
+        return re.sub(r"---+", "-" * 40, text)
+
     def _to_html(self, markdown_content: str) -> str:
         """
         Convert markdown to HTML while preserving citations and references.
-        
+
         Args:
             markdown_content: Markdown content
-            
+
         Returns:
             HTML version
+
         """
         try:
             import markdown as md_converter
-            from markdown.extensions.tables import TableExtension
-            from markdown.extensions.fenced_code import FencedCodeExtension
-            from markdown.extensions.sane_lists import SaneListExtension
-            from markdown.extensions.nl2br import Nl2BrExtension
-            from markdown.extensions.toc import TocExtension
             from markdown.extensions.attr_list import AttrListExtension
+            from markdown.extensions.fenced_code import FencedCodeExtension
+            from markdown.extensions.nl2br import Nl2BrExtension
+            from markdown.extensions.sane_lists import SaneListExtension
+            from markdown.extensions.tables import TableExtension
+            from markdown.extensions.toc import TocExtension
 
             # Configure extensions with specific settings
             extensions = [
@@ -282,13 +283,13 @@ _Feel free to reply to this email to continue our conversation._
                 TocExtension(permalink=False),  # Table of contents support without permalinks
                 AttrListExtension(),  # Support for attributes
             ]
-            
+
             # Convert markdown to HTML with configured extensions
             html = md_converter.markdown(
                 markdown_content,
                 extensions=extensions
             )
-            
+
             return f"""
                 <html>
                 <head>
@@ -356,34 +357,35 @@ _Feel free to reply to this email to continue our conversation._
         except ImportError:
             logger.error("Markdown package not available - this should never happen as it's a required dependency")
             raise  # We should always have markdown package available
-    
-    def add_email_header_footer(self, content: str, metadata: Dict[str, Any] = None) -> str:
+
+    def add_email_header_footer(self, content: str, metadata: dict[str, Any] | None = None) -> str:
         """
         Add email header and footer to the report.
-        
+
         Args:
             content: Report content
             metadata: Email metadata
-            
+
         Returns:
             Report with header and footer
+
         """
         if not metadata:
             metadata = {}
-        
+
         subject = metadata.get("subject", "Research Report")
         sender = metadata.get("from", "")
         date = metadata.get("date", "")
-        
+
         header = f"Subject: {subject}\n"
         if sender:
             header += f"From: {sender}\n"
         if date:
             header += f"Date: {date}\n"
         header += "\n" + "-" * 40 + "\n\n"
-        
+
         footer = "\n\n" + "-" * 40 + "\n"
         footer += "This report was generated by the MXtoAI Deep Research Agent.\n"
         footer += "If you have any questions, please reply to this email.\n"
-        
+
         return header + content + footer

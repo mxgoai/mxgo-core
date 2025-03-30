@@ -1,26 +1,26 @@
 import os
-import json
-import mimetypes
-from typing import List, Dict, Any, Optional, Union
-from pathlib import Path
-import logging
-from smolagents import Tool
-from smolagents.models import MessageRole, Model
 
 # Import needed converters
 import sys
+from typing import Any, Optional
+
+from smolagents import Tool
+from smolagents.models import MessageRole, Model
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.mdconvert import MarkdownConverter
 
+from mxtoai._logging import get_logger
+
 # Configure logger
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("attachment_tool")
+logger = get_logger("attachment_tool")
 
 class AttachmentProcessingTool(Tool):
     """
     Tool for processing various types of email attachments.
     Handles documents using MarkdownConverter. For images, use the azure_visualizer tool directly.
     """
+
     name = "attachment_processor"
     description = """Process and analyze email attachments to extract content and insights.
     This tool can handle:
@@ -28,16 +28,16 @@ class AttachmentProcessingTool(Tool):
     - Audio files (as transcripts)
     - HTML files
     - Markdown files
-    
+
     NOTE: For image processing, please use the azure_visualizer tool directly.
-    
+
     The attachments parameter should be a list of dictionaries, where each dictionary contains:
     - filename: Name of the file
     - type: MIME type
     - path: Full path to the file
     - size: File size in bytes
     """
-    
+
     inputs = {
         "attachments": {
             "type": "array",
@@ -61,72 +61,82 @@ class AttachmentProcessingTool(Tool):
         }
     }
     output_type = "object"
-    
+
     def __init__(self, model: Optional[Model] = None):
         super().__init__()
         self.md_converter = MarkdownConverter()
         self.model = model
         self.text_limit = 8000
-        
+
         # Set up attachments directory path
         self.attachments_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments"))
         os.makedirs(self.attachments_dir, exist_ok=True)
-    
+
     def _validate_attachment_path(self, file_path: str) -> str:
         """Validate and resolve the attachment file path."""
         try:
+            if not file_path:
+                msg = "Empty file path provided"
+                raise ValueError(msg)
+
             file_path = file_path.strip('"\'')
             abs_path = os.path.abspath(file_path)
-            
+
             # Check if file exists at the exact path
             if os.path.isfile(abs_path):
                 return abs_path
-                
+
             # Try URL decoding if needed
             from urllib.parse import unquote
             decoded_path = unquote(abs_path)
             if os.path.isfile(decoded_path):
                 return decoded_path
-            
-            raise FileNotFoundError(f"File not found: {file_path}")
-            
+
+            # Try relative to attachments directory
+            rel_path = os.path.join(self.attachments_dir, os.path.basename(file_path))
+            if os.path.isfile(rel_path):
+                return rel_path
+
+            msg = f"File not found at any of these locations:\n- {abs_path}\n- {decoded_path}\n- {rel_path}"
+            raise FileNotFoundError(msg)
+
         except Exception as e:
-            logger.error(f"Error validating path {file_path}: {str(e)}")
+            logger.error(f"Error validating path {file_path}: {e!s}")
             raise
-    
+
     def _process_document(self, file_path: str) -> str:
         """Process document using MarkdownConverter."""
         try:
             result = self.md_converter.convert(file_path)
-            if not result or not hasattr(result, 'text_content'):
-                raise ValueError(f"Failed to convert document: {file_path}")
+            if not result or not hasattr(result, "text_content"):
+                msg = f"Failed to convert document: {file_path}"
+                raise ValueError(msg)
             return result.text_content
         except Exception as e:
-            logger.error(f"Error converting document {file_path}: {str(e)}")
+            logger.error(f"Error converting document {file_path}: {e!s}")
             raise
-    
-    def forward(self, attachments: List[Dict[str, Any]], mode: str = "basic") -> Dict[str, Any]:
+
+    def forward(self, attachments: list[dict[str, Any]], mode: str = "basic") -> dict[str, Any]:
         """Process email attachments synchronously."""
         processed_attachments = []
         logger.info(f"Processing {len(attachments)} attachments in {mode} mode")
-        
+
         for attachment in attachments:
             try:
                 # Validate required fields
-                if not all(key in attachment for key in ["filename", "type", "path", "size"]):
-                    raise ValueError(f"Missing required fields in attachment: {attachment}")
-                
+                required_fields = ["filename", "type", "path", "size"]
+                missing_fields = [field for field in required_fields if field not in attachment]
+                if missing_fields:
+                    msg = f"Missing required fields in attachment: {missing_fields}"
+                    raise ValueError(msg)
+
                 logger.info(f"Processing attachment: {attachment['filename']}")
                 file_path = attachment.get("path", "")
-                
+
                 try:
-                    # Check if file exists before proceeding
-                    if not os.path.isfile(file_path):
-                        raise FileNotFoundError(f"File does not exist: {file_path}")
-                        
                     resolved_path = self._validate_attachment_path(file_path)
                     attachment["path"] = resolved_path
-                    
+
                     # Skip image files - they should be handled by azure_visualizer directly
                     if attachment["type"].startswith("image/"):
                         processed_attachments.append({
@@ -139,10 +149,10 @@ class AttachmentProcessingTool(Tool):
                         })
                         logger.info(f"Skipped image file: {attachment['filename']} - use azure_visualizer tool instead")
                         continue
-                    
+
                     # Process non-image attachments
                     content = self._process_document(resolved_path)
-                    
+
                     # If in full mode and model is available, generate a summary
                     summary = None
                     if mode == "full" and self.model and len(content) > 4000:
@@ -157,7 +167,7 @@ class AttachmentProcessingTool(Tool):
                             }
                         ]
                         summary = self.model(messages).content
-                    
+
                     processed_attachments.append({
                         **attachment,
                         "content": {
@@ -167,37 +177,43 @@ class AttachmentProcessingTool(Tool):
                         }
                     })
                     logger.info(f"Successfully processed: {attachment['filename']}")
-                    
+
                 except FileNotFoundError as e:
-                    logger.error(f"File not found: {file_path}")
+                    logger.error(f"File not found error: {e}")
                     processed_attachments.append({
-                        "filename": attachment.get("filename", "unknown"),
-                        "error": str(e)
+                        **attachment,
+                        "error": f"File not found: {str(e)}"
                     })
-                    
+                except Exception as e:
+                    logger.error(f"Error processing file {file_path}: {e!s}")
+                    processed_attachments.append({
+                        **attachment,
+                        "error": f"Processing error: {str(e)}"
+                    })
+
             except Exception as e:
-                logger.error(f"Error processing attachment {attachment.get('filename', 'unknown')}: {str(e)}")
+                logger.exception(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
                 processed_attachments.append({
-                    "filename": attachment.get("filename", "unknown"),
+                    **{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]},
                     "error": str(e)
                 })
-        
+
         return {
             "attachments": processed_attachments,
             "summary": self._create_attachment_summary(processed_attachments)
         }
-        
-    def _create_attachment_summary(self, attachments: List[Dict[str, Any]]) -> str:
+
+    def _create_attachment_summary(self, attachments: list[dict[str, Any]]) -> str:
         """Create a summary of processed attachments."""
         if not attachments:
             return "No attachments processed."
-            
+
         summary_parts = []
         for att in attachments:
             if "error" in att:
                 summary_parts.append(f"Failed to process {att['filename']}: {att['error']}")
                 continue
-                
+
             content = att.get("content", {})
             if content:
                 if content.get("type") == "image":
@@ -212,5 +228,5 @@ class AttachmentProcessingTool(Tool):
                         summary_parts.append(f"Preview: {preview}")
             else:
                 summary_parts.append(f"Basic info for {att['filename']} ({att.get('type', 'unknown type')})")
-        
-        return "\n\n".join(summary_parts) 
+
+        return "\n\n".join(summary_parts)

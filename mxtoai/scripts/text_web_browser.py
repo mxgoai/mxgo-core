@@ -6,13 +6,14 @@ import pathlib
 import re
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 from urllib.parse import unquote, urljoin, urlparse
 
 import pathvalidate
 import requests
-from serpapi import GoogleSearch
 
+# Note: Requires 'google-search-results' package to be installed
+import serpapi
 from smolagents import Tool
 
 from .cookies import COOKIES
@@ -28,15 +29,15 @@ class SimpleTextBrowser:
         viewport_size: Optional[int] = 1024 * 8,
         downloads_folder: Optional[Union[str, None]] = None,
         serpapi_key: Optional[Union[str, None]] = None,
-        request_kwargs: Optional[Union[Dict[str, Any], None]] = None,
+        request_kwargs: Optional[Union[dict[str, Any], None]] = None,
     ):
         self.start_page: str = start_page if start_page else "about:blank"
         self.viewport_size = viewport_size  # Applies only to the standard uri types
         self.downloads_folder = downloads_folder
-        self.history: List[Tuple[str, float]] = list()
+        self.history: list[tuple[str, float]] = []
         self.page_title: Optional[str] = None
         self.viewport_current_page = 0
-        self.viewport_pages: List[Tuple[int, int]] = list()
+        self.viewport_pages: list[tuple[int, int]] = []
         self.set_address(self.start_page)
         self.serpapi_key = serpapi_key
         self.request_kwargs = request_kwargs
@@ -66,12 +67,11 @@ class SimpleTextBrowser:
                 not uri_or_path.startswith("http:")
                 and not uri_or_path.startswith("https:")
                 and not uri_or_path.startswith("file:")
-            ):
-                if len(self.history) > 1:
-                    prior_address = self.history[-2][0]
-                    uri_or_path = urljoin(prior_address, uri_or_path)
-                    # Update the address with the fully-qualified path
-                    self.history[-1] = (uri_or_path, self.history[-1][1])
+            ) and len(self.history) > 1:
+                prior_address = self.history[-2][0]
+                uri_or_path = urljoin(prior_address, uri_or_path)
+                # Update the address with the fully-qualified path
+                self.history[-1] = (uri_or_path, self.history[-1][1])
             self._fetch_page(uri_or_path)
 
         self.viewport_current_page = 0
@@ -104,7 +104,6 @@ class SimpleTextBrowser:
 
     def find_on_page(self, query: str) -> Union[str, None]:
         """Searches for the query from the current viewport forward, looping back to the start if necessary."""
-
         # Did we get here via a previous find_on_page search with the same query?
         # If so, map to find_next
         if query == self._find_on_page_query and self.viewport_current_page == self._find_on_page_last_result:
@@ -116,14 +115,12 @@ class SimpleTextBrowser:
         if viewport_match is None:
             self._find_on_page_last_result = None
             return None
-        else:
-            self.viewport_current_page = viewport_match
-            self._find_on_page_last_result = viewport_match
-            return self.viewport
+        self.viewport_current_page = viewport_match
+        self._find_on_page_last_result = viewport_match
+        return self.viewport
 
     def find_next(self) -> Union[str, None]:
         """Scroll to the next viewport that matches the query"""
-
         if self._find_on_page_query is None:
             return None
 
@@ -139,14 +136,12 @@ class SimpleTextBrowser:
         if viewport_match is None:
             self._find_on_page_last_result = None
             return None
-        else:
-            self.viewport_current_page = viewport_match
-            self._find_on_page_last_result = viewport_match
-            return self.viewport
+        self.viewport_current_page = viewport_match
+        self._find_on_page_last_result = viewport_match
+        return self.viewport
 
     def _find_next_viewport(self, query: str, starting_viewport: int) -> Union[int, None]:
         """Search for matches between the starting viewport looping when reaching the end."""
-
         if query is None:
             return None
 
@@ -159,9 +154,9 @@ class SimpleTextBrowser:
         if nquery.strip() == "":
             return None
 
-        idxs = list()
+        idxs = []
         idxs.extend(range(starting_viewport, len(self.viewport_pages)))
-        idxs.extend(range(0, starting_viewport))
+        idxs.extend(range(starting_viewport))
 
         for i in idxs:
             bounds = self.viewport_pages[i]
@@ -203,7 +198,8 @@ class SimpleTextBrowser:
 
     def _serpapi_search(self, query: str, filter_year: Optional[int] = None) -> None:
         if self.serpapi_key is None:
-            raise ValueError("Missing SerpAPI key.")
+            msg = "Missing SerpAPI key."
+            raise ValueError(msg)
 
         params = {
             "engine": "google",
@@ -213,11 +209,12 @@ class SimpleTextBrowser:
         if filter_year is not None:
             params["tbs"] = f"cdr:1,cd_min:01/01/{filter_year},cd_max:12/31/{filter_year}"
 
-        search = GoogleSearch(params)
+        search = serpapi.GoogleSearch(params)
         results = search.get_dict()
         self.page_title = f"{query} - Search"
-        if "organic_results" not in results.keys():
-            raise Exception(f"No results found for query: '{query}'. Use a less specific query.")
+        if "organic_results" not in results:
+            msg = f"No results found for query: '{query}'. Use a less specific query."
+            raise Exception(msg)
         if len(results["organic_results"]) == 0:
             year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
             self._set_page_content(
@@ -231,7 +228,7 @@ class SimpleTextBrowser:
                     return f"You previously visited this page {round(time.time() - self.history[i][1])} seconds ago.\n"
             return ""
 
-        web_snippets: List[str] = list()
+        web_snippets: list[str] = []
         idx = 0
         if "organic_results" in results:
             for page in results["organic_results"]:
@@ -321,12 +318,10 @@ class SimpleTextBrowser:
                     local_uri = pathlib.Path(download_path).as_uri()
                     self.set_address(local_uri)
 
-        except UnsupportedFormatException as e:
-            print(e)
+        except UnsupportedFormatException:
             self.page_title = ("Download complete.",)
             self._set_page_content(f"# Download complete\n\nSaved file to '{download_path}'")
-        except FileConversionException as e:
-            print(e)
+        except FileConversionException:
             self.page_title = ("Download complete.",)
             self._set_page_content(f"# Download complete\n\nSaved file to '{download_path}'")
         except FileNotFoundError:
@@ -350,9 +345,9 @@ class SimpleTextBrowser:
                     self._set_page_content(f"## Error {response.status_code}\n\n{text}")
             except NameError:
                 self.page_title = "Error"
-                self._set_page_content(f"## Error\n\n{str(request_exception)}")
+                self._set_page_content(f"## Error\n\n{request_exception!s}")
 
-    def _state(self) -> Tuple[str, str]:
+    def _state(self) -> tuple[str, str]:
         header = f"Address: {self.address}\n"
         if self.page_title is not None:
             header += f"Title: {self.page_title}\n"
@@ -435,7 +430,8 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
             f.write(response.content)
 
         if "pdf" in extension or "txt" in extension or "htm" in extension:
-            raise Exception("Do not use this tool for pdf or txt or html files: use visit_page instead.")
+            msg = "Do not use this tool for pdf or txt or html files: use visit_page instead."
+            raise Exception(msg)
 
         return f"File was downloaded and saved under path {new_path}."
 
@@ -463,13 +459,12 @@ class ArchiveSearchTool(Tool):
         response_notimestamp = requests.get(no_timestamp_url).json()
         if "archived_snapshots" in response and "closest" in response["archived_snapshots"]:
             closest = response["archived_snapshots"]["closest"]
-            print("Archive found!", closest)
 
         elif "archived_snapshots" in response_notimestamp and "closest" in response_notimestamp["archived_snapshots"]:
             closest = response_notimestamp["archived_snapshots"]["closest"]
-            print("Archive found!", closest)
         else:
-            raise Exception(f"Your {url=} was not archived on Wayback Machine, try a different url.")
+            msg = f"Your {url=} was not archived on Wayback Machine, try a different url."
+            raise Exception(msg)
         target_url = closest["url"]
         self.browser.visit_page(target_url)
         header, content = self.browser._state()
@@ -539,8 +534,7 @@ class FinderTool(Tool):
                 header.strip()
                 + f"\n=======================\nThe search string '{search_string}' was not found on this page."
             )
-        else:
-            return header.strip() + "\n=======================\n" + content
+        return header.strip() + "\n=======================\n" + content
 
 
 class FindNextTool(Tool):
@@ -559,5 +553,4 @@ class FindNextTool(Tool):
 
         if find_result is None:
             return header.strip() + "\n=======================\nThe search string was not found on this page."
-        else:
-            return header.strip() + "\n=======================\n" + content
+        return header.strip() + "\n=======================\n" + content

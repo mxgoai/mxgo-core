@@ -1,30 +1,33 @@
-from typing import Optional, Dict, List
-from smolagents import LiteLLMModel, ChatMessage, Tool
-from litellm import Router
 import os
+from typing import Optional
+
 from dotenv import load_dotenv
-import logging
-from handle_configuration import EmailHandleInstructions
+from litellm import Router
+from smolagents import ChatMessage, LiteLLMModel, Tool
+
+from mxtoai._logging import get_logger
+from mxtoai.handle_configuration import EmailHandleInstructions
 
 load_dotenv()
 
-logger = logging.getLogger(__name__)
+logger = get_logger("routed_litellm_model")
 
 class RoutedLiteLLMModel(LiteLLMModel):
     """LiteLLM Model with routing capabilities"""
-    
+
     def __init__(self, current_handle: Optional[EmailHandleInstructions] = None, **kwargs):
         """
         Initialize the routed LiteLLM model.
-        
+
         Args:
             current_handle: Current email handle configuration being processed
             **kwargs: Additional arguments passed to parent class
+
         """
         super().__init__(**kwargs)
-        
+
         self.current_handle = current_handle
-        
+
         # Configure model list from environment variables
         model_list = [
             {
@@ -61,7 +64,7 @@ class RoutedLiteLLMModel(LiteLLMModel):
                 }
             }
         ]
-        
+
         # Initialize router with settings
         self.router = Router(
             model_list=model_list,
@@ -71,26 +74,27 @@ class RoutedLiteLLMModel(LiteLLMModel):
             }],
             default_litellm_params={"drop_params": True}  # Global setting for dropping unsupported parameters
         )
-    
+
     def _get_target_model(self) -> str:
         """
         Determine which model to route to based on the current handle configuration.
-        
+
         Returns:
             str: The model name to route to
+
         """
         if self.current_handle and self.current_handle.target_model:
             logger.debug(f"Using model {self.current_handle.target_model} for handle {self.current_handle.handle}")
             return self.current_handle.target_model
-        
+
         return "gpt-4"  # Default to gpt-4 if no handle specified or no target model set
 
     def __call__(
         self,
-        messages: List[Dict[str, str]],
-        stop_sequences: Optional[List[str]] = None,
+        messages: list[dict[str, str]],
+        stop_sequences: Optional[list[str]] = None,
         grammar: Optional[str] = None,
-        tools_to_call_from: Optional[List[Tool]] = None,
+        tools_to_call_from: Optional[list[Tool]] = None,
         **kwargs
     ) -> ChatMessage:
         try:
@@ -101,25 +105,26 @@ class RoutedLiteLLMModel(LiteLLMModel):
                 tools_to_call_from=tools_to_call_from,
                 **kwargs
             )
-            
+
             # Determine which model to route to based on handle configuration
             target_model = self._get_target_model()
             completion_kwargs["model"] = target_model
-            
+
             # Use router for completion
             response = self.router.completion(**completion_kwargs)
-            
+
             # Update token counts
             self.last_input_token_count = response.usage.prompt_tokens
             self.last_output_token_count = response.usage.completion_tokens
-            
+
             # Convert to ChatMessage
             first_message = ChatMessage.from_dict(
                 response.choices[0].message.model_dump(include={"role", "content", "tool_calls"})
             )
             return self.postprocess_message(first_message, tools_to_call_from)
-        
+
         except Exception as e:
             # Log the error and re-raise with more context
-            logger.error(f"Error in RoutedLiteLLMModel completion: {str(e)}")
-            raise RuntimeError(f"Failed to get completion from LiteLLM router: {str(e)}") from e
+            logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
+            msg = f"Failed to get completion from LiteLLM router: {e!s}"
+            raise RuntimeError(msg) from e

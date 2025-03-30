@@ -11,14 +11,15 @@ def normalize_number_str(number_str: str) -> float:
     try:
         return float(number_str)
     except ValueError:
-        print(f"String {number_str} cannot be normalized to number str.")
         return float("inf")
 
 
 def split_string(
     s: str,
-    char_list: list[str] = [",", ";"],
+    char_list: list[str] | None = None,
 ) -> list[str]:
+    if char_list is None:
+        char_list = [",", ";"]
     pattern = f"[{''.join(char_list)}]"
     return re.split(pattern, s)
 
@@ -41,7 +42,7 @@ def question_scorer(
         return normalized_answer == float(ground_truth)
 
     # if gt is a list
-    elif any(char in ground_truth for char in [",", ";"]):
+    if any(char in ground_truth for char in [",", ";"]):
         # question with the fish: normalization removes punct
 
         gt_elems = split_string(ground_truth)
@@ -49,12 +50,12 @@ def question_scorer(
 
         # check length is the same
         if len(gt_elems) != len(ma_elems):
-            warnings.warn("Answer lists have different lengths, returning False.", UserWarning)
+            warnings.warn("Answer lists have different lengths, returning False.", UserWarning, stacklevel=2)
             return False
 
         # compare each element as float or str
         comparisons = []
-        for ma_elem, gt_elem in zip(ma_elems, gt_elems):
+        for ma_elem, gt_elem in zip(ma_elems, gt_elems, strict=False):
             if is_float(gt_elem):
                 normalized_ma_elem = normalize_number_str(ma_elem)
                 comparisons.append(normalized_ma_elem == float(gt_elem))
@@ -66,8 +67,7 @@ def question_scorer(
         return all(comparisons)
 
     # if gt is a str
-    else:
-        return normalize_str(model_answer) == normalize_str(ground_truth)
+    return normalize_str(model_answer) == normalize_str(ground_truth)
 
 
 def check_prediction_contains_answer_letters_in_order(prediction, true_answer):
@@ -87,18 +87,9 @@ def check_prediction_contains_answer_letters_in_order(prediction, true_answer):
 def check_close_call(prediction, true_answer, is_correct):
     if is_correct:
         return True
-    else:
-        if is_float(true_answer):
-            return is_correct
-        else:
-            if (
-                check_prediction_contains_answer_letters_in_order(str(prediction), str(true_answer))
-                and len(str(true_answer)) * 0.5 <= len(str(prediction)) <= len(str(true_answer)) * 2
-            ):
-                print(f"Close call: {prediction} vs {true_answer}")
-                return True
-            else:
-                return False
+    if is_float(true_answer):
+        return is_correct
+    return bool(check_prediction_contains_answer_letters_in_order(str(prediction), str(true_answer)) and len(str(true_answer)) * 0.5 <= len(str(prediction)) <= len(str(true_answer)) * 2)
 
 
 def normalize_str(input_str, remove_punct=True) -> str:
@@ -110,8 +101,10 @@ def normalize_str(input_str, remove_punct=True) -> str:
     Parameters:
     - input_str: str, the string to normalize
     - remove_punct: bool, whether to remove punctuation (default: True)
+
     Returns:
     - str, the normalized string
+
     """
     # Remove all white spaces. Required e.g for seagull vs. sea gull
     no_spaces = re.sub(r"\s", "", input_str)
@@ -120,5 +113,4 @@ def normalize_str(input_str, remove_punct=True) -> str:
     if remove_punct:
         translator = str.maketrans("", "", string.punctuation)
         return no_spaces.lower().translate(translator)
-    else:
-        return no_spaces.lower()
+    return no_spaces.lower()

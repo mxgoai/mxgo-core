@@ -64,8 +64,7 @@ If you are unable to determine the final answer, output 'FINAL ANSWER: Unable to
 
     response = reformulation_model(messages).content
 
-    final_answer = response.split("FINAL ANSWER: ")[-1].strip()
-    print("> Reformulated answer: ", final_answer)
+    return response.split("FINAL ANSWER: ")[-1].strip()
 
     #     if "unable to determine" in final_answer.lower():
     #         messages.append({"role": MessageRole.ASSISTANT, "content": response })
@@ -83,4 +82,3 @@ If you are unable to determine the final answer, output 'FINAL ANSWER: Unable to
     #         response = model(messages).content
     #         print("\n>>>Making an educated guess.\n", response)
     #         final_answer = response.split("EDUCATED GUESS: ")[-1].strip()
-    return final_answer

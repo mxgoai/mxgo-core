@@ -1,24 +1,24 @@
-from locust import HttpUser, task, between, events
-import random
+import csv
+import glob
 import json
 import os
-import psutil
-from typing import Dict, List
-import csv
+import random
 from datetime import datetime
-import logging
-import glob
+
+import psutil
+from locust import HttpUser, between, events, task
+
+from mxtoai._logging import get_logger
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("load_test")
+# Configure logger
+logger = get_logger("load_test")
 
 # Initialize deep research tool with mock service
 deep_research_tool = DeepResearchTool(use_mock_service=True)
 deep_research_tool.enable_deep_research()  # Enable deep research functionality
 
-def get_random_test_files(num_files: int = 2) -> List[str]:
+def get_random_test_files(num_files: int = 2) -> list[str]:
     """Get random PDF files from test_files directory"""
     pdf_files = glob.glob("test_files/*.pdf")
     return random.sample(pdf_files, min(num_files, len(pdf_files)))
@@ -27,20 +27,20 @@ def get_random_test_files(num_files: int = 2) -> List[str]:
 superficial_presets = [
     {
         "subject": "Understanding Quantum Supremacy and its Implications",
-        "textContent": """Can you explain the concept of quantum supremacy and its potential impact on cryptography? 
-        I'm particularly interested in understanding how Shor's algorithm could potentially break current RSA encryption, 
-        and what post-quantum cryptography solutions are being developed. Also, how does quantum decoherence affect the 
-        stability of qubits in current quantum computers, and what approaches are being used to mitigate this issue? 
+        "textContent": """Can you explain the concept of quantum supremacy and its potential impact on cryptography?
+        I'm particularly interested in understanding how Shor's algorithm could potentially break current RSA encryption,
+        and what post-quantum cryptography solutions are being developed. Also, how does quantum decoherence affect the
+        stability of qubits in current quantum computers, and what approaches are being used to mitigate this issue?
         Please include information about error correction in quantum computing and the concept of quantum fault tolerance.""",
         "files": []
     },
     {
         "subject": "Zero-Knowledge Proofs in Blockchain Privacy",
-        "textContent": """I need a detailed explanation of how zero-knowledge proofs work in blockchain privacy solutions. 
-        Specifically, how do zk-SNARKs enable transaction privacy while maintaining verifiability? Could you explain the 
-        mathematical principles behind zero-knowledge proofs, including the concepts of completeness, soundness, and 
-        zero-knowledge? Also, how do recursive SNARKs work in scaling solutions, and what are the trade-offs between 
-        different types of zero-knowledge proof systems (SNARKs vs STARKs)? Please include real-world applications in 
+        "textContent": """I need a detailed explanation of how zero-knowledge proofs work in blockchain privacy solutions.
+        Specifically, how do zk-SNARKs enable transaction privacy while maintaining verifiability? Could you explain the
+        mathematical principles behind zero-knowledge proofs, including the concepts of completeness, soundness, and
+        zero-knowledge? Also, how do recursive SNARKs work in scaling solutions, and what are the trade-offs between
+        different types of zero-knowledge proof systems (SNARKs vs STARKs)? Please include real-world applications in
         privacy-focused blockchain platforms.""",
         "files": []
     }
@@ -50,17 +50,17 @@ superficial_presets = [
 research_presets = [
     {
         "subject": "Latest Advancements in Large Language Models",
-        "textContent": """Research the latest advancements in large language models, focusing on improvements in reasoning, 
-        factuality, and efficiency. What are the current state-of-the-art architectures? How do different training approaches 
-        like instruction tuning and RLHF impact model performance? What are the main challenges in reducing hallucinations 
+        "textContent": """Research the latest advancements in large language models, focusing on improvements in reasoning,
+        factuality, and efficiency. What are the current state-of-the-art architectures? How do different training approaches
+        like instruction tuning and RLHF impact model performance? What are the main challenges in reducing hallucinations
         and improving reliability? Include specific examples from recent research papers and industry implementations.""",
         "files": []
     },
     {
         "subject": "Sustainable Computing and Green AI",
-        "textContent": """Investigate current approaches to making AI more environmentally sustainable. What are the latest 
-        techniques for reducing the carbon footprint of large model training? How effective are methods like pruning, 
-        quantization, and distillation in reducing computational costs while maintaining performance? What are the 
+        "textContent": """Investigate current approaches to making AI more environmentally sustainable. What are the latest
+        techniques for reducing the carbon footprint of large model training? How effective are methods like pruning,
+        quantization, and distillation in reducing computational costs while maintaining performance? What are the
         trade-offs between model size, accuracy, and energy consumption? Include specific metrics and case studies.""",
         "files": []
     }
@@ -91,7 +91,7 @@ EMAIL_SCENARIOS = [
             "to": "ask@mxtoai.com",
             "subject": "Please find attachments",
             "textContent": random.choice(
-                ["Please analyse and summarise each of the attached documents", 
+                ["Please analyse and summarise each of the attached documents",
                  "Please analyse and summarise each of the attached documents",
                  "Please analyse and leave detailed feedback about the formatting of each of the attached documents"]),
             "files": get_random_test_files(2)  # Two random PDF files
@@ -120,7 +120,7 @@ EMAIL_SCENARIOS = [
 ]
 
 # System resource monitoring
-def get_system_stats() -> Dict:
+def get_system_stats() -> dict:
     """Get current system resource usage"""
     process = psutil.Process(os.getpid())
     return {
@@ -134,28 +134,28 @@ def get_system_stats() -> Dict:
 class SystemStatsWriter:
     def __init__(self, filename: str):
         self.filename = filename
-        self.file = open(filename, 'w', newline='')
+        self.file = open(filename, "w", newline="")
         self.writer = csv.writer(self.file)
-        self.writer.writerow(['timestamp', 'cpu_percent', 'memory_percent', 'num_threads', 'connections'])
-    
-    def write_stats(self, stats: Dict):
+        self.writer.writerow(["timestamp", "cpu_percent", "memory_percent", "num_threads", "connections"])
+
+    def write_stats(self, stats: dict):
         self.writer.writerow([
             datetime.now().isoformat(),
-            stats['cpu_percent'],
-            stats['memory_percent'],
-            stats['num_threads'],
-            stats['connections']
+            stats["cpu_percent"],
+            stats["memory_percent"],
+            stats["num_threads"],
+            stats["connections"]
         ])
-    
+
     def close(self):
         self.file.close()
 
 # Initialize system stats writer
-stats_writer = SystemStatsWriter('system_stats.csv')
+stats_writer = SystemStatsWriter("system_stats.csv")
 
 class EmailProcessingUser(HttpUser):
     wait_time = between(0.5, 1.5)  # Random wait between requests
-    
+
     def on_start(self):
         """Setup before tests start"""
         # Verify test files exist
@@ -163,15 +163,15 @@ class EmailProcessingUser(HttpUser):
             for file_path in scenario["data"].get("files", []):
                 if not os.path.exists(file_path):
                     logger.warning(f"Test file not found: {file_path}")
-    
-    def _process_deep_research(self, data: Dict) -> Dict:
+
+    def _process_deep_research(self, data: dict) -> dict:
         """Process deep research request using mock service"""
         try:
             # Extract parameters for deep research
             query = data.get("textContent", "")
             context = data.get("subject", "")
             stream = data.get("stream", False)
-            
+
             # Process attachments if present
             attachments = []
             for file_path in data.get("files", []):
@@ -180,7 +180,7 @@ class EmailProcessingUser(HttpUser):
                     "type": "application/pdf",
                     "filename": os.path.basename(file_path)
                 })
-            
+
             # Call deep research tool with mock service
             result = deep_research_tool.forward(
                 query=query,
@@ -188,15 +188,15 @@ class EmailProcessingUser(HttpUser):
                 attachments=attachments,
                 stream=stream
             )
-            
+
             return {
                 "status": "success",
                 "message": "Research completed successfully",
                 "data": result
             }
-            
+
         except Exception as e:
-            logger.error(f"Error in deep research processing: {str(e)}")
+            logger.exception(f"Error in deep research processing: {e!s}")
             return {
                 "status": "error",
                 "message": str(e)
@@ -207,27 +207,27 @@ class EmailProcessingUser(HttpUser):
         """Send email processing request based on weighted scenarios"""
         # Select scenario based on weights
         scenario = random.choices(
-            EMAIL_SCENARIOS, 
+            EMAIL_SCENARIOS,
             weights=[s["weight"] for s in EMAIL_SCENARIOS],
             k=1
         )[0]
-        
+
         # For the third scenario, get fresh random files each time
         if scenario["data"]["to"] == "full-analysis@mxtoai.com":
             scenario["data"]["files"] = get_random_test_files(2)
-        
+
         # Check if this is a deep research request
         if scenario["data"].get("deep_research"):
             start_time = datetime.now()
             result = self._process_deep_research(scenario["data"])
             end_time = datetime.now()
-            
+
             # Record response time for deep research
             response_time = (end_time - start_time).total_seconds() * 1000
-            
+
             # Record system stats
             stats_writer.write_stats(get_system_stats())
-            
+
             # Log the result
             if result["status"] == "success":
                 events.request.fire(
@@ -246,11 +246,11 @@ class EmailProcessingUser(HttpUser):
                     exception=result["message"]
                 )
             return
-        
+
         # Prepare the request data for regular email processing
         data = scenario["data"].copy()
         files = []
-        
+
         # Add files if present in scenario
         for file_path in data.pop("files", []):
             try:
@@ -264,7 +264,7 @@ class EmailProcessingUser(HttpUser):
             except FileNotFoundError:
                 logger.error(f"File not found: {file_path}")
                 continue
-        
+
         try:
             # Send the request
             with self.client.post(
@@ -275,7 +275,7 @@ class EmailProcessingUser(HttpUser):
             ) as response:
                 # Record system stats
                 stats_writer.write_stats(get_system_stats())
-                
+
                 # Validate response
                 if response.status_code == 200:
                     response_data = response.json()
@@ -285,7 +285,7 @@ class EmailProcessingUser(HttpUser):
                         response.failure(f"Unexpected response: {response_data}")
                 else:
                     response.failure(f"HTTP {response.status_code}: {response.text}")
-        
+
         finally:
             # Clean up file handles
             for _, file_tuple in files:
@@ -301,10 +301,10 @@ def on_test_start(environment, **kwargs):
 def on_test_stop(environment, **kwargs):
     """Called when a test is ending"""
     logger.info("Load test is ending")
-    
+
     # Close system stats writer
     stats_writer.close()
-    
+
     # Generate summary statistics
     if environment.stats.total.num_requests > 0:
         logger.info("\nTest Summary:")

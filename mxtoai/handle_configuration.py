@@ -1,9 +1,11 @@
+from typing import Optional
+
 from pydantic import BaseModel
-from typing import Optional, List
+
 
 class EmailHandleInstructions(BaseModel):
     handle: str
-    aliases: List[str]
+    aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
     specific_research_instructions: Optional[str] = None
@@ -26,7 +28,7 @@ EMAIL_HANDLES = [
         add_summary=False,  # No need for additional summary section
         target_model="gpt-4",
         task_template="""
-Process this email with a focus on delivering a clear, concise summary. 
+Process this email with a focus on delivering a clear, concise summary.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:

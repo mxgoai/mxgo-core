@@ -1,6 +1,5 @@
 from requests.cookies import RequestsCookieJar
 
-
 COOKIES_LIST = [
     {
         "domain": ".youtube.com",

@@ -3,7 +3,7 @@ from typing import Optional
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
-from .mdconvert import MarkdownConverter, FileConversionException, UnsupportedFormatException
+from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
 
 
 class TextInspectorTool(Tool):
@@ -34,8 +34,9 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
     def forward_initial_exam_mode(self, file_path, question):
         try:
             if file_path[-4:] in [".png", ".jpg"]:
-                raise Exception("Cannot use inspect_file_as_text tool with images: use visualizer instead!")
-                
+                msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
+                raise Exception(msg)
+
             result = self.md_converter.convert(file_path)
 
             if ".zip" in file_path:
@@ -74,17 +75,18 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             ]
             return self.model(messages).content
         except FileConversionException as e:
-            return f"Error converting file: {str(e)}"
+            return f"Error converting file: {e!s}"
         except UnsupportedFormatException as e:
-            return f"Unsupported file format: {str(e)}"
+            return f"Unsupported file format: {e!s}"
         except Exception as e:
-            return f"Error processing file: {str(e)}"
+            return f"Error processing file: {e!s}"
 
     def forward(self, file_path, question: Optional[str] = None) -> str:
         try:
             if file_path[-4:] in [".png", ".jpg"]:
-                raise Exception("Cannot use inspect_file_as_text tool with images: use visualizer instead!")
-                
+                msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
+                raise Exception(msg)
+
             result = self.md_converter.convert(file_path)
 
             if ".zip" in file_path:
@@ -129,8 +131,8 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             ]
             return self.model(messages).content
         except FileConversionException as e:
-            return f"Error converting file: {str(e)}"
+            return f"Error converting file: {e!s}"
         except UnsupportedFormatException as e:
-            return f"Unsupported file format: {str(e)}"
+            return f"Unsupported file format: {e!s}"
         except Exception as e:
-            return f"Error processing file: {str(e)}"
+            return f"Error processing file: {e!s}"

@@ -74,8 +74,8 @@ RESEARCH METHODOLOGY:
 6. Sources will be automatically collected and included in a references section"""
 
 IMPORTANT_INSTRUCTIONS = """
-IMPORTANT: When you need to search for information on the web or analyze online content, 
-YOU MUST delegate this task to the search_agent by calling it with a detailed request. 
+IMPORTANT: When you need to search for information on the web or analyze online content,
+YOU MUST delegate this task to the search_agent by calling it with a detailed request.
 Do not try to synthesize information solely from attachments without verifying or expanding it through web searches.
 
 For comprehensive research reports, follow this exact process:
@@ -104,17 +104,17 @@ CODING GUIDELINES & ERROR PREVENTION:
 1. When using f-strings with triple quotes, use normal string concatenation instead to avoid syntax errors.
    BAD:  final_report = f\"\"\"# Title\n{variable}\"\"\"
    GOOD: final_report = "# Title\n" + variable
-   
+
 2. Always store search_agent results in variables, then use them. Example:
    section1_research = search_agent("Find exact statistics on [topic], including dates, numbers, and specific metrics")
    print("Section 1 research complete: ", section1_research[:100] + "...")
-   
+
 3. If you encounter a code error, try a simpler approach:
    - Break complex operations into multiple simple steps
    - Use basic string concatenation instead of complex f-strings
    - Store intermediate results in variables to check them
    - Print variables after assigning them to confirm they exist
-   
+
 4. For the final report, build it section by section, like this:
    key_findings = "# Key Findings\n" + "\n".join([f"- {finding}" for finding in findings])
    section1 = "# Section 1 Title\n" + section1_research
@@ -125,11 +125,11 @@ CODING GUIDELINES & ERROR PREVENTION:
 5. Use this function to create markdown tables from your data:
    def create_table(headers, rows):
        '''Create a markdown table with the given headers and rows.
-       
+
        Args:
            headers: List of column headers
            rows: List of lists, where each inner list represents a row of data
-           
+
        Returns:
            Markdown formatted table as a string
        '''
@@ -161,12 +161,12 @@ DO NOT GENERATE FAKE DATA! If you encounter an error with search_agent, try a si
 """
 
 # Reformulator Prompts
-REFORMULATOR_SYSTEM_PROMPT = """You are an expert scientific research editor focusing on maximum information density. 
+REFORMULATOR_SYSTEM_PROMPT = """You are an expert scientific research editor focusing on maximum information density.
 You've been given the following research task:
 
 {original_task}
 
-Your team has compiled research on this topic. Your job is to reformulate their findings into a 
+Your team has compiled research on this topic. Your job is to reformulate their findings into a
 data-dense, precise report that presents only the relevant information. The report must:
 
 1. Begin with 3-5 "Key Findings" bullets that present specific data points and metrics
@@ -242,18 +242,17 @@ def update_citation_examples(text):
     """Update citation examples in the research instructions."""
     text = text.replace("[src123abc]", "[1]")
     text = text.replace("[src456def]", "[2]")
-    text = text.replace("[src789ghi]", "[3]")
-    return text
+    return text.replace("[src789ghi]", "[3]")
 
 # Update example citations in the reformulator instructions
 REFORMULATOR_USER_PROMPT_CITATIONS = """
     Important: When reformulating the research results, ensure proper citation handling:
-    
+
     1. The following citation IDs have been identified: {citation_ids}
     2. Maintain all citations in the numbered format [1], [2], [3] in your reformulated text
     3. Ensure every fact, figure, or quote from a source has a proper citation
     4. A References section has been prepared and will be appended to your response
-    
+
     References section:
     {references_section}
-    """ 
+    """

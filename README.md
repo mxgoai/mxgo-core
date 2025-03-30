@@ -19,6 +19,8 @@ A robust email processing system that can handle, analyze, and respond to emails
 - **Rich Text Formatting**: Supports both HTML and plain text email responses with proper formatting
 - **Attachment Analysis**: Provides detailed summaries of attachment contents in the email response
 - **Error Resilience**: Graceful handling of processing errors with fallback responses
+- **Asynchronous Processing**: Uses Dramatiq for reliable background task processing
+- **Scalable Architecture**: Multiple workers can process emails concurrently
 
 ## Directory Structure
 
@@ -29,15 +31,122 @@ mxtoai/
 ├── tools/                 # Individual tool implementations
 │   ├── email_summary_tool.py      # Email summarization functionality
 │   ├── attachment_processing_tool.py  # Attachment handling
+│   ├── email_reply_tool.py        # Email reply generation
 │   └── deep_research_tool.py      # Research capabilities
 ├── scripts/              # Utility scripts and helpers
 │   ├── visual_qa.py     # Azure Vision integration for images
+│   ├── citation_tools.py # Citation and reference handling
+│   ├── text_web_browser.py # Web content retrieval
 │   └── report_formatter.py  # Email response formatting
-├── email_processor/      # Core email processing logic
 ├── attachments/         # Temporary storage for attachments
-├── models.py           # Data models and schemas
 └── ai.py              # AI model configurations and utilities
 ```
+
+## Architecture
+
+The system uses a message queue architecture with Dramatiq for reliable email processing:
+
+1. **API Layer**: Receives email requests and queues them for processing
+2. **Message Queue**: Uses Redis as the message broker
+3. **Worker Processes**: Multiple Dramatiq workers process emails concurrently
+4. **Error Handling**: Built-in retry mechanism for failed tasks
+
+## Setup and Installation
+
+### Prerequisites
+
+- Python 3.12+
+- Redis server (for message queue)
+- Azure OpenAI API access
+- Azure Vision API access (for image processing)
+
+### Installation
+
+The project uses Poetry for dependency management. Here's how to set it up:
+
+1. First, install Poetry if you haven't already:
+```bash
+# On macOS/Linux/WSL
+curl -sSL https://install.python-poetry.org | python3 -
+
+# On Windows (PowerShell)
+(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
+```
+
+2. Clone and set up the project:
+```bash
+# Clone the repository
+git clone https://github.com/satwikkansal/mxtoai.git
+cd mxtoai
+
+# Install dependencies using Poetry
+poetry install
+
+# Activate the virtual environment
+poetry shell
+```
+
+3. Start Redis server:
+```bash
+redis-server
+```
+
+4. Start the API server:
+```bash
+poetry run python run_api.py
+```
+
+5. Start the workers:
+```bash
+poetry run python mxtoai/scripts/run_workers.py
+```
+
+### Environment Variables
+
+Copy the `.env.example` file to `.env` and update with your specific configuration:
+
+```env
+# Redis configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# Model configuration
+MODEL_ENDPOINT=your_azure_openai_endpoint
+MODEL_API_KEY=your_azure_openai_api_key
+MODEL_NAME=your-azure-openai-model-deployment
+MODEL_API_VERSION=2025-01-01-preview
+
+# Optional for research functionality
+JINA_API_KEY=your-jina-api-key
+
+# For image processing
+AZURE_VISION_ENDPOINT=your-azure-vision-endpoint
+AZURE_VISION_KEY=your-azure-vision-key
+
+# For web search functionality
+SERPAPI_API_KEY=your-serpapi-api-key
+```
+
+## API Endpoints
+
+### Process Email
+
+```
+POST /process-email
+```
+
+#### Response Example
+
+```json
+{
+    "message": "Email received and queued for processing",
+    "email_id": "1743315736--3926735152910876943",
+    "attachments_saved": 1,
+    "status": "processing"
+}
+```
+
+The email will be processed asynchronously by the workers. You can implement a status check endpoint to monitor the processing status.
 
 ## Email Processing Flow
 
@@ -89,190 +198,6 @@ graph TD
     class A,B email
     class D,E,F,G,Q,R process
     class U,V error
-```
-
-## Setup and Installation
-
-### Prerequisites
-
-- Python 3.8+
-- Azure OpenAI API access
-- Azure Vision API access (for image processing)
-
-### Installation
-
-The project uses Poetry for dependency management. Here's how to set it up:
-
-1. First, install Poetry if you haven't already:
-```bash
-# On macOS/Linux/WSL
-curl -sSL https://install.python-poetry.org | python3 -
-
-# On Windows (PowerShell)
-(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
-```
-
-2. Clone and set up the project:
-```bash
-# Clone the repository
-git clone https://github.com/satwikkansal/mxtoai.git
-cd mxtoai
-
-# Install dependencies using Poetry
-poetry install
-
-# Activate the virtual environment
-poetry shell
-```
-
-3. Verify the installation:
-```bash
-# Should show the version of mxtoai
-poetry run python -c "import mxtoai; print(mxtoai.__version__)"
-```
-
-Poetry will automatically manage all dependencies and create a virtual environment for you. The `pyproject.toml` file contains all the project dependencies and metadata.
-
-### Environment Variables
-
-Copy the `.env.example` file to `.env` and update with your specific configuration:
-
-```env
-MODEL_ENDPOINT=your_azure_openai_endpoint
-MODEL_API_KEY=your_azure_openai_api_key
-MODEL_NAME=your-azure-openai-model-deployment
-MODEL_API_VERSION=2025-01-01-preview
-
-# Optional for research functionality
-JINA_API_KEY=your-jina-api-key
-
-# For image processing
-AZURE_VISION_ENDPOINT=your-azure-vision-endpoint
-AZURE_VISION_KEY=your-azure-vision-key
-```
-
-## API Endpoints
-
-### Process Email
-
-```
-POST /process-email
-```
-
-#### JSON Request Example
-
-Request body:
-
-```json
-{
-  "subject": "Project Update - Q2 2023",
-  "body": "Hi team,\n\nAttached is the Q2 project report. Please review and provide feedback.\n\nThanks,\nJohn",
-  "sender": "john@example.com",
-  "date": "2023-06-15T10:30:00",
-  "processing_mode": "full",
-  "attachments": [
-    {
-      "filename": "report.pdf",
-      "type": "application/pdf",
-      "path": "/path/to/temporary/file.pdf",
-      "size": 1024
-    }
-  ]
-}
-```
-
-#### Multipart Form Request Example
-
-Here's how to send a request with file attachments using cURL:
-
-```bash
-curl --location 'http://localhost:8000/process-email' \
---form 'from_email="gautamprajapati06@gmail.com"' \
---form 'to="ai-assistant@mxtoai.com"' \
---form 'subject="Seeking Alpha newsletter"' \
---form 'textContent="Explain me what REITs are, be as detailed as possible"' \
---form 'date="2023-08-15T12:00:00Z"' \
---form 'files=@"/path/to/your/reit-article.pdf"' \
---form 'files=@"/path/to/your/business-card.jpg"'
-```
-
-> **Note**: Replace the file paths with actual paths to your files. The endpoint supports multiple file attachments.
-
-#### Response Structure
-
-```json
-{
-  "metadata": {
-    "processed_at": "2024-03-25T10:30:25.123456",
-    "mode": "full",
-    "errors": [],
-    "email_sent": {
-      "status": "pending",
-      "timestamp": "2024-03-25T10:30:25.123456"
-    }
-  },
-  "email_content": {
-    "html": "<formatted HTML content>",
-    "text": "Plain text content",
-    "enhanced": {
-      "html": "<HTML with attachment summaries>",
-      "text": "Text with attachment summaries"
-    }
-  },
-  "attachments": {
-    "summary": "Processed 1 attachment (1 document)",
-    "processed": [
-      {
-        "filename": "report.pdf",
-        "size": 1024,
-        "type": "application/pdf",
-        "content": {
-          "text": "Extracted content summary..."
-        }
-      }
-    ]
-  }
-}
-```
-
-### Using the EmailAgent Directly
-
-```python
-from mxtoai.agents.email_agent import EmailAgent
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
-
-# Initialize the agent
-agent = EmailAgent(
-    attachment_dir="./email_attachments",
-    verbose=True,
-    enable_deep_research=False  # Enable if needed
-)
-
-# Process an email
-email_data = {
-    "subject": "Project Update",
-    "body": "Here's the latest project update...",
-    "sender": "john@example.com",
-    "attachments": [
-        {
-            "filename": "report.pdf",
-            "type": "application/pdf",
-            "path": "/path/to/file.pdf",
-            "size": 1024
-        }
-    ]
-}
-
-# Process the email
-results = agent.process_email(email_data, mode="full")
-
-# Access the results
-print(results["email_content"]["text"])  # Plain text version
-print(results["email_content"]["html"])  # HTML version
-print(results["attachments"]["summary"]) # Attachment processing summary
 ```
 
 ## Running the API Server
