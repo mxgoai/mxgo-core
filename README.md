@@ -252,7 +252,7 @@ mkdir -p test_files
 locust --host=http://localhost:8000
 
 # Or headless mode
-locust --host=http://localhost:8000 --users 10 --spawn-rate 2 --run-time 1m --headless
+poetry run locust --host=http://localhost:9192 --users 10 --spawn-rate 2 --run-time 1m --headless
 ```
 
 ### Test Scenarios

@@ -8,12 +8,18 @@ from dramatiq.brokers.redis import RedisBroker
 from loguru import logger
 
 from mxtoai.agents.email_agent import EmailAgent
+from mxtoai.config import SKIP_EMAIL_DELIVERY
 from mxtoai.email_sender import send_email_reply
 from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailRequest
 
 # Initialize Redis broker
-redis_broker = RedisBroker(url="redis://localhost:6379")
+redis_broker = RedisBroker(
+    url="redis://localhost:6379",
+    middleware=[],
+    namespace="dramatiq",
+    # list_enqueue=True  # Use lists instead of hashes for queues
+)
 dramatiq.set_broker(redis_broker)
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
@@ -84,12 +90,18 @@ def process_email_task(
                     "cc": email_request.cc
                 }
 
-                # Run the async function in the sync context
-                email_sent_result = asyncio.run(send_email_reply(
-                    email_dict,
-                    text_content,
-                    html_content
-                ))
+                # Skip email delivery for test emails
+                if email_request.from_email in SKIP_EMAIL_DELIVERY:
+                    logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
+                    email_sent_result = {"MessageId": "skipped", "status": "skipped"}
+                else:
+                    # Run the async function in the sync context
+                    email_sent_result = asyncio.run(send_email_reply(
+                        email_dict,
+                        text_content,
+                        html_content
+                    ))
+
                 # Update the email_sent status in metadata
                 if "metadata" in processing_result:
                     processing_result["metadata"]["email_sent"] = email_sent_result

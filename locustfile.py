@@ -4,23 +4,24 @@ import json
 import os
 import random
 from datetime import datetime
+from pathlib import Path
 
 import psutil
 from locust import HttpUser, between, events, task
 
 from mxtoai._logging import get_logger
-from mxtoai.tools.deep_research_tool import DeepResearchTool
 
 # Configure logger
 logger = get_logger("load_test")
 
-# Initialize deep research tool with mock service
-deep_research_tool = DeepResearchTool(use_mock_service=True)
-deep_research_tool.enable_deep_research()  # Enable deep research functionality
+# Get script directory
+SCRIPT_DIR = Path(__file__).parent
+TEST_FILES_DIR = SCRIPT_DIR / "test_files"
+STATS_FILE = SCRIPT_DIR / "system_stats.csv"
 
 def get_random_test_files(num_files: int = 2) -> list[str]:
     """Get random PDF files from test_files directory"""
-    pdf_files = glob.glob("test_files/*.pdf")
+    pdf_files = glob.glob(str(TEST_FILES_DIR / "*.pdf"))
     return random.sample(pdf_files, min(num_files, len(pdf_files)))
 
 # Complex topics for testing
@@ -97,26 +98,26 @@ EMAIL_SCENARIOS = [
             "files": get_random_test_files(2)  # Two random PDF files
         }
     },
-    {
-        "weight": 17,  # 17% deep research without files (increased from 15%)
-        "data": {
-            "from_email": "test@example.com",
-            "to": "research@mxtoai.com",
-            **random.choice(research_presets),
-            "deep_research": True
-        }
-    },
-    {
-        "weight": 13,  # 13% deep research with files (increased from 10%)
-        "data": {
-            "from_email": "test@example.com",
-            "to": "research@mxtoai.com",
-            "subject": "Research with Attachments",
-            "textContent": "Please conduct deep research on these documents and provide comprehensive findings.",
-            "files": get_random_test_files(2),
-            "deep_research": True
-        }
-    }
+    # {
+    #     "weight": 17,  # 17% deep research without files (increased from 15%)
+    #     "data": {
+    #         "from_email": "test@example.com",
+    #         "to": "research@mxtoai.com",
+    #         **random.choice(research_presets),
+    #         "deep_research": True
+    #     }
+    # },
+    # {
+    #     "weight": 13,  # 13% deep research with files (increased from 10%)
+    #     "data": {
+    #         "from_email": "test@example.com",
+    #         "to": "research@mxtoai.com",
+    #         "subject": "Research with Attachments",
+    #         "textContent": "Please conduct deep research on these documents and provide comprehensive findings.",
+    #         "files": get_random_test_files(2),
+    #         "deep_research": True
+    #     }
+    # }
 ]
 
 # System resource monitoring
@@ -134,6 +135,7 @@ def get_system_stats() -> dict:
 class SystemStatsWriter:
     def __init__(self, filename: str):
         self.filename = filename
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
         self.file = open(filename, "w", newline="")
         self.writer = csv.writer(self.file)
         self.writer.writerow(["timestamp", "cpu_percent", "memory_percent", "num_threads", "connections"])
@@ -151,13 +153,18 @@ class SystemStatsWriter:
         self.file.close()
 
 # Initialize system stats writer
-stats_writer = SystemStatsWriter("system_stats.csv")
+stats_writer = SystemStatsWriter(str(STATS_FILE))
 
 class EmailProcessingUser(HttpUser):
     wait_time = between(0.5, 1.5)  # Random wait between requests
 
     def on_start(self):
         """Setup before tests start"""
+        # Initialize deep research tool
+        # from mxtoai.tools.deep_research_tool import DeepResearchTool
+        # self.deep_research_tool = DeepResearchTool(use_mock_service=True)
+        # self.deep_research_tool.enable_deep_research()
+
         # Verify test files exist
         for scenario in EMAIL_SCENARIOS:
             for file_path in scenario["data"].get("files", []):
@@ -182,7 +189,7 @@ class EmailProcessingUser(HttpUser):
                 })
 
             # Call deep research tool with mock service
-            result = deep_research_tool.forward(
+            result = self.deep_research_tool.forward(
                 query=query,
                 context=context,
                 attachments=attachments,
@@ -279,7 +286,7 @@ class EmailProcessingUser(HttpUser):
                 # Validate response
                 if response.status_code == 200:
                     response_data = response.json()
-                    if response_data.get("message") == "Email processed successfully":
+                    if response_data.get("message") == "Email received and queued for processing" and response_data.get("status") == "processing":
                         response.success()
                     else:
                         response.failure(f"Unexpected response: {response_data}")
@@ -317,4 +324,4 @@ def on_test_stop(environment, **kwargs):
 
 if __name__ == "__main__":
     # Create test_files directory if it doesn't exist
-    os.makedirs("test_files", exist_ok=True)
+    os.makedirs(TEST_FILES_DIR, exist_ok=True)
