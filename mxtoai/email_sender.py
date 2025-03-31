@@ -319,6 +319,8 @@ def log_received_email(email_data: EmailRequest) -> None:
     """
     logger.info(f"Received email from {email_data.from_email} to {email_data.to}")
     logger.info(f"Subject: {email_data.subject}")
+    logger.info(f"Text Content: {email_data.textContent}")
+    logger.info(f"HTML Content: {email_data.htmlContent}")
     logger.info(f"Number of attachments: {len(email_data.attachments) if email_data.attachments else 0}")
 
 def generate_email_id(email_data: EmailRequest) -> str:
