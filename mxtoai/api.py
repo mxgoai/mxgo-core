@@ -23,6 +23,8 @@ from mxtoai.email_sender import (
 from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailAttachment, EmailRequest
 from mxtoai.tasks import process_email_task
+from mxtoai.whitelist import is_email_whitelisted, get_whitelist_signup_url
+from mxtoai.validators import validate_api_key, validate_email_whitelist, validate_email_handle
 
 # Load environment variables
 load_dotenv()
@@ -306,46 +308,24 @@ async def process_email(
     api_key: str = Depends(api_auth_scheme)
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
-    if api_key != os.environ["X_API_KEY"]:
-        return Response(
-            content=json.dumps({
-                "message": "Invalid API key",
-                "status": "error"
-            }),
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            media_type="application/json",
-        )
+    # Validate API key
+    if response := await validate_api_key(api_key):
+        return response
 
     if files is None:
         files = []
     try:
-        # Extract handle from email
-        handle = to.split("@")[0].lower()
+        # Validate email whitelist
+        if response := await validate_email_whitelist(from_email, to, subject, messageId):
+            return response
 
-        # Check if handle is supported
-        email_instructions = HANDLE_MAP.get(handle)
-        if not email_instructions:
-            # Send rejection email
-            rejection_msg = "This email alias is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
-            await email_sender.send_reply(
-                {
-                    "from": from_email,
-                    "to": to,
-                    "subject": f"Re: {subject}",
-                    "messageId": messageId,
-                },
-                rejection_msg,
-                rejection_msg
-            )
-            return Response(
-                content=json.dumps({
-                    "message": "Unsupported email handle",
-                    "handle": handle,
-                    "rejection_sent": True
-                }),
-                status_code=status.HTTP_400_BAD_REQUEST,
-                media_type="application/json",
-            )
+        # Validate email handle
+        response, handle = await validate_email_handle(to, from_email, subject, messageId)
+        if response:
+            return response
+
+        # Get handle configuration
+        email_instructions = HANDLE_MAP[handle]  # Safe to use direct access now
 
         # Log initial email details
         logger.info("Received new email request:")
