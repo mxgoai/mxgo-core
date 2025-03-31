@@ -33,7 +33,11 @@ def cleanup_attachments(email_attachments_dir: str) -> None:
     except Exception as e:
         logger.exception(f"Error cleaning up attachments: {e!s}")
 
-@dramatiq.actor
+def should_retry(retries_so_far, exception):
+    return retries_so_far < 3
+
+
+@dramatiq.actor(retry_when=should_retry, min_backoff=60, time_limit=60000)
 def process_email_task(
     email_data: dict[str, Any],
     email_attachments_dir: str,
