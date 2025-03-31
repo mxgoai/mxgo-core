@@ -1,6 +1,5 @@
 import base64
 import json
-import logging
 import os
 import shutil
 from datetime import datetime
@@ -26,13 +25,13 @@ from mxtoai.email_sender import (
 from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailAttachment, EmailRequest
 from mxtoai.tasks import process_email_task
+from mxtoai._logging import get_logger
 
 # Load environment variables
 load_dotenv()
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("api")
+logger = get_logger(__name__)
 
 app = FastAPI()
 

@@ -1,6 +1,8 @@
 import re
 from typing import Any
+from mxtoai._logging import get_logger
 
+logger = get_logger(__name__)
 
 class ReportFormatter:
     """Format research reports and emails for delivery."""
@@ -210,8 +212,7 @@ _Feel free to reply to this email to continue our conversation._
 
         except Exception as e:
             # Log error but don't break formatting
-            import logging
-            logging.error(f"Error processing citations: {e!s}")
+            logger.exception(f"Error processing citations: {e!s}")
             return content
 
     def _remove_existing_signatures(self, content: str) -> str:
