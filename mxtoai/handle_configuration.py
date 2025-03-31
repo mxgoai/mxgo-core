@@ -37,7 +37,6 @@ FORMATTING REQUIREMENTS:
    - Proper line breaks between paragraphs
    - Bullet points where appropriate
 2. Keep the structure simple:
-   - Start with "Hi [Name],"
    - Present key points clearly
    - End with a brief closing
 3. No formal headers or sections needed
@@ -65,12 +64,13 @@ Remember:
         target_model="gpt-4-reasoning",
         task_template="""
 Conduct thorough research and present findings in a structured format.
+For this task, you must use deep research tool at least once with appropriate query.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:
    - ### for section headers
    - **bold** for emphasis and key terms
-   - _italics_ for quotes or subtle emphasis
+   - _italics_ for quotes
    - Proper bullet points and numbered lists
    - [text](url) for links
    - > for quotations
