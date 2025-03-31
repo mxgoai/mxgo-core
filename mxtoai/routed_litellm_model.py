@@ -24,7 +24,7 @@ class RoutedLiteLLMModel(LiteLLMModel):
             **kwargs: Additional arguments passed to parent class
 
         """
-        super().__init__(**kwargs)
+        super().__init__(model_id="gpt-4", **kwargs)
 
         self.current_handle = current_handle
 

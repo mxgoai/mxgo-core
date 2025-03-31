@@ -8,7 +8,9 @@ from dotenv import load_dotenv
 from smolagents import ToolCallingAgent
 
 from mxtoai._logging import get_logger
+from mxtoai.prompts.base_prompts import create_attachment_processing_task, create_email_context, create_task_template
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
+from mxtoai.schemas import EmailRequest
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
@@ -161,7 +163,14 @@ class EmailAgent:
         other_attachments = []
 
         for attachment in attachments:
-            if attachment.get("type", "").startswith("image/"):
+            # Ensure we have required fields
+            if not all(key in attachment for key in ["filename", "contentType", "path", "size"]):
+                error_msg = f"Missing required fields in attachment: {attachment}"
+                logger.error(error_msg)
+                processed_results["errors"].append(error_msg)
+                continue
+
+            if attachment["contentType"].startswith("image/"):
                 image_attachments.append(attachment)
             else:
                 other_attachments.append(attachment)
@@ -213,95 +222,34 @@ class EmailAgent:
 
         return processed_results
 
-    def _create_task(self, email_data: dict[str, Any], email_instructions: "EmailHandleInstructions") -> str:
+    def _create_task(self, email_request: EmailRequest, email_instructions: "EmailHandleInstructions") -> str:
         """Create a task description for the agent based on email handle instructions."""
         # Create attachment details with explicit paths if needed
         attachment_details = []
-        if email_instructions.process_attachments and email_data.get("attachments"):
-            for att in email_data["attachments"]:
+        if email_instructions.process_attachments and email_request.attachments:
+            for att in email_request.attachments:
                 # Quote the file path to handle spaces correctly
-                quoted_path = f'"{att["path"]}"'
+                quoted_path = f'"{att.path}"'
                 attachment_details.append(
-                    f"- {att['filename']} (Type: {att['type']}, Size: {att['size']} bytes)\n"
+                    f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
                     f"  EXACT FILE PATH: {quoted_path}"
                 )
 
-        # Use handle-specific template if provided
-        if email_instructions.task_template:
-            return f"""Process this email according to the '{email_instructions.handle}' instruction type.
+        # Create the email context section
+        email_context = create_email_context(email_request, attachment_details)
 
-Email Content:
-Subject: {email_data.get('subject', '')}
-From: {email_data.get('sender', 'Unknown')}
-Body: {email_data.get('body', '')}
+        # Create attachment processing task if needed
+        attachment_task = create_attachment_processing_task(attachment_details) if attachment_details else ""
 
-{f'''Available Attachments:
-{chr(10).join(attachment_details)}''' if attachment_details else 'No attachments provided.'}
-
-{email_instructions.task_template}
-
-{email_instructions.specific_research_instructions or ''}
-
-CRITICAL FORMATTING REQUIREMENTS:
-1. ALWAYS use proper markdown syntax - this will be converted to HTML
-2. Ensure proper spacing between paragraphs (use blank lines)
-3. Use appropriate list formatting (- for bullets, 1. for numbered)
-4. Format emphasis correctly (**bold**, _italic_)
-5. Use proper heading levels (###) where specified
-6. Remove any unnecessary sections or headers
-7. Keep the response focused and relevant
-8. DO NOT add any signature - it will be added automatically
-"""
-
-        # Default task creation (fallback)
-        steps = []
-
-        # Add attachment processing step if needed
-        if email_instructions.process_attachments and attachment_details:
-            steps.append(f"""Process these attachments:
-{chr(10).join(attachment_details)}""")
-
-        # Add email content processing step
-        steps.append(f"""Process Email Content:
-{email_instructions.specific_research_instructions or "Process the email content according to the user's request"}
-
-Use proper markdown formatting:
-- **bold** for emphasis
-- _italics_ for quotes
-- ### for section headers (if needed)
-- Proper bullet points and numbered lists
-- Clear paragraph spacing""")
-
-        # Add response generation step
-        steps.append("""Generate Response:
-- Write in proper markdown format
-- Include only relevant information
-- Maintain appropriate tone and style
-- Use proper spacing and formatting
-- DO NOT add any signature - it will be added automatically""")
-
-        # Create numbered steps
-        numbered_steps = []
-        for i, step in enumerate(steps, 1):
-            numbered_steps.append(f"Step {i}:\n{step}")
-
-        return f"""Process this email according to the '{email_instructions.handle}' instruction type.
-
-Email Details:
-- Subject: {email_data.get('subject', '')}
-- From: {email_data.get('sender', 'Unknown')}
-- Body: {email_data.get('body', '')}
-
-{chr(10).join(numbered_steps)}
-
-CRITICAL FORMATTING REQUIREMENTS:
-1. ALWAYS use proper markdown syntax - this will be converted to HTML
-2. Ensure proper spacing between paragraphs (use blank lines)
-3. Use appropriate list formatting (- for bullets, 1. for numbered)
-4. Format emphasis correctly (**bold**, _italic_)
-5. Keep the response focused and relevant
-6. DO NOT add any signature - it will be added automatically"""
-
+        # Create the complete task template
+        return create_task_template(
+            handle=email_instructions.handle,
+            email_context=email_context,
+            handle_specific_template=email_instructions.task_template,
+            research_instructions=email_instructions.specific_research_instructions,
+            attachment_task=attachment_task,
+            deep_research_mandatory=email_instructions.deep_research_mandatory
+        )
 
     def _process_agent_result(self, agent_result: Any) -> dict[str, Any]:
         """
@@ -600,14 +548,14 @@ CRITICAL FORMATTING REQUIREMENTS:
 
     def process_email(
         self,
-        email_data: dict[str, Any],
+        email_request: EmailRequest,
         email_instructions: "EmailHandleInstructions"  # Type hint as string to avoid circular import
     ) -> dict[str, Any]:
         """
         Process an email using the agent based on the provided email handle instructions.
 
         Args:
-            email_data: Dictionary containing email data
+            email_request: EmailRequest instance containing email data
             email_instructions: EmailHandleInstructions object containing processing configuration
 
         Returns:
@@ -619,16 +567,16 @@ CRITICAL FORMATTING REQUIREMENTS:
             self.routed_model.current_handle = email_instructions
 
             # Process attachments first if required
-            if email_instructions.process_attachments and email_data.get("attachments"):
+            if email_instructions.process_attachments and email_request.attachments:
                 try:
-                    attachment_results = self._process_attachments(email_data["attachments"])
+                    attachment_results = self._process_attachments([att.model_dump() for att in email_request.attachments])
                     if attachment_results.get("errors"):
                         logger.warning(f"Attachment processing errors: {attachment_results['errors']}")
                 except Exception as e:
                     logger.exception(f"Error processing attachments: {e!s}")
 
             # Create task with specific instructions
-            task = self._create_task(email_data, email_instructions)
+            task = self._create_task(email_request, email_instructions)
 
             # Run the agent
             try:
@@ -649,13 +597,6 @@ CRITICAL FORMATTING REQUIREMENTS:
                 logger.error(error_msg)
 
                 # Generate a basic response when agent fails
-                (
-                    "I apologize, but I encountered some issues while processing your email. "
-                    "Please try again later or contact support if this issue persists.\n\n"
-                    f"Error: {e!s}\n\n"
-                    "Best regards,\nMXtoAI Assistant"
-                )
-
                 return {
                     "attachments": {"summary": None, "attachments": []},
                     "summary": None,
@@ -678,7 +619,6 @@ CRITICAL FORMATTING REQUIREMENTS:
             logger.error(error_msg, exc_info=True)
 
             # Ensure we always return a response, even in case of critical failure
-
             return {
                 "attachments": {"summary": None, "attachments": []},
                 "summary": None,

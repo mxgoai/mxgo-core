@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -9,8 +9,27 @@ class EmailAttachment(BaseModel):
     contentDisposition: Optional[str] = None
     contentId: Optional[str] = None
     cid: Optional[str] = None
-    content: str  # Base64 encoded content
+    content: Optional[Union[str, bytes]] = None  # Can be string (base64) or bytes
     size: int
+    path: Optional[str] = None  # Path becomes required after saving to disk
+
+    class Config:
+        validate_all = True  # Ensure all fields are validated
+
+    @property
+    def has_valid_content(self) -> bool:
+        """Check if the attachment has valid content."""
+        return bool(self.content and self.content != "[CONTENT_SAVED_TO_DISK]")
+
+    @property
+    def has_valid_path(self) -> bool:
+        """Check if the attachment has a valid path."""
+        return bool(self.path and self.path.strip())
+
+    @property
+    def is_valid(self) -> bool:
+        """Check if the attachment is valid - either has content or a valid path."""
+        return self.has_valid_content or self.has_valid_path
 
 
 class EmailRequest(BaseModel):

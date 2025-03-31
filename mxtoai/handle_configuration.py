@@ -30,17 +30,6 @@ EMAIL_HANDLES = [
         task_template="""
 Process this email with a focus on delivering a clear, concise summary.
 
-FORMATTING REQUIREMENTS:
-1. Use proper markdown formatting:
-   - **bold** for emphasis
-   - _italics_ for quoted text
-   - Proper line breaks between paragraphs
-   - Bullet points where appropriate
-2. Keep the structure simple:
-   - Present key points clearly
-   - End with a brief closing
-3. No formal headers or sections needed
-
 Content Guidelines:
 1. Get straight to the key points
 2. No redundant introductions
@@ -102,17 +91,6 @@ Content Guidelines:
         task_template="""
 Simplify the content for easy understanding.
 
-FORMATTING REQUIREMENTS:
-1. Use proper markdown formatting:
-   - **bold** for key terms
-   - Simple bullet points for clarity
-   - Short paragraphs with proper spacing
-2. Keep structure simple:
-   - Friendly greeting
-   - Simple explanation
-   - Clear examples
-   - Brief conclusion
-
 Content Guidelines:
 1. Use simple language
 2. Avoid technical terms
@@ -131,20 +109,6 @@ Content Guidelines:
         target_model="gpt-4",
         task_template="""
 Provide a complete response addressing all aspects of the query.
-
-FORMATTING REQUIREMENTS:
-1. Use proper markdown formatting:
-   - ### for major sections (if needed)
-   - **bold** for emphasis and key points
-   - _italics_ for quoted text
-   - Proper bullet points and numbered lists
-   - Code blocks with ``` for technical content
-   - > for important quotes or highlights
-2. Structure with clear organization:
-   - Proper paragraph breaks
-   - Consistent list formatting
-   - Clear hierarchy in headings
-3. Use appropriate spacing for readability
 
 Content Guidelines:
 1. Brief summary of understanding
