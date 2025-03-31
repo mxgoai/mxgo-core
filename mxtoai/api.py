@@ -35,8 +35,11 @@ load_dotenv()
 # Configure logging
 logger = get_logger(__name__)
 
-app = FastAPI(openapi_url=None if os.environ['IS_PROD'] else "/openapi.json")
-api_auth_scheme = APIKeyHeader(name="x-api-key")
+app = FastAPI()
+if os.environ["IS_PROD"].lower() == 'true':
+    app.openapi_url = None
+
+api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
 
 # Create the email agent on startup
 email_agent = EmailAgent(
@@ -308,7 +311,15 @@ async def process_email(
     api_key: str = Depends(api_auth_scheme)
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
-    APIKeyHeader.check_api_key(os.environ['X_API_KEY'], True)
+    if api_key != os.environ['X_API_KEY']:
+        return Response(
+            content=json.dumps({
+                "message": "Invalid API key",
+                "status": "error"
+            }),
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            media_type="application/json",
+        )
 
     if files is None:
         files = []
