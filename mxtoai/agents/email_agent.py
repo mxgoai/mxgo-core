@@ -8,17 +8,13 @@ from dotenv import load_dotenv
 from smolagents import ToolCallingAgent
 
 from mxtoai._logging import get_logger
+from mxtoai.prompts.base_prompts import create_attachment_processing_task, create_email_context, create_task_template
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
+from mxtoai.schemas import EmailRequest
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
-from mxtoai.schemas import EmailRequest
-from mxtoai.prompts.base_prompts import (
-    create_task_template,
-    create_email_context,
-    create_attachment_processing_task
-)
 
 # Load environment variables
 load_dotenv(override=True)

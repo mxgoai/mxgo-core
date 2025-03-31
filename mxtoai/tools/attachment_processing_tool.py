@@ -1,6 +1,6 @@
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import unquote
 
@@ -9,6 +9,7 @@ from smolagents.models import MessageRole, Model
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.mdconvert import MarkdownConverter
+
 from mxtoai._logging import get_logger
 
 # Configure logger
@@ -81,7 +82,7 @@ class AttachmentProcessingTool(Tool):
 
             # Clean up the path
             file_path = file_path.strip('"\'')
-            
+
             # Try different path variations
             paths_to_try = [
                 Path(file_path),  # Direct path

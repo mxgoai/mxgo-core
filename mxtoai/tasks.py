@@ -8,13 +8,12 @@ from dramatiq.brokers.redis import RedisBroker
 from dramatiq.results import Results
 from dramatiq.results.backends import RedisBackend
 
+from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
 from mxtoai.email_sender import send_email_reply
 from mxtoai.handle_configuration import HANDLE_MAP
-from mxtoai.schemas import EmailRequest, EmailAttachment
-from mxtoai._logging import get_logger
-
+from mxtoai.schemas import EmailRequest
 
 logger = get_logger(__name__)
 
@@ -58,11 +57,12 @@ def process_email_task(
 ) -> None:
     """
     Dramatiq task for processing emails asynchronously.
-    
+
     Args:
         email_data: Dictionary containing email request data
         email_attachments_dir: Directory containing email attachments
         attachment_info: List of attachment information dictionaries
+
     """
     # Create EmailRequest instance from the dict
     email_request = EmailRequest(**email_data)
@@ -87,7 +87,7 @@ def process_email_task(
     # Update attachment paths in email_request
     if email_request.attachments and attachment_info:
         valid_attachments = []
-        for attachment, info in zip(email_request.attachments, attachment_info):
+        for attachment, info in zip(email_request.attachments, attachment_info, strict=False):
             try:
                 # Validate file exists
                 if not Path(info["path"]).exists():

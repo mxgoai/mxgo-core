@@ -33,7 +33,7 @@ RESEARCH REQUIREMENTS:
 - Ensure comprehensive research before responding
 - Include citations and sources in your response
 - Synthesize findings with the email content""",
-    
+
     "optional": """
 RESEARCH GUIDELINES:
 - Deep research is NOT allowed for this handle
@@ -68,7 +68,7 @@ def create_task_template(
 ) -> str:
     """
     Create a complete task template with all necessary sections.
-    
+
     Args:
         handle: The email handle being processed
         email_context: The email context section
@@ -76,6 +76,7 @@ def create_task_template(
         research_instructions: Optional research-specific instructions
         attachment_task: Optional attachment processing instructions
         deep_research_mandatory: Whether deep research is required for this handle
+
     """
     sections = [
         f"Process this email according to the '{handle}' instruction type.\n",
@@ -84,7 +85,7 @@ def create_task_template(
 
     # Add research guidelines based on handle requirements
     sections.append(
-        RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory 
+        RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory
         else RESEARCH_GUIDELINES["optional"]
     )
 
@@ -107,4 +108,4 @@ def create_task_template(
     # Always add formatting requirements at the end
     sections.append(FORMATTING_REQUIREMENTS)
 
-    return "\n\n".join(sections) 
+    return "\n\n".join(sections)

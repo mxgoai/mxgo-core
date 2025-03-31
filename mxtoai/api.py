@@ -1,33 +1,28 @@
-import base64
 import json
 import os
 import shutil
 from datetime import datetime
+from pathlib import Path
 from typing import Annotated, Any, Optional
+
+import aiofiles
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, File, Form, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
 
-from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, Response, UploadFile, status, Depends
-from pathlib import Path
-import aiofiles
-
+from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
 from mxtoai.email_sender import (
     EmailSender as email_sender,
 )
 from mxtoai.email_sender import (
-    create_reply_content,
     generate_email_id,
-    generate_email_summary,
-    prepare_email_for_ai,
-    save_attachments,
     send_email_reply,
 )
 from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailAttachment, EmailRequest
 from mxtoai.tasks import process_email_task
-from mxtoai._logging import get_logger
 
 # Load environment variables
 load_dotenv()
@@ -36,7 +31,7 @@ load_dotenv()
 logger = get_logger(__name__)
 
 app = FastAPI()
-if os.environ["IS_PROD"].lower() == 'true':
+if os.environ["IS_PROD"].lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
@@ -136,7 +131,7 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
                 continue
 
             # Write content to disk
-            async with aiofiles.open(storage_path, 'wb') as f:
+            async with aiofiles.open(storage_path, "wb") as f:
                 await f.write(attachment.content)
 
             # Verify file was saved correctly
@@ -311,7 +306,7 @@ async def process_email(
     api_key: str = Depends(api_auth_scheme)
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
-    if api_key != os.environ['X_API_KEY']:
+    if api_key != os.environ["X_API_KEY"]:
         return Response(
             content=json.dumps({
                 "message": "Invalid API key",
@@ -361,7 +356,7 @@ async def process_email(
         logger.info(f"Date: {date}")
         logger.info(f"Email ID: {emailId}")
         logger.info(f"Number of attachments: {len(files)}")
-        
+
         # Convert uploaded files to EmailAttachment objects
         attachments = []
         for file in files:
