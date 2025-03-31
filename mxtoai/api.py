@@ -8,6 +8,8 @@ from fastapi.security import APIKeyHeader
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, Response, UploadFile, status, Depends
+from pathlib import Path
+import aiofiles
 
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
@@ -18,7 +20,6 @@ from mxtoai.email_sender import (
     create_reply_content,
     generate_email_id,
     generate_email_summary,
-    log_received_email,
     prepare_email_for_ai,
     save_attachments,
     send_email_reply,
@@ -105,9 +106,9 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
         logger.debug("No files to process")
         return email_attachments_dir, attachment_info
 
-    # Create directory for this email's attachments
-    email_attachments_dir = os.path.join(ATTACHMENTS_DIR, email_id)
-    os.makedirs(email_attachments_dir, exist_ok=True)
+    # Create directory for this email's attachments using pathlib
+    email_attachments_dir = str(Path(ATTACHMENTS_DIR) / email_id)
+    Path(email_attachments_dir).mkdir(parents=True, exist_ok=True)
     logger.info(f"Created attachments directory: {email_attachments_dir}")
 
     # Process each attachment
@@ -117,30 +118,30 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
             logger.info(f"Processing file {idx + 1}/{len(attachments)}: {attachment.filename} ({attachment.contentType})")
 
             # Sanitize filename for storage
-            safe_filename = os.path.basename(attachment.filename)
+            safe_filename = Path(attachment.filename).name
             if not safe_filename:
                 safe_filename = f"attachment_{idx}.bin"
                 logger.warning(f"Using generated filename for attachment {idx}: {safe_filename}")
 
             # Full path to save the attachment
-            storage_path = os.path.join(email_attachments_dir, safe_filename)
+            storage_path = str(Path(email_attachments_dir) / safe_filename)
             logger.debug(f"Will save file to: {storage_path}")
 
-            # Decode and save file content
-            content = base64.b64decode(attachment.content)
-            if not content:
+            # Save the content
+            if not attachment.content:
                 logger.exception(f"Empty content received for file: {attachment.filename}")
                 continue
 
-            with open(storage_path, "wb") as f:
-                f.write(content)
+            # Write content to disk
+            async with aiofiles.open(storage_path, 'wb') as f:
+                await f.write(attachment.content)
 
             # Verify file was saved correctly
-            if not os.path.exists(storage_path):
+            if not Path(storage_path).exists():
                 msg = f"Failed to save file: {storage_path}"
                 raise OSError(msg)
 
-            file_size = os.path.getsize(storage_path)
+            file_size = Path(storage_path).stat().st_size
             if file_size == 0:
                 msg = f"Saved file is empty: {storage_path}"
                 raise OSError(msg)
@@ -148,10 +149,20 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
             # Store attachment info with storage path
             attachment_info.append({
                 "filename": safe_filename,
-                "type": attachment.contentType,  # Make sure we store the content type
-                "path": storage_path,  # Use the storage path for processing
+                "type": attachment.contentType,
+                "path": storage_path,
                 "size": file_size,
             })
+
+            # Update EmailAttachment object - no need to store content after saving
+            email_data.attachments.append(
+                EmailAttachment(
+                    filename=safe_filename,
+                    contentType=attachment.contentType,
+                    size=file_size,
+                    path=storage_path
+                )
+            )
 
             logger.info(f"Successfully saved attachment: {safe_filename} ({file_size} bytes)")
 
@@ -159,16 +170,16 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
             logger.exception(f"Error processing file {attachment.filename}: {e!s}")
             # Try to clean up any partially saved file
             try:
-                storage_path = os.path.join(email_attachments_dir, safe_filename)
-                if os.path.exists(storage_path):
-                    os.remove(storage_path)
+                if Path(storage_path).exists():
+                    Path(storage_path).unlink()
                     logger.info(f"Cleaned up partial file: {storage_path}")
             except Exception as cleanup_error:
                 logger.error(f"Error cleaning up partial file: {cleanup_error!s}")
 
     # If no attachments were successfully saved, clean up the directory
-    if not attachment_info and os.path.exists(email_attachments_dir):
+    if not attachment_info and Path(email_attachments_dir).exists():
         logger.warning("No attachments were successfully saved, cleaning up directory")
+        import shutil
         shutil.rmtree(email_attachments_dir)
         email_attachments_dir = ""
     else:
@@ -330,6 +341,16 @@ async def process_email(
                 media_type="application/json",
             )
 
+        # Log initial email details
+        logger.info("Received new email request:")
+        logger.info(f"From: {from_email}")
+        logger.info(f"To: {to} (handle: {handle})")
+        logger.info(f"Subject: {subject}")
+        logger.info(f"Message ID: {messageId}")
+        logger.info(f"Date: {date}")
+        logger.info(f"Email ID: {emailId}")
+        logger.info(f"Number of attachments: {len(files)}")
+        
         # Convert uploaded files to EmailAttachment objects
         attachments = []
         for file in files:
@@ -337,48 +358,54 @@ async def process_email(
             attachments.append(EmailAttachment(
                 filename=file.filename,
                 contentType=file.content_type,
-                content=base64.b64encode(content).decode(),
-                size=len(content)
+                content=content,  # Store binary content directly
+                size=len(content),
+                path=None  # Path will be set after saving to disk
             ))
+            logger.info(f"Received attachment: {file.filename} (type: {file.content_type}, size: {len(content)} bytes)")
             await file.seek(0)  # Reset file pointer for later use
 
-        # Construct email data from form fields
-        email_data = {
-            "from_email": from_email,
-            "to": to,
-            "subject": subject,
-            "textContent": textContent,
-            "htmlContent": htmlContent,
-            "messageId": messageId,
-            "date": date,
-            "emailId": emailId,
-            "attachments": [att.model_dump() for att in attachments]  # Convert each attachment to dict
-        }
+        # Create EmailRequest instance
+        email_request = EmailRequest(
+            from_email=from_email,
+            to=to,
+            subject=subject,
+            textContent=textContent,
+            htmlContent=htmlContent,
+            messageId=messageId,
+            date=date,
+            emailId=emailId,
+            attachments=[]  # Start with empty list, will be updated after saving files
+        )
 
-        email_request = EmailRequest(**email_data)
-
-        # Log the received email and generate ID
-        log_received_email(email_request)
+        # Generate email ID
         email_id = generate_email_id(email_request)
+        logger.info(f"Generated email ID: {email_id}")
 
         # Handle attachments only if the handle requires it
         email_attachments_dir = ""
         attachment_info = []
         if email_instructions.process_attachments and attachments:
             email_attachments_dir, attachment_info = await handle_file_attachments(attachments, email_id, email_request)
+            logger.info(f"Processed {len(attachment_info)} attachments successfully")
+            logger.info(f"Attachments directory: {email_attachments_dir}")
 
         # Prepare attachment info for processing
         processed_attachment_info = []
         for info in attachment_info:
-            processed_attachment_info.append({
+            processed_info = {
                 "filename": info.get("filename", ""),
-                "type": info.get("type", info.get("contentType", "application/octet-stream")),  # Fallback to contentType or default
-                "path": info.get("path", ""),  # This should be set during handle_file_attachments
+                "type": info.get("type", info.get("contentType", "application/octet-stream")),
+                "path": info.get("path", ""),
                 "size": info.get("size", 0)
-            })
+            }
+            processed_attachment_info.append(processed_info)
+            logger.info(f"Prepared attachment for processing: {processed_info['filename']} "
+                       f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)")
 
         # Enqueue the task for async processing
-        process_email_task.send(email_data, email_attachments_dir, processed_attachment_info)
+        process_email_task.send(email_request.model_dump(), email_attachments_dir, processed_attachment_info)
+        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments")
 
         # Return immediate success response
         return Response(
@@ -394,7 +421,7 @@ async def process_email(
 
     except Exception as e:
         # Log the error and clean up
-        logger.error(f"Error queueing email: {e!s}", exc_info=True)
+        logger.exception("Error processing email request")
 
         if "email_attachments_dir" in locals() and email_attachments_dir:
             cleanup_attachments(email_attachments_dir)
@@ -402,7 +429,7 @@ async def process_email(
         # Return error response
         return Response(
             content=json.dumps({
-                "message": "Error queueing email for processing",
+                "message": "Error processing email request",
                 "error": str(e),
                 "attachments_saved": len(attachment_info) if "attachment_info" in locals() else 0,
                 "attachments_deleted": True,

@@ -1,15 +1,14 @@
 import os
-
-# Import needed converters
+from pathlib import Path
 import sys
 from typing import Any, Optional
+from urllib.parse import unquote
 
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.mdconvert import MarkdownConverter
-
 from mxtoai._logging import get_logger
 
 # Configure logger
@@ -30,6 +29,7 @@ class AttachmentProcessingTool(Tool):
     - Markdown files
 
     NOTE: For image processing, please use the azure_visualizer tool directly.
+    This tool will skip image files and indicate they should be processed by azure_visualizer.
 
     The attachments parameter should be a list of dictionaries, where each dictionary contains:
     - filename: Name of the file
@@ -69,45 +69,42 @@ class AttachmentProcessingTool(Tool):
         self.text_limit = 8000
 
         # Set up attachments directory path
-        self.attachments_dir = os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments"))
-        os.makedirs(self.attachments_dir, exist_ok=True)
+        self.attachments_dir = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments")))
+        self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
-    def _validate_attachment_path(self, file_path: str) -> str:
+    def _validate_attachment_path(self, file_path: str) -> Path:
         """Validate and resolve the attachment file path."""
         try:
             if not file_path:
                 msg = "Empty file path provided"
                 raise ValueError(msg)
 
+            # Clean up the path
             file_path = file_path.strip('"\'')
-            abs_path = os.path.abspath(file_path)
+            
+            # Try different path variations
+            paths_to_try = [
+                Path(file_path),  # Direct path
+                Path(unquote(file_path)),  # URL decoded path
+                self.attachments_dir / Path(file_path).name  # Relative to attachments dir
+            ]
 
-            # Check if file exists at the exact path
-            if os.path.isfile(abs_path):
-                return abs_path
+            for path in paths_to_try:
+                if path.is_file():
+                    return path.resolve()
 
-            # Try URL decoding if needed
-            from urllib.parse import unquote
-            decoded_path = unquote(abs_path)
-            if os.path.isfile(decoded_path):
-                return decoded_path
-
-            # Try relative to attachments directory
-            rel_path = os.path.join(self.attachments_dir, os.path.basename(file_path))
-            if os.path.isfile(rel_path):
-                return rel_path
-
-            msg = f"File not found at any of these locations:\n- {abs_path}\n- {decoded_path}\n- {rel_path}"
+            paths_str = "\n- ".join(str(p) for p in paths_to_try)
+            msg = f"File not found at any of these locations:\n- {paths_str}"
             raise FileNotFoundError(msg)
 
         except Exception as e:
             logger.error(f"Error validating path {file_path}: {e!s}")
             raise
 
-    def _process_document(self, file_path: str) -> str:
+    def _process_document(self, file_path: Path) -> str:
         """Process document using MarkdownConverter."""
         try:
-            result = self.md_converter.convert(file_path)
+            result = self.md_converter.convert(str(file_path))
             if not result or not hasattr(result, "text_content"):
                 msg = f"Failed to convert document: {file_path}"
                 raise ValueError(msg)
@@ -131,68 +128,62 @@ class AttachmentProcessingTool(Tool):
                     raise ValueError(msg)
 
                 logger.info(f"Processing attachment: {attachment['filename']}")
-                file_path = attachment.get("path", "")
 
-                try:
-                    resolved_path = self._validate_attachment_path(file_path)
-                    attachment["path"] = resolved_path
-
-                    # Skip image files - they should be handled by azure_visualizer directly
-                    if attachment["type"].startswith("image/"):
-                        processed_attachments.append({
-                            **attachment,
-                            "content": {
-                                "text": "This is an image file. Please use the azure_visualizer tool directly with the following path: " + resolved_path,
-                                "type": "image",
-                                "requires_visual_qa": True
-                            }
-                        })
-                        logger.info(f"Skipped image file: {attachment['filename']} - use azure_visualizer tool instead")
-                        continue
-
-                    # Process non-image attachments
-                    content = self._process_document(resolved_path)
-
-                    # If in full mode and model is available, generate a summary
-                    summary = None
-                    if mode == "full" and self.model and len(content) > 4000:
-                        messages = [
-                            {
-                                "role": MessageRole.SYSTEM,
-                                "content": [{"type": "text", "text": f"Here is a file:\n### {attachment['filename']}\n\n{content[:self.text_limit]}"}]
-                            },
-                            {
-                                "role": MessageRole.USER,
-                                "content": [{"type": "text", "text": "Please provide a comprehensive summary of this document in 5-7 sentences."}]
-                            }
-                        ]
-                        summary = self.model(messages).content
-
+                # Skip image files - they should be handled by azure_visualizer directly
+                if attachment["type"].startswith("image/"):
                     processed_attachments.append({
                         **attachment,
                         "content": {
-                            "text": content[:self.text_limit] if len(content) > self.text_limit else content,
-                            "type": "text",
-                            "summary": summary
+                            "text": "This is an image file that requires visual processing.",
+                            "type": "image",
+                            "requires_visual_qa": True
                         }
                     })
-                    logger.info(f"Successfully processed: {attachment['filename']}")
+                    logger.info(f"Skipped image file: {attachment['filename']} - use azure_visualizer tool instead")
+                    continue
 
+                # Validate and resolve the file path
+                try:
+                    resolved_path = self._validate_attachment_path(attachment["path"])
+                    attachment["path"] = str(resolved_path)
                 except FileNotFoundError as e:
-                    logger.error(f"File not found error: {e}")
+                    logger.error(f"File not found: {e!s}")
                     processed_attachments.append({
                         **attachment,
                         "error": f"File not found: {e!s}"
                     })
-                except Exception as e:
-                    logger.error(f"Error processing file {file_path}: {e!s}")
-                    processed_attachments.append({
-                        **attachment,
-                        "error": f"Processing error: {e!s}"
-                    })
+                    continue
+
+                # Process non-image attachments
+                content = self._process_document(resolved_path)
+
+                # If in full mode and model is available, generate a summary
+                summary = None
+                if mode == "full" and self.model and len(content) > 4000:
+                    messages = [
+                        {
+                            "role": MessageRole.SYSTEM,
+                            "content": [{"type": "text", "text": f"Here is a file:\n### {attachment['filename']}\n\n{content[:self.text_limit]}"}]
+                        },
+                        {
+                            "role": MessageRole.USER,
+                            "content": [{"type": "text", "text": "Please provide a comprehensive summary of this document in 5-7 sentences."}]
+                        }
+                    ]
+                    summary = self.model(messages).content
+
+                processed_attachments.append({
+                    **attachment,
+                    "content": {
+                        "text": content[:self.text_limit] if len(content) > self.text_limit else content,
+                        "type": "text",
+                        "summary": summary
+                    }
+                })
+                logger.info(f"Successfully processed: {attachment['filename']}")
 
             except Exception as e:
-                logger.exception(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
+                logger.error(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
                 processed_attachments.append({
                     **{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]},
                     "error": str(e)
@@ -209,16 +200,23 @@ class AttachmentProcessingTool(Tool):
             return "No attachments processed."
 
         summary_parts = []
+        successful = 0
+        failed = 0
+        images = 0
+
         for att in attachments:
             if "error" in att:
+                failed += 1
                 summary_parts.append(f"Failed to process {att['filename']}: {att['error']}")
                 continue
 
             content = att.get("content", {})
             if content:
                 if content.get("type") == "image":
-                    summary_parts.append(f"Image {att['filename']}: Use azure_visualizer with path: {att['path']}")
+                    images += 1
+                    summary_parts.append(f"Image {att['filename']}: Requires visual processing")
                 elif content.get("type") == "text":
+                    successful += 1
                     summary_parts.append(f"Document: {att['filename']}")
                     if content.get("summary"):
                         summary_parts.append(f"Summary: {content['summary']}")
@@ -226,7 +224,9 @@ class AttachmentProcessingTool(Tool):
                         text = content.get("text", "")
                         preview = text[:200] + "..." if len(text) > 200 else text
                         summary_parts.append(f"Preview: {preview}")
-            else:
-                summary_parts.append(f"Basic info for {att['filename']} ({att.get('type', 'unknown type')})")
 
-        return "\n\n".join(summary_parts)
+        status = f"Processed {successful} documents, {images} images pending visual processing"
+        if failed > 0:
+            status += f", {failed} failed"
+
+        return status + "\n\n" + "\n\n".join(summary_parts)

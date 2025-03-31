@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+from pathlib import Path
 from typing import Any
 
 import dramatiq
@@ -11,24 +12,28 @@ from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
 from mxtoai.email_sender import send_email_reply
 from mxtoai.handle_configuration import HANDLE_MAP
-from mxtoai.schemas import EmailRequest
+from mxtoai.schemas import EmailRequest, EmailAttachment
 
 # Initialize Redis broker
 redis_broker = RedisBroker(
     url="redis://localhost:6379",
     middleware=[],
     namespace="dramatiq",
-    # list_enqueue=True  # Use lists instead of hashes for queues
 )
 dramatiq.set_broker(redis_broker)
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
     """Clean up attachments after processing."""
     try:
-        if os.path.exists(email_attachments_dir):
-            for file in os.listdir(email_attachments_dir):
-                os.remove(os.path.join(email_attachments_dir, file))
-            os.rmdir(email_attachments_dir)
+        dir_path = Path(email_attachments_dir)
+        if dir_path.exists():
+            for file in dir_path.iterdir():
+                try:
+                    file.unlink()
+                    logger.debug(f"Deleted attachment: {file}")
+                except Exception as e:
+                    logger.error(f"Failed to delete file {file}: {e!s}")
+            dir_path.rmdir()
             logger.info(f"Cleaned up attachments directory: {email_attachments_dir}")
     except Exception as e:
         logger.exception(f"Error cleaning up attachments: {e!s}")
@@ -45,20 +50,25 @@ def process_email_task(
 ) -> None:
     """
     Dramatiq task for processing emails asynchronously.
+    
+    Args:
+        email_data: Dictionary containing email request data
+        email_attachments_dir: Directory containing email attachments
+        attachment_info: List of attachment information dictionaries
     """
     try:
+        # Create EmailRequest instance from the dict
+        email_request = EmailRequest(**email_data)
+
         # Extract handle from email
-        handle = email_data["to"].split("@")[0].lower()
+        handle = email_request.to.split("@")[0].lower()
         email_instructions = HANDLE_MAP.get(handle)
 
         if not email_instructions:
             logger.error(f"Unsupported email handle: {handle}")
             return
 
-        # Create EmailRequest instance
-        email_request = EmailRequest(**email_data)
-
-        # Initialize EmailAgent (assuming it's thread-safe)
+        # Initialize EmailAgent
         email_agent = EmailAgent()
 
         # Enable/disable deep research based on handle configuration
@@ -67,12 +77,31 @@ def process_email_task(
         else:
             email_agent.research_tool.disable_deep_research()
 
-        # Replace the original attachments with processed attachment info
-        email_data["attachments"] = attachment_info
+        # Update attachment paths in email_request
+        if email_request.attachments and attachment_info:
+            valid_attachments = []
+            for attachment, info in zip(email_request.attachments, attachment_info):
+                try:
+                    # Validate file exists
+                    if not Path(info["path"]).exists():
+                        logger.error(f"Attachment file not found: {info['path']}")
+                        continue
 
-        # Process the email
+                    # Update the attachment with file info
+                    attachment.path = info["path"]
+                    attachment.contentType = info.get("type") or info.get("contentType") or "application/octet-stream"
+                    attachment.size = info.get("size", 0)
+                    valid_attachments.append(attachment)
+                except Exception as e:
+                    logger.error(f"Error processing attachment {attachment.filename}: {e!s}")
+                    # Continue processing other attachments
+
+            # Update request with only valid attachments
+            email_request.attachments = valid_attachments
+
+        # Process the email using the Pydantic model directly
         processing_result = email_agent.process_email(
-            email_data,
+            email_request,
             email_instructions
         )
 
@@ -84,16 +113,6 @@ def process_email_task(
             text_content = email_content.get("enhanced", {}).get("text") or email_content.get("text")
 
             if text_content:  # Only send if we have at least text content
-                # Create email dict for sending reply
-                email_dict = {
-                    "from": email_request.from_email,
-                    "to": email_request.to,
-                    "subject": email_request.subject,
-                    "messageId": email_request.messageId,
-                    "references": email_request.references,
-                    "cc": email_request.cc
-                }
-
                 # Skip email delivery for test emails
                 if email_request.from_email in SKIP_EMAIL_DELIVERY:
                     logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
@@ -101,7 +120,14 @@ def process_email_task(
                 else:
                     # Run the async function in the sync context
                     email_sent_result = asyncio.run(send_email_reply(
-                        email_dict,
+                        {
+                            "from": email_request.from_email,
+                            "to": email_request.to,
+                            "subject": email_request.subject,
+                            "messageId": email_request.messageId,
+                            "references": email_request.references,
+                            "cc": email_request.cc
+                        },
                         text_content,
                         html_content
                     ))
@@ -113,10 +139,8 @@ def process_email_task(
                     processing_result["metadata"] = {"email_sent": email_sent_result}
 
         # Log the processing result
-        # Only log serializable parts of metadata
         metadata = processing_result.get("metadata", {}).copy()
         if "email_sent" in metadata:
-            # Convert email_sent result to a simple status dict
             metadata["email_sent"] = {
                 "status": "sent" if metadata["email_sent"] else "failed"
             }
