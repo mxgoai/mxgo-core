@@ -13,7 +13,6 @@ from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
-from mxtoai.tools.email_summary_tool import EmailSummaryTool
 
 # Load environment variables
 load_dotenv(override=True)
@@ -62,7 +61,6 @@ class EmailAgent:
         os.makedirs(self.attachment_dir, exist_ok=True)
 
         # Initialize tools
-        self.summary_tool = EmailSummaryTool()
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()  # Initialize the report formatter
 
@@ -76,7 +74,7 @@ class EmailAgent:
                 logger.info("Deep research functionality enabled during initialization")
 
         # Collect tools to be used with the agent
-        self.available_tools = [self.summary_tool, self.attachment_tool, azure_visualizer]
+        self.available_tools = [self.attachment_tool, azure_visualizer]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
 

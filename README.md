@@ -29,7 +29,6 @@ mxtoai/
 ├── agents/                 # Agent implementations for different tasks
 │   └── email_agent.py     # Main email processing agent implementation
 ├── tools/                 # Individual tool implementations
-│   ├── email_summary_tool.py      # Email summarization functionality
 │   ├── attachment_processing_tool.py  # Attachment handling
 │   ├── email_reply_tool.py        # Email reply generation
 │   └── deep_research_tool.py      # Research capabilities
