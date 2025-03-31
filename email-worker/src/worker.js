@@ -1,5 +1,5 @@
 // Define the API endpoint as a constant
-const API_ENDPOINT = "https://8ca5-2401-4900-1f27-1865-1d1a-240c-5793-6579.ngrok-free.app/process-email";
+const API_ENDPOINT = "https://api.mxtoai.com/process-email";
 import PostalMime from 'postal-mime';
 
 // Helper function to calculate size of base64 string
@@ -18,23 +18,23 @@ export default {
       headers: { "Content-Type": "text/plain" }
     });
   },
-  
+
   async email(message, env, ctx) {
     // Extract basic email fields
     const sender = message.from;
     const recipient = message.to;
     const subject = message.headers.get("subject") || "";
-    
+
     // Generate a unique ID for this email (using timestamp + random string)
     const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-    
+
     try {
       // Parse the email using PostalMime
       const parsedEmail = await PostalMime.parse(message.raw, {
         // Specify base64 as the attachment encoding directly
         attachmentEncoding: "base64"
       });
-      
+
       // Process attachments - with PostalMime's base64 encoding option
       const attachments = [];
       if (parsedEmail.attachments && parsedEmail.attachments.length > 0) {
@@ -51,10 +51,10 @@ export default {
           });
         }
       }
-      
+
       // Forward the email to the API
       const formData = new FormData();
-      
+
       // Add basic fields
       formData.append('from_email', sender);
       formData.append('to', recipient);
@@ -64,7 +64,7 @@ export default {
       formData.append('messageId', message.headers.get("message-id") || "");
       formData.append('date', message.headers.get("date") || "");
       formData.append('emailId', uniqueId);
-      
+
       // Add attachments as files
       if (parsedEmail.attachments && parsedEmail.attachments.length > 0) {
         for (const attachment of parsedEmail.attachments) {
@@ -73,14 +73,14 @@ export default {
             const byteString = atob(attachment.content);
             const arrayBuffer = new ArrayBuffer(byteString.length);
             const uint8Array = new Uint8Array(arrayBuffer);
-            
+
             for (let i = 0; i < byteString.length; i++) {
               uint8Array[i] = byteString.charCodeAt(i);
             }
-            
+
             // Create blob with proper mime type
             const blob = new Blob([arrayBuffer], { type: attachment.mimeType });
-            
+
             // Add file to form data with original filename
             formData.append('files', blob, attachment.filename);
             console.log(`Successfully processed attachment: ${attachment.filename} (${attachment.mimeType})`);
@@ -91,14 +91,17 @@ export default {
           }
         }
       }
-      
+
       const response = await fetch(API_ENDPOINT, {
         method: "POST",
+        headers: {
+          'x-api-key': env.x_api_key
+        },
         body: formData
       });
-      
+
       let responseText;
-      
+
       if (response.status === 200) {
         responseText = "Your query is being processed.";
       } else if (response.status === 401) {
@@ -106,17 +109,17 @@ export default {
       } else {
         responseText = "There was an error processing your request. Please try again later.";
       }
-      
+
       // Return a simple response to Cloudflare
       console.log(`Email processed. API returned ${response.status}. Message: ${responseText}`);
-      
+
       return {
         forward: false, // Don't forward the email
         seen: true,     // Mark as seen
       };
     } catch (error) {
       console.error("Error processing email:", error);
-      
+
       // If parsing fails, still try to send basic information
       try {
         // Fallback to the basic data
@@ -127,16 +130,19 @@ export default {
         formData.append('emailId', uniqueId);
         formData.append('textContent', "");
         formData.append('htmlContent', "");
-        
+
         // Still try to send to the API
         await fetch(API_ENDPOINT, {
           method: "POST",
+          headers: {
+            'x-api-key': env.x_api_key
+          },
           body: formData
         });
       } catch (fallbackError) {
         console.error("Error in fallback handling:", fallbackError);
       }
-      
+
       return {
         forward: false,
         seen: true,

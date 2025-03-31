@@ -4,9 +4,10 @@ import os
 import shutil
 from datetime import datetime
 from typing import Annotated, Any, Optional
+from fastapi.security import APIKeyHeader
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Form, Response, UploadFile, status
+from fastapi import FastAPI, File, Form, Response, UploadFile, status, Depends
 
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
@@ -33,7 +34,8 @@ load_dotenv()
 # Configure logging
 logger = get_logger(__name__)
 
-app = FastAPI()
+app = FastAPI(openapi_url=None if os.environ['IS_PROD'] else "/openapi.json")
+api_auth_scheme = APIKeyHeader(name="x-api-key")
 
 # Create the email agent on startup
 email_agent = EmailAgent(
@@ -281,49 +283,6 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
     return sanitized_result
 
 
-@app.post("/process-emails")
-async def process_emails(email_data: EmailRequest):
-    """Process an incoming email, save attachments, generate summary, and send reply"""
-    # Step 1: Log the received email
-    log_received_email(email_data)
-
-    # Step 2: Generate or use the provided email ID
-    email_id = generate_email_id(email_data)
-
-    # Step 3: Save attachments if any
-    email_attachments_dir, attachment_info = save_attachments(email_data, email_id)
-
-    # Step 4: Prepare email data for AI processing
-    email_dict = prepare_email_for_ai(email_data, attachment_info)
-
-    # Step 5: Generate email summary using AI
-    summary = await generate_email_summary(email_dict, attachment_info)
-
-    # Step 6: Create reply content (text and HTML)
-    reply_text, reply_html = create_reply_content(summary, attachment_info)
-
-    # Step 7: Send the reply email
-    try:
-        email_response = await send_email_reply(email_dict, reply_text, reply_html)
-
-        # Step 8: Cleanup attachments after successful processing
-        if email_attachments_dir:
-            cleanup_attachments(email_attachments_dir)
-
-        # Step 9: Return success response
-        return create_success_response(summary, email_response, attachment_info)
-
-    except Exception as e:
-        # Log the error
-
-        # Cleanup attachments even on error
-        if email_attachments_dir:
-            cleanup_attachments(email_attachments_dir)
-
-        # Return error response
-        return create_error_response(summary, attachment_info, str(e))
-
-
 @app.post("/process-email")
 async def process_email(
     from_email: Annotated[str, Form()] = ...,
@@ -335,8 +294,11 @@ async def process_email(
     date: Annotated[Optional[str], Form()] = None,
     emailId: Annotated[Optional[str], Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
+    api_key: str = Depends(api_auth_scheme)
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
+    APIKeyHeader.check_api_key(os.environ['X_API_KEY'], True)
+
     if files is None:
         files = []
     try:
