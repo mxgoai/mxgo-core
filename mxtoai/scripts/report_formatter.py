@@ -27,12 +27,82 @@ class ReportFormatter:
                 margin-top: 1.5em;
                 margin-bottom: 0.5em;
             }
+            /* Base list styles */
             ul, ol {
-                margin-bottom: 1em;
+                margin: 0.5em 0 1em 0;
                 padding-left: 2em;
+                list-style-position: outside;
             }
+            /* Specific list styles */
+            ul {
+                list-style-type: disc;
+            }
+            ol {
+                list-style-type: decimal;
+            }
+            /* Nested list styles */
+            ul ul, ol ul {
+                list-style-type: circle;
+                margin: 0.3em 0 0.3em 1em;
+            }
+            ul ul ul, ol ul ul {
+                list-style-type: square;
+            }
+            ol ol, ul ol {
+                list-style-type: lower-alpha;
+                margin: 0.3em 0 0.3em 1em;
+            }
+            ol ol ol, ul ol ol {
+                list-style-type: lower-roman;
+            }
+            /* List item spacing and formatting */
             li {
-                margin-bottom: 0.5em;
+                margin: 0.5em 0;
+                padding-left: 0.3em;
+                line-height: 1.4;
+                display: list-item;
+            }
+            /* Handle mixed formatting in list items */
+            li em, li strong {
+                display: inline;
+                vertical-align: baseline;
+            }
+            li > em, li > strong {
+                display: inline;
+                vertical-align: baseline;
+            }
+            /* Ensure proper spacing for formatted text in lists */
+            li p {
+                margin: 0;
+                display: inline;
+            }
+            /* Handle multi-line list items */
+            li > ul,
+            li > ol {
+                margin-top: 0.3em;
+                margin-bottom: 0.3em;
+                margin-left: 1em;
+            }
+            /* Nested list indentation */
+            ol > li, ul > li {
+                margin-left: 0;
+            }
+            li > ul > li,
+            li > ol > li {
+                margin-left: 0;
+            }
+            /* Fix for mixed content in list items */
+            li > *:not(ul):not(ol) {
+                display: inline-block;
+                margin: 0;
+                vertical-align: top;
+            }
+            /* Ensure proper alignment of text with bullets/numbers */
+            li::marker {
+                unicode-bidi: isolate;
+                font-variant-numeric: tabular-nums;
+                text-align: end;
+                text-align-last: end;
             }
             a {
                 color: #3498db;
@@ -68,9 +138,17 @@ class ReportFormatter:
             }
             strong {
                 color: #2c3e50;
+                font-weight: 600;
             }
             em {
                 color: #34495e;
+                font-style: italic;
+            }
+            /* Ensure em and strong work together */
+            em strong, strong em {
+                color: #2c3e50;
+                font-weight: 600;
+                font-style: italic;
             }
             blockquote {
                 border-left: 4px solid #e0e0e0;
@@ -297,22 +375,37 @@ _Feel free to reply to this email to continue our conversation._
                 <head>
                 <style>
                 {self.html_style}
-                /* Additional styles for tables */
+                /* Enhanced table styles */
                 table {{
                     border-collapse: collapse;
                     width: 100%;
-                    margin: 1em 0;
+                    margin: 1.5em 0;
+                    font-size: 0.95em;
                 }}
                 th, td {{
                     border: 1px solid #ddd;
-                    padding: 8px;
+                    padding: 12px;
                     text-align: left;
+                    vertical-align: top;
                 }}
                 th {{
                     background-color: #f5f5f5;
+                    font-weight: 600;
+                    color: #2c3e50;
                 }}
                 tr:nth-child(even) {{
                     background-color: #f9f9f9;
+                }}
+                tr:hover {{
+                    background-color: #f5f5f5;
+                }}
+                /* List within table cells */
+                td ul, td ol {{
+                    margin: 0;
+                    padding-left: 1.5em;
+                }}
+                td li {{
+                    margin: 0.2em 0;
                 }}
                 /* Enhanced list styling */
                 ol {{
@@ -348,6 +441,12 @@ _Feel free to reply to this email to continue our conversation._
                 }}
                 li li {{
                     margin-bottom: 0.25em;
+                }}
+                /* Fix for nested list spacing */
+                li > ul,
+                li > ol {{
+                    margin-top: 0.5em;
+                    margin-bottom: 0.5em;
                 }}
                 </style>
                 </head>
