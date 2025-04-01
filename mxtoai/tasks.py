@@ -49,7 +49,7 @@ def should_retry(retries_so_far, exception):
     return retries_so_far < 3
 
 
-@dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=60000)
+@dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
 def process_email_task(
     email_data: dict[str, Any],
     email_attachments_dir: str,

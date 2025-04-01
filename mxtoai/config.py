@@ -10,3 +10,8 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ATTACHMENTS_DIR = os.path.abspath(os.path.join(parent_dir, "attachments"))
 os.makedirs(ATTACHMENTS_DIR, exist_ok=True)
 
+# Attachment limits (in megabytes)
+MAX_ATTACHMENT_SIZE_MB = 15
+MAX_TOTAL_ATTACHMENTS_SIZE_MB = 50
+MAX_ATTACHMENTS_COUNT = 5
+

@@ -14,17 +14,13 @@ from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
 from mxtoai.email_sender import (
-    EmailSender as email_sender,
-)
-from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
 from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailAttachment, EmailRequest
 from mxtoai.tasks import process_email_task
-from mxtoai.whitelist import is_email_whitelisted, get_whitelist_signup_url
-from mxtoai.validators import validate_api_key, validate_email_whitelist, validate_email_handle
+from mxtoai.validators import validate_api_key, validate_attachments, validate_email_handle, validate_email_whitelist
 
 # Load environment variables
 load_dotenv()
@@ -324,20 +320,22 @@ async def process_email(
         if response:
             return response
 
-        # Get handle configuration
-        email_instructions = HANDLE_MAP[handle]  # Safe to use direct access now
+        # Convert uploaded files to dictionaries for validation
+        attachments_for_validation = []
+        for file in files:
+            content = await file.read()
+            attachments_for_validation.append({
+                "filename": file.filename,
+                "contentType": file.content_type,
+                "size": len(content)
+            })
+            await file.seek(0)  # Reset file pointer for later use
 
-        # Log initial email details
-        logger.info("Received new email request:")
-        logger.info(f"From: {from_email}")
-        logger.info(f"To: {to} (handle: {handle})")
-        logger.info(f"Subject: {subject}")
-        logger.info(f"Message ID: {messageId}")
-        logger.info(f"Date: {date}")
-        logger.info(f"Email ID: {emailId}")
-        logger.info(f"Number of attachments: {len(files)}")
+        # Validate attachments
+        if response := await validate_attachments(attachments_for_validation, from_email, to, subject, messageId):
+            return response
 
-        # Convert uploaded files to EmailAttachment objects
+        # Convert validated files to EmailAttachment objects
         attachments = []
         for file in files:
             content = await file.read()
@@ -350,6 +348,19 @@ async def process_email(
             ))
             logger.info(f"Received attachment: {file.filename} (type: {file.content_type}, size: {len(content)} bytes)")
             await file.seek(0)  # Reset file pointer for later use
+
+        # Get handle configuration
+        email_instructions = HANDLE_MAP[handle]  # Safe to use direct access now
+
+        # Log initial email details
+        logger.info("Received new email request:")
+        logger.info(f"From: {from_email}")
+        logger.info(f"To: {to} (handle: {handle})")
+        logger.info(f"Subject: {subject}")
+        logger.info(f"Message ID: {messageId}")
+        logger.info(f"Date: {date}")
+        logger.info(f"Email ID: {emailId}")
+        logger.info(f"Number of attachments: {len(files)}")
 
         # Create EmailRequest instance
         email_request = EmailRequest(
