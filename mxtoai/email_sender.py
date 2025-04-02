@@ -210,13 +210,14 @@ class EmailSender:
             }
 
             # Add headers to the message if present
-            if headers:
-                for name, value in headers.items():
-                    if name == "InReplyTo":
-                        email_params["ReplyToAddresses"] = [value["Data"]]
-                    elif name == "References":
-                        # References can't be added directly in SES, we'll skip it
-                        continue
+            # if headers:
+            #     for name, value in headers.items():
+            #         # This is incorrect
+            #         if name == "InReplyTo":
+            #             email_params["ReplyToAddresses"] = [value["Data"]]
+            #         elif name == "References":
+            #             # References can't be added directly in SES, we'll skip it
+            #             continue
 
             # Add CC if present in original email
             cc_addresses = []

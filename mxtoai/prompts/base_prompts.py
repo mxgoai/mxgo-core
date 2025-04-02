@@ -1,4 +1,5 @@
 """Base prompts and templates for email processing."""
+from mxtoai.schemas import EmailRequest
 
 FORMATTING_REQUIREMENTS = """
 CRITICAL FORMATTING REQUIREMENTS:
@@ -41,12 +42,13 @@ RESEARCH GUIDELINES:
 - Focus on addressing the direct content of the email""",
 }
 
-def create_email_context(email_request, attachment_details=None):
+def create_email_context(email_request: EmailRequest, attachment_details=None):
     """Create the basic email context section."""
     return f"""Email Content:
 Subject: {email_request.subject}
 From: {email_request.from_email}
 Body: {email_request.textContent or email_request.htmlContent or ''}
+User Intent in Email: {email_request.userText if email_request.forwardedText else 'N/A'}
 
 {f'''Available Attachments:
 {chr(10).join(attachment_details)}''' if attachment_details else 'No attachments provided.'}"""
