@@ -46,6 +46,8 @@ class EmailRequest(BaseModel):
     bcc: Optional[str] = None
     replyTo: Optional[str] = None
     returnPath: Optional[str] = None
+    userText: Optional[str] = ""
+    forwardedText: Optional[str] = ""
     textContent: Optional[str] = ""
     htmlContent: Optional[str] = ""
     headers: Optional[dict[str, str]] = {}

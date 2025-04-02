@@ -290,6 +290,76 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
     return sanitized_result
 
 
+def separate_email_text(email_text):
+    """
+    Separates the user's message from the forwarded content in an email.
+
+    Args:
+        email_text (str): The full email text
+
+    Returns:
+        tuple: (user_message, forwarded_message)
+
+    """
+    import re
+
+    # Comprehensive patterns for forwarded email headers
+    forwarded_patterns = [
+        r"-+\s*[Ff]orwarded\s+[Mm]essage\s*-+",
+        r"-+\s*[Oo]riginal\s+[Mm]essage\s*-+",
+        r"[Bb]egin\s+[Ff]orwarded\s+[Mm]essage\s*:",
+        r"[Ff]orwarded\s+[Mm]essage\s*:",
+        r"----+\s*[Ff]orward\s*----+",
+        r"[Ff]rom\s*\(\s*[Ff]orwarded\s*\):"
+    ]
+
+    # Find the earliest match of any pattern
+    earliest_pos = len(email_text)
+    matched_text = None
+
+    for pattern in forwarded_patterns:
+        matches = list(re.finditer(pattern, email_text))
+        if matches:
+            match = matches[0]  # Take the first match
+            if match.start() < earliest_pos:
+                earliest_pos = match.start()
+                matched_text = match.group()
+
+    # If we found a delimiter pattern
+    if matched_text:
+        user_message = email_text[:earliest_pos].strip()
+        forwarded_message = email_text[earliest_pos:].strip()
+        return user_message, forwarded_message
+
+    # If no explicit delimiter found, try to identify by standard email header blocks
+    lines = email_text.split("\n")
+    header_start_index = -1
+
+    # Look for a typical email header block (From, Date, Subject, To)
+    for i, line in enumerate(lines):
+        if i > 0:  # Skip the first line as it's unlikely to be the start of a forwarded email
+            # Look for "From:" header that starts a forwarded email
+            if re.match(r"^[Ff]rom\s*:", line.strip()):
+                # Check if the next few lines contain other email headers
+                headers_found = 0
+                for j in range(i + 1, min(i + 5, len(lines))):
+                    if re.match(r"^(([Tt]o|[Dd]ate|[Ss]ubject|[Cc]c)\s*:)", lines[j].strip()):
+                        headers_found += 1
+
+                # If we found a proper email header block
+                if headers_found >= 1:
+                    header_start_index = i
+                    break
+
+    if header_start_index > 0:
+        user_message = "\n".join(lines[:header_start_index]).strip()
+        forwarded_message = "\n".join(lines[header_start_index:]).strip()
+        return user_message, forwarded_message
+
+    # No forwarded content detected
+    return email_text, ""
+
+
 @app.post("/process-email")
 async def process_email(
     from_email: Annotated[str, Form()] = ...,
@@ -362,12 +432,16 @@ async def process_email(
         logger.info(f"Email ID: {emailId}")
         logger.info(f"Number of attachments: {len(files)}")
 
+        user_text, forwarded_text = separate_email_text(textContent)
+
         # Create EmailRequest instance
         email_request = EmailRequest(
             from_email=from_email,
             to=to,
             subject=subject,
             textContent=textContent,
+            userText=user_text,
+            forwardedText=forwarded_text,
             htmlContent=htmlContent,
             messageId=messageId,
             date=date,
