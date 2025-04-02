@@ -21,7 +21,7 @@ class DeepResearchTool(Tool):
     """
 
     name = "deep_research"
-    description = "Conducts deep research based on email content and attachments to provide comprehensive answers with sources."
+    description = "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
 
     # Define output type for the tool
     output_type = "object"  # Returns a dictionary with research findings and sources

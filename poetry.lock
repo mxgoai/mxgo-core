@@ -205,6 +205,26 @@ twisted = ["twisted"]
 zookeeper = ["kazoo"]
 
 [[package]]
+name = "arrow"
+version = "1.3.0"
+description = "Better dates & times for Python"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "arrow-1.3.0-py3-none-any.whl", hash = "sha256:c728b120ebc00eb84e01882a6f5e7927a53960aa990ce7dd2b10f39005a67f80"},
+    {file = "arrow-1.3.0.tar.gz", hash = "sha256:d4540617648cb5f895730f1ad8c82a65f2dad0166f57b75f3ca54759c4d67a85"},
+]
+
+[package.dependencies]
+python-dateutil = ">=2.7.0"
+types-python-dateutil = ">=2.8.10"
+
+[package.extras]
+doc = ["doc8", "sphinx (>=7.0.0)", "sphinx-autobuild", "sphinx-autodoc-typehints", "sphinx_rtd_theme (>=1.3.0)"]
+test = ["dateparser (==1.*)", "pre-commit", "pytest", "pytest-cov", "pytest-mock", "pytz (==2021.1)", "simplejson (==3.*)"]
+
+[[package]]
 name = "asttokens"
 version = "3.0.0"
 description = "Annotate AST trees with source code positions"
@@ -941,14 +961,32 @@ watch = ["watchdog (>=4.0)", "watchdog-gevent (>=0.2)"]
 
 [[package]]
 name = "duckduckgo-search"
-version = "7.5.3"
+version = "2025.4.1"
 description = "Search for words, documents, images, news, maps and text translation using the DuckDuckGo.com search engine."
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "duckduckgo_search-7.5.3-py3-none-any.whl", hash = "sha256:0a5ae49f437d12caeb2ddf2f639057801b8dd7114fa1d1bda3aca15c31eae93f"},
-    {file = "duckduckgo_search-7.5.3.tar.gz", hash = "sha256:401757168f9c3521919bfc5e11b4e1a28cc6cde94c5326ff0eed683d27830fa9"},
+    {file = "duckduckgo_search-2025.4.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:65bb955970b83e469eb67872833ebf40eeb99780cea9a44e7e9533a3ead7e33c"},
+    {file = "duckduckgo_search-2025.4.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:46831716149cd4e496ddf1026e2ac5a52a3f3a92171d18d479baba4fd5cef81a"},
+    {file = "duckduckgo_search-2025.4.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:401696729a8f458aa64673bdedc106e8163fb0b13e3ac987c0a31304b35a21e4"},
+    {file = "duckduckgo_search-2025.4.1-cp310-cp310-win_amd64.whl", hash = "sha256:0687f82ec9a794fa46f2f8a7c9128cacf2f320dfad9113f1bb88a18c0788af97"},
+    {file = "duckduckgo_search-2025.4.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:4c875834a7867e2185fb4fde254382f96f3b732beb57fec47940fef48767eced"},
+    {file = "duckduckgo_search-2025.4.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:706c299bfe585929f91d76d18d108299de11681387c3e25d8d5c686a83a5ebd1"},
+    {file = "duckduckgo_search-2025.4.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:53b34ffc2b1321b32e90dd5d8305e7c0ea2486b4f2b4f29a1c5a91095d11adbe"},
+    {file = "duckduckgo_search-2025.4.1-cp311-cp311-win_amd64.whl", hash = "sha256:eaa4b3f1c7bf7a71eb4f681d7dc63e9fa94c60641d0a688fbae309224e4f688f"},
+    {file = "duckduckgo_search-2025.4.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:a9bb66ab84bdece8c5f4f4e0368916305fe04db4118bbe2ecc2ae91cc01ffc99"},
+    {file = "duckduckgo_search-2025.4.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:6ddcbfbc947fec78c07bb727a8c400e63800c4fff08d62aaee02785bb5db01cf"},
+    {file = "duckduckgo_search-2025.4.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e37a17cc07b4ba0d40701b1432464b8b246d2b1cdb2827e8b85e5b7e9c64ecd8"},
+    {file = "duckduckgo_search-2025.4.1-cp312-cp312-win_amd64.whl", hash = "sha256:2cc277230cc0c12543a5fc1b425eb327e0a8df81ea557e1649e509ae13f4ac9c"},
+    {file = "duckduckgo_search-2025.4.1-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:52b62e2a8d1fea6971e8d48e6308f8e88904bb542454b43a74e683b078cabd9e"},
+    {file = "duckduckgo_search-2025.4.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:65f2f87eed22d07ded999702fb6c1c811532543f98f4bf76f650b7978837eba2"},
+    {file = "duckduckgo_search-2025.4.1-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:859c73423f2f1ef8f85037c587272f52569ac41a88b45e53d268fd520802a140"},
+    {file = "duckduckgo_search-2025.4.1-cp313-cp313-win_amd64.whl", hash = "sha256:0f3dd62cc9605c6583569204f3e822cde548cdf6c7070e46c0676e85b0f13874"},
+    {file = "duckduckgo_search-2025.4.1-cp39-cp39-macosx_10_9_x86_64.whl", hash = "sha256:3e411c94b54a6bdaaadf6c3f056a3158658f930a2d5b1d2ef5cf3aab7fe9ba82"},
+    {file = "duckduckgo_search-2025.4.1-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:44e13f761635da7bfaced971d1e331b992112e23f81f8d6c388d9bc1270a9098"},
+    {file = "duckduckgo_search-2025.4.1-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5bcb599af33697362437ba0d34144af6e96b0fb784ca957521e99b0e47ddf0c3"},
+    {file = "duckduckgo_search-2025.4.1-cp39-cp39-win_amd64.whl", hash = "sha256:d64cd97b96364c211cc98c9ff138af00e860e670ab544873f5fd4000d3857b57"},
 ]
 
 [package.dependencies]
@@ -957,7 +995,8 @@ lxml = ">=5.3.0"
 primp = ">=0.14.0"
 
 [package.extras]
-dev = ["mypy (>=1.14.1)", "pytest (>=8.3.4)", "pytest-dependency (>=0.6.0)", "ruff (>=0.9.2)"]
+chat = ["stpyv8 (>=13.1.201.22)"]
+dev = ["lxml-stubs (>=0.5.1)", "mypy[mypyc] (>=1.15.0)", "orjson (>=3.10.16)", "pytest (>=8.3.4)", "pytest-dependency (>=0.6.0)", "ruff (>=0.11.2)", "types-setuptools (>=78.1.0.20250329)"]
 
 [[package]]
 name = "email-validator"
@@ -1872,6 +1911,25 @@ files = [
     {file = "hyperframe-6.1.0-py3-none-any.whl", hash = "sha256:b03380493a519fce58ea5af42e4a42317bf9bd425596f7a0835ffce80f1a42e5"},
     {file = "hyperframe-6.1.0.tar.gz", hash = "sha256:f630908a00854a7adeabd6382b43923a4c4cd4b821fcb527e6ab9e15382a3b08"},
 ]
+
+[[package]]
+name = "ics"
+version = "0.7.2"
+description = "Python icalendar (rfc5545) parser"
+optional = false
+python-versions = "*"
+groups = ["main"]
+files = [
+    {file = "ics-0.7.2-py2.py3-none-any.whl", hash = "sha256:5fcf4d29ec6e7dfcb84120abd617bbba632eb77b097722b7df70e48dbcf26103"},
+    {file = "ics-0.7.2.tar.gz", hash = "sha256:6743539bca10391635249b87d74fcd1094af20b82098bebf7c7521df91209f05"},
+]
+
+[package.dependencies]
+arrow = ">=0.11"
+attrs = ">=19.1.0"
+python-dateutil = "*"
+six = ">1.5"
+tatsu = ">4.2"
 
 [[package]]
 name = "idna"
@@ -4987,6 +5045,22 @@ httpx = {version = ">=0.26,<0.29", extras = ["http2"]}
 strenum = ">=0.4.15,<0.5.0"
 
 [[package]]
+name = "tatsu"
+version = "5.13.1"
+description = "TatSu takes a grammar in a variation of EBNF as input, and outputs a memoizing PEG/Packrat parser in Python."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "TatSu-5.13.1-py3-none-any.whl", hash = "sha256:941e12df8798f444957600346c52a5ff3455f485de5b4570a3a71a00ed896a14"},
+    {file = "tatsu-5.13.1.tar.gz", hash = "sha256:df8c216eecd09af9b5b308624f1bfda1e4b5af3d3df1bdc4f331a1e8ea6bc012"},
+]
+
+[package.extras]
+colorization = ["colorama"]
+parproc = ["rich"]
+
+[[package]]
 name = "tiktoken"
 version = "0.9.0"
 description = "tiktoken is a fast BPE tokeniser for use with OpenAI's models"
@@ -5104,6 +5178,18 @@ files = [
 [package.extras]
 docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
 test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,<8.2)", "pytest-mock", "pytest-mypy-testing"]
+
+[[package]]
+name = "types-python-dateutil"
+version = "2.9.0.20241206"
+description = "Typing stubs for python-dateutil"
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "types_python_dateutil-2.9.0.20241206-py3-none-any.whl", hash = "sha256:e248a4bc70a486d3e3ec84d0dc30eec3a5f979d6e7ee4123ae043eedbb987f53"},
+    {file = "types_python_dateutil-2.9.0.20241206.tar.gz", hash = "sha256:18f493414c26ffba692a72369fea7a154c502646301ebfe3d56a04b3767284cb"},
+]
 
 [[package]]
 name = "typing-extensions"
@@ -5751,4 +5837,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "93debc45ab82d888e7f983253a255774032b923435aa9a8469889c2a4dea50be"
+content-hash = "322e3ae73aaef7525607fab2b918b71cdd209917453ee59a9db9cd3e2ae64417"

@@ -78,6 +78,7 @@ Content Guidelines:
 2. Include specific data points
 3. Support claims with evidence
 4. Provide comprehensive analysis
+5. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
 """
     ),
     EmailHandleInstructions(
@@ -126,7 +127,7 @@ Content Guidelines:
         add_summary=False,
         target_model="gpt-4-reasoning",
         task_template="""
-Validate and fact-check the content thoroughly.
+Validate and fact-check the content thoroughly. Use web search tool to find reliable sources alongside deep search tool.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:
@@ -148,6 +149,7 @@ Content Guidelines:
 3. Include supporting evidence
 4. Cite reliable sources
 5. Note any uncertainties
+6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
 """
     ),
     EmailHandleInstructions(
@@ -182,6 +184,7 @@ Content Guidelines:
 3. Note information sources
 4. Maintain professional tone
 5. Flag any concerns
+6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
 """
     ),
     EmailHandleInstructions(

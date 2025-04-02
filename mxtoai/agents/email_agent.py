@@ -6,6 +6,15 @@ from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
 from smolagents import ToolCallingAgent
+# Add imports for the new default tools
+from smolagents.default_tools import (
+    DuckDuckGoSearchTool,
+    GoogleSearchTool,
+    VisitWebpageTool,
+    PythonInterpreterTool,
+)
+# Import the new fallback search tool
+from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 
 from mxtoai._logging import get_logger
 from mxtoai.prompts.base_prompts import create_attachment_processing_task, create_email_context, create_task_template
@@ -66,6 +75,38 @@ class EmailAgent:
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()  # Initialize the report formatter
 
+        # Initialize other default smolagent tools
+        self.visit_webpage_tool = VisitWebpageTool()
+        self.python_interpreter_tool = PythonInterpreterTool()
+
+        # Initialize individual search tools
+        ddg_search_tool = DuckDuckGoSearchTool()
+        google_search_tool = None # Initialize as None first
+
+        # Initialize Google Search tool - requires API keys
+        if os.getenv("SERPAPI_API_KEY"):
+            try:
+                google_search_tool = GoogleSearchTool(provider="serpapi")
+                logger.info("Initialized GoogleSearchTool with SerpAPI.")
+            except ValueError as e:
+                logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI: {e}")
+        elif os.getenv("SERPER_API_KEY"):
+            try:
+                google_search_tool = GoogleSearchTool(provider="serper")
+                logger.info("Initialized GoogleSearchTool with Serper.")
+            except ValueError as e:
+                logger.warning(f"Failed to initialize GoogleSearchTool with Serper: {e}")
+        else:
+            logger.warning("GoogleSearchTool not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY environment variable.")
+
+        # Create the fallback search tool instance
+        # Use Google as primary if available, otherwise DDG will be the primary (and only)
+        self.fallback_search_tool = FallbackWebSearchTool(
+            primary_tool=google_search_tool, # Will be None if not initialized
+            secondary_tool=ddg_search_tool
+        )
+        logger.info(f"Initialized FallbackWebSearchTool. Primary: {google_search_tool.name if google_search_tool else 'None'}, Secondary: {ddg_search_tool.name}")
+
         # Initialize deep research tool if JINA_API_KEY is available
         self.research_tool = None
         if os.getenv("JINA_API_KEY"):
@@ -76,7 +117,13 @@ class EmailAgent:
                 logger.info("Deep research functionality enabled during initialization")
 
         # Collect tools to be used with the agent
-        self.available_tools = [self.attachment_tool, azure_visualizer]
+        self.available_tools = [
+            self.attachment_tool,
+            azure_visualizer,
+            self.fallback_search_tool, # Add the fallback tool here
+            self.visit_webpage_tool,
+            self.python_interpreter_tool,
+        ]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
 
@@ -98,7 +145,7 @@ class EmailAgent:
             verbosity_level=2,
             planning_interval=4,
             name="email_processing_agent",
-            description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities.",
+            description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities including web search, web browsing, and code execution.",
             provide_run_summary=True
         )
 
