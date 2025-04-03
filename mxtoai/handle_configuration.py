@@ -8,27 +8,24 @@ class EmailHandleInstructions(BaseModel):
     aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
-    specific_research_instructions: Optional[str] = None
     rejection_message: Optional[str] = "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
     task_template: Optional[str] = None
     requires_language_detection: bool = False  # Specifically for translate handle
     requires_schedule_extraction: bool = False  # Specifically for schedule handle
-    add_summary: bool = False  # Default to False, enable only where needed
     target_model: Optional[str] = "gpt-4"  # Default to gpt-4, can be overridden per handle
     output_template: Optional[str] = None  # Template for structuring the output
+
 
 # Define all email handle configurations
 EMAIL_HANDLES = [
     EmailHandleInstructions(
         handle="summarize",
-        aliases=["summarise"],
+        aliases=["summarise", "summary"],
         process_attachments=True,
         deep_research_mandatory=False,
-        specific_research_instructions="Provide a concise, direct summary of the key points from the email and attachments. Focus only on the main information requested.",
-        add_summary=False,  # No need for additional summary section
         target_model="gpt-4",
         task_template="""
-Process this email with a focus on delivering a clear, concise summary.
+Provide a concise, direct summary of the key points from the email and attachments.
 
 Content Guidelines:
 1. Get straight to the key points
@@ -38,7 +35,7 @@ Content Guidelines:
 5. Use a natural, conversational tone
 
 Remember:
-- Focus on what the user asked about
+- If the user has specific intent, then focus on what the user asked abou
 - Skip unnecessary formality
 - Ensure proper markdown formatting
 """
@@ -48,11 +45,10 @@ Remember:
         aliases=["deep-research"],
         process_attachments=True,
         deep_research_mandatory=True,
-        specific_research_instructions="Conduct comprehensive research and provide a detailed analysis with proper sections and citations.",
         add_summary=True,
         target_model="gpt-4-reasoning",
         task_template="""
-Conduct thorough research and present findings in a structured format.
+Conduct comprehensive research and provide a detailed analysis with proper sections and citations.
 For this task, you must use deep research tool at least once with appropriate query.
 
 FORMATTING REQUIREMENTS:
@@ -82,14 +78,12 @@ Content Guidelines:
     ),
     EmailHandleInstructions(
         handle="simplify",
-        aliases=["eli5"],
+        aliases=["eli5", "explain"],
         process_attachments=True,
         deep_research_mandatory=False,
-        specific_research_instructions="Explain the content in simple, easy-to-understand terms without technical jargon.",
-        add_summary=False,
         target_model="gpt-4",
         task_template="""
-Simplify the content for easy understanding.
+Explain the content in simple, easy-to-understand terms without technical jargon, like you're explaining to a 5-year-old.
 
 Content Guidelines:
 1. Use simple language
@@ -101,11 +95,9 @@ Content Guidelines:
     ),
     EmailHandleInstructions(
         handle="ask",
-        aliases=["custom", "agent", "assist", "assistant"],
+        aliases=["custom", "agent", "assist", "assistant", "hi", "hello", "question"],
         process_attachments=True,
         deep_research_mandatory=False,
-        specific_research_instructions="Provide a comprehensive response addressing all aspects of the query.",
-        add_summary=True,
         target_model="gpt-4",
         task_template="""
 Provide a complete response addressing all aspects of the query.
@@ -119,14 +111,12 @@ Content Guidelines:
     ),
     EmailHandleInstructions(
         handle="fact-check",
-        aliases=[],
+        aliases=["factcheck", "verify"],
         process_attachments=True,
         deep_research_mandatory=True,
-        specific_research_instructions="Validate all facts claimed in the email and provide citations from reliable sources",
-        add_summary=False,
         target_model="gpt-4-reasoning",
         task_template="""
-Validate and fact-check the content thoroughly.
+Validate all facts claimed in the email and provide citations from reliable sources.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:
@@ -152,14 +142,12 @@ Content Guidelines:
     ),
     EmailHandleInstructions(
         handle="background-research",
-        aliases=["background-check"],
+        aliases=["background-check", "background"],
         process_attachments=True,
         deep_research_mandatory=True,
-        specific_research_instructions="Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.",
-        add_summary=True,
         target_model="gpt-4-reasoning",
         task_template="""
-Research and present background information in a structured format.
+Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:
@@ -186,14 +174,13 @@ Content Guidelines:
     ),
     EmailHandleInstructions(
         handle="translate",
-        aliases=[],
+        aliases=["translation"],
         process_attachments=True,
         deep_research_mandatory=False,
-        specific_research_instructions="Detect language if not specified. If non-English, translate to English. If English, look for requested target language or ask user.",
-        add_summary=False,
         target_model="gpt-4",
         task_template="""
 Provide accurate translation with proper formatting.
+Detect language if not specified. If non-English, translate to English. If English, look for requested target language or ask user.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:
@@ -221,11 +208,9 @@ Content Guidelines:
         aliases=["schedule-action"],
         process_attachments=True,
         deep_research_mandatory=False,
-        specific_research_instructions="Extract meeting/scheduling related information including participants, timing, and location details to provide scheduling recommendations",
-        add_summary=True,
         target_model="gpt-4",
         task_template="""
-Extract and present scheduling information clearly.
+Extract meeting/scheduling related information including participants, timing, and location details to provide scheduling recommendations
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:

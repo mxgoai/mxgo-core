@@ -144,7 +144,7 @@ class EmailSender:
         Send a reply to an original email, making it appear as a reply in email clients.
 
         Args:
-            original_email: The original email data
+            original_email: The original email data (should contain 'from', 'to', 'subject', optional 'messageId', optional 'cc' list)
             reply_text: The plain text reply body
             reply_html: The HTML reply body (optional)
 
@@ -154,47 +154,30 @@ class EmailSender:
         """
         try:
             # Extract necessary information from the original email
-            to_address = original_email.get("from")  # Reply to the sender
+            to_address = original_email.get("from")  # Reply to the original sender
+            if not to_address:
+                msg = "Original sender ('from' field) missing in email data for reply."
+                logger.error(msg)
+                raise ValueError(msg)
+
             original_subject = original_email.get("subject", "")
 
-            # Use the "to" address from the original email as the sender
-            # This makes the reply appear to come from the same address that received the original email
+            # Use the "to" address from the original email as the sender for the reply
             sender_email = original_email.get("to", self.default_sender_email)
+            if not sender_email:
+                 msg = "Original recipient ('to' field) missing in email data for reply."
+                 logger.error(msg)
+                 raise ValueError(msg)
 
             # Create a reply subject with "Re:" prefix if not already present
             subject = original_subject
             if not subject.lower().startswith("re:"):
                 subject = f"Re: {subject}"
 
-            # Get message ID and references for threading
-            message_id = original_email.get("messageId")
-            references = original_email.get("references", "")
+            # Get message ID for threading hints
+            original_email.get("messageId")
 
-            # Prepare headers for email threading
-            headers = {}
-
-            # Add In-Reply-To and References headers if message ID is available
-            if message_id:
-                # Make sure message ID is properly formatted with angle brackets
-                if not message_id.startswith("<"):
-                    message_id = f"<{message_id}>"
-                if not message_id.endswith(">"):
-                    message_id = f"{message_id}>"
-
-                headers["InReplyTo"] = {"Data": message_id}
-
-                # Add the message ID to references
-                if references:
-                    # Make sure references are properly formatted
-                    if not references.startswith("<"):
-                        references = f"<{references}>"
-                    if not references.endswith(">"):
-                        references = f"{references}>"
-                    headers["References"] = {"Data": f"{references} {message_id}"}
-                else:
-                    headers["References"] = {"Data": message_id}
-
-            # Create email parameters
+            # Create base email parameters
             message = {
                 "Subject": {"Data": subject},
                 "Body": {"Text": {"Data": reply_text}}
@@ -205,33 +188,52 @@ class EmailSender:
 
             email_params = {
                 "Source": sender_email,
-                "Destination": {"ToAddresses": [to_address]},
+                "Destination": {
+                    "ToAddresses": [to_address]
+                },
                 "Message": message
             }
 
-            # Add headers to the message if present
-            # if headers:
-            #     for name, value in headers.items():
-            #         # This is incorrect
-            #         if name == "InReplyTo":
-            #             email_params["ReplyToAddresses"] = [value["Data"]]
-            #         elif name == "References":
-            #             # References can't be added directly in SES, we'll skip it
-            #             continue
+            # Add Reply-To header pointing to the original sender for better threading/reply behaviour
+            # Note: SES SendEmail doesn't directly support In-Reply-To/References headers.
+            # Relying on Subject, From/To swap, and Reply-To for threading.
+            email_params["ReplyToAddresses"] = [to_address]
 
-            # Add CC if present in original email
-            cc_addresses = []
-            if original_email.get("cc"):
-                cc_addresses.append(original_email["cc"])
-            if cc_addresses:
-                email_params["Destination"]["CcAddresses"] = cc_addresses
+            # Add CC addresses if provided in the original email dict
+            cc_addresses = original_email.get("cc") # Get the list we parsed earlier
+            if cc_addresses and isinstance(cc_addresses, list):
+                # Ensure it's a list and not empty
+                valid_cc = [addr for addr in cc_addresses if isinstance(addr, str) and "@" in addr]
+                if valid_cc:
+                    email_params["Destination"]["CcAddresses"] = valid_cc
+                    logger.info(f"Adding CC addresses to reply: {valid_cc}")
+                elif cc_addresses: # Log if there were items but none were valid emails
+                    logger.warning(f"Provided CC list contained invalid addresses: {cc_addresses}")
+            elif cc_addresses: # Log if it wasn't a list
+                 logger.warning(f"CC field was not a list: {cc_addresses}")
 
             # Send the email
-            logger.info(f"Sending reply from {sender_email} to {to_address} with subject: {subject}")
+            logger.info(f"Sending reply from {sender_email} to {to_address} with subject: '{subject}' (CC: {email_params['Destination'].get('CcAddresses')})")
             response = self.ses_client.send_email(**email_params)
             logger.info(f"Reply sent successfully: {response['MessageId']}")
             return response
 
+        except ClientError as e:
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_message = e.response.get("Error", {}).get("Message", str(e))
+
+            if error_code == "MessageRejected":
+                logger.error(f"Email rejected: {error_message}")
+                if "Email address is not verified" in error_message:
+                    logger.error(f"The sender email '{sender_email}' is not verified in SES. "
+                                f"Verify it in the AWS SES console or use a different verified email.")
+            elif error_code == "SignatureDoesNotMatch":
+                logger.error(f"AWS authentication failed: {error_message}")
+                logger.error("Check your AWS credentials and ensure you're using the correct region.")
+            else:
+                logger.exception(f"AWS SES error ({error_code}): {error_message}")
+
+            raise
         except Exception as e:
             logger.exception(f"Error sending reply: {e!s}")
             raise

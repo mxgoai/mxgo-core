@@ -47,6 +47,10 @@ def create_email_context(email_request: EmailRequest, attachment_details=None):
     return f"""Email Content:
 Subject: {email_request.subject}
 From: {email_request.from_email}
+Email Date: {email_request.date}
+Recipients: {', '.join(email_request.recipients) if email_request.recipients else 'N/A'}
+CC: {email_request.cc or 'N/A'}
+BCC: {email_request.bcc or 'N/A'}
 Body: {email_request.textContent or email_request.htmlContent or ''}
 User Intent in Email: {email_request.userText if email_request.forwardedText else 'N/A'}
 
@@ -64,7 +68,6 @@ def create_task_template(
     handle: str,
     email_context: str,
     handle_specific_template: str = "",
-    research_instructions: str = "",
     attachment_task: str = "",
     deep_research_mandatory: bool = False,
 ) -> str:
@@ -96,9 +99,6 @@ def create_task_template(
 
     if handle_specific_template:
         sections.append(handle_specific_template)
-
-    if research_instructions and deep_research_mandatory:
-        sections.append(research_instructions)
 
     if not handle_specific_template:
         # Add default processing steps if no specific template

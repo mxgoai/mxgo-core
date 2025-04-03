@@ -246,7 +246,6 @@ class EmailAgent:
             handle=email_instructions.handle,
             email_context=email_context,
             handle_specific_template=email_instructions.task_template,
-            research_instructions=email_instructions.specific_research_instructions,
             attachment_task=attachment_task,
             deep_research_mandatory=email_instructions.deep_research_mandatory
         )
