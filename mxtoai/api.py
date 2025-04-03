@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 from datetime import datetime
+from email.utils import getaddresses
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
@@ -238,13 +239,15 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     }
 
     try:
-        logger.info(f"Sending email reply to {ses_email_dict['from']} about '{ses_email_dict['subject']}'")
+        # Log details including CC
+        logger.info(f"Sending email reply to {ses_email_dict['from']} about '{ses_email_dict['subject']}' with CC: {ses_email_dict.get('cc')}")
+        
         # --- Pass attachments to send_email_reply --- 
         email_response = await send_email_reply(
             original_email=ses_email_dict, 
             reply_text=text_content, 
             reply_html=html_content, 
-            attachments=attachments_to_send
+            attachments=attachments_to_send  # Pass prepared attachments
         )
 
         reply_result = {
@@ -314,6 +317,7 @@ async def process_email(
     messageId: Annotated[Optional[str], Form()] = None,
     date: Annotated[Optional[str], Form()] = None,
     emailId: Annotated[Optional[str], Form()] = None,
+    rawHeaders: Annotated[Optional[str], Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: str = Depends(api_auth_scheme)
 ):
@@ -324,7 +328,17 @@ async def process_email(
 
     if files is None:
         files = []
+    parsed_headers = {}
     try:
+        # Parse raw headers if provided
+        if rawHeaders:
+            try:
+                parsed_headers = json.loads(rawHeaders)
+                logger.info(f"Received raw headers: {json.dumps(parsed_headers, indent=2)}")
+            except json.JSONDecodeError:
+                logger.warning(f"Could not parse rawHeaders JSON: {rawHeaders}")
+                # Continue processing even if headers are malformed
+
         # Validate email whitelist
         if response := await validate_email_whitelist(from_email, to, subject, messageId):
             return response
@@ -375,6 +389,22 @@ async def process_email(
         logger.info(f"Date: {date}")
         logger.info(f"Email ID: {emailId}")
         logger.info(f"Number of attachments: {len(files)}")
+        # Log raw headers count if present
+        if parsed_headers:
+            logger.info(f"Number of raw headers received: {len(parsed_headers)}")
+
+        # Parse CC addresses from raw headers
+        cc_list = []
+        raw_cc_header = parsed_headers.get("cc", "")
+        if isinstance(raw_cc_header, str) and raw_cc_header:
+            try:
+                # Use getaddresses to handle names and comma separation
+                addresses = getaddresses([raw_cc_header])
+                cc_list = [addr for name, addr in addresses if addr]
+                if cc_list:
+                    logger.info(f"Parsed CC list: {cc_list}")
+            except Exception as e:
+                logger.warning(f"Could not parse CC header '{raw_cc_header}': {e!s}")
 
         # Create EmailRequest instance
         email_request = EmailRequest(
@@ -386,6 +416,8 @@ async def process_email(
             messageId=messageId,
             date=date,
             emailId=emailId,
+            rawHeaders=parsed_headers,
+            cc=cc_list,
             attachments=[]  # Start with empty list, will be updated after saving files
         )
 

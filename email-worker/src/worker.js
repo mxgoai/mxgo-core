@@ -1,5 +1,6 @@
 // Define the API endpoint as a constant
 const API_ENDPOINT = "https://api.mxtoai.com/process-email";
+// const API_ENDPOINT = "https://f9cb-2401-4900-1f27-802d-9dc8-c5a1-9434-c1f1.ngrok-free.app/process-email"
 import PostalMime from 'postal-mime';
 
 // Helper function to calculate size of base64 string
@@ -20,6 +21,13 @@ export default {
   },
 
   async email(message, env, ctx) {
+    // Log basic info and headers
+    console.log("Received email from:", message.from, "to:", message.to);
+    console.log("Raw CC Header Value:", message.headers.get('cc'));
+    // Convert headers Map to a plain object for logging/sending
+    const rawHeaders = Object.fromEntries(message.headers);
+    console.log("Raw Headers:", JSON.stringify(rawHeaders, null, 2)); // Pretty print JSON
+
     // Extract basic email fields
     const sender = message.from;
     const recipient = message.to;
@@ -64,6 +72,8 @@ export default {
       formData.append('messageId', message.headers.get("message-id") || "");
       formData.append('date', message.headers.get("date") || "");
       formData.append('emailId', uniqueId);
+      // Add raw headers as a JSON string
+      formData.append('rawHeaders', JSON.stringify(rawHeaders));
 
       // Add attachments as files
       if (parsedEmail.attachments && parsedEmail.attachments.length > 0) {
@@ -130,6 +140,9 @@ export default {
         formData.append('emailId', uniqueId);
         formData.append('textContent', "");
         formData.append('htmlContent', "");
+        // Add raw headers to fallback as well
+        const fallbackHeaders = Object.fromEntries(message.headers);
+        formData.append('rawHeaders', JSON.stringify(fallbackHeaders));
 
         // Still try to send to the API
         await fetch(API_ENDPOINT, {

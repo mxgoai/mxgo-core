@@ -42,7 +42,7 @@ class EmailRequest(BaseModel):
     date: Optional[str] = None
     inReplyTo: Optional[str] = None
     references: Optional[str] = None
-    cc: Optional[str] = None
+    cc: Optional[list[str]] = None
     bcc: Optional[str] = None
     replyTo: Optional[str] = None
     returnPath: Optional[str] = None
@@ -51,6 +51,7 @@ class EmailRequest(BaseModel):
     headers: Optional[dict[str, str]] = {}
     attachments: Optional[list[EmailAttachment]] = []
     emailId: Optional[str] = None  # Unique ID for this email
+    rawHeaders: Optional[dict[str, Any]] = None  # Raw email headers
 
     class Config:
         populate_by_name = True  # Allows alias fields

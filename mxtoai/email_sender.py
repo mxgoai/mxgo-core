@@ -149,7 +149,7 @@ class EmailSender:
         """
         Send a reply to an original email, using send_raw_email for attachment support.
         Args:
-            original_email: The original email data
+            original_email: The original email data (should contain 'from', 'to', 'subject', optional 'messageId', optional 'cc' list)
             reply_text: The plain text reply body
             reply_html: The HTML reply body (optional)
             attachments: Optional list of attachments. Each dict should have:
@@ -159,33 +159,53 @@ class EmailSender:
         Returns:
             The response from AWS SES
         """
-        # log the attachments
-        logger.info(f"Attachments: {attachments}")
+        logger.info(f"Processing reply with attachments: {bool(attachments)}")
         try:
-            # --- Extract Info & Basic Headers --- 
+            # --- Extract Info & Basic Headers ---
             to_address = original_email.get("from")
             if not to_address:
-                raise ValueError("Original email 'from' address is missing")
-            
+                msg = "Original email 'from' address is missing for reply"
+                logger.error(msg)
+                raise ValueError(msg)
+
             original_subject = original_email.get("subject", "")
+            # Use the original recipient ("to") as the sender for the reply
             sender_email = original_email.get("to", self.default_sender_email)
+            if not sender_email:
+                 msg = "Original recipient ('to' field) missing in email data for reply."
+                 logger.error(msg)
+                 raise ValueError(msg)
+
             subject = f"Re: {original_subject}" if not original_subject.lower().startswith("re:") else original_subject
-            
-            # --- Create Root MIME message (multipart/mixed) --- 
+
+            # --- Create Root MIME message (multipart/mixed) ---
             msg = MIMEMultipart('mixed')
             msg['Subject'] = subject
             msg['From'] = sender_email
             msg['To'] = to_address
 
-            # Handle CC
+            # --- Handle CC Addresses (Incorporating validation from incoming change) ---
             cc_addresses = []
-            original_cc = original_email.get("cc")
-            if isinstance(original_cc, str):
-                 cc_addresses = [addr.strip() for addr in original_cc.split(',') if addr.strip()]
-            elif isinstance(original_cc, list):
-                cc_addresses = original_cc
+            original_cc_data = original_email.get("cc")
+            if original_cc_data:
+                if isinstance(original_cc_data, str):
+                    # Parse comma-separated string
+                    potential_ccs = [addr.strip() for addr in original_cc_data.split(',') if addr.strip()]
+                    # Validate
+                    cc_addresses = [addr for addr in potential_ccs if isinstance(addr, str) and "@" in addr]
+                    if len(cc_addresses) != len(potential_ccs):
+                        logger.warning(f"Filtered invalid CC addresses from string: {original_cc_data}")
+                elif isinstance(original_cc_data, list):
+                    # Validate list entries
+                    cc_addresses = [addr for addr in original_cc_data if isinstance(addr, str) and "@" in addr]
+                    if len(cc_addresses) != len(original_cc_data):
+                         logger.warning(f"Filtered invalid CC addresses from list: {original_cc_data}")
+                else:
+                    logger.warning(f"CC field was not a string or list: {original_cc_data}")
+
             if cc_addresses:
-                 msg['Cc'] = ', '.join(cc_addresses)
+                msg['Cc'] = ', '.join(cc_addresses)
+                logger.info(f"Adding valid CC addresses to reply: {cc_addresses}")
 
             # Handle In-Reply-To and References for threading
             message_id = original_email.get("messageId")
@@ -196,7 +216,7 @@ class EmailSender:
                 msg['In-Reply-To'] = message_id
                 msg['References'] = f"{references} {message_id}".strip() if references else message_id
 
-            # --- Create Alternative Part for Body (text/plain and text/html) --- 
+            # --- Create Alternative Part for Body (text/plain and text/html) ---
             msg_alternative = MIMEMultipart('alternative')
             # Attach text part
             msg_text = MIMEText(reply_text, 'plain', 'utf-8')
@@ -208,7 +228,7 @@ class EmailSender:
             # Attach alternative part to the root message
             msg.attach(msg_alternative)
 
-            # --- Attach Files (as separate parts in multipart/mixed) --- 
+            # --- Attach Files (as separate parts in multipart/mixed) ---
             if attachments:
                 for attachment in attachments:
                     try:
@@ -225,19 +245,17 @@ class EmailSender:
 
                         # Use MIMEApplication for all attachments in this structure
                         part = MIMEApplication(attachment_content_bytes, Name=filename)
-                        
+
                         # Set Content-Disposition header
                         part.add_header('Content-Disposition', 'attachment', filename=filename)
-                        
-                        # --- Explicitly set Content-Type, especially for calendar --- 
+
+                        # --- Explicitly set Content-Type, especially for calendar ---
                         if maintype == 'text' and subtype == 'calendar':
                             # Override Content-Type for .ics to include method=PUBLISH
                             part.replace_header('Content-Type', f'text/calendar; method=PUBLISH; charset=utf-8')
                             logger.info(f"Setting Content-Type for {filename} to text/calendar; method=PUBLISH")
                         else:
-                             # For other types, explicitly set the mimetype if needed, 
-                             # though MIMEApplication might default correctly for common types.
-                             # Let's explicitly set it for clarity/correctness.
+                             # For other types, explicitly set the mimetype if needed
                              part.replace_header('Content-Type', mimetype)
                              logger.info(f"Setting Content-Type for {filename} to {mimetype}")
 
@@ -249,12 +267,12 @@ class EmailSender:
                         logger.error(f"Skipping attachment {attachment.get('filename', '(unknown)')} due to missing key: {ke}")
                     except Exception as attach_err:
                         logger.error(f"Error attaching file '{attachment.get('filename', '(unknown)')}': {attach_err}")
-            
-            # --- Prepare destinations & Send --- 
+
+            # --- Prepare destinations & Send ---
             destinations = [to_address]
             if cc_addresses:
                 destinations.extend(cc_addresses)
-                
+
             logger.info(f"Sending raw reply from {sender_email} to {to_address} (CC: {cc_addresses}) with subject: {msg['Subject']}")
             response = self.ses_client.send_raw_email(
                 Source=sender_email,
@@ -270,6 +288,7 @@ class EmailSender:
             # Reuse existing detailed ClientError handling
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             error_message = e.response.get("Error", {}).get("Message", str(e))
+            # Log the sender email being used when verification fails
             if error_code == "MessageRejected":
                 logger.error(f"Email rejected: {error_message}")
                 if "Email address is not verified" in error_message:
@@ -279,8 +298,9 @@ class EmailSender:
                 logger.error(f"AWS authentication failed: {error_message}")
                 logger.error("Check your AWS credentials and ensure you're using the correct region.")
             else:
-                logger.exception(f"AWS SES error ({error_code}): {error_message}")
-            raise
+                logger.exception(f"AWS SES error sending raw email ({error_code}): {error_message}")
+
+            raise # Re-raise the exception after logging
         except Exception as e:
             logger.exception(f"Error sending raw reply: {e!s}")
             raise
