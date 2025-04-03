@@ -224,33 +224,55 @@ Content Guidelines:
         aliases=["schedule-action"],
         process_attachments=True,
         deep_research_mandatory=False,
-        specific_research_instructions="Extract meeting/scheduling related information including participants, timing, and location details to provide scheduling recommendations",
+        specific_research_instructions="Extract meeting/scheduling related information including participants, timing, and location details. Use the ScheduleTool to generate calendar data, or ask for clarification if details are missing.",
         add_summary=True,
         target_model="gpt-4",
         task_template="""
-Extract and present scheduling information clearly.
+Analyze the email content to extract details for a potential calendar event.
 
-FORMATTING REQUIREMENTS:
-1. Use proper markdown formatting:
-   - **Event**: for event title
-   - **When**: for date/time
-   - **Where**: for location
-   - **Who**: for participants
-   - Bullet points for details
-   - _Notes_ for additional info
-2. Structure the response:
-   - Event overview
-   - Key details
-   - Action items
-   - Recommendations
-3. Use clear formatting for times and dates
+**STEP 1: Assess Clarity**
+- Determine if the email provides enough specific information to create a calendar event. Key details needed are:
+    - A clear event purpose/title.
+    - A specific date (or range to choose from).
+    - A specific start time (or range).
+    - A timezone (or enough context to infer one, otherwise default to UTC and state assumption).
+    - Optionally: duration/end time, location, attendees.
 
-Content Guidelines:
-1. Extract all scheduling details
-2. Format dates consistently
-3. List all participants
-4. Note any conflicts
-5. Provide clear next steps
+**STEP 2: Handle Ambiguity**
+- **IF** the details are too vague or missing critical information (like a specific date or time):
+    - **DO NOT** attempt to call the `ScheduleTool`.
+    - Respond to the user explaining which details are unclear or missing.
+    - Ask specific questions to get the needed clarification (e.g., "Could you please specify the date and time for this meeting?", "What timezone should I use?", "What is the main topic or title for this event?").
+    - Your entire response should be this request for clarification.
+
+**STEP 3: Extract and Format (If Clear)**
+- **IF** the details are clear enough:
+    - Extract the event title, start time, end time (if specified), description, location, and attendee emails.
+    - Check email thread and generate a title & description based on the context if not explicitly provided
+    - **IMPORTANT DATE/TIME FORMATTING:** Determine the correct timezone and format ALL start/end times as ISO 8601 strings including the offset (e.g., '2024-08-15T10:00:00+01:00', '2024-08-16T09:00:00Z'). State any timezone assumptions made.
+
+**STEP 4: Use Tool (If Clear)**
+- Call the `ScheduleTool` (`schedule_generator`) with the extracted and formatted details:
+    - `title`: The event title.
+    - `start_time`: The ISO 8601 formatted start time string (with timezone).
+    - `end_time`: The ISO 8601 formatted end time string (with timezone), if available.
+    - `description`: Event description, if available.
+    - `location`: Event location, if available.
+    - `attendees`: List of attendee email strings, if available.
+
+**STEP 5: Format Response (If Tool Used)**
+- Structure the response based on the `ScheduleTool` output:
+    1.  **Summary of Extracted Details:** Briefly list the key event details identified.
+    2.  **Add to Calendar:** Use the `calendar_links` output. Present the links clearly using markdown:
+        - [Add to Google Calendar](google_link_url)
+        - [Add to Outlook Calendar](outlook_link_url)
+    3.  **Calendar File:** Mention that a standard calendar file (.ics) has been attached to this email for easy import into most calendar applications. (Do not mention tools or internal processes).
+    4.  **Notes/Recommendations:** Include any relevant notes or assumptions made (like assumed timezone).
+
+**GENERAL FORMATTING:**
+- Use clear markdown (bolding, bullet points).
+- Ensure any generated "Add to Calendar" links are functional.
+- Present information concisely.
 """
     )
 ]

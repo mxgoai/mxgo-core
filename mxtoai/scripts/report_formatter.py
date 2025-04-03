@@ -227,8 +227,10 @@ _Feel free to reply to this email to continue our conversation._
         content = self._remove_existing_signatures(content)
 
         # Process citations and references before converting format
-        if format_type == "html":
-            content = self._process_citations(content)
+        # DISABLED: _process_citations was causing issues with already formatted markdown.
+        # The DeepResearchTool now handles citation/reference formatting directly.
+        # if format_type == "html":
+        #     content = self._process_citations(content)
 
         # Add signature if requested
         if include_signature:
@@ -320,19 +322,25 @@ _Feel free to reply to this email to continue our conversation._
 
         """
         # Remove heading markers but preserve citations
-        text = re.sub(r"#+\s+(?!References)", "", markdown)  # Don't remove "References" header
+        text = re.sub(r"^#+\s+", "", markdown, flags=re.MULTILINE)
         # Remove bold markers
         text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
         text = re.sub(r"__(.*?)__", r"\1", text)
         # Remove italic markers (both * and _)
         text = re.sub(r"(?<!\\)\*((?:[^*]|\\[*])+?)(?<!\\)\*", r"\1", text)
         text = re.sub(r"(?<!\\)_((?:[^_]|\\_)+?)(?<!\\)_", r"\1", text)
-        # Remove link formatting but preserve URLs in references
-        text = re.sub(r"\[(.*?)\]\((.*?)\)", r"\1 (\2)", text)
+        # Convert links: [Title](URL) -> Title (URL), but don't touch existing [N] citations
+        text = re.sub(r"\[([^\]\d]+?)\]\((.*?)\)", r"\1 (\2)", text)
         # Remove code blocks
         text = re.sub(r"```.*?\n(.*?)```", r"\1", text, flags=re.DOTALL)
         # Remove horizontal rules
-        return re.sub(r"---+", "-" * 40, text)
+        text = re.sub(r"^---+", "-" * 40, text, flags=re.MULTILINE)
+        # Handle lists (basic conversion)
+        text = re.sub(r"^\s*\*\s+", "- ", text, flags=re.MULTILINE)
+        text = re.sub(r"^\s*\d+\.\s+", "  ", text, flags=re.MULTILINE)
+        # Clean up extra newlines
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
 
     def _to_html(self, markdown_content: str) -> str:
         """
@@ -367,7 +375,12 @@ _Feel free to reply to this email to continue our conversation._
             # Convert markdown to HTML with configured extensions
             html = md_converter.markdown(
                 markdown_content,
-                extensions=extensions
+                extensions=extensions,
+                extension_configs={
+                    # Explicitly disable footnotes if it's a default or separate extension
+                    # 'markdown.extensions.footnotes': {'PLACE_MARKER': '!!!!FOOTNOTES!!!!'}
+                },
+                output_format="html5" # Use html5 for better compatibility
             )
 
             return f"""

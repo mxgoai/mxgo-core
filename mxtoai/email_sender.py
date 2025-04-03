@@ -2,7 +2,7 @@ import base64
 import os
 import time
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import boto3
 from botocore.exceptions import ClientError
@@ -17,6 +17,11 @@ load_dotenv()
 
 # Initialize logger
 logger = get_logger("mxtoai.email")
+
+# Add imports for MIME handling
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.application import MIMEApplication
 
 class EmailSender:
     """
@@ -138,101 +143,146 @@ class EmailSender:
         self,
         original_email: dict[str, Any],
         reply_text: str,
-        reply_html: Optional[str] = None
+        reply_html: Optional[str] = None,
+        attachments: Optional[List[dict[str, Any]]] = None
     ) -> dict[str, Any]:
         """
-        Send a reply to an original email, making it appear as a reply in email clients.
-
+        Send a reply to an original email, using send_raw_email for attachment support.
         Args:
             original_email: The original email data
             reply_text: The plain text reply body
             reply_html: The HTML reply body (optional)
-
+            attachments: Optional list of attachments. Each dict should have:
+                         'filename' (str): Name of the file.
+                         'content' (bytes or str): File content.
+                         'mimetype' (str): MIME type (e.g., 'text/calendar', 'application/pdf').
         Returns:
             The response from AWS SES
-
         """
+        # log the attachments
+        logger.info(f"Attachments: {attachments}")
         try:
-            # Extract necessary information from the original email
-            to_address = original_email.get("from")  # Reply to the sender
+            # --- Extract Info & Basic Headers --- 
+            to_address = original_email.get("from")
+            if not to_address:
+                raise ValueError("Original email 'from' address is missing")
+            
             original_subject = original_email.get("subject", "")
-
-            # Use the "to" address from the original email as the sender
-            # This makes the reply appear to come from the same address that received the original email
             sender_email = original_email.get("to", self.default_sender_email)
+            subject = f"Re: {original_subject}" if not original_subject.lower().startswith("re:") else original_subject
+            
+            # --- Create Root MIME message (multipart/mixed) --- 
+            msg = MIMEMultipart('mixed')
+            msg['Subject'] = subject
+            msg['From'] = sender_email
+            msg['To'] = to_address
 
-            # Create a reply subject with "Re:" prefix if not already present
-            subject = original_subject
-            if not subject.lower().startswith("re:"):
-                subject = f"Re: {subject}"
+            # Handle CC
+            cc_addresses = []
+            original_cc = original_email.get("cc")
+            if isinstance(original_cc, str):
+                 cc_addresses = [addr.strip() for addr in original_cc.split(',') if addr.strip()]
+            elif isinstance(original_cc, list):
+                cc_addresses = original_cc
+            if cc_addresses:
+                 msg['Cc'] = ', '.join(cc_addresses)
 
-            # Get message ID and references for threading
+            # Handle In-Reply-To and References for threading
             message_id = original_email.get("messageId")
             references = original_email.get("references", "")
-
-            # Prepare headers for email threading
-            headers = {}
-
-            # Add In-Reply-To and References headers if message ID is available
             if message_id:
-                # Make sure message ID is properly formatted with angle brackets
-                if not message_id.startswith("<"):
-                    message_id = f"<{message_id}>"
-                if not message_id.endswith(">"):
-                    message_id = f"{message_id}>"
+                if not message_id.startswith('<'): message_id = f'<{message_id}'
+                if not message_id.endswith('>'): message_id = f'{message_id}>'
+                msg['In-Reply-To'] = message_id
+                msg['References'] = f"{references} {message_id}".strip() if references else message_id
 
-                headers["InReplyTo"] = {"Data": message_id}
-
-                # Add the message ID to references
-                if references:
-                    # Make sure references are properly formatted
-                    if not references.startswith("<"):
-                        references = f"<{references}>"
-                    if not references.endswith(">"):
-                        references = f"{references}>"
-                    headers["References"] = {"Data": f"{references} {message_id}"}
-                else:
-                    headers["References"] = {"Data": message_id}
-
-            # Create email parameters
-            message = {
-                "Subject": {"Data": subject},
-                "Body": {"Text": {"Data": reply_text}}
-            }
-
+            # --- Create Alternative Part for Body (text/plain and text/html) --- 
+            msg_alternative = MIMEMultipart('alternative')
+            # Attach text part
+            msg_text = MIMEText(reply_text, 'plain', 'utf-8')
+            msg_alternative.attach(msg_text)
+            # Attach HTML part if provided
             if reply_html:
-                message["Body"]["Html"] = {"Data": reply_html}
+                msg_html = MIMEText(reply_html, 'html', 'utf-8')
+                msg_alternative.attach(msg_html)
+            # Attach alternative part to the root message
+            msg.attach(msg_alternative)
 
-            email_params = {
-                "Source": sender_email,
-                "Destination": {"ToAddresses": [to_address]},
-                "Message": message
-            }
+            # --- Attach Files (as separate parts in multipart/mixed) --- 
+            if attachments:
+                for attachment in attachments:
+                    try:
+                        filename = attachment['filename']
+                        content = attachment['content']
+                        mimetype = attachment['mimetype']
+                        maintype, subtype = mimetype.split('/', 1)
 
-            # Add headers to the message if present
-            if headers:
-                for name, value in headers.items():
-                    if name == "InReplyTo":
-                        email_params["ReplyToAddresses"] = [value["Data"]]
-                    elif name == "References":
-                        # References can't be added directly in SES, we'll skip it
-                        continue
+                        # Ensure content is bytes for MIMEApplication
+                        if isinstance(content, str):
+                            attachment_content_bytes = content.encode('utf-8')
+                        else:
+                            attachment_content_bytes = content
 
-            # Add CC if present in original email
-            cc_addresses = []
-            if original_email.get("cc"):
-                cc_addresses.append(original_email["cc"])
+                        # Use MIMEApplication for all attachments in this structure
+                        part = MIMEApplication(attachment_content_bytes, Name=filename)
+                        
+                        # Set Content-Disposition header
+                        part.add_header('Content-Disposition', 'attachment', filename=filename)
+                        
+                        # --- Explicitly set Content-Type, especially for calendar --- 
+                        if maintype == 'text' and subtype == 'calendar':
+                            # Override Content-Type for .ics to include method=PUBLISH
+                            part.replace_header('Content-Type', f'text/calendar; method=PUBLISH; charset=utf-8')
+                            logger.info(f"Setting Content-Type for {filename} to text/calendar; method=PUBLISH")
+                        else:
+                             # For other types, explicitly set the mimetype if needed, 
+                             # though MIMEApplication might default correctly for common types.
+                             # Let's explicitly set it for clarity/correctness.
+                             part.replace_header('Content-Type', mimetype)
+                             logger.info(f"Setting Content-Type for {filename} to {mimetype}")
+
+                        # Attach the part to the root message
+                        msg.attach(part)
+                        logger.info(f"Attached file using MIMEApplication: {filename} ({mimetype})")
+
+                    except KeyError as ke:
+                        logger.error(f"Skipping attachment {attachment.get('filename', '(unknown)')} due to missing key: {ke}")
+                    except Exception as attach_err:
+                        logger.error(f"Error attaching file '{attachment.get('filename', '(unknown)')}': {attach_err}")
+            
+            # --- Prepare destinations & Send --- 
+            destinations = [to_address]
             if cc_addresses:
-                email_params["Destination"]["CcAddresses"] = cc_addresses
-
-            # Send the email
-            logger.info(f"Sending reply from {sender_email} to {to_address} with subject: {subject}")
-            response = self.ses_client.send_email(**email_params)
-            logger.info(f"Reply sent successfully: {response['MessageId']}")
+                destinations.extend(cc_addresses)
+                
+            logger.info(f"Sending raw reply from {sender_email} to {to_address} (CC: {cc_addresses}) with subject: {msg['Subject']}")
+            response = self.ses_client.send_raw_email(
+                Source=sender_email,
+                Destinations=destinations,
+                RawMessage={
+                    'Data': msg.as_string()
+                }
+            )
+            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
             return response
 
+        except ClientError as e:
+            # Reuse existing detailed ClientError handling
+            error_code = e.response.get("Error", {}).get("Code", "Unknown")
+            error_message = e.response.get("Error", {}).get("Message", str(e))
+            if error_code == "MessageRejected":
+                logger.error(f"Email rejected: {error_message}")
+                if "Email address is not verified" in error_message:
+                    logger.error(f"The sender email '{sender_email}' is not verified in SES. "
+                                f"Verify it in the AWS SES console or use a different verified email.")
+            elif error_code == "SignatureDoesNotMatch":
+                logger.error(f"AWS authentication failed: {error_message}")
+                logger.error("Check your AWS credentials and ensure you're using the correct region.")
+            else:
+                logger.exception(f"AWS SES error ({error_code}): {error_message}")
+            raise
         except Exception as e:
-            logger.exception(f"Error sending reply: {e!s}")
+            logger.exception(f"Error sending raw reply: {e!s}")
             raise
 
 async def verify_sender_email(email_address: str) -> bool:

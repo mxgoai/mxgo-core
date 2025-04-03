@@ -54,10 +54,6 @@ def cleanup_attachments(directory_path):
         logger.error(f"Error deleting attachment directory {directory_path}: {e!s}")
         return False
 
-
-# Pydantic model for an email attachment
-
-
 def create_success_response(summary: str, email_response: dict[str, Any], attachment_info: list[dict[str, Any]]) -> Response:
     """Create a success response with summary and email details"""
     return Response(
@@ -204,7 +200,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
             "timestamp": datetime.now().isoformat()
         }
 
-    # Get the enhanced content if available, otherwise use base content
+    # Get email body content
     email_content = processing_result["email_content"]
     html_content = email_content.get("enhanced", {}).get("html") or email_content.get("html")
     text_content = email_content.get("enhanced", {}).get("text") or email_content.get("text")
@@ -217,6 +213,18 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
             "error": "No email content was generated",
             "timestamp": datetime.now().isoformat()
         }
+
+    # --- Prepare attachments --- 
+    attachments_to_send = []
+    if processing_result.get('calendar_data') and processing_result['calendar_data'].get('ics_content'):
+        ics_content = processing_result['calendar_data']['ics_content']
+        attachments_to_send.append({
+            'filename': 'invite.ics',
+            'content': ics_content, # Should be string or bytes
+            'mimetype': 'text/calendar'
+        })
+        logger.info("Prepared invite.ics for attachment.")
+    # Add logic here if other types of attachments need to be sent back
 
     # Format the email dict for SES
     ses_email_dict = {
@@ -231,7 +239,13 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
 
     try:
         logger.info(f"Sending email reply to {ses_email_dict['from']} about '{ses_email_dict['subject']}'")
-        email_response = await send_email_reply(ses_email_dict, text_content, html_content)
+        # --- Pass attachments to send_email_reply --- 
+        email_response = await send_email_reply(
+            original_email=ses_email_dict, 
+            reply_text=text_content, 
+            reply_html=html_content, 
+            attachments=attachments_to_send
+        )
 
         reply_result = {
             "status": "success",

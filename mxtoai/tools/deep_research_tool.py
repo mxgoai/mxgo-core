@@ -357,46 +357,19 @@ class DeepResearchTool(Tool):
 
     def _structure_research_content(self, content: str) -> str:
         """
-        Structure research content using TOC generator.
+        Pass through research content without adding extra structuring for now.
+        Relies on Jina AI providing reasonably structured markdown.
 
         Args:
             content: Raw research content
 
         Returns:
-            Structured research content with TOC
+            Original research content
 
         """
-        try:
-            toc_gen = TOCGenerator()
-
-            # Extract sections from content
-            sections = {}
-            current_section = "Overview"
-            current_content = []
-
-            for line in content.split("\n"):
-                if line.startswith("###"):
-                    # Save previous section
-                    if current_content:
-                        sections[current_section] = "\n".join(current_content)
-                    # Start new section
-                    current_section = line.strip("# ")
-                    current_content = []
-                else:
-                    current_content.append(line)
-
-            # Save last section
-            if current_content:
-                sections[current_section] = "\n".join(current_content)
-
-            # Generate TOC prompt and structure the report
-            toc = toc_gen.generate_toc_prompt("Research Findings", "Structure the research findings into a comprehensive report")
-            return toc_gen.structure_report_from_toc(toc, sections)
-
-
-        except Exception as e:
-            logger.error(f"Error structuring research content: {e!s}")
-            return content
+        # Removed TOCGenerator logic which was inserting a template.
+        logger.debug("Skipping TOC generation, returning raw content structure.")
+        return content
 
     def _format_research_content(
         self,
@@ -480,10 +453,14 @@ class DeepResearchTool(Tool):
 
                 if url_annotation:
                     url_info = url_annotation.get("url_citation", {})
-                    title = url_info.get("title", url)
-                    date = url_info.get("dateTime", "").split()[0]  # Get just the date part
-                    references.append(f"{citation_num}. {title}. Retrieved on {date} from [{url}]({url})")
+                    title = url_info.get("title", url) # Use URL as title if missing
+                    date_str = url_info.get("dateTime", "")
+                    retrieved_info = f" Retrieved on {date_str.split()[0]}" if date_str else "" # Add date if available
+                    # Corrected reference formatting to standard Markdown
+                    references.append(f"{citation_num}. {title}.{retrieved_info} from [{url}]({url})")
                 else:
+                    # Fallback if no annotation found (less likely but safe)
+                    # Corrected reference formatting to standard Markdown
                     references.append(f"{citation_num}. Retrieved from [{url}]({url})")
 
             # Add references to the content
