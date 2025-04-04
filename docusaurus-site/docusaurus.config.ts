@@ -71,7 +71,7 @@ const config: Config = {
       title: 'MXtoAI',
       logo: {
         alt: 'MXtoAI Logo',
-        src: 'img/logo.svg',
+        src: 'img/light-logo.avif',
       },
       items: [
         {
