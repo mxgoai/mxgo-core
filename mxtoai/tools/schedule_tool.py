@@ -1,11 +1,11 @@
 import logging
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 from urllib.parse import urlencode
 
-from ics import Calendar, Event
-from pydantic import BaseModel, Field, EmailStr, field_validator
 import pytz
+from ics import Calendar, Event
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 # Import Smol Gents Tool
 from smolagents import Tool
@@ -14,15 +14,16 @@ logger = logging.getLogger(__name__)
 
 class EventDetails(BaseModel):
     """Data model for event details extracted by the LLM."""
+
     title: str = Field(..., description="The title or summary of the event.")
     start_time: datetime = Field(..., description="The start date and time of the event. Must include timezone info.")
     end_time: Optional[datetime] = Field(None, description="The end date and time of the event. Must include timezone info if provided.")
     description: Optional[str] = Field(None, description="A detailed description of the event.")
     location: Optional[str] = Field(None, description="The location of the event (physical address or virtual meeting link).")
-    attendees: Optional[List[EmailStr]] = Field(None, description="List of attendee email addresses.")
+    attendees: Optional[list[EmailStr]] = Field(None, description="List of attendee email addresses.")
 
-    @field_validator('start_time', 'end_time')
-    def check_timezone_awareness(cls, v):
+    @field_validator("start_time", "end_time")
+    def check_timezone_awareness(self, v):
         if v is not None and (v.tzinfo is None or v.tzinfo.utcoffset(v) is None):
             # Attempt to default to UTC if naive, log warning
             logger.warning(f"Received naive datetime '{v}'. Assuming UTC. LLM should provide timezone-aware datetimes.")
@@ -105,28 +106,28 @@ class ScheduleTool(Tool):
     def generate_calendar_links(self, details: EventDetails) -> dict[str, str]:
         """Generates 'Add to Calendar' links for popular services."""
         links = {}
-        
+
         # Ensure start_time is timezone-aware (validator should handle this, but double-check)
         start_utc = details.start_time.astimezone(pytz.utc)
         end_utc = details.end_time.astimezone(pytz.utc) if details.end_time else None
 
         # Format dates for URLs (YYYYMMDDTHHMMSSZ)
-        start_format = start_utc.strftime('%Y%m%dT%H%M%SZ')
-        end_format = end_utc.strftime('%Y%m%dT%H%M%SZ') if end_utc else start_format # Use start if no end
+        start_format = start_utc.strftime("%Y%m%dT%H%M%SZ")
+        end_format = end_utc.strftime("%Y%m%dT%H%M%SZ") if end_utc else start_format # Use start if no end
 
         # Google Calendar Link
         google_params = {
-            'action': 'TEMPLATE',
-            'text': details.title,
-            'dates': f"{start_format}/{end_format}",
-            'details': details.description or '',
-            'location': details.location or '',
+            "action": "TEMPLATE",
+            "text": details.title,
+            "dates": f"{start_format}/{end_format}",
+            "details": details.description or "",
+            "location": details.location or "",
             # 'add': ','.join(details.attendees or []) # Requires specific formatting/permissions sometimes unreliable
         }
         if details.attendees:
-             google_params['add'] = ','.join(details.attendees)
-             
-        links['google'] = f"https://www.google.com/calendar/render?{urlencode(google_params)}"
+             google_params["add"] = ",".join(details.attendees)
+
+        links["google"] = f"https://www.google.com/calendar/render?{urlencode(google_params)}"
 
         # Outlook Calendar Link (Web)
         # Note: Outlook link format can be less reliable and might change.
@@ -134,22 +135,22 @@ class ScheduleTool(Tool):
         # making UTC conversion tricky without knowing the target user's TZ.
         # Providing UTC times is the most standard approach.
         outlook_params = {
-            'path': '/calendar/action/compose',
-            'rru': 'addevent',
-            'startdt': start_utc.strftime('%Y-%m-%dT%H:%M:%S'),
+            "path": "/calendar/action/compose",
+            "rru": "addevent",
+            "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
              # Outlook needs TZ info sometimes, but URL format varies. Sticking to UTC base format.
-            'enddt': end_utc.strftime('%Y-%m-%dT%H:%M:%S') if end_utc else start_utc.strftime('%Y-%m-%dT%H:%M:%S'),
-            'subject': details.title,
-            'body': details.description or '',
-            'location': details.location or '',
+            "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%S") if end_utc else start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
+            "subject": details.title,
+            "body": details.description or "",
+            "location": details.location or "",
         }
-        links['outlook'] = f"https://outlook.live.com/calendar/0/deeplink/compose?{urlencode(outlook_params)}"
+        links["outlook"] = f"https://outlook.live.com/calendar/0/deeplink/compose?{urlencode(outlook_params)}"
         # Yahoo link generation is similar but omitted for brevity
 
         return links
 
     # Rename 'run' to 'forward' for Smol Gents compatibility
-    def forward(self, title: str, start_time: str, end_time: Optional[str] = None, description: Optional[str] = None, location: Optional[str] = None, attendees: Optional[List[str]] = None) -> dict:
+    def forward(self, title: str, start_time: str, end_time: Optional[str] = None, description: Optional[str] = None, location: Optional[str] = None, attendees: Optional[list[str]] = None) -> dict:
         """
         Main execution method for the tool (renamed from run). Parses input and generates outputs.
         Expects datetime strings in ISO 8601 format (or similar parsable format).
@@ -188,10 +189,10 @@ class ScheduleTool(Tool):
             }
 
 # Example usage (for testing)
-if __name__ == '__main__':
+if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     tool = ScheduleTool()
-    
+
     # Example 1: Basic event
     details_basic = {
         "title": "Team Meeting",
@@ -202,8 +203,6 @@ if __name__ == '__main__':
         "attendees": ["test1@example.com", "test2@example.com"]
     }
     result_basic = tool.forward(**details_basic) # Changed run to forward
-    print("--- Basic Event ---")
-    print(result_basic)
     # print("\nICS Content:\n", result_basic.get('ics_content'))
 
     # Example 2: Event with UTC time and no end time (defaults may apply in calendar apps)
@@ -213,15 +212,11 @@ if __name__ == '__main__':
         "location": "Virtual"
     }
     result_utc_no_end = tool.forward(**details_utc_no_end) # Changed run to forward
-    print("\n--- UTC Event No End Time ---")
-    print(result_utc_no_end)
     # print("\nICS Content:\n", result_utc_no_end.get('ics_content'))
-    
+
     # Example 3: Naive time (should log warning and assume UTC)
     details_naive = {
         "title": "Coffee Chat",
         "start_time": "2024-08-17T09:00:00", # Naive time
     }
     result_naive = tool.forward(**details_naive) # Changed run to forward
-    print("\n--- Naive Time Event ---")
-    print(result_naive) 

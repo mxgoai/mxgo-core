@@ -2,7 +2,6 @@ import logging
 from typing import Optional
 
 from smolagents import Tool
-from smolagents.default_tools import DuckDuckGoSearchTool, GoogleSearchTool
 
 logger = logging.getLogger(__name__)
 
@@ -11,6 +10,7 @@ class FallbackWebSearchTool(Tool):
     A web search tool that attempts a primary search tool (e.g., Google Search)
     and falls back to a secondary tool (e.g., DuckDuckGo) if the primary fails.
     """
+
     name = "web_search"
     description = "Performs a web search for your query then returns a string of the top search results. Attempts Google Search first if available, falling back to DuckDuckGo."
     inputs = {
@@ -24,7 +24,8 @@ class FallbackWebSearchTool(Tool):
         secondary_tool: Optional[Tool] = None,
     ):
         if not primary_tool and not secondary_tool:
-            raise ValueError("FallbackWebSearchTool requires at least one search tool.")
+            msg = "FallbackWebSearchTool requires at least one search tool."
+            raise ValueError(msg)
 
         self.primary_tool = primary_tool
         self.secondary_tool = secondary_tool
@@ -55,8 +56,10 @@ class FallbackWebSearchTool(Tool):
                 return result
             except Exception as e:
                 logger.error(f"Secondary search tool ({self.secondary_tool.name}) also failed: {e!s}")
-                raise Exception(f"Both primary and secondary search tools failed. Last error: {e!s}") from e
+                msg = f"Both primary and secondary search tools failed. Last error: {e!s}"
+                raise Exception(msg) from e
         else:
             # This case should ideally not be reached if primary failed and secondary doesn't exist
             logger.error("Primary search tool failed and no secondary tool is available.")
-            raise Exception("Primary search tool failed and no fallback tool is configured.") 
+            msg = "Primary search tool failed and no fallback tool is configured."
+            raise Exception(msg)

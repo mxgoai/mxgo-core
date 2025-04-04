@@ -114,10 +114,11 @@ Content Guidelines:
         handle="fact-check",
         aliases=["factcheck", "verify"],
         process_attachments=True,
-        deep_research_mandatory=True,
+        deep_research_mandatory=False,
         target_model="gpt-4-reasoning",
         task_template="""
 Validate and fact-check the content thoroughly. Use web search tool to find reliable sources alongside deep search tool.
+Do not use deep search directly, use web search and page visit tool, if you're not satisfied with results, then only try deep search.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:
@@ -146,10 +147,11 @@ Content Guidelines:
         handle="background-research",
         aliases=["background-check", "background"],
         process_attachments=True,
-        deep_research_mandatory=True,
+        deep_research_mandatory=False,
         target_model="gpt-4-reasoning",
         task_template="""
 Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.
+Do not use deep search directly, use web search and page visit tool, if you're not satisfied with results, then only try deep search.
 
 FORMATTING REQUIREMENTS:
 1. Use proper markdown formatting:

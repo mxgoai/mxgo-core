@@ -2,7 +2,7 @@ import base64
 import os
 import time
 from copy import deepcopy
-from typing import Any, Optional, List
+from typing import Any, Optional
 
 import boto3
 from botocore.exceptions import ClientError
@@ -19,9 +19,10 @@ load_dotenv()
 logger = get_logger("mxtoai.email")
 
 # Add imports for MIME handling
+from email.mime.application import MIMEApplication
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email.mime.application import MIMEApplication
+
 
 class EmailSender:
     """
@@ -144,10 +145,11 @@ class EmailSender:
         original_email: dict[str, Any],
         reply_text: str,
         reply_html: Optional[str] = None,
-        attachments: Optional[List[dict[str, Any]]] = None
+        attachments: Optional[list[dict[str, Any]]] = None
     ) -> dict[str, Any]:
         """
         Send a reply to an original email, using send_raw_email for attachment support.
+
         Args:
             original_email: The original email data (should contain 'from', 'to', 'subject', optional 'messageId', optional 'cc' list)
             reply_text: The plain text reply body
@@ -156,8 +158,10 @@ class EmailSender:
                          'filename' (str): Name of the file.
                          'content' (bytes or str): File content.
                          'mimetype' (str): MIME type (e.g., 'text/calendar', 'application/pdf').
+
         Returns:
             The response from AWS SES
+
         """
         logger.info(f"Processing reply with attachments: {bool(attachments)}")
         try:
@@ -179,10 +183,10 @@ class EmailSender:
             subject = f"Re: {original_subject}" if not original_subject.lower().startswith("re:") else original_subject
 
             # --- Create Root MIME message (multipart/mixed) ---
-            msg = MIMEMultipart('mixed')
-            msg['Subject'] = subject
-            msg['From'] = sender_email
-            msg['To'] = to_address
+            msg = MIMEMultipart("mixed")
+            msg["Subject"] = subject
+            msg["From"] = sender_email
+            msg["To"] = to_address
 
             # --- Handle CC Addresses (Incorporating validation from incoming change) ---
             cc_addresses = []
@@ -190,7 +194,7 @@ class EmailSender:
             if original_cc_data:
                 if isinstance(original_cc_data, str):
                     # Parse comma-separated string
-                    potential_ccs = [addr.strip() for addr in original_cc_data.split(',') if addr.strip()]
+                    potential_ccs = [addr.strip() for addr in original_cc_data.split(",") if addr.strip()]
                     # Validate
                     cc_addresses = [addr for addr in potential_ccs if isinstance(addr, str) and "@" in addr]
                     if len(cc_addresses) != len(potential_ccs):
@@ -204,26 +208,26 @@ class EmailSender:
                     logger.warning(f"CC field was not a string or list: {original_cc_data}")
 
             if cc_addresses:
-                msg['Cc'] = ', '.join(cc_addresses)
+                msg["Cc"] = ", ".join(cc_addresses)
                 logger.info(f"Adding valid CC addresses to reply: {cc_addresses}")
 
             # Handle In-Reply-To and References for threading
             message_id = original_email.get("messageId")
             references = original_email.get("references", "")
             if message_id:
-                if not message_id.startswith('<'): message_id = f'<{message_id}'
-                if not message_id.endswith('>'): message_id = f'{message_id}>'
-                msg['In-Reply-To'] = message_id
-                msg['References'] = f"{references} {message_id}".strip() if references else message_id
+                if not message_id.startswith("<"): message_id = f"<{message_id}"
+                if not message_id.endswith(">"): message_id = f"{message_id}>"
+                msg["In-Reply-To"] = message_id
+                msg["References"] = f"{references} {message_id}".strip() if references else message_id
 
             # --- Create Alternative Part for Body (text/plain and text/html) ---
-            msg_alternative = MIMEMultipart('alternative')
+            msg_alternative = MIMEMultipart("alternative")
             # Attach text part
-            msg_text = MIMEText(reply_text, 'plain', 'utf-8')
+            msg_text = MIMEText(reply_text, "plain", "utf-8")
             msg_alternative.attach(msg_text)
             # Attach HTML part if provided
             if reply_html:
-                msg_html = MIMEText(reply_html, 'html', 'utf-8')
+                msg_html = MIMEText(reply_html, "html", "utf-8")
                 msg_alternative.attach(msg_html)
             # Attach alternative part to the root message
             msg.attach(msg_alternative)
@@ -232,31 +236,28 @@ class EmailSender:
             if attachments:
                 for attachment in attachments:
                     try:
-                        filename = attachment['filename']
-                        content = attachment['content']
-                        mimetype = attachment['mimetype']
-                        maintype, subtype = mimetype.split('/', 1)
+                        filename = attachment["filename"]
+                        content = attachment["content"]
+                        mimetype = attachment["mimetype"]
+                        maintype, subtype = mimetype.split("/", 1)
 
                         # Ensure content is bytes for MIMEApplication
-                        if isinstance(content, str):
-                            attachment_content_bytes = content.encode('utf-8')
-                        else:
-                            attachment_content_bytes = content
+                        attachment_content_bytes = content.encode("utf-8") if isinstance(content, str) else content
 
                         # Use MIMEApplication for all attachments in this structure
                         part = MIMEApplication(attachment_content_bytes, Name=filename)
 
                         # Set Content-Disposition header
-                        part.add_header('Content-Disposition', 'attachment', filename=filename)
+                        part.add_header("Content-Disposition", "attachment", filename=filename)
 
                         # --- Explicitly set Content-Type, especially for calendar ---
-                        if maintype == 'text' and subtype == 'calendar':
+                        if maintype == "text" and subtype == "calendar":
                             # Override Content-Type for .ics to include method=PUBLISH
-                            part.replace_header('Content-Type', f'text/calendar; method=PUBLISH; charset=utf-8')
+                            part.replace_header("Content-Type", "text/calendar; method=PUBLISH; charset=utf-8")
                             logger.info(f"Setting Content-Type for {filename} to text/calendar; method=PUBLISH")
                         else:
                              # For other types, explicitly set the mimetype if needed
-                             part.replace_header('Content-Type', mimetype)
+                             part.replace_header("Content-Type", mimetype)
                              logger.info(f"Setting Content-Type for {filename} to {mimetype}")
 
                         # Attach the part to the root message
@@ -278,7 +279,7 @@ class EmailSender:
                 Source=sender_email,
                 Destinations=destinations,
                 RawMessage={
-                    'Data': msg.as_string()
+                    "Data": msg.as_string()
                 }
             )
             logger.info(f"Raw reply sent successfully: {response['MessageId']}")

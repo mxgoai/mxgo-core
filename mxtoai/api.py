@@ -215,14 +215,14 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
             "timestamp": datetime.now().isoformat()
         }
 
-    # --- Prepare attachments --- 
+    # --- Prepare attachments ---
     attachments_to_send = []
-    if processing_result.get('calendar_data') and processing_result['calendar_data'].get('ics_content'):
-        ics_content = processing_result['calendar_data']['ics_content']
+    if processing_result.get("calendar_data") and processing_result["calendar_data"].get("ics_content"):
+        ics_content = processing_result["calendar_data"]["ics_content"]
         attachments_to_send.append({
-            'filename': 'invite.ics',
-            'content': ics_content, # Should be string or bytes
-            'mimetype': 'text/calendar'
+            "filename": "invite.ics",
+            "content": ics_content, # Should be string or bytes
+            "mimetype": "text/calendar"
         })
         logger.info("Prepared invite.ics for attachment.")
     # Add logic here if other types of attachments need to be sent back
@@ -241,12 +241,12 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     try:
         # Log details including CC
         logger.info(f"Sending email reply to {ses_email_dict['from']} about '{ses_email_dict['subject']}' with CC: {ses_email_dict.get('cc')}")
-        
-        # --- Pass attachments to send_email_reply --- 
+
+        # --- Pass attachments to send_email_reply ---
         email_response = await send_email_reply(
-            original_email=ses_email_dict, 
-            reply_text=text_content, 
-            reply_html=html_content, 
+            original_email=ses_email_dict,
+            reply_text=text_content,
+            reply_html=html_content,
             attachments=attachments_to_send  # Pass prepared attachments
         )
 

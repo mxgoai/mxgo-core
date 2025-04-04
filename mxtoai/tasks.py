@@ -125,18 +125,18 @@ def process_email_task(
                 logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
                 email_sent_result = {"MessageId": "skipped", "status": "skipped"}
             else:
-                # --- Prepare attachments for sending --- 
+                # --- Prepare attachments for sending ---
                 attachments_to_send = [] # Initialize empty list
-                if processing_result.get('calendar_data') and processing_result['calendar_data'].get('ics_content'):
-                    ics_content = processing_result['calendar_data']['ics_content']
+                if processing_result.get("calendar_data") and processing_result["calendar_data"].get("ics_content"):
+                    ics_content = processing_result["calendar_data"]["ics_content"]
                     attachments_to_send.append({
-                        'filename': 'invite.ics',
-                        'content': ics_content, # Should be string or bytes
-                        'mimetype': 'text/calendar'
+                        "filename": "invite.ics",
+                        "content": ics_content, # Should be string or bytes
+                        "mimetype": "text/calendar"
                     })
                     logger.info("Prepared invite.ics for attachment in task.")
                 # Add logic here if other types of attachments need to be sent back based on processing_result
-                
+
                 # Define the original email details for clarity
                 original_email_details = {
                     "from": email_request.from_email,
@@ -146,7 +146,7 @@ def process_email_task(
                     "references": email_request.references,
                     "cc": email_request.cc
                 }
-                
+
                 # Instantiate EmailSender and call send_reply method
                 try:
                     sender = EmailSender()
@@ -154,7 +154,7 @@ def process_email_task(
                         original_email_details, # Pass as first positional argument
                         reply_text=text_content,
                         reply_html=html_content,
-                        attachments=attachments_to_send 
+                        attachments=attachments_to_send
                     ))
                 except Exception as send_err:
                      logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)

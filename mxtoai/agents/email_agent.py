@@ -1,32 +1,33 @@
-import os
-import logging
 import ast
-from datetime import datetime
-from typing import Any, Optional, List
+import os
 import re
+from datetime import datetime
+from typing import Any
 
 from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
-from smolagents import ToolCallingAgent, Tool
+from smolagents import Tool, ToolCallingAgent
+
 # Add imports for the new default tools
 from smolagents.default_tools import (
     DuckDuckGoSearchTool,
     GoogleSearchTool,
-    VisitWebpageTool,
     PythonInterpreterTool,
+    VisitWebpageTool,
 )
-# Import the new fallback search tool
-from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 
 from mxtoai._logging import get_logger
-from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.prompts.base_prompts import create_attachment_processing_task, create_email_context, create_task_template
+from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import EmailRequest
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
+
+# Import the new fallback search tool
+from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 from mxtoai.tools.schedule_tool import ScheduleTool
 
 # Load environment variables
@@ -40,14 +41,14 @@ custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 # Define allowed imports for PythonInterpreterTool
 ALLOWED_PYTHON_IMPORTS = [
-    'datetime',
-    'pytz',
-    'math',
-    'json',
-    're',
-    'time',
-    'collections',
-    'itertools', 
+    "datetime",
+    "pytz",
+    "math",
+    "json",
+    "re",
+    "time",
+    "collections",
+    "itertools",
     # Add any other safe standard library modules needed
 ]
 
@@ -106,9 +107,9 @@ class EmailAgent:
                 logger.warning(f"Failed to initialize GoogleSearchTool with Serper: {e}")
         else:
             logger.warning("GoogleSearchTool not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY environment variable.")
-        
+
         self.fallback_search_tool = FallbackWebSearchTool(
-            primary_tool=google_search_tool, 
+            primary_tool=google_search_tool,
             secondary_tool=ddg_search_tool
         )
         logger.info(f"Initialized FallbackWebSearchTool. Primary: {google_search_tool.name if google_search_tool else 'None'}, Secondary: {ddg_search_tool.name}")
@@ -127,7 +128,7 @@ class EmailAgent:
                      logger.warning("DeepResearchTool does not require explicit enabling or lacks 'enable_deep_research' method.")
 
         # Define the list of tools available to the agent
-        self.available_tools: List[Tool] = [
+        self.available_tools: list[Tool] = [
             self.attachment_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
@@ -137,7 +138,7 @@ class EmailAgent:
         ]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
-        
+
         logger.info(f"Agent tools initialized: {[tool.name for tool in self.available_tools]}")
 
         # Initialize the agent itself (model setup happens here)
@@ -246,6 +247,7 @@ class EmailAgent:
 
         Returns:
             Dictionary with processing results including email content, calendar data, etc.
+
         """
         # Initialization
         attachment_summaries = {"text": [], "html": []}
@@ -279,16 +281,16 @@ class EmailAgent:
                 tool_output = None
 
                 # Attempt to extract from tool_calls and action_output/observations
-                if hasattr(step, 'tool_calls') and isinstance(step.tool_calls, list) and len(step.tool_calls) > 0:
+                if hasattr(step, "tool_calls") and isinstance(step.tool_calls, list) and len(step.tool_calls) > 0:
                     first_tool_call = step.tool_calls[0]
-                    tool_name = getattr(first_tool_call, 'name', None)
+                    tool_name = getattr(first_tool_call, "name", None)
                     if not tool_name:
                          logger.warning(f"[Memory Step {i+1}] Found tool_calls, but could not extract name from first call.")
                          tool_name = None # Reset tool_name if extraction failed
 
                     # Revised Output Extraction
-                    action_out = getattr(step, 'action_output', None)
-                    obs_out = getattr(step, 'observations', None)
+                    action_out = getattr(step, "action_output", None)
+                    obs_out = getattr(step, "observations", None)
 
                     if action_out is not None:
                         tool_output = action_out
@@ -318,9 +320,9 @@ class EmailAgent:
                     # --- Check for schedule_generator output by STRUCTURE ---
                     is_schedule_output = (
                         isinstance(tool_output, dict) and
-                        'status' in tool_output and
-                        'ics_content' in tool_output and
-                        'calendar_links' in tool_output
+                        "status" in tool_output and
+                        "ics_content" in tool_output and
+                        "calendar_links" in tool_output
                     )
 
                     # --- Process known tools ---
@@ -391,17 +393,17 @@ class EmailAgent:
                                  logger.error(f"Schedule tool output was not a dict after parsing: {type(tool_output)}")
                                  continue
 
-                            status_success = tool_output.get('status') == 'success'
+                            status_success = tool_output.get("status") == "success"
 
                             if status_success:
-                                 ics_content = tool_output.get('ics_content')
+                                 ics_content = tool_output.get("ics_content")
                                  if ics_content:
-                                     calendar_data = {'ics_content': ics_content}
+                                     calendar_data = {"ics_content": ics_content}
                                      logger.info("Successfully extracted calendar ICS content.") # Keep this
                                  else:
-                                      logger.warning(f"Schedule generator output matched, but ics_content was empty or None.")
+                                      logger.warning("Schedule generator output matched, but ics_content was empty or None.")
                             else:
-                                 error_msg = tool_output.get('message', 'Schedule generator failed with no message.')
+                                 error_msg = tool_output.get("message", "Schedule generator failed with no message.")
                                  logger.error(f"Schedule generator output matched, but status was not success: {error_msg}")
                                  result["metadata"]["errors"].append(f"Schedule Tool Error: {error_msg}")
 
@@ -423,11 +425,11 @@ class EmailAgent:
 
             # --- Assign extracted calendar_data to result ---
             if calendar_data:
-                 result['calendar_data'] = calendar_data
-                 logger.info(f"Assigned calendar_data to final result.")
+                 result["calendar_data"] = calendar_data
+                 logger.info("Assigned calendar_data to final result.")
 
             # --- Extract the final answer text from the LLM response ---
-            if hasattr(final_answer_obj, 'text'):
+            if hasattr(final_answer_obj, "text"):
                 final_answer_from_llm = str(final_answer_obj.text).strip()
                 logger.info("Extracted final answer from AgentResponse.text")
             elif isinstance(final_answer_obj, str):
@@ -442,8 +444,8 @@ class EmailAgent:
                     final_answer_from_llm = str(final_answer_obj.answer).strip()
                     logger.info("Extracted final answer from final_answer tool argument string")
                 # Or if it's nested in arguments (less likely for final_answer but check)
-                elif isinstance(getattr(final_answer_obj, "arguments", None), dict) and 'answer' in final_answer_obj.arguments:
-                     final_answer_from_llm = str(final_answer_obj.arguments['answer']).strip()
+                elif isinstance(getattr(final_answer_obj, "arguments", None), dict) and "answer" in final_answer_obj.arguments:
+                     final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
                      logger.info("Extracted final answer from final_answer tool arguments dict")
                 else:
                      final_answer_from_llm = str(final_answer_obj).strip()
@@ -480,7 +482,7 @@ class EmailAgent:
                 ]
                 for marker in signature_markers:
                     # Use regex for case-insensitive removal and handle potential leading/trailing spaces/newlines
-                    email_body_content = re.sub(r'^[\\s\\n]*' + re.escape(marker) + r'.*$', '', email_body_content, flags=re.IGNORECASE | re.MULTILINE).strip()
+                    email_body_content = re.sub(r"^[\\s\\n]*" + re.escape(marker) + r".*$", "", email_body_content, flags=re.IGNORECASE | re.MULTILINE).strip()
                 logger.debug("Removed potential signature remnants from email body content.")
 
                 # Format using ReportFormatter
@@ -555,10 +557,10 @@ class EmailAgent:
             # Run the agent
             try:
                 logger.info("Starting agent execution...")
-                final_answer_obj = self.agent.run(task) 
+                final_answer_obj = self.agent.run(task)
                 logger.info("Agent execution completed.")
-                
-                # --- Get steps from agent memory --- 
+
+                # --- Get steps from agent memory ---
                 agent_steps = list(self.agent.memory.steps) # Use memory.steps
                 logger.info(f"Captured {len(agent_steps)} steps from agent memory.")
                 # Log first few steps types for debugging
@@ -567,12 +569,12 @@ class EmailAgent:
                 #          logger.info(f"[Memory Step {i+1}] Type: {type(step)}")
                 #     else:
                 #         break
-                        
+
                 logger.info(f"Final answer object type: {type(final_answer_obj)}")
                 # logger.info(f"Final answer object dir: {dir(final_answer_obj)}") # <-- REMOVE THIS
-                # --- End logging --- 
-                
-                # --- Pass final answer object AND steps --- 
+                # --- End logging ---
+
+                # --- Pass final answer object AND steps ---
                 processed_result = self._process_agent_result(final_answer_obj, agent_steps) # Pass steps
 
                 # Ensure we have a reply for email sending
@@ -590,8 +592,8 @@ class EmailAgent:
                     processed_result["metadata"]["email_sent"]["status"] = "error"
                     processed_result["metadata"]["email_sent"]["error"] = msg
                     # Return the partially processed result with error flags
-                    return processed_result 
-                    
+                    return processed_result
+
                 logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
                 return processed_result
 

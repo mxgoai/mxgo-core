@@ -9,7 +9,6 @@ import requests
 from smolagents import Tool
 
 from mxtoai._logging import get_logger
-from mxtoai.scripts.toc_generator import TOCGenerator
 from mxtoai.tools.mock_jina_service import MockJinaService
 
 # Configure logger
