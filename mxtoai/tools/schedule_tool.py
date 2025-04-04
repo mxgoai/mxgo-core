@@ -23,7 +23,8 @@ class EventDetails(BaseModel):
     attendees: Optional[list[EmailStr]] = Field(None, description="List of attendee email addresses.")
 
     @field_validator("start_time", "end_time")
-    def check_timezone_awareness(self, v):
+    @classmethod
+    def check_timezone_awareness(cls, v):
         if v is not None and (v.tzinfo is None or v.tzinfo.utcoffset(v) is None):
             # Attempt to default to UTC if naive, log warning
             logger.warning(f"Received naive datetime '{v}'. Assuming UTC. LLM should provide timezone-aware datetimes.")
