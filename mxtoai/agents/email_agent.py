@@ -210,81 +210,6 @@ class EmailAgent:
                 types.append(content_type)
         return types
 
-    def _process_attachments(self, attachments: list[dict[str, Any]]) -> dict[str, Any]:
-        """Process attachments using appropriate tools based on file type."""
-        processed_results = {
-            "attachments": [],
-            "summary": "",
-            "errors": []  # Track any errors during processing
-        }
-
-        if not attachments:
-            return processed_results
-
-        # Separate attachments by type
-        image_attachments = []
-        other_attachments = []
-
-        for attachment in attachments:
-            # Ensure we have required fields
-            if not all(key in attachment for key in ["filename", "contentType", "path", "size"]):
-                error_msg = f"Missing required fields in attachment: {attachment}"
-                logger.error(error_msg)
-                processed_results["errors"].append(error_msg)
-                continue
-
-            if attachment["contentType"].startswith("image/"):
-                image_attachments.append(attachment)
-            else:
-                other_attachments.append(attachment)
-
-        # Process non-image attachments
-        if other_attachments:
-            try:
-                doc_results = self.attachment_tool.forward(other_attachments, mode="basic")
-                processed_results["attachments"].extend(doc_results["attachments"])
-            except Exception as e:
-                error_msg = f"Failed to process document attachments: {e!s}"
-                logger.error(error_msg)
-                processed_results["errors"].append(error_msg)
-
-        # Process image attachments
-        for img_attachment in image_attachments:
-            try:
-                caption = azure_visualizer(img_attachment["path"])
-                processed_results["attachments"].append({
-                    **img_attachment,
-                    "content": {
-                        "text": caption,
-                        "type": "image"
-                    }
-                })
-                logger.info(f"Successfully processed image: {img_attachment['filename']}")
-            except Exception as e:
-                error_msg = f"Failed to process image {img_attachment['filename']}: {e!s}"
-                logger.error(error_msg)
-                processed_results["errors"].append(error_msg)
-                processed_results["attachments"].append({
-                    **img_attachment,
-                    "content": {
-                        "text": "Sorry, I was unable to process this image.",
-                        "type": "image",
-                        "error": str(e)
-                    }
-                })
-
-        # Create summary including any errors
-        successful = len(processed_results["attachments"])
-        failed = len(processed_results["errors"])
-        summary_parts = [f"Processed {successful} attachments ({len(image_attachments)} images, {len(other_attachments)} documents)"]
-
-        if failed > 0:
-            summary_parts.append(f"Failed to process {failed} attachments")
-
-        processed_results["summary"] = ". ".join(summary_parts)
-
-        return processed_results
-
     def _create_task(self, email_request: EmailRequest, email_instructions: "EmailHandleInstructions") -> str:
         """Create a task description for the agent based on email handle instructions."""
         # Create attachment details with explicit paths if needed
@@ -626,15 +551,6 @@ class EmailAgent:
         try:
             # Update the model's current handle
             self.routed_model.current_handle = email_instructions
-
-            # Process attachments first if required
-            if email_instructions.process_attachments and email_request.attachments:
-                try:
-                    attachment_results = self._process_attachments([att.model_dump() for att in email_request.attachments])
-                    if attachment_results.get("errors"):
-                        logger.warning(f"Attachment processing errors: {attachment_results['errors']}")
-                except Exception as e:
-                    logger.exception(f"Error processing attachments: {e!s}")
 
             # Create task with specific instructions
             task = self._create_task(email_request, email_instructions)
