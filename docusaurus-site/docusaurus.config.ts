@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'MXtoAI',
   tagline: 'AI Email Processing That Just Works',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/light-logo.ico',
 
   // Set the production url of your site here
   url: 'https://docs.mxtoai.com',

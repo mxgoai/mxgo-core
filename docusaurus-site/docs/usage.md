@@ -9,6 +9,7 @@ Using MXtoAI is straightforward. Simply forward an email with instructions to `a
 Here's a brief overview of the available handles and their primary functions:
 
 *   `ask@mxtoai.com`: Ask the agent to do anything when sending/forwarding the email, including the functionalities in the aliases mentioned next.
+
 *   `summarize@mxtoai.com`: Get a concise summary of the email content.
 *   `simplify@mxtoai.com`: Receive a simplified version of complex text.
 *   `translate@mxtoai.com`: Translate the email content.
