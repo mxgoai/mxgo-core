@@ -27,7 +27,6 @@ from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
-from mxtoai.tools.email_reply_tool import EmailReplyTool
 from mxtoai.tools.schedule_tool import ScheduleTool
 
 # Load environment variables
@@ -85,7 +84,6 @@ class EmailAgent:
         # Instantiate tools
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()  # Used elsewhere, keep initialization
-        self.reply_tool = EmailReplyTool()
         self.schedule_tool = ScheduleTool()
         self.visit_webpage_tool = VisitWebpageTool()
         # Instantiate PythonInterpreterTool with allowed imports
@@ -131,7 +129,6 @@ class EmailAgent:
         # Define the list of tools available to the agent
         self.available_tools: List[Tool] = [
             self.attachment_tool,
-            self.reply_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
             self.fallback_search_tool,
