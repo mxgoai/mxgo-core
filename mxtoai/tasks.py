@@ -1,12 +1,14 @@
 import asyncio
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import dramatiq
-from dramatiq.brokers.redis import RedisBroker
+from dramatiq.brokers.rabbitmq import RabbitmqBroker
 from dramatiq.results import Results
-from dramatiq.results.backends import RedisBackend
+from dramatiq.results.backends.redis import RedisBackend
+from dotenv import load_dotenv
 
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
@@ -15,16 +17,39 @@ from mxtoai.email_sender import EmailSender
 from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailRequest
 
+# Load environment variables
+load_dotenv()
+
 logger = get_logger(__name__)
 
-# Initialize Redis broker
-redis_broker = RedisBroker(
-    url="redis://localhost:6379",
-    namespace="dramatiq",
+# Build RabbitMQ URL from environment variables (Broker)
+# Include heartbeat as a query parameter in the URL
+RABBITMQ_HEARTBEAT = os.getenv('RABBITMQ_HEARTBEAT', '5')
+RABBITMQ_URL = f"amqp://{os.getenv('RABBITMQ_USER', 'guest')}:{os.getenv('RABBITMQ_PASSWORD', 'guest')}@{os.getenv('RABBITMQ_HOST', 'localhost')}:{os.getenv('RABBITMQ_PORT', '5672')}{os.getenv('RABBITMQ_VHOST', '/')}?heartbeat={RABBITMQ_HEARTBEAT}"
+
+# Build Redis URL from environment variables (Results Backend)
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = os.getenv('REDIS_PORT', '6379')
+REDIS_DB = os.getenv('REDIS_DB', '0')
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+REDIS_URL = f"redis://{':' + REDIS_PASSWORD + '@' if REDIS_PASSWORD else ''}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+# Initialize RabbitMQ broker
+rabbitmq_broker = RabbitmqBroker(
+    url=RABBITMQ_URL,
+    confirm_delivery=True,  # Ensures messages are delivered
+    # heartbeat is now part of the URL
 )
-redis_backend = RedisBackend(url="redis://localhost:6379", namespace="dramatiq-results")
-redis_broker.add_middleware(Results(backend=redis_backend))
-dramatiq.set_broker(redis_broker)
+
+# Configure Redis as the result backend
+redis_backend = RedisBackend(
+    url=REDIS_URL,
+    namespace="dramatiq-results"
+)
+
+# Add results middleware to broker
+rabbitmq_broker.add_middleware(Results(backend=redis_backend))
+dramatiq.set_broker(rabbitmq_broker)
 
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
