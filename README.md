@@ -85,9 +85,9 @@ poetry install
 poetry shell
 ```
 
-3. Start Redis server:
+3. Start RabbitMQ server:
 ```bash
-redis-server
+brew services restart rabbitmq
 ```
 
 4. Start the API server:
@@ -97,7 +97,7 @@ poetry run python run_api.py
 
 5. Start the workers:
 ```bash
-poetry run python mxtoai/scripts/run_workers.py
+poetry run dramatiq mxtoai.tasks --watch ./.
 ```
 
 ### Environment Variables
