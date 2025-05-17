@@ -4,11 +4,12 @@ FORMATTING_REQUIREMENTS = """
 CRITICAL FORMATTING REQUIREMENTS:
 1. ALWAYS use proper markdown syntax - this will be converted to HTML
 2. Ensure proper spacing between paragraphs (use blank lines)
-3. Use appropriate list formatting (- for bullets, 1. for numbered)
-4. Format emphasis correctly (**bold**, _italic_)
-5. Use proper heading levels (###) where specified
-6. Keep the response focused and relevant
-7. DO NOT add any signature - it will be added automatically"""
+3. ONLY use appropriate list formatting (- for bullets, 1. for numbered)
+4. ALWAYS start with a numbered list and alternate between bullets and numbers throughout.
+5. Format emphasis correctly (**bold**, _italic_)
+6. Use proper heading levels (###) where specified
+7. Keep the response focused and relevant
+8. DO NOT add any signature - it will be added automatically"""
 
 MARKDOWN_STYLE_GUIDE = """
 Use proper markdown formatting:
