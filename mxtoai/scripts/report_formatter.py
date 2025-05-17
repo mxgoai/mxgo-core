@@ -238,10 +238,6 @@ _Feel free to reply to this email to continue our conversation._
                 TocExtension(permalink=False),  # Table of contents support without permalinks
                 AttrListExtension(),    # Support for attributes
             ]
-            # save the markdown content to a file for debugging
-            with open("debug_report.md", "w") as f:
-                f.write(markdown_content)
-            logger.info("Markdown content saved for debugging.")
 
             # Convert markdown to HTML with configured extensions
             html_content = md_converter.markdown(
@@ -253,8 +249,7 @@ _Feel free to reply to this email to continue our conversation._
                 },
                 output_format="html5"  # Use html5 for better compatibility
             )
-
-            # fallback
+            
             if self.template_env:
                 try:
                     theme_settings = self.themes.get(theme, self.themes["default"])
@@ -267,6 +262,7 @@ _Feel free to reply to this email to continue our conversation._
                 except Exception as e:
                     logger.error(f"Template rendering failed: {e}. Falling back to basic rendering.")
             
+            # fallback
             logger.info("Template environment not available. Using basic HTML rendering.")
             return self._basic_html_render(html_content, theme)
             
