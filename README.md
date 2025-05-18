@@ -268,10 +268,6 @@ poetry run locust --host=http://localhost:9192 --users 10 --spawn-rate 2 --run-t
 
 For detailed configuration, check `locustfile.py`.
 
-## License
-
-MIT
-
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
