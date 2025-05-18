@@ -19,10 +19,12 @@ SCRIPT_DIR = Path(__file__).parent
 TEST_FILES_DIR = SCRIPT_DIR / "test_files"
 STATS_FILE = SCRIPT_DIR / "system_stats.csv"
 
+
 def get_random_test_files(num_files: int = 2) -> list[str]:
     """Get random PDF files from test_files directory"""
     pdf_files = glob.glob(str(TEST_FILES_DIR / "*.pdf"))
     return random.sample(pdf_files, min(num_files, len(pdf_files)))
+
 
 # Complex topics for testing
 superficial_presets = [
@@ -33,7 +35,7 @@ superficial_presets = [
         and what post-quantum cryptography solutions are being developed. Also, how does quantum decoherence affect the
         stability of qubits in current quantum computers, and what approaches are being used to mitigate this issue?
         Please include information about error correction in quantum computing and the concept of quantum fault tolerance.""",
-        "files": []
+        "files": [],
     },
     {
         "subject": "Zero-Knowledge Proofs in Blockchain Privacy",
@@ -43,8 +45,8 @@ superficial_presets = [
         zero-knowledge? Also, how do recursive SNARKs work in scaling solutions, and what are the trade-offs between
         different types of zero-knowledge proof systems (SNARKs vs STARKs)? Please include real-world applications in
         privacy-focused blockchain platforms.""",
-        "files": []
-    }
+        "files": [],
+    },
 ]
 
 # Deep research topics
@@ -55,7 +57,7 @@ research_presets = [
         factuality, and efficiency. What are the current state-of-the-art architectures? How do different training approaches
         like instruction tuning and RLHF impact model performance? What are the main challenges in reducing hallucinations
         and improving reliability? Include specific examples from recent research papers and industry implementations.""",
-        "files": []
+        "files": [],
     },
     {
         "subject": "Sustainable Computing and Green AI",
@@ -63,8 +65,8 @@ research_presets = [
         techniques for reducing the carbon footprint of large model training? How effective are methods like pruning,
         quantization, and distillation in reducing computational costs while maintaining performance? What are the
         trade-offs between model size, accuracy, and energy consumption? Include specific metrics and case studies.""",
-        "files": []
-    }
+        "files": [],
+    },
 ]
 
 # Test scenarios with weights
@@ -74,16 +76,12 @@ EMAIL_SCENARIOS = [
         "data": {
             "from_email": "test@example.com",
             "to": random.choice(["summarise@mxtoai.com", "eli5@mxtoai.com"]),
-            **random.choice(superficial_presets)  # Use random complex topic
-        }
+            **random.choice(superficial_presets),  # Use random complex topic
+        },
     },
     {
         "weight": 15,  # 15% of requests
-        "data": {
-            "from_email": "test@example.com",
-            "to": "translate@mxtoai.com",
-            **random.choice(superficial_presets)
-        }
+        "data": {"from_email": "test@example.com", "to": "translate@mxtoai.com", **random.choice(superficial_presets)},
     },
     {
         "weight": 15,  # 15% of requests
@@ -92,11 +90,14 @@ EMAIL_SCENARIOS = [
             "to": "ask@mxtoai.com",
             "subject": "Please find attachments",
             "textContent": random.choice(
-                ["Please analyse and summarise each of the attached documents",
-                 "Please analyse and summarise each of the attached documents",
-                 "Please analyse and leave detailed feedback about the formatting of each of the attached documents"]),
-            "files": get_random_test_files(2)  # Two random PDF files
-        }
+                [
+                    "Please analyse and summarise each of the attached documents",
+                    "Please analyse and summarise each of the attached documents",
+                    "Please analyse and leave detailed feedback about the formatting of each of the attached documents",
+                ]
+            ),
+            "files": get_random_test_files(2),  # Two random PDF files
+        },
     },
     # {
     #     "weight": 17,  # 17% deep research without files (increased from 15%)
@@ -120,6 +121,7 @@ EMAIL_SCENARIOS = [
     # }
 ]
 
+
 # System resource monitoring
 def get_system_stats() -> dict:
     """Get current system resource usage"""
@@ -128,8 +130,9 @@ def get_system_stats() -> dict:
         "cpu_percent": process.cpu_percent(),
         "memory_percent": process.memory_percent(),
         "num_threads": process.num_threads(),
-        "connections": len(process.net_connections())
+        "connections": len(process.net_connections()),
     }
+
 
 # CSV writer for system stats
 class SystemStatsWriter:
@@ -141,19 +144,23 @@ class SystemStatsWriter:
         self.writer.writerow(["timestamp", "cpu_percent", "memory_percent", "num_threads", "connections"])
 
     def write_stats(self, stats: dict):
-        self.writer.writerow([
-            datetime.now().isoformat(),
-            stats["cpu_percent"],
-            stats["memory_percent"],
-            stats["num_threads"],
-            stats["connections"]
-        ])
+        self.writer.writerow(
+            [
+                datetime.now().isoformat(),
+                stats["cpu_percent"],
+                stats["memory_percent"],
+                stats["num_threads"],
+                stats["connections"],
+            ]
+        )
 
     def close(self):
         self.file.close()
 
+
 # Initialize system stats writer
 stats_writer = SystemStatsWriter(str(STATS_FILE))
+
 
 class EmailProcessingUser(HttpUser):
     wait_time = between(0.5, 1.5)  # Random wait between requests
@@ -182,42 +189,26 @@ class EmailProcessingUser(HttpUser):
             # Process attachments if present
             attachments = []
             for file_path in data.get("files", []):
-                attachments.append({
-                    "path": file_path,
-                    "type": "application/pdf",
-                    "filename": os.path.basename(file_path)
-                })
+                attachments.append(
+                    {"path": file_path, "type": "application/pdf", "filename": os.path.basename(file_path)}
+                )
 
             # Call deep research tool with mock service
             result = self.deep_research_tool.forward(
-                query=query,
-                context=context,
-                attachments=attachments,
-                stream=stream
+                query=query, context=context, attachments=attachments, stream=stream
             )
 
-            return {
-                "status": "success",
-                "message": "Research completed successfully",
-                "data": result
-            }
+            return {"status": "success", "message": "Research completed successfully", "data": result}
 
         except Exception as e:
             logger.exception(f"Error in deep research processing: {e!s}")
-            return {
-                "status": "error",
-                "message": str(e)
-            }
+            return {"status": "error", "message": str(e)}
 
     @task
     def process_email(self):
         """Send email processing request based on weighted scenarios"""
         # Select scenario based on weights
-        scenario = random.choices(
-            EMAIL_SCENARIOS,
-            weights=[s["weight"] for s in EMAIL_SCENARIOS],
-            k=1
-        )[0]
+        scenario = random.choices(EMAIL_SCENARIOS, weights=[s["weight"] for s in EMAIL_SCENARIOS], k=1)[0]
 
         # For the third scenario, get fresh random files each time
         if scenario["data"]["to"] == "full-analysis@mxtoai.com":
@@ -242,7 +233,7 @@ class EmailProcessingUser(HttpUser):
                     name=scenario["data"]["to"],
                     response_time=response_time,
                     response_length=len(json.dumps(result)),
-                    exception=None
+                    exception=None,
                 )
             else:
                 events.request.fire(
@@ -250,7 +241,7 @@ class EmailProcessingUser(HttpUser):
                     name=scenario["data"]["to"],
                     response_time=response_time,
                     response_length=0,
-                    exception=result["message"]
+                    exception=result["message"],
                 )
             return
 
@@ -261,32 +252,24 @@ class EmailProcessingUser(HttpUser):
         # Add files if present in scenario
         for file_path in data.pop("files", []):
             try:
-                files.append(
-                    ("files", (
-                        os.path.basename(file_path),
-                        open(file_path, "rb"),
-                        "application/pdf"
-                    ))
-                )
+                files.append(("files", (os.path.basename(file_path), open(file_path, "rb"), "application/pdf")))
             except FileNotFoundError:
                 logger.error(f"File not found: {file_path}")
                 continue
 
         try:
             # Send the request
-            with self.client.post(
-                "/process-email",
-                data=data,
-                files=files,
-                catch_response=True
-            ) as response:
+            with self.client.post("/process-email", data=data, files=files, catch_response=True) as response:
                 # Record system stats
                 stats_writer.write_stats(get_system_stats())
 
                 # Validate response
                 if response.status_code == 200:
                     response_data = response.json()
-                    if response_data.get("message") == "Email received and queued for processing" and response_data.get("status") == "processing":
+                    if (
+                        response_data.get("message") == "Email received and queued for processing"
+                        and response_data.get("status") == "processing"
+                    ):
                         response.success()
                     else:
                         response.failure(f"Unexpected response: {response_data}")
@@ -298,11 +281,13 @@ class EmailProcessingUser(HttpUser):
             for _, file_tuple in files:
                 file_tuple[1].close()
 
+
 # Event handlers for test lifecycle
 @events.test_start.add_listener
 def on_test_start(environment, **kwargs):
     """Called when a test is starting"""
     logger.info("Load test is starting")
+
 
 @events.test_stop.add_listener
 def on_test_stop(environment, **kwargs):
@@ -321,6 +306,7 @@ def on_test_stop(environment, **kwargs):
         logger.info(f"Median Response Time: {environment.stats.total.median_response_time:.2f}ms")
         logger.info(f"95th Percentile: {environment.stats.total.get_response_time_percentile(0.95):.2f}ms")
         logger.info(f"Requests/s: {environment.stats.total.current_rps:.2f}")
+
 
 if __name__ == "__main__":
     # Create test_files directory if it doesn't exist

@@ -15,5 +15,5 @@ if __name__ == "__main__":
         "mxtoai.api:app",
         host="0.0.0.0",
         port=port,
-        reload=True  # Enable auto-reload for development
+        reload=True,  # Enable auto-reload for development
     )

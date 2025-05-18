@@ -15,6 +15,7 @@ from mxtoai._logging import get_logger
 # Configure logger
 logger = get_logger("attachment_tool")
 
+
 class AttachmentProcessingTool(Tool):
     """
     Tool for processing various types of email attachments.
@@ -49,17 +50,17 @@ class AttachmentProcessingTool(Tool):
                     "filename": {"type": "string", "description": "Name of the file"},
                     "type": {"type": "string", "description": "MIME type or content type of the file"},
                     "path": {"type": "string", "description": "Full path to the file in the attachments directory"},
-                    "size": {"type": "integer", "description": "Size of the file in bytes"}
-                }
-            }
+                    "size": {"type": "integer", "description": "Size of the file in bytes"},
+                },
+            },
         },
         "mode": {
             "type": "string",
             "description": "Processing mode: 'basic' for metadata only, 'full' for complete content analysis",
             "enum": ["basic", "full"],
             "default": "basic",
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
     output_type = "object"
 
@@ -70,7 +71,9 @@ class AttachmentProcessingTool(Tool):
         self.text_limit = 8000
 
         # Set up attachments directory path
-        self.attachments_dir = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments")))
+        self.attachments_dir = Path(
+            os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments"))
+        )
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_attachment_path(self, file_path: str) -> Path:
@@ -81,13 +84,13 @@ class AttachmentProcessingTool(Tool):
                 raise ValueError(msg)
 
             # Clean up the path
-            file_path = file_path.strip('"\'')
+            file_path = file_path.strip("\"'")
 
             # Try different path variations
             paths_to_try = [
                 Path(file_path),  # Direct path
                 Path(unquote(file_path)),  # URL decoded path
-                self.attachments_dir / Path(file_path).name  # Relative to attachments dir
+                self.attachments_dir / Path(file_path).name,  # Relative to attachments dir
             ]
 
             for path in paths_to_try:
@@ -132,14 +135,16 @@ class AttachmentProcessingTool(Tool):
 
                 # Skip image files - they should be handled by azure_visualizer directly
                 if attachment["type"].startswith("image/"):
-                    processed_attachments.append({
-                        **attachment,
-                        "content": {
-                            "text": "This is an image file that requires visual processing.",
-                            "type": "image",
-                            "requires_visual_qa": True
+                    processed_attachments.append(
+                        {
+                            **attachment,
+                            "content": {
+                                "text": "This is an image file that requires visual processing.",
+                                "type": "image",
+                                "requires_visual_qa": True,
+                            },
                         }
-                    })
+                    )
                     logger.info(f"Skipped image file: {attachment['filename']} - use azure_visualizer tool instead")
                     continue
 
@@ -149,10 +154,7 @@ class AttachmentProcessingTool(Tool):
                     attachment["path"] = str(resolved_path)
                 except FileNotFoundError as e:
                     logger.error(f"File not found: {e!s}")
-                    processed_attachments.append({
-                        **attachment,
-                        "error": f"File not found: {e!s}"
-                    })
+                    processed_attachments.append({**attachment, "error": f"File not found: {e!s}"})
                     continue
 
                 # Process non-image attachments
@@ -164,36 +166,44 @@ class AttachmentProcessingTool(Tool):
                     messages = [
                         {
                             "role": MessageRole.SYSTEM,
-                            "content": [{"type": "text", "text": f"Here is a file:\n### {attachment['filename']}\n\n{content[:self.text_limit]}"}]
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": f"Here is a file:\n### {attachment['filename']}\n\n{content[: self.text_limit]}",
+                                }
+                            ],
                         },
                         {
                             "role": MessageRole.USER,
-                            "content": [{"type": "text", "text": "Please provide a comprehensive summary of this document in 5-7 sentences."}]
-                        }
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Please provide a comprehensive summary of this document in 5-7 sentences.",
+                                }
+                            ],
+                        },
                     ]
                     summary = self.model(messages).content
 
-                processed_attachments.append({
-                    **attachment,
-                    "content": {
-                        "text": content[:self.text_limit] if len(content) > self.text_limit else content,
-                        "type": "text",
-                        "summary": summary
+                processed_attachments.append(
+                    {
+                        **attachment,
+                        "content": {
+                            "text": content[: self.text_limit] if len(content) > self.text_limit else content,
+                            "type": "text",
+                            "summary": summary,
+                        },
                     }
-                })
+                )
                 logger.info(f"Successfully processed: {attachment['filename']}")
 
             except Exception as e:
                 logger.error(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
-                processed_attachments.append({
-                    **{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]},
-                    "error": str(e)
-                })
+                processed_attachments.append(
+                    {**{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]}, "error": str(e)}
+                )
 
-        return {
-            "attachments": processed_attachments,
-            "summary": self._create_attachment_summary(processed_attachments)
-        }
+        return {"attachments": processed_attachments, "summary": self._create_attachment_summary(processed_attachments)}
 
     def _create_attachment_summary(self, attachments: list[dict[str, Any]]) -> str:
         """Create a summary of processed attachments."""

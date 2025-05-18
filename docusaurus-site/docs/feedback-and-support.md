@@ -8,4 +8,4 @@ We value your feedback! If you encounter any issues, have suggestions for improv
 
 *   **Contact Us:** [mailto:discuss@mxtoai.com](mailto:discuss@mxtoai.com)
 
-<!-- Update the links above with actual contact/support channels --> 
+<!-- Update the links above with actual contact/support channels -->

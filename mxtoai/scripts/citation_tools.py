@@ -4,6 +4,7 @@ Citation-aware wrapper tools for the Email Deep Research Agent.
 This module provides wrapper classes that extend the original tools but collect URL
 information for a simple references section without embedding citations in text.
 """
+
 import re
 import time
 from typing import Optional
@@ -22,8 +23,7 @@ def reset_citation_counter():
     _all_visited_urls = []
 
 
-def add_url_to_references(url: str, title: Optional[str] = None,
-                         date: Optional[str] = None) -> None:
+def add_url_to_references(url: str, title: Optional[str] = None, date: Optional[str] = None) -> None:
     """
     Add a URL to the global references collection.
 
@@ -37,12 +37,9 @@ def add_url_to_references(url: str, title: Optional[str] = None,
 
     # Don't add duplicates
     if url not in [u.get("url") for u in _all_visited_urls]:
-        _all_visited_urls.append({
-            "url": url,
-            "title": title or url,
-            "date": date or "n.d.",
-            "timestamp": int(time.time())
-        })
+        _all_visited_urls.append(
+            {"url": url, "title": title or url, "date": date or "n.d.", "timestamp": int(time.time())}
+        )
 
 
 class CitationAwareGoogleSearchTool(GoogleSearchTool):
@@ -104,9 +101,11 @@ class CitationAwareVisitTool(VisitTool):
         original_content = super().forward(url)
 
         # Extract title if present
-        title_match = re.search(r"<title>(.*?)</title>", original_content) or \
-                     re.search(r"<h1>(.*?)</h1>", original_content) or \
-                     re.search(r"# (.*?)$", original_content, re.MULTILINE)
+        title_match = (
+            re.search(r"<title>(.*?)</title>", original_content)
+            or re.search(r"<h1>(.*?)</h1>", original_content)
+            or re.search(r"# (.*?)$", original_content, re.MULTILINE)
+        )
 
         title = title_match.group(1) if title_match else None
 

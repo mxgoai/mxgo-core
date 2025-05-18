@@ -9,6 +9,7 @@ from mxtoai._logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class ReportFormatter:
     """Format research reports and emails for delivery."""
 
@@ -114,7 +115,9 @@ _Feel free to reply to this email to continue our conversation._
         """Process citations and references in the content."""
         try:
             # Find all references sections
-            reference_sections = list(re.finditer(r"(?:###\s*References|\n## References)(.*?)(?=###|\Z|\n## )", content, re.DOTALL))
+            reference_sections = list(
+                re.finditer(r"(?:###\s*References|\n## References)(.*?)(?=###|\Z|\n## )", content, re.DOTALL)
+            )
 
             if not reference_sections:
                 return content
@@ -125,7 +128,9 @@ _Feel free to reply to this email to continue our conversation._
 
             # Create a mapping of reference numbers to their full citations
             ref_map = {}
-            for ref in re.finditer(r"(?:^|\n)(?:\[)?(\d+)(?:\])?\.\s*(.*?)(?=(?:\n(?:\[)?\d+(?:\])?\.|$))", references_section, re.DOTALL):
+            for ref in re.finditer(
+                r"(?:^|\n)(?:\[)?(\d+)(?:\])?\.\s*(.*?)(?=(?:\n(?:\[)?\d+(?:\])?\.|$))", references_section, re.DOTALL
+            ):
                 ref_num = ref.group(1)
                 ref_text = ref.group(2).strip()
                 ref_map[ref_num] = ref_text
@@ -144,19 +149,16 @@ _Feel free to reply to this email to continue our conversation._
             formatted_refs = ['<div class="references">', "<h2>References</h2>"]
             for num, text in sorted(ref_map.items(), key=lambda x: int(x[0])):
                 formatted_refs.append(
-                    f'<div class="reference" id="ref-{num}">'
-                    f'<span class="reference-number">[{num}]</span> {text}'
-                    '</div>'
+                    f'<div class="reference" id="ref-{num}"><span class="reference-number">[{num}]</span> {text}</div>'
                 )
             formatted_refs.append("</div>")
 
             # Remove all existing references sections
             for section in reversed(reference_sections):
-                content = content[:section.start()] + content[section.end():]
+                content = content[: section.start()] + content[section.end() :]
 
             # Add the formatted references section at the end
             return content.strip() + "\n\n" + "\n".join(formatted_refs)
-
 
         except Exception as e:
             # Log error but don't break formatting
@@ -170,7 +172,7 @@ _Feel free to reply to this email to continue our conversation._
             r"\n\s*Best regards,?\s*\n\s*MXtoAI Assistant\s*\n",
             r"\n\s*Best,\s*\n\s*MXtoAI Assistant\s*\n",
             r"\n\s*Regards,?\s*\n\s*MXtoAI Assistant\s*\n",
-            r"\n\s*Sincerely,?\s*\n\s*MXtoAI Assistant\s*\n"
+            r"\n\s*Sincerely,?\s*\n\s*MXtoAI Assistant\s*\n",
         ]
         result = content
         for pattern in signature_patterns:
@@ -247,7 +249,7 @@ _Feel free to reply to this email to continue our conversation._
                     # Explicitly disable footnotes if it's a default or separate extension
                     # 'markdown.extensions.footnotes': {'PLACE_MARKER': '!!!!FOOTNOTES!!!!'}
                 },
-                output_format="html5"  # Use html5 for better compatibility
+                output_format="html5",  # Use html5 for better compatibility
             )
             
             if self.template_env:

@@ -34,7 +34,6 @@ RESEARCH REQUIREMENTS:
 - Ensure comprehensive research before responding
 - Include citations and sources in your response
 - Synthesize findings with the email content""",
-
     "optional": """
 RESEARCH GUIDELINES:
 - Deep research is NOT allowed for this handle
@@ -42,19 +41,25 @@ RESEARCH GUIDELINES:
 - Focus on addressing the direct content of the email""",
 }
 
+
 def create_email_context(email_request, attachment_details=None):
     """Create the basic email context section."""
     return f"""Email Content:
 Subject: {email_request.subject}
 From: {email_request.from_email}
 Email Date: {email_request.date}
-Recipients: {', '.join(email_request.recipients) if email_request.recipients else 'N/A'}
-CC: {email_request.cc or 'N/A'}
-BCC: {email_request.bcc or 'N/A'}
-Body: {email_request.textContent or email_request.htmlContent or ''}
+Recipients: {", ".join(email_request.recipients) if email_request.recipients else "N/A"}
+CC: {email_request.cc or "N/A"}
+BCC: {email_request.bcc or "N/A"}
+Body: {email_request.textContent or email_request.htmlContent or ""}
 
-{f'''Available Attachments:
-{chr(10).join(attachment_details)}''' if attachment_details else 'No attachments provided.'}"""
+{
+        f'''Available Attachments:
+{chr(10).join(attachment_details)}'''
+        if attachment_details
+        else "No attachments provided."
+    }"""
+
 
 def create_attachment_processing_task(attachment_details):
     """Create the attachment processing section."""
@@ -62,6 +67,7 @@ def create_attachment_processing_task(attachment_details):
         return ""
     return f"""Process these attachments:
 {chr(10).join(attachment_details)}"""
+
 
 def create_task_template(
     handle: str,
@@ -82,16 +88,10 @@ def create_task_template(
         deep_research_mandatory: Whether deep research is required for this handle
 
     """
-    sections = [
-        f"Process this email according to the '{handle}' instruction type.\n",
-        email_context
-    ]
+    sections = [f"Process this email according to the '{handle}' instruction type.\n", email_context]
 
     # Add research guidelines based on handle requirements
-    sections.append(
-        RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory
-        else RESEARCH_GUIDELINES["optional"]
-    )
+    sections.append(RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"])
 
     if attachment_task:
         sections.append(attachment_task)
@@ -101,10 +101,7 @@ def create_task_template(
 
     if not handle_specific_template:
         # Add default processing steps if no specific template
-        sections.extend([
-            MARKDOWN_STYLE_GUIDE,
-            RESPONSE_GUIDELINES
-        ])
+        sections.extend([MARKDOWN_STYLE_GUIDE, RESPONSE_GUIDELINES])
 
     # Always add formatting requirements at the end
     sections.append(FORMATTING_REQUIREMENTS)

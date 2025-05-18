@@ -12,6 +12,7 @@ load_dotenv()
 
 logger = get_logger("routed_litellm_model")
 
+
 class RoutedLiteLLMModel(LiteLLMModel):
     """LiteLLM Model with routing capabilities"""
 
@@ -38,8 +39,8 @@ class RoutedLiteLLMModel(LiteLLMModel):
                     "api_key": os.getenv("GPT4O_1_API_KEY"),
                     "api_version": os.getenv("GPT4O_1_API_VERSION"),
                     "weight": int(os.getenv("GPT4O_1_WEIGHT", 5)),
-                    "drop_params": True  # Enable dropping of unsupported parameters
-                }
+                    "drop_params": True,  # Enable dropping of unsupported parameters
+                },
             },
             {
                 "model_name": "gpt-4",
@@ -49,8 +50,8 @@ class RoutedLiteLLMModel(LiteLLMModel):
                     "api_key": os.getenv("GPT4O_2_API_KEY"),
                     "api_version": os.getenv("GPT4O_2_API_VERSION"),
                     "weight": int(os.getenv("GPT4O_2_WEIGHT", 5)),
-                    "drop_params": True  # Enable dropping of unsupported parameters
-                }
+                    "drop_params": True,  # Enable dropping of unsupported parameters
+                },
             },
             {
                 "model_name": "gpt-4-reasoning",
@@ -60,19 +61,21 @@ class RoutedLiteLLMModel(LiteLLMModel):
                     "api_key": os.getenv("O3_MINI_API_KEY"),
                     "api_version": os.getenv("O3_MINI_API_VERSION"),
                     "weight": int(os.getenv("O3_MINI_WEIGHT", 1)),
-                    "drop_params": True  # Enable dropping of unsupported parameters
-                }
-            }
+                    "drop_params": True,  # Enable dropping of unsupported parameters
+                },
+            },
         ]
 
         # Initialize router with settings
         self.router = Router(
             model_list=model_list,
             routing_strategy="simple-shuffle",
-            fallbacks=[{
-                "gpt-4": ["gpt-4-reasoning"]  # Fallback to reasoning model if both GPT-4 instances fail
-            }],
-            default_litellm_params={"drop_params": True}  # Global setting for dropping unsupported parameters
+            fallbacks=[
+                {
+                    "gpt-4": ["gpt-4-reasoning"]  # Fallback to reasoning model if both GPT-4 instances fail
+                }
+            ],
+            default_litellm_params={"drop_params": True},  # Global setting for dropping unsupported parameters
         )
 
     def _get_target_model(self) -> str:
@@ -95,7 +98,7 @@ class RoutedLiteLLMModel(LiteLLMModel):
         stop_sequences: Optional[list[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[list[Tool]] = None,
-        **kwargs
+        **kwargs,
     ) -> ChatMessage:
         try:
             completion_kwargs = self._prepare_completion_kwargs(
@@ -103,7 +106,7 @@ class RoutedLiteLLMModel(LiteLLMModel):
                 stop_sequences=stop_sequences,
                 grammar=grammar,
                 tools_to_call_from=tools_to_call_from,
-                **kwargs
+                **kwargs,
             )
 
             # Determine which model to route to based on handle configuration

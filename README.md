@@ -153,47 +153,47 @@ The email will be processed asynchronously by the workers. You can implement a s
 graph TD
     A[Incoming Email] --> B[Email Routing]
     B --> C{Determine Mode}
-    
+
     C -->|summarize@| D[Summary Mode]
     C -->|reply@| E[Reply Mode]
     C -->|research@| F[Research Mode]
     C -->|ask@| G[Full Mode]
-    
+
     %% Attachment Processing
     A --> H[Attachment Detection]
     H --> I{File Type}
     I -->|Images| J[Azure Vision Analysis]
     I -->|Documents| K[Document Processing]
     I -->|Other| L[Metadata Extraction]
-    
+
     J --> M[Generate Captions]
     K --> N[Extract Content]
     L --> O[Basic Info]
-    
+
     M & N & O --> P[Attachment Summary]
-    
+
     %% Mode Processing
     D & E & F & G --> Q[Process Request]
     P --> Q
-    
+
     Q --> R[Format Response]
     R --> S[Generate HTML]
     R --> T[Generate Text]
-    
+
     %% Error Handling
     Q --> U{Errors?}
     U -->|Yes| V[Fallback Response]
     U -->|No| R
-    
+
     %% Final Response
     S & T --> W[Final Response]
     V --> W
-    
+
     %% Styling
     classDef email fill:#f9f,stroke:#333,stroke-width:2px
     classDef process fill:#bbf,stroke:#333,stroke-width:2px
     classDef error fill:#fbb,stroke:#333,stroke-width:2px
-    
+
     class A,B email
     class D,E,F,G,Q,R process
     class U,V error

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+
 def find_tasks_modules():
     """Find all task modules in the project."""
     base_dir = Path(__file__).parent.parent  # mxtoai directory
@@ -24,6 +25,7 @@ def find_tasks_modules():
 
     return tasks_modules
 
+
 if __name__ == "__main__":
     # Get all task modules
     modules = find_tasks_modules()
@@ -35,16 +37,18 @@ if __name__ == "__main__":
     cmd = [
         "dramatiq",
         *modules,
-        "--processes", str(os.getenv("DRAMATIQ_PROCESSES", "8")),
-        "--threads", str(os.getenv("DRAMATIQ_THREADS", "8")),
-        "--watch", str(Path(__file__).parent.parent),  # Watch the mxtoai directory
+        "--processes",
+        str(os.getenv("DRAMATIQ_PROCESSES", "8")),
+        "--threads",
+        str(os.getenv("DRAMATIQ_THREADS", "8")),
+        "--watch",
+        str(Path(__file__).parent.parent),  # Watch the mxtoai directory
     ]
 
     # Add any queues if specified
     queues = os.getenv("DRAMATIQ_QUEUES")
     if queues:
         cmd.extend(["--queues", *queues.split(",")])
-
 
     # Run dramatiq with connection retry logic
     delay = 1

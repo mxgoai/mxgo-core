@@ -8,7 +8,9 @@ class EmailHandleInstructions(BaseModel):
     aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
-    rejection_message: Optional[str] = "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+    rejection_message: Optional[str] = (
+        "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+    )
     task_template: Optional[str] = None
     requires_language_detection: bool = False  # Specifically for translate handle
     requires_schedule_extraction: bool = False  # Specifically for schedule handle
@@ -38,7 +40,7 @@ Remember:
 - If the user has specific intent, then focus on what the user asked abou
 - Skip unnecessary formality
 - Ensure proper markdown formatting
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="research",
@@ -75,7 +77,7 @@ Content Guidelines:
 3. Support claims with evidence
 4. Provide comprehensive analysis
 5. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="simplify",
@@ -92,7 +94,7 @@ Content Guidelines:
 3. Give everyday examples
 4. Keep explanations short
 5. Use bullet points for clarity
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="ask",
@@ -108,7 +110,7 @@ Content Guidelines:
 2. Detailed response
 3. Additional insights if relevant
 4. Next steps or recommendations
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="fact-check",
@@ -141,7 +143,7 @@ Content Guidelines:
 4. Cite reliable sources
 5. Note any uncertainties
 6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="background-research",
@@ -175,7 +177,7 @@ Content Guidelines:
 4. Maintain professional tone
 5. Flag any concerns
 6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="translate",
@@ -206,7 +208,7 @@ Content Guidelines:
 2. Note any ambiguities
 3. Preserve cultural context
 4. Include helpful notes
-"""
+""",
     ),
     EmailHandleInstructions(
         handle="schedule",
@@ -261,8 +263,8 @@ Extract meeting/scheduling related information including participants, timing, a
 - Use clear markdown (bolding, bullet points).
 - Ensure any generated "Add to Calendar" links are functional.
 - Present information concisely.
-"""
-    )
+""",
+    ),
 ]
 
 # Create a mapping of handles (including aliases) to their configurations

@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 # Initialize Supabase client
 supabase: Optional[Client] = None
 
+
 def init_supabase():
     """Initialize Supabase client"""
     global supabase
@@ -29,6 +30,7 @@ def init_supabase():
         except Exception as e:
             logger.error(f"Failed to initialize Supabase client: {e}")
             raise
+
 
 async def is_email_whitelisted(email: str) -> tuple[bool, bool]:
     """
@@ -60,6 +62,7 @@ async def is_email_whitelisted(email: str) -> tuple[bool, bool]:
     except Exception as e:
         logger.error(f"Error checking whitelist status for {email}: {e}")
         return False, False
+
 
 def get_whitelist_signup_url() -> str:
     """Get the URL where users can sign up to be whitelisted"""
