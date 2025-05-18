@@ -83,6 +83,7 @@ ignore = [
     "E402", # false positives for local imports
     "E501", # line too long
     "ERA001", # Commented out code
+    "G004",
     "PGH003", # Use specific rule codes when ignoring type issues"
     "PLE1205", # Too many arguments for `logging` format string
     "TRY301", # Abstract `raise` to an inner function

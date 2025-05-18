@@ -16,9 +16,10 @@ class ReportFormatter:
     def __init__(self, template_dir: Optional[str] = None):
         """
         Initialize the ReportFormatter with configurable templates.
-        
+
         Args:
             template_dir: Directory containing template files (defaults to package templates)
+
         """
         # Set up template directory
         if template_dir is None:
@@ -26,13 +27,13 @@ class ReportFormatter:
             self.template_dir = os.path.join(os.path.dirname(__file__), "templates")
         else:
             self.template_dir = template_dir
-        
+
         # Initialize Jinja environment
         self._init_template_env()
-        
+
         # Load themes
         self._load_themes()
-        
+
         # Default signature
         self.signature_block = """
 
@@ -50,9 +51,9 @@ _Feel free to reply to this email to continue our conversation._
         try:
             self.template_env = Environment(
                 loader=FileSystemLoader(self.template_dir),
-                autoescape=select_autoescape(['html', 'xml']),
+                autoescape=select_autoescape(["html", "xml"]),
                 trim_blocks=True,
-                lstrip_blocks=True
+                lstrip_blocks=True,
             )
         except Exception as e:
             logger.error(f"Failed to initialize template environment: {e}")
@@ -61,24 +62,21 @@ _Feel free to reply to this email to continue our conversation._
     def _load_themes(self):
         """
         Load available CSS themes from the themes directory.
-        
+
         """
         self.themes = {"default": {}}  # Always have a default theme
-        
+
         try:
             themes_file = os.path.join(self.template_dir, "themes.json")
             if os.path.exists(themes_file):
-                with open(themes_file, 'r') as f:
+                with open(themes_file) as f:
                     self.themes.update(json.load(f))
         except Exception as e:
             logger.error(f"Failed to load themes: {e}")
 
-    def format_report(self, 
-                      content: str, 
-                      format_type: str = "markdown", 
-                      include_signature: bool = True,
-                      theme: str = "default"
-        ) -> str:
+    def format_report(
+        self, content: str, format_type: str = "markdown", include_signature: bool = True, theme: str = "default"
+    ) -> str:
         """
         Format the research report in the specified format.
 
@@ -90,6 +88,7 @@ _Feel free to reply to this email to continue our conversation._
 
         Returns:
             Formatted report
+
         """
         # Remove any existing signatures
         content = self._remove_existing_signatures(content)
@@ -106,7 +105,7 @@ _Feel free to reply to this email to continue our conversation._
 
         if format_type == "text":
             return self._to_plain_text(content)
-        elif format_type == "html":
+        if format_type == "html":
             return self._to_html(content, theme)
         # markdown (default)
         return content
@@ -221,6 +220,7 @@ _Feel free to reply to this email to continue our conversation._
 
         Returns:
             HTML version
+
         """
         try:
             import markdown as md_converter
@@ -233,12 +233,12 @@ _Feel free to reply to this email to continue our conversation._
 
             # Configure extensions with specific settings
             extensions = [
-                TableExtension(),       # Support for tables
+                TableExtension(),  # Support for tables
                 FencedCodeExtension(),  # Support for fenced code blocks
-                SaneListExtension(),    # Better list handling
-                Nl2BrExtension(),       # Convert newlines to line breaks
+                SaneListExtension(),  # Better list handling
+                Nl2BrExtension(),  # Convert newlines to line breaks
                 TocExtension(permalink=False),  # Table of contents support without permalinks
-                AttrListExtension(),    # Support for attributes
+                AttrListExtension(),  # Support for attributes
             ]
 
             # Convert markdown to HTML with configured extensions
@@ -251,23 +251,20 @@ _Feel free to reply to this email to continue our conversation._
                 },
                 output_format="html5",  # Use html5 for better compatibility
             )
-            
+
             if self.template_env:
                 try:
                     theme_settings = self.themes.get(theme, self.themes["default"])
                     template = self.template_env.get_template("email_template.html")
-                   
-                    return template.render(
-                        content=html_content,
-                        theme=theme_settings
-                    )
+
+                    return template.render(content=html_content, theme=theme_settings)
                 except Exception as e:
                     logger.error(f"Template rendering failed: {e}. Falling back to basic rendering.")
-            
+
             # fallback
             logger.info("Template environment not available. Using basic HTML rendering.")
             return self._basic_html_render(html_content, theme)
-            
+
         except ImportError:
             logger.error("Markdown package not available - this should never happen as it's a required dependency")
             raise  # We should always have markdown package available
@@ -285,7 +282,7 @@ _Feel free to reply to this email to continue our conversation._
         """
         # Get minimal inline CSS
         css = self._get_minimal_css()
-        
+
         return f"""
         <!DOCTYPE html>
         <html>
@@ -301,7 +298,7 @@ _Feel free to reply to this email to continue our conversation._
         </body>
         </html>
         """
-    
+
     def _get_minimal_css(self) -> str:
         """
         Get minimal CSS for fallback rendering.

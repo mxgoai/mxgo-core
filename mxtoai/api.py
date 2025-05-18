@@ -374,7 +374,6 @@ async def process_email(
 
         # Log initial email details
         logger.info("Received new email request:")
-        logger.info(f"From: {from_email}")
         logger.info(f"To: {to} (handle: {handle})")
         logger.info(f"Subject: {subject}")
         logger.info(f"Message ID: {messageId}")
