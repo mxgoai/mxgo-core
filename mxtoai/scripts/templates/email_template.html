@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if title %}{{ title }}{% else %}MXtoAI Report{% endif %}</title>
+    <style>
+        /* Base styles with theme variables */
+        :root {
+            --font-family: {{ theme.font.family|default("'Helvetica Neue', Arial, sans-serif") }};
+            --font-size: {{ theme.font.size|default("16px") }};
+            --line-height: {{ theme.font.line_height|default("1.6") }};
+            --color-bg: {{ theme.colors.background|default("#ffffff") }};
+            --color-text: {{ theme.colors.text|default("#333333") }};
+            --color-heading: {{ theme.colors.heading|default("#2c3e50") }};
+            --color-link: {{ theme.colors.link|default("#0366d6") }};
+            --color-code-bg: {{ theme.colors.code_background|default("#f6f8fa") }};
+            --color-table-header: {{ theme.colors.table_header|default("#f6f8fa") }};
+            --color-table-border: {{ theme.colors.table_border|default("#ddd") }};
+            --color-blockquote: {{ theme.colors.blockquote|default("#6a737d") }};
+            --container-width: {{ theme.spacing.container_width|default("800px") }};
+            --spacing-paragraph: {{ theme.spacing.paragraph|default("1em") }};
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        html {
+            font-size: var(--font-size);
+        }
+        
+        body {
+            font-family: var(--font-family);
+            line-height: var(--line-height);
+            color: var(--color-text);
+            background-color: var(--color-bg);
+            padding: 0;
+            margin: 0;
+        }
+        
+        .container {
+            max-width: var(--container-width);
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+        
+        /* Typography */
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--color-heading);
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            line-height: 1.25;
+        }
+        
+        h1 { font-size: 2em; }
+        h2 { font-size: 1.5em; }
+        h3 { font-size: 1.25em; }
+        h4 { font-size: 1em; }
+        h5 { font-size: 0.875em; }
+        h6 { font-size: 0.85em; }
+        
+        p {
+            margin-bottom: var(--spacing-paragraph);
+        }
+        
+        a {
+            color: var(--color-link);
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        ul, ol {
+            margin: 0 0 1rem 0.5rem;
+            padding-left: 2rem;
+            list-style-position: outside;
+        }
+        
+        /* Base list styles */
+        ul { list-style-type: disc; }
+        ol { list-style-type: decimal; }
+        
+        ul ul, 
+        ol ul { 
+            list-style-type: circle; 
+            margin: 0.5rem 0;
+            padding-left: 3rem;
+        }
+        
+        ul ul ul, 
+        ol ul ul { 
+            list-style-type: square; 
+        }
+        
+        ol ol, 
+        ul ol { 
+            list-style-type: lower-alpha; 
+            margin: 0.5rem 0;
+            padding-left: 4rem;
+        }
+        
+        ol ol ol, 
+        ul ol ol { 
+            list-style-type: lower-roman; 
+        }
+        
+        li {
+            margin: 0.5rem 0.5rem;
+            line-height: 1.5;
+            display: list-item;
+            position: relative;
+        }
+        
+        li p {
+            margin: 0.5rem 0;
+            display: inline-block;
+        }
+        
+        li > ul, 
+        li > ol {
+            margin-bottom: 0.5rem;
+        }
+        
+        code {
+            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            background-color: var(--color-code-bg);
+            padding: 0.2rem 0.4rem;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        
+        pre {
+            background-color: var(--color-code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+        
+        pre code {
+            padding: 0;
+            background-color: transparent;
+            font-size: 0.9em;
+        }
+        
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1.5rem 0;
+            font-size: 0.95em;
+        }
+        
+        th, td {
+            border: 1px solid var(--color-table-border);
+            padding: 0.75rem;
+            text-align: left;
+            vertical-align: top;
+        }
+        
+        th {
+            background-color: var(--color-table-header);
+            font-weight: 600;
+        }
+        
+        tr:nth-child(even) {
+            background-color: rgba(0, 0, 0, 0.02);
+        }
+        
+        tr:hover {
+            background-color: rgba(0, 0, 0, 0.03);
+        }
+        
+        /* Blockquotes */
+        blockquote {
+            border-left: 4px solid var(--color-table-border);
+            padding-left: 1rem;
+            color: var(--color-blockquote);
+            margin: 1rem 0;
+        }
+        
+        /* Horizontal Rule */
+        hr {
+            border: none;
+            border-top: 1px solid var(--color-table-border);
+            margin: 1.5rem 0;
+        }
+        
+        /* Images */
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+            margin: 1.5rem auto;
+        }
+        
+        /* Citations and References */
+        .citation {
+            font-size: 0.8em;
+            vertical-align: super;
+            color: var(--color-blockquote);
+        }
+        
+        .references {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--color-table-border);
+        }
+        
+        .reference {
+            margin: 0.5rem 0;
+            padding: 0.5rem;
+            background-color: rgba(0, 0, 0, 0.02);
+            border-left: 3px solid var(--color-table-border);
+            font-size: 0.9em;
+        }
+        
+        /* Table of Contents */
+        .toc {
+            background-color: rgba(0, 0, 0, 0.02);
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 5px;
+        }
+        
+        .toc ul {
+            list-style-type: none;
+            padding-left: 1rem;
+        }
+        
+        .toc li {
+            margin: 0.3rem 0;
+        }
+        
+        /* Signature */
+        .signature {
+            color: var(--color-blockquote);
+            font-style: italic;
+            border-top: 1px solid var(--color-table-border);
+            padding-top: 1rem;
+            margin-top: 2rem;
+        }
+        
+        /* Additional utility classes */
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .mt-0 { margin-top: 0; }
+        .mb-0 { margin-bottom: 0; }
+        
+        /* Print styling */
+        @media print {
+            body {
+                font-size: 12pt;
+                color: #000;
+                background: #fff;
+            }
+            
+            .container {
+                width: 100%;
+                max-width: none;
+                padding: 0;
+                margin: 0;
+            }
+            
+            a {
+                text-decoration: underline;
+                color: #000;
+            }
+            
+            a[href]:after {
+                content: " (" attr(href) ")";
+                font-size: 0.8em;
+            }
+            
+            a[href^="#"]:after {
+                content: "";
+            }
+            
+            pre, blockquote {
+                border: 1px solid #999;
+                page-break-inside: avoid;
+            }
+            
+            thead {
+                display: table-header-group;
+            }
+            
+            tr, img {
+                page-break-inside: avoid;
+            }
+            
+            img {
+                max-width: 100% !important;
+            }
+            
+            p, h2, h3 {
+                orphans: 3;
+                widows: 3;
+            }
+            
+            h2, h3 {
+                page-break-after: avoid;
+            }
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 1rem 0.5rem;
+            }
+            
+            table {
+                font-size: 0.85em;
+            }
+            
+            th, td {
+                padding: 0.5rem;
+            }
+            
+            pre {
+                padding: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {{ content|safe }}
+    </div>
+</body>
+</html>

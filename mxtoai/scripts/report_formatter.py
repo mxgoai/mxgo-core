@@ -1,5 +1,9 @@
+import json
+import os
 import re
-from typing import Any
+from typing import Any, Optional
+
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mxtoai._logging import get_logger
 
@@ -8,199 +12,27 @@ logger = get_logger(__name__)
 class ReportFormatter:
     """Format research reports and emails for delivery."""
 
-    def __init__(self):
-        """Initialize the ReportFormatter."""
-        self.html_style = """
-            body {
-                font-family: Arial, sans-serif;
-                line-height: 1.6;
-                color: #333333;
-                max-width: 800px;
-                margin: 0 auto;
-                padding: 20px;
-            }
-            p {
-                margin-bottom: 1em;
-            }
-            h1, h2, h3, h4, h5, h6 {
-                color: #2c3e50;
-                margin-top: 1.5em;
-                margin-bottom: 0.5em;
-            }
-            /* Base list styles */
-            ul, ol {
-                margin: 0.5em 0 1em 0;
-                padding-left: 2em;
-                list-style-position: outside;
-            }
-            /* Specific list styles */
-            ul {
-                list-style-type: disc;
-            }
-            ol {
-                list-style-type: decimal;
-            }
-            /* Nested list styles */
-            ul ul, ol ul {
-                list-style-type: circle;
-                margin: 0.3em 0 0.3em 1em;
-            }
-            ul ul ul, ol ul ul {
-                list-style-type: square;
-            }
-            ol ol, ul ol {
-                list-style-type: lower-alpha;
-                margin: 0.3em 0 0.3em 1em;
-            }
-            ol ol ol, ul ol ol {
-                list-style-type: lower-roman;
-            }
-            /* List item spacing and formatting */
-            li {
-                margin: 0.5em 0;
-                padding-left: 0.3em;
-                line-height: 1.4;
-                display: list-item;
-            }
-            /* Handle mixed formatting in list items */
-            li em, li strong {
-                display: inline;
-                vertical-align: baseline;
-            }
-            li > em, li > strong {
-                display: inline;
-                vertical-align: baseline;
-            }
-            /* Ensure proper spacing for formatted text in lists */
-            li p {
-                margin: 0;
-                display: inline;
-            }
-            /* Handle multi-line list items */
-            li > ul,
-            li > ol {
-                margin-top: 0.3em;
-                margin-bottom: 0.3em;
-                margin-left: 1em;
-            }
-            /* Nested list indentation */
-            ol > li, ul > li {
-                margin-left: 0;
-            }
-            li > ul > li,
-            li > ol > li {
-                margin-left: 0;
-            }
-            /* Fix for mixed content in list items */
-            li > *:not(ul):not(ol) {
-                display: inline-block;
-                margin: 0;
-                vertical-align: top;
-            }
-            /* Ensure proper alignment of text with bullets/numbers */
-            li::marker {
-                unicode-bidi: isolate;
-                font-variant-numeric: tabular-nums;
-                text-align: end;
-                text-align-last: end;
-            }
-            a {
-                color: #3498db;
-                text-decoration: none;
-            }
-            a:hover {
-                text-decoration: underline;
-            }
-            hr {
-                border: none;
-                border-top: 1px solid #e0e0e0;
-                margin: 20px 0;
-            }
-            .signature {
-                color: #666666;
-                font-style: italic;
-                border-top: 1px solid #e0e0e0;
-                padding-top: 15px;
-                margin-top: 25px;
-            }
-            code {
-                background-color: #f5f5f5;
-                padding: 2px 4px;
-                border-radius: 3px;
-                font-family: monospace;
-            }
-            pre {
-                background-color: #f5f5f5;
-                padding: 15px;
-                border-radius: 5px;
-                overflow-x: auto;
-                margin: 1em 0;
-            }
-            strong {
-                color: #2c3e50;
-                font-weight: 600;
-            }
-            em {
-                color: #34495e;
-                font-style: italic;
-            }
-            /* Ensure em and strong work together */
-            em strong, strong em {
-                color: #2c3e50;
-                font-weight: 600;
-                font-style: italic;
-            }
-            blockquote {
-                border-left: 4px solid #e0e0e0;
-                margin: 1em 0;
-                padding-left: 1em;
-                color: #666666;
-            }
-            /* Citation and reference styles */
-            .citation {
-                font-size: 0.8em;
-                vertical-align: super;
-                color: #666666;
-            }
-            .citation a {
-                color: #666666;
-                text-decoration: none;
-            }
-            .citation a:hover {
-                text-decoration: underline;
-            }
-            .references {
-                margin-top: 2em;
-                padding-top: 1em;
-                border-top: 1px solid #e0e0e0;
-            }
-            .reference {
-                margin: 0.5em 0;
-                padding: 0.5em;
-                background-color: #f8f9fa;
-                border-left: 3px solid #e0e0e0;
-                font-size: 0.9em;
-            }
-            .reference-number {
-                color: #666666;
-                font-weight: bold;
-                margin-right: 0.5em;
-            }
-            .toc {
-                background-color: #f8f9fa;
-                padding: 1em;
-                margin: 1em 0;
-                border-radius: 5px;
-            }
-            .toc ul {
-                list-style-type: none;
-                padding-left: 1em;
-            }
-            .toc li {
-                margin: 0.5em 0;
-            }
+    def __init__(self, template_dir: Optional[str] = None):
         """
-
+        Initialize the ReportFormatter with configurable templates.
+        
+        Args:
+            template_dir: Directory containing template files (defaults to package templates)
+        """
+        # Set up template directory
+        if template_dir is None:
+            # Default to a templates directory next to this file
+            self.template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        else:
+            self.template_dir = template_dir
+        
+        # Initialize Jinja environment
+        self._init_template_env()
+        
+        # Load themes
+        self._load_themes()
+        
+        # Default signature
         self.signature_block = """
 
 ---
@@ -210,7 +42,42 @@ class ReportFormatter:
 _Feel free to reply to this email to continue our conversation._
 """
 
-    def format_report(self, content: str, format_type: str = "markdown", include_signature: bool = True) -> str:
+    def _init_template_env(self):
+        """
+        Initialize the Jinja2 template environment.
+        """
+        try:
+            self.template_env = Environment(
+                loader=FileSystemLoader(self.template_dir),
+                autoescape=select_autoescape(['html', 'xml']),
+                trim_blocks=True,
+                lstrip_blocks=True
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize template environment: {e}")
+            self.template_env = None
+
+    def _load_themes(self):
+        """
+        Load available CSS themes from the themes directory.
+        
+        """
+        self.themes = {"default": {}}  # Always have a default theme
+        
+        try:
+            themes_file = os.path.join(self.template_dir, "themes.json")
+            if os.path.exists(themes_file):
+                with open(themes_file, 'r') as f:
+                    self.themes.update(json.load(f))
+        except Exception as e:
+            logger.error(f"Failed to load themes: {e}")
+
+    def format_report(self, 
+                      content: str, 
+                      format_type: str = "markdown", 
+                      include_signature: bool = True,
+                      theme: str = "default"
+        ) -> str:
         """
         Format the research report in the specified format.
 
@@ -218,10 +85,10 @@ _Feel free to reply to this email to continue our conversation._
             content: Report content
             format_type: Output format (text, html, markdown)
             include_signature: Whether to include the signature block
+            theme: Theme name to use for HTML formatting
 
         Returns:
             Formatted report
-
         """
         # Remove any existing signatures
         content = self._remove_existing_signatures(content)
@@ -238,8 +105,8 @@ _Feel free to reply to this email to continue our conversation._
 
         if format_type == "text":
             return self._to_plain_text(content)
-        if format_type == "html":
-            return self._to_html(content)
+        elif format_type == "html":
+            return self._to_html(content, theme)
         # markdown (default)
         return content
 
@@ -342,16 +209,16 @@ _Feel free to reply to this email to continue our conversation._
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
 
-    def _to_html(self, markdown_content: str) -> str:
+    def _to_html(self, markdown_content: str, theme: str = "default") -> str:
         """
-        Convert markdown to HTML while preserving citations and references.
+        Convert markdown to HTML using templates and themes.
 
         Args:
             markdown_content: Markdown content
+            theme: Theme name to use
 
         Returns:
             HTML version
-
         """
         try:
             import markdown as md_converter
@@ -364,113 +231,160 @@ _Feel free to reply to this email to continue our conversation._
 
             # Configure extensions with specific settings
             extensions = [
-                TableExtension(),  # Support for tables
+                TableExtension(),       # Support for tables
                 FencedCodeExtension(),  # Support for fenced code blocks
-                SaneListExtension(),  # Better list handling
-                Nl2BrExtension(),  # Convert newlines to line breaks
+                SaneListExtension(),    # Better list handling
+                Nl2BrExtension(),       # Convert newlines to line breaks
                 TocExtension(permalink=False),  # Table of contents support without permalinks
-                AttrListExtension(),  # Support for attributes
+                AttrListExtension(),    # Support for attributes
             ]
 
             # Convert markdown to HTML with configured extensions
-            html = md_converter.markdown(
+            html_content = md_converter.markdown(
                 markdown_content,
                 extensions=extensions,
                 extension_configs={
                     # Explicitly disable footnotes if it's a default or separate extension
                     # 'markdown.extensions.footnotes': {'PLACE_MARKER': '!!!!FOOTNOTES!!!!'}
                 },
-                output_format="html5" # Use html5 for better compatibility
+                output_format="html5"  # Use html5 for better compatibility
             )
-
-            return f"""
-                <html>
-                <head>
-                <style>
-                {self.html_style}
-                /* Enhanced table styles */
-                table {{
-                    border-collapse: collapse;
-                    width: 100%;
-                    margin: 1.5em 0;
-                    font-size: 0.95em;
-                }}
-                th, td {{
-                    border: 1px solid #ddd;
-                    padding: 12px;
-                    text-align: left;
-                    vertical-align: top;
-                }}
-                th {{
-                    background-color: #f5f5f5;
-                    font-weight: 600;
-                    color: #2c3e50;
-                }}
-                tr:nth-child(even) {{
-                    background-color: #f9f9f9;
-                }}
-                tr:hover {{
-                    background-color: #f5f5f5;
-                }}
-                /* List within table cells */
-                td ul, td ol {{
-                    margin: 0;
-                    padding-left: 1.5em;
-                }}
-                td li {{
-                    margin: 0.2em 0;
-                }}
-                /* Enhanced list styling */
-                ol {{
-                    counter-reset: item;
-                    list-style-type: decimal;
-                }}
-                ul {{
-                    list-style-type: disc;
-                }}
-                ol ol {{
-                    list-style-type: lower-alpha;
-                }}
-                ul ul {{
-                    list-style-type: circle;
-                }}
-                ol ul {{
-                    list-style-type: circle;
-                }}
-                ul ol {{
-                    list-style-type: lower-alpha;
-                }}
-                /* Ensure proper list indentation */
-                ol, ul {{
-                    padding-left: 2em;
-                    margin-bottom: 1em;
-                }}
-                ol ol, ul ul, ol ul, ul ol {{
-                    margin-left: 1em;
-                    margin-bottom: 0;
-                }}
-                li {{
-                    margin-bottom: 0.5em;
-                }}
-                li li {{
-                    margin-bottom: 0.25em;
-                }}
-                /* Fix for nested list spacing */
-                li > ul,
-                li > ol {{
-                    margin-top: 0.5em;
-                    margin-bottom: 0.5em;
-                }}
-                </style>
-                </head>
-                <body>
-                {html}
-                </body>
-                </html>
-            """
+            
+            if self.template_env:
+                try:
+                    theme_settings = self.themes.get(theme, self.themes["default"])
+                    template = self.template_env.get_template("email_template.html")
+                   
+                    return template.render(
+                        content=html_content,
+                        theme=theme_settings
+                    )
+                except Exception as e:
+                    logger.error(f"Template rendering failed: {e}. Falling back to basic rendering.")
+            
+            # fallback
+            logger.info("Template environment not available. Using basic HTML rendering.")
+            return self._basic_html_render(html_content, theme)
+            
         except ImportError:
             logger.error("Markdown package not available - this should never happen as it's a required dependency")
             raise  # We should always have markdown package available
+
+    def _basic_html_render(self, html_content: str) -> str:
+        """
+        Fallback HTML rendering when templates aren't available.
+
+        Args:
+            html_content: HTML content to render
+
+        Returns:
+            Basic HTML structure with inline CSS
+
+        """
+        # Get minimal inline CSS
+        css = self._get_minimal_css()
+        
+        return f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>{css}</style>
+        </head>
+        <body>
+            <div class="container">
+                {html_content}
+            </div>
+        </body>
+        </html>
+        """
+    
+    def _get_minimal_css(self) -> str:
+        """
+        Get minimal CSS for fallback rendering.
+        """
+        return """
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            width: 100%;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            margin-top: 1.5em;
+            margin-bottom: 0.5em;
+            color: #222;
+        }
+        /* Improved list styling for consistent indentation */
+        ul, ol {
+            padding-left: 2em;
+            margin: 0.8em 0 1em 0;
+            list-style-position: outside;
+        }
+        /* Nested lists - consistent indentation */
+        ul ul, ol ul,
+        ul ol, ol ol {
+            padding-left: 1.5em;
+            margin: 0.5em 0;
+        }
+        li {
+            margin: 0.5em 0;
+            line-height: 1.5;
+            display: list-item;
+        }
+        /* Handle paragraphs in lists */
+        li p {
+            margin: 0.5em 0;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        code {
+            background-color: #f6f8fa;
+            padding: 0.2em 0.4em;
+            border-radius: 3px;
+            font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+        }
+        pre {
+            background-color: #f6f8fa;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+            font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, monospace;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 1em 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f6f8fa;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        blockquote {
+            border-left: 4px solid #dfe2e5;
+            margin: 0;
+            padding: 0 1em;
+            color: #6a737d;
+        }
+        """
 
     def add_email_header_footer(self, content: str, metadata: dict[str, Any] | None = None) -> str:
         """
