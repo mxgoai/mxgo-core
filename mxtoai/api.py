@@ -8,7 +8,7 @@ from typing import Annotated, Any, Optional
 
 import aiofiles
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, File, Form, Response, UploadFile, status
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
 
 from mxtoai._logging import get_logger
@@ -113,20 +113,33 @@ async def handle_file_attachments(
                 f"Processing file {idx + 1}/{len(attachments)}: {attachment.filename} ({attachment.contentType})"
             )
 
+            # Validate file size
+            if not attachment.content or len(attachment.content) == 0:
+                logger.error(f"Empty content received for file: {attachment.filename}")
+                msg = "Empty attachment"
+                raise ValueError(msg)
+
+            # Validate file type
+            if attachment.contentType in ["application/x-msdownload", "application/x-executable"]:
+                logger.error(f"Unsupported file type: {attachment.contentType}")
+                msg = "Unsupported file type"
+                raise ValueError(msg)
+
             # Sanitize filename for storage
             safe_filename = Path(attachment.filename).name
             if not safe_filename:
                 safe_filename = f"attachment_{idx}.bin"
                 logger.warning(f"Using generated filename for attachment {idx}: {safe_filename}")
 
+            # Truncate filename if too long (max 100 chars)
+            if len(safe_filename) > 100:
+                ext = Path(safe_filename).suffix
+                safe_filename = safe_filename[:95] + ext
+                logger.warning(f"Truncated long filename to: {safe_filename}")
+
             # Full path to save the attachment
             storage_path = str(Path(email_attachments_dir) / safe_filename)
             logger.debug(f"Will save file to: {storage_path}")
-
-            # Save the content
-            if not attachment.content:
-                logger.exception(f"Empty content received for file: {attachment.filename}")
-                continue
 
             # Write content to disk
             async with aiofiles.open(storage_path, "wb") as f:
@@ -161,6 +174,9 @@ async def handle_file_attachments(
 
             logger.info(f"Successfully saved attachment: {safe_filename} ({file_size} bytes)")
 
+        except ValueError as e:
+            logger.error(f"Validation error for file {attachment.filename}: {e!s}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
             logger.exception(f"Error processing file {attachment.filename}: {e!s}")
             # Try to clean up any partially saved file
@@ -420,9 +436,15 @@ async def process_email(
         email_attachments_dir = ""
         attachment_info = []
         if email_instructions.process_attachments and attachments:
-            email_attachments_dir, attachment_info = await handle_file_attachments(attachments, email_id, email_request)
-            logger.info(f"Processed {len(attachment_info)} attachments successfully")
-            logger.info(f"Attachments directory: {email_attachments_dir}")
+            try:
+                email_attachments_dir, attachment_info = await handle_file_attachments(
+                    attachments, email_id, email_request
+                )
+                logger.info(f"Processed {len(attachment_info)} attachments successfully")
+                logger.info(f"Attachments directory: {email_attachments_dir}")
+            except HTTPException as e:
+                # Re-raise HTTPException to maintain the correct status code
+                raise e
 
         # Prepare attachment info for processing
         processed_attachment_info = []
@@ -457,6 +479,9 @@ async def process_email(
             media_type="application/json",
         )
 
+    except HTTPException as e:
+        # Re-raise HTTPException to maintain the correct status code
+        raise e
     except Exception as e:
         # Log the error and clean up
         logger.exception("Error processing email request")

@@ -1,0 +1,27 @@
+name: Run Linter
+
+on:
+  pull_request:
+    branches:
+      - "master"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.12
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Install dependencies
+        run: poetry install --no-interaction --no-root
+
+      - name: Run Ruff
+        run: poetry run ruff check
