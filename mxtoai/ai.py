@@ -61,7 +61,7 @@ async def ask_llm(prompt: str, email_data: dict[str, Any], model: Optional[str] 
                 messages=[{"role": "user", "content": full_prompt}],
                 api_key=os.getenv("AZURE_OPENAI_API_KEY"),
                 api_base=os.getenv("AZURE_OPENAI_ENDPOINT"),
-                api_version=os.getenv("AZURE_OPENAI_API_VERSION")
+                api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
             )
 
             # Print the raw response for debugging
@@ -139,16 +139,14 @@ async def test_ask_llm():
         "from": "user@example.com",
         "to": "ai-assistant@mxtoai.com",
         "subject": "Meeting Request",
-        "body": "Hi there,\n\nI'd like to schedule a meeting next week to discuss the project. Are you available on Tuesday at 2 PM?\n\nBest regards,\nJohn"
+        "body": "Hi there,\n\nI'd like to schedule a meeting next week to discuss the project. Are you available on Tuesday at 2 PM?\n\nBest regards,\nJohn",
     }
 
     # Sample prompt
     prompt = "Summarize this email and identify any action items."
 
-
     # Call the ask_llm function
     await ask_llm(prompt, sample_email)
-
 
 
 # Alternative test with OpenAI model as fallback
@@ -161,17 +159,15 @@ async def test_with_openai_fallback():
         "from": "user@example.com",
         "to": "ai-assistant@mxtoai.com",
         "subject": "Meeting Request",
-        "body": "Hi there,\n\nI'd like to schedule a meeting next week to discuss the project. Are you available on Tuesday at 2 PM?\n\nBest regards,\nJohn"
+        "body": "Hi there,\n\nI'd like to schedule a meeting next week to discuss the project. Are you available on Tuesday at 2 PM?\n\nBest regards,\nJohn",
     }
 
     # Sample prompt
     prompt = "Summarize this email and identify any action items."
 
-
     # Try with OpenAI model
     with contextlib.suppress(Exception):
         await ask_llm(prompt, sample_email, model="gpt-3.5-turbo")
-
 
 
 # Run the test function if this file is executed directly

@@ -12,14 +12,19 @@ from smolagents import Tool
 
 logger = logging.getLogger(__name__)
 
+
 class EventDetails(BaseModel):
     """Data model for event details extracted by the LLM."""
 
     title: str = Field(..., description="The title or summary of the event.")
     start_time: datetime = Field(..., description="The start date and time of the event. Must include timezone info.")
-    end_time: Optional[datetime] = Field(None, description="The end date and time of the event. Must include timezone info if provided.")
+    end_time: Optional[datetime] = Field(
+        None, description="The end date and time of the event. Must include timezone info if provided."
+    )
     description: Optional[str] = Field(None, description="A detailed description of the event.")
-    location: Optional[str] = Field(None, description="The location of the event (physical address or virtual meeting link).")
+    location: Optional[str] = Field(
+        None, description="The location of the event (physical address or virtual meeting link)."
+    )
     attendees: Optional[list[EmailStr]] = Field(None, description="List of attendee email addresses.")
 
     @field_validator("start_time", "end_time")
@@ -31,47 +36,49 @@ class EventDetails(BaseModel):
             return v.replace(tzinfo=pytz.UTC)
         return v
 
+
 # Inherit from smolagents.Tool
 class ScheduleTool(Tool):
     """Tool to generate iCalendar (.ics) data and 'Add to Calendar' links."""
 
     # Add required attributes for Smol Gents
     name = "schedule_generator"
-    description = ("Generates iCalendar (.ics) file content and 'Add to Calendar' links (Google, Outlook) "
-                   "based on provided event details. Expects ISO 8601 date/time strings with timezone.")
+    description = (
+        "Generates iCalendar (.ics) file content and 'Add to Calendar' links (Google, Outlook) "
+        "based on provided event details. Expects ISO 8601 date/time strings with timezone."
+    )
 
     inputs = {
-        "title": {
-            "type": "string",
-            "description": "The title or summary of the event."
-        },
+        "title": {"type": "string", "description": "The title or summary of the event."},
         "start_time": {
             "type": "string",
-            "description": "The start date and time (ISO 8601 format with timezone, e.g., '2024-08-15T10:00:00+01:00' or '2024-08-16T09:00:00Z')."
+            "description": "The start date and time (ISO 8601 format with timezone, e.g., '2024-08-15T10:00:00+01:00' or '2024-08-16T09:00:00Z').",
         },
         "end_time": {
             "type": "string",
             "description": "The optional end date and time (ISO 8601 format with timezone). Defaults to start time + standard duration if omitted.",
-            "nullable": True
+            "nullable": True,
         },
         "description": {
             "type": "string",
             "description": "A detailed description of the event (optional).",
-            "nullable": True
+            "nullable": True,
         },
         "location": {
             "type": "string",
             "description": "The location (physical address or virtual meeting link) (optional).",
-            "nullable": True
+            "nullable": True,
         },
         "attendees": {
             "type": "array",
             "items": {"type": "string"},
             "description": "List of attendee email addresses (optional).",
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
-    output_type = "object" # Changed from "dict". Output is a dictionary with status, ics_content, calendar_links, message
+    output_type = (
+        "object"  # Changed from "dict". Output is a dictionary with status, ics_content, calendar_links, message
+    )
 
     def generate_ics_content(self, details: EventDetails) -> str:
         """Generates the content for an .ics calendar file."""
@@ -98,7 +105,6 @@ class ScheduleTool(Tool):
                 # Add attendee using the mailto: URI scheme
                 e.add_attendee(f"mailto:{attendee_email}")
 
-
         c.events.add(e)
         # Return the calendar data as a string
         # Ensure trailing newline for compatibility
@@ -114,7 +120,7 @@ class ScheduleTool(Tool):
 
         # Format dates for URLs (YYYYMMDDTHHMMSSZ)
         start_format = start_utc.strftime("%Y%m%dT%H%M%SZ")
-        end_format = end_utc.strftime("%Y%m%dT%H%M%SZ") if end_utc else start_format # Use start if no end
+        end_format = end_utc.strftime("%Y%m%dT%H%M%SZ") if end_utc else start_format  # Use start if no end
 
         # Google Calendar Link
         google_params = {
@@ -126,7 +132,7 @@ class ScheduleTool(Tool):
             # 'add': ','.join(details.attendees or []) # Requires specific formatting/permissions sometimes unreliable
         }
         if details.attendees:
-             google_params["add"] = ",".join(details.attendees)
+            google_params["add"] = ",".join(details.attendees)
 
         links["google"] = f"https://www.google.com/calendar/render?{urlencode(google_params)}"
 
@@ -139,7 +145,7 @@ class ScheduleTool(Tool):
             "path": "/calendar/action/compose",
             "rru": "addevent",
             "startdt": start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
-             # Outlook needs TZ info sometimes, but URL format varies. Sticking to UTC base format.
+            # Outlook needs TZ info sometimes, but URL format varies. Sticking to UTC base format.
             "enddt": end_utc.strftime("%Y-%m-%dT%H:%M:%S") if end_utc else start_utc.strftime("%Y-%m-%dT%H:%M:%S"),
             "subject": details.title,
             "body": details.description or "",
@@ -151,14 +157,22 @@ class ScheduleTool(Tool):
         return links
 
     # Rename 'run' to 'forward' for Smol Gents compatibility
-    def forward(self, title: str, start_time: str, end_time: Optional[str] = None, description: Optional[str] = None, location: Optional[str] = None, attendees: Optional[list[str]] = None) -> dict:
+    def forward(
+        self,
+        title: str,
+        start_time: str,
+        end_time: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        attendees: Optional[list[str]] = None,
+    ) -> dict:
         """
         Main execution method for the tool (renamed from run). Parses input and generates outputs.
         Expects datetime strings in ISO 8601 format (or similar parsable format).
         LLM should be prompted to provide dates in this format including timezone offset.
         e.g., "2024-07-29T14:30:00+01:00" or "2024-07-29T13:30:00Z"
         """
-        logger.info(f"Running {self.name} tool with title: '{title}'") # Added logging
+        logger.info(f"Running {self.name} tool with title: '{title}'")  # Added logging
         try:
             # Use Pydantic for parsing and validation including timezone handling
             event_details = EventDetails(
@@ -167,7 +181,7 @@ class ScheduleTool(Tool):
                 end_time=datetime.fromisoformat(end_time) if end_time else None,
                 description=description,
                 location=location,
-                attendees=attendees # Pydantic handles EmailStr validation here
+                attendees=attendees,  # Pydantic handles EmailStr validation here
             )
 
             ics_content = self.generate_ics_content(event_details)
@@ -177,17 +191,18 @@ class ScheduleTool(Tool):
                 "status": "success",
                 "ics_content": ics_content,
                 "calendar_links": calendar_links,
-                "message": "Successfully generated calendar data. The 'ics_content' should be used to create an email attachment."
+                "message": "Successfully generated calendar data. The 'ics_content' should be used to create an email attachment.",
             }
-            logger.info(f"{self.name} completed successfully.") # Added logging
+            logger.info(f"{self.name} completed successfully.")  # Added logging
             return result
         except Exception as e:
             logger.error(f"Error in {self.name}: {e}", exc_info=True)
             # Provide specific error feedback for the LLM
             return {
                 "status": "error",
-                "message": f"Failed to generate calendar data using {self.name}: {e}. Check input format, especially date/time (must be ISO 8601 with timezone)."
+                "message": f"Failed to generate calendar data using {self.name}: {e}. Check input format, especially date/time (must be ISO 8601 with timezone).",
             }
+
 
 # Example usage (for testing)
 if __name__ == "__main__":
@@ -197,27 +212,27 @@ if __name__ == "__main__":
     # Example 1: Basic event
     details_basic = {
         "title": "Team Meeting",
-        "start_time": "2024-08-15T10:00:00+01:00", # BST
+        "start_time": "2024-08-15T10:00:00+01:00",  # BST
         "end_time": "2024-08-15T11:00:00+01:00",
         "description": "Discuss project updates.",
         "location": "Meeting Room 3",
-        "attendees": ["test1@example.com", "test2@example.com"]
+        "attendees": ["test1@example.com", "test2@example.com"],
     }
-    result_basic = tool.forward(**details_basic) # Changed run to forward
+    result_basic = tool.forward(**details_basic)  # Changed run to forward
     # print("\nICS Content:\n", result_basic.get('ics_content'))
 
     # Example 2: Event with UTC time and no end time (defaults may apply in calendar apps)
     details_utc_no_end = {
         "title": "Quick Sync",
-        "start_time": "2024-08-16T14:00:00Z", # UTC
-        "location": "Virtual"
+        "start_time": "2024-08-16T14:00:00Z",  # UTC
+        "location": "Virtual",
     }
-    result_utc_no_end = tool.forward(**details_utc_no_end) # Changed run to forward
+    result_utc_no_end = tool.forward(**details_utc_no_end)  # Changed run to forward
     # print("\nICS Content:\n", result_utc_no_end.get('ics_content'))
 
     # Example 3: Naive time (should log warning and assume UTC)
     details_naive = {
         "title": "Coffee Chat",
-        "start_time": "2024-08-17T09:00:00", # Naive time
+        "start_time": "2024-08-17T09:00:00",  # Naive time
     }
-    result_naive = tool.forward(**details_naive) # Changed run to forward
+    result_naive = tool.forward(**details_naive)  # Changed run to forward

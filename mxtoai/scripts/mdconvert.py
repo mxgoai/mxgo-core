@@ -174,7 +174,6 @@ class HtmlConverter(DocumentConverter):
         with open(local_path, encoding="utf-8") as fh:
             return self._convert(fh.read())
 
-
     def _convert(self, html_content: str) -> Union[None, DocumentConverterResult]:
         """Helper function that converts and HTML string."""
         # Parse the string
@@ -397,7 +396,6 @@ class DocxConverter(HtmlConverter):
             result = mammoth.convert_to_html(docx_file)
             html_content = result.value
             return self._convert(html_content)
-
 
 
 class XlsxConverter(HtmlConverter):
@@ -964,15 +962,11 @@ class MarkdownConverter:
         # If we got this far without success, report any exceptions
         if len(error_trace) > 0:
             msg = f"Could not convert '{local_path}' to Markdown. File type was recognized as {extensions}. While converting the file, the following error was encountered:\n\n{error_trace}"
-            raise FileConversionException(
-                msg
-            )
+            raise FileConversionException(msg)
 
         # Nothing can handle it!
         msg = f"Could not convert '{local_path}' to Markdown. The formats {extensions} are not supported."
-        raise UnsupportedFormatException(
-            msg
-        )
+        raise UnsupportedFormatException(msg)
 
     def _append_ext(self, extensions, ext):
         """Append a unique non-None, non-empty extension to a list of extensions."""

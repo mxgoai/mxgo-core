@@ -237,12 +237,14 @@ CITATION REQUIREMENTS:
 5. Citation formats: [1], [2], [3] - place at the end of a sentence or immediately after quoted material
 """
 
+
 # Update citation examples in RESEARCH_INSTRUCTIONS
 def update_citation_examples(text):
     """Update citation examples in the research instructions."""
     text = text.replace("[src123abc]", "[1]")
     text = text.replace("[src456def]", "[2]")
     return text.replace("[src789ghi]", "[3]")
+
 
 # Update example citations in the reformulator instructions
 REFORMULATOR_USER_PROMPT_CITATIONS = """

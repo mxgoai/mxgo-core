@@ -4,6 +4,7 @@ Helper functions for processing and describing different file types for the emai
 This module provides functions to extract descriptions and content from various file types
 including images, documents, and archives for use in the research process.
 """
+
 import os
 import shutil
 import textwrap

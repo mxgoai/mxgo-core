@@ -12,7 +12,9 @@ class EmailHandleInstructions(BaseModel):
     aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
-    rejection_message: Optional[str] = "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+    rejection_message: Optional[str] = (
+        "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+    )
     task_template: Optional[str] = None
     requires_language_detection: bool = False  # Specifically for translate handle
     requires_schedule_extraction: bool = False  # Specifically for schedule handle

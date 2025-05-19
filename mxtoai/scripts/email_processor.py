@@ -38,7 +38,7 @@ class EmailProcessor:
             "subject": msg.get("subject", ""),
             "from": msg.get("from", ""),
             "to": msg.get("to", ""),
-            "date": msg.get("date", "")
+            "date": msg.get("date", ""),
         }
 
         # Extract body content (plain text preferred)
@@ -55,7 +55,7 @@ class EmailProcessor:
             "body": body,
             "attachments": attachments,
             "research_instructions": research_instructions,
-            "attachment_dir": os.path.join(self.temp_dir, Path(email_file).stem) if attachments else None
+            "attachment_dir": os.path.join(self.temp_dir, Path(email_file).stem) if attachments else None,
         }
 
     def _extract_body(self, msg) -> str:
@@ -104,6 +104,7 @@ class EmailProcessor:
         """
         # Simple implementation - can be improved with BeautifulSoup
         import re
+
         # Remove HTML tags
         text = re.sub(r"<[^>]+>", " ", html)
         # Fix whitespace

@@ -1,0 +1,58 @@
+default_install_hook_types: [pre-push]
+
+default_language_version:
+  python: python3.12
+
+exclude: |
+  (?x)^(
+    .*/\.venv/.*|
+    .*/\.git/.*
+  )$
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.4
+    hooks:
+      - id: ruff
+        args: [--fix, --unsafe-fixes]
+      - id: ruff-format
+
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.19.1
+    hooks:
+      - id: pyupgrade
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.16.4
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/python-poetry/poetry
+    rev: 2.1.1
+    hooks:
+      - id: poetry-check
+      - id: poetry-lock
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-toml
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-json
+      - id: debug-statements
+      - id: detect-private-key
+      - id: detect-aws-credentials
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: no-commit-to-branch
+        args: [--branch, master]
