@@ -5,6 +5,7 @@ from smolagents import Tool
 
 logger = logging.getLogger(__name__)
 
+
 class FallbackWebSearchTool(Tool):
     """
     A web search tool that attempts a primary search tool (e.g., Google Search)
@@ -43,10 +44,7 @@ class FallbackWebSearchTool(Tool):
                 logger.debug("Primary search tool succeeded.")
                 return result
             except Exception as e:
-                logger.warning(
-                    f"Primary search tool ({self.primary_tool.name}) failed: {e!s}. "
-                    f"Attempting fallback."
-                )
+                logger.warning(f"Primary search tool ({self.primary_tool.name}) failed: {e!s}. Attempting fallback.")
 
         if self.secondary_tool:
             try:

@@ -21,4 +21,4 @@ Here's a brief overview of the available handles and their primary functions:
 
 For detailed information on each handle, including aliases and key features, please refer to the [Email Handles section on our website](https://www.mxtoai.com/#usecases).
 
-**Pro tip:** Add our email handles to your contacts for quicker access when forwarding emails. 
+**Pro tip:** Add our email handles to your contacts for quicker access when forwarding emails.

@@ -89,7 +89,10 @@ def check_close_call(prediction, true_answer, is_correct):
         return True
     if is_float(true_answer):
         return is_correct
-    return bool(check_prediction_contains_answer_letters_in_order(str(prediction), str(true_answer)) and len(str(true_answer)) * 0.5 <= len(str(prediction)) <= len(str(true_answer)) * 2)
+    return bool(
+        check_prediction_contains_answer_letters_in_order(str(prediction), str(true_answer))
+        and len(str(true_answer)) * 0.5 <= len(str(prediction)) <= len(str(true_answer)) * 2
+    )
 
 
 def normalize_str(input_str, remove_punct=True) -> str:

@@ -26,9 +26,7 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip()
 
 # Define log format that works with and without 'source' in extra
 LOG_FORMAT = (
-    "<green>{process}:{level}: {time:YYYY-MM-DD at HH:mm:ss}</green> "
-    "<blue>({name}::{function})</blue> "
-    "{message}"
+    "<green>{process}:{level}: {time:YYYY-MM-DD at HH:mm:ss}</green> <blue>({name}::{function})</blue> {message}"
 )
 
 # Remove default handlers
@@ -75,13 +73,16 @@ if os.environ.get("LOGFIRE_TOKEN"):
 logger.info("Logging initialized with level: {}", LOG_LEVEL)
 logger.debug("Debug logging is enabled")
 
+
 def get_logger(source: str) -> Any:
     """Get a logger instance bound with the source name."""
     return logger.bind(source=source)
 
 
 @contextmanager
-def span(msg_template: str, name: str | None = None, tags: Sequence[str] | None = None, **msg_template_kwargs: Any) -> Any:
+def span(
+    msg_template: str, name: str | None = None, tags: Sequence[str] | None = None, **msg_template_kwargs: Any
+) -> Any:
     """Context manager for creating spans in logging."""
     # Check if LOGFIRE_TOKEN environment variable is defined
     if os.getenv("LOGFIRE_TOKEN"):

@@ -20,6 +20,7 @@ load_dotenv(override=True)
 # Configure logger
 logger = get_logger("azure_visualizer")
 
+
 def process_images_and_text(image_path, query, client):
     from transformers import AutoProcessor
 
@@ -49,7 +50,6 @@ def process_images_and_text(image_path, query, client):
 
         # add string formatting required by the endpoint
         return f"data:image/jpeg;base64,{base64_image}"
-
 
     image_string = encode_local_image(image_path)
     prompt_with_images = prompt_with_template.replace("<image>", "![]({}) ").format(image_string)
@@ -136,9 +136,7 @@ class VisualQATool(Tool):
                 output = process_images_and_text(new_image_path, question, self.client)
 
         if add_note:
-            output = (
-                f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
-            )
+            output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
 
         return output
 
@@ -217,7 +215,7 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
         # Format the content for the Azure OpenAI API
         content = [
             {"type": "text", "text": question},
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}}
+            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
         ]
 
         # Get Azure OpenAI configuration
@@ -234,7 +232,7 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
             api_key=api_key,
             api_base=api_base,
             api_version=api_version,
-            max_tokens=1000
+            max_tokens=1000,
         )
 
         # Extract content from response

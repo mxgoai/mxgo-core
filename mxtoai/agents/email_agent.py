@@ -52,16 +52,14 @@ ALLOWED_PYTHON_IMPORTS = [
     # Add any other safe standard library modules needed
 ]
 
+
 class EmailAgent:
     """
     Email processing agent that can summarize, reply to, and research information for emails.
     """
 
     def __init__(
-        self,
-        attachment_dir: str = "email_attachments",
-        verbose: bool = False,
-        enable_deep_research: bool = False
+        self, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -106,13 +104,16 @@ class EmailAgent:
             except ValueError as e:
                 logger.warning(f"Failed to initialize GoogleSearchTool with Serper: {e}")
         else:
-            logger.warning("GoogleSearchTool not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY environment variable.")
+            logger.warning(
+                "GoogleSearchTool not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY environment variable."
+            )
 
         self.fallback_search_tool = FallbackWebSearchTool(
-            primary_tool=google_search_tool,
-            secondary_tool=ddg_search_tool
+            primary_tool=google_search_tool, secondary_tool=ddg_search_tool
         )
-        logger.info(f"Initialized FallbackWebSearchTool. Primary: {google_search_tool.name if google_search_tool else 'None'}, Secondary: {ddg_search_tool.name}")
+        logger.info(
+            f"Initialized FallbackWebSearchTool. Primary: {google_search_tool.name if google_search_tool else 'None'}, Secondary: {ddg_search_tool.name}"
+        )
 
         # Initialize deep research tool conditionally
         self.research_tool = None
@@ -125,7 +126,9 @@ class EmailAgent:
                     self.research_tool.enable_deep_research()
                     logger.info("Deep research functionality enabled for DeepResearchTool.")
                 except AttributeError:
-                     logger.warning("DeepResearchTool does not require explicit enabling or lacks 'enable_deep_research' method.")
+                    logger.warning(
+                        "DeepResearchTool does not require explicit enabling or lacks 'enable_deep_research' method."
+                    )
 
         # Define the list of tools available to the agent
         self.available_tools: list[Tool] = [
@@ -134,7 +137,7 @@ class EmailAgent:
             self.visit_webpage_tool,
             self.fallback_search_tool,
             self.python_tool,
-            azure_visualizer
+            azure_visualizer,
         ]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
@@ -160,7 +163,7 @@ class EmailAgent:
             planning_interval=4,
             name="email_processing_agent",
             description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities including web search, web browsing, and code execution.",
-            provide_run_summary=True
+            provide_run_summary=True,
         )
 
         logger.debug("Agent initialized with routed model configuration")
@@ -194,7 +197,7 @@ class EmailAgent:
             "summarize": "summary",
             "deep": "research",
             "reply": "reply",
-            "ask": "full"  # General prompt handle defaults to full processing
+            "ask": "full",  # General prompt handle defaults to full processing
         }
 
         return mode_mapping.get(email_prefix, "full")
@@ -233,7 +236,7 @@ class EmailAgent:
             email_context=email_context,
             handle_specific_template=email_instructions.task_template,
             attachment_task=attachment_task,
-            deep_research_mandatory=email_instructions.deep_research_mandatory
+            deep_research_mandatory=email_instructions.deep_research_mandatory,
         )
 
     def _process_agent_result(self, final_answer_obj: Any, agent_steps: list) -> dict[str, Any]:
@@ -252,21 +255,21 @@ class EmailAgent:
         # Initialization
         attachment_summaries = {"text": [], "html": []}
         calendar_data = None
-        research_findings_content = None # Store direct research findings here
-        research_metadata = {} # Store urls etc.
-        final_answer_from_llm = None # Store the LLM's final text answer
+        research_findings_content = None  # Store direct research findings here
+        research_metadata = {}  # Store urls etc.
+        final_answer_from_llm = None  # Store the LLM's final text answer
 
         result = {
             "metadata": {
                 "processed_at": datetime.now().isoformat(),
-                "mode": "unknown", # Mode might need to be set earlier based on handle
+                "mode": "unknown",  # Mode might need to be set earlier based on handle
                 "errors": [],
-                "email_sent": {"status": "pending", "timestamp": datetime.now().isoformat()}
+                "email_sent": {"status": "pending", "timestamp": datetime.now().isoformat()},
             },
             "email_content": {"html": None, "text": None, "enhanced": {"html": None, "text": None}},
             "attachments": {"summary": None, "processed": []},
             "calendar_data": None,
-            "research": None # Initialize research key
+            "research": None,  # Initialize research key
         }
 
         try:
@@ -275,7 +278,7 @@ class EmailAgent:
 
             # --- Iterate over agent_steps to extract tool outputs ---
             for i, step in enumerate(agent_steps):
-                logger.info(f"[Memory Step {i+1}] Type: {type(step)}")
+                logger.info(f"[Memory Step {i + 1}] Type: {type(step)}")
 
                 tool_name = None
                 tool_output = None
@@ -285,8 +288,10 @@ class EmailAgent:
                     first_tool_call = step.tool_calls[0]
                     tool_name = getattr(first_tool_call, "name", None)
                     if not tool_name:
-                         logger.warning(f"[Memory Step {i+1}] Found tool_calls, but could not extract name from first call.")
-                         tool_name = None # Reset tool_name if extraction failed
+                        logger.warning(
+                            f"[Memory Step {i + 1}] Found tool_calls, but could not extract name from first call."
+                        )
+                        tool_name = None  # Reset tool_name if extraction failed
 
                     # Revised Output Extraction
                     action_out = getattr(step, "action_output", None)
@@ -297,8 +302,10 @@ class EmailAgent:
                     elif obs_out is not None:
                         tool_output = obs_out
                     else:
-                         tool_output = None
-                         logger.warning(f"[Memory Step {i+1}] Tool call found, but both action_output and observations are None or unavailable.")
+                        tool_output = None
+                        logger.warning(
+                            f"[Memory Step {i + 1}] Tool call found, but both action_output and observations are None or unavailable."
+                        )
 
                 # Proceed only if we successfully extracted tool name and have some output
                 if tool_name and tool_output is not None:
@@ -309,56 +316,76 @@ class EmailAgent:
                         try:
                             tool_output = ast.literal_eval(tool_output)
                         except (ValueError, SyntaxError) as e:
-                            logger.error(f"[Memory Step {i+1}] Failed to parse tool_output string ('{tool_name}') using ast.literal_eval. Error: {e!s}. Content: {tool_output[:200]}...")
+                            logger.error(
+                                f"[Memory Step {i + 1}] Failed to parse tool_output string ('{tool_name}') using ast.literal_eval. Error: {e!s}. Content: {tool_output[:200]}..."
+                            )
                             continue
                         except Exception as e:
-                             logger.error(f"[Memory Step {i+1}] Unexpected error parsing tool_output string ('{tool_name}') using ast.literal_eval. Error: {e!s}. Content: {tool_output[:200]}...")
-                             continue
+                            logger.error(
+                                f"[Memory Step {i + 1}] Unexpected error parsing tool_output string ('{tool_name}') using ast.literal_eval. Error: {e!s}. Content: {tool_output[:200]}..."
+                            )
+                            continue
 
-                    logger.info(f"[Memory Step {i+1}] Processing tool call: '{tool_name}', Output Type: '{type(tool_output)}'")
+                    logger.info(
+                        f"[Memory Step {i + 1}] Processing tool call: '{tool_name}', Output Type: '{type(tool_output)}'"
+                    )
 
                     # --- Check for schedule_generator output by STRUCTURE ---
                     is_schedule_output = (
-                        isinstance(tool_output, dict) and
-                        "status" in tool_output and
-                        "ics_content" in tool_output and
-                        "calendar_links" in tool_output
+                        isinstance(tool_output, dict)
+                        and "status" in tool_output
+                        and "ics_content" in tool_output
+                        and "calendar_links" in tool_output
                     )
 
                     # --- Process known tools ---
                     if tool_name == "attachment_processor":
-                        logger.info(f"[Memory Step {i+1}] Matched tool: attachment_processor")
+                        logger.info(f"[Memory Step {i + 1}] Matched tool: attachment_processor")
                         try:
                             if isinstance(tool_output, dict):
                                 result["attachments"]["summary"] = tool_output.get("summary")
                                 for attachment in tool_output.get("attachments", []):
-                                    sanitized_att = {"filename": attachment.get("filename", ""), "size": attachment.get("size", 0), "type": attachment.get("type", "unknown")}
+                                    sanitized_att = {
+                                        "filename": attachment.get("filename", ""),
+                                        "size": attachment.get("size", 0),
+                                        "type": attachment.get("type", "unknown"),
+                                    }
                                     if "error" in attachment:
                                         sanitized_att["error"] = attachment["error"]
-                                        result["metadata"]["errors"].append(f"Error processing {sanitized_att['filename']}: {attachment['error']}")
+                                        result["metadata"]["errors"].append(
+                                            f"Error processing {sanitized_att['filename']}: {attachment['error']}"
+                                        )
                                         continue
                                     if "content" in attachment:
                                         content = attachment["content"]
                                         if isinstance(content, dict):
                                             if content.get("text"):
                                                 text = str(content["text"])
-                                                if len(text) > 500: text = text[:497] + "..."
-                                                attachment_summaries["text"].append(f"\\n\\nSummary of {sanitized_att['filename']}\\n{text}")
-                                                attachment_summaries["html"].append(f"<h3>Summary of {sanitized_att['filename']}</h3><p>{text}</p>")
+                                                if len(text) > 500:
+                                                    text = text[:497] + "..."
+                                                attachment_summaries["text"].append(
+                                                    f"\\n\\nSummary of {sanitized_att['filename']}\\n{text}"
+                                                )
+                                                attachment_summaries["html"].append(
+                                                    f"<h3>Summary of {sanitized_att['filename']}</h3><p>{text}</p>"
+                                                )
                                             elif content.get("caption"):
                                                 sanitized_att["caption"] = content["caption"]
-                                                attachment_summaries["text"].append(f"\\n\\nDescription of {sanitized_att['filename']}\\n{content['caption']}")
-                                                attachment_summaries["html"].append(f"<h3>Description of {sanitized_att['filename']}</h3><p>{content['caption']}</p>")
+                                                attachment_summaries["text"].append(
+                                                    f"\\n\\nDescription of {sanitized_att['filename']}\\n{content['caption']}"
+                                                )
+                                                attachment_summaries["html"].append(
+                                                    f"<h3>Description of {sanitized_att['filename']}</h3><p>{content['caption']}</p>"
+                                                )
                                     result["attachments"]["processed"].append(sanitized_att)
                         except Exception as e:
-                           error_msg = f"Error processing attachment results: {e!s}"
-                           logger.error(error_msg)
-                           result["metadata"]["errors"].append(error_msg)
-
+                            error_msg = f"Error processing attachment results: {e!s}"
+                            logger.error(error_msg)
+                            result["metadata"]["errors"].append(error_msg)
 
                     elif tool_name == "deep_research":
-                         logger.info(f"[Memory Step {i+1}] Matched tool: deep_research")
-                         try:
+                        logger.info(f"[Memory Step {i + 1}] Matched tool: deep_research")
+                        try:
                             if isinstance(tool_output, dict):
                                 # Store the primary findings content
                                 research_findings_content = tool_output.get("findings", "")
@@ -370,9 +397,9 @@ class EmailAgent:
                                     "read_urls": tool_output.get("read_urls", []),
                                     "timestamp": tool_output.get("timestamp", ""),
                                     "usage": tool_output.get("usage", {}),
-                                    "num_urls": tool_output.get("num_urls", 0)
+                                    "num_urls": tool_output.get("num_urls", 0),
                                 }
-                                result["research"] = research_metadata # Add metadata to result
+                                result["research"] = research_metadata  # Add metadata to result
                                 logger.info("Successfully extracted research findings and metadata.")
                                 if not research_findings_content:
                                     logger.warning("Deep research tool returned empty findings.")
@@ -380,81 +407,96 @@ class EmailAgent:
                             else:
                                 logger.error(f"Deep research tool output was not a dict: {type(tool_output)}")
                                 result["metadata"]["errors"].append("Deep research tool returned invalid output type.")
-                         except Exception as e:
-                             error_msg = f"Error extracting research findings: {e!s}"
-                             logger.error(error_msg)
-                             result["metadata"]["errors"].append(error_msg)
+                        except Exception as e:
+                            error_msg = f"Error extracting research findings: {e!s}"
+                            logger.error(error_msg)
+                            result["metadata"]["errors"].append(error_msg)
 
                     # Process schedule data if structure matches OR if tool name is correct
                     elif tool_name == "schedule_generator" or is_schedule_output:
-                         logger.info(f"[Memory Step {i+1}] Matched tool: schedule_generator (Structure match: {is_schedule_output})")
-                         try:
+                        logger.info(
+                            f"[Memory Step {i + 1}] Matched tool: schedule_generator (Structure match: {is_schedule_output})"
+                        )
+                        try:
                             if not isinstance(tool_output, dict):
-                                 logger.error(f"Schedule tool output was not a dict after parsing: {type(tool_output)}")
-                                 continue
+                                logger.error(f"Schedule tool output was not a dict after parsing: {type(tool_output)}")
+                                continue
 
                             status_success = tool_output.get("status") == "success"
 
                             if status_success:
-                                 ics_content = tool_output.get("ics_content")
-                                 if ics_content:
-                                     calendar_data = {"ics_content": ics_content}
-                                     logger.info("Successfully extracted calendar ICS content.") # Keep this
-                                 else:
-                                      logger.warning("Schedule generator output matched, but ics_content was empty or None.")
+                                ics_content = tool_output.get("ics_content")
+                                if ics_content:
+                                    calendar_data = {"ics_content": ics_content}
+                                    logger.info("Successfully extracted calendar ICS content.")  # Keep this
+                                else:
+                                    logger.warning(
+                                        "Schedule generator output matched, but ics_content was empty or None."
+                                    )
                             else:
-                                 error_msg = tool_output.get("message", "Schedule generator failed with no message.")
-                                 logger.error(f"Schedule generator output matched, but status was not success: {error_msg}")
-                                 result["metadata"]["errors"].append(f"Schedule Tool Error: {error_msg}")
+                                error_msg = tool_output.get("message", "Schedule generator failed with no message.")
+                                logger.error(
+                                    f"Schedule generator output matched, but status was not success: {error_msg}"
+                                )
+                                result["metadata"]["errors"].append(f"Schedule Tool Error: {error_msg}")
 
-                         except Exception as e:
-                             error_msg = f"Error processing calendar data step: {e!s}"
-                             logger.exception(error_msg)
-                             result["metadata"]["errors"].append(error_msg)
-
+                        except Exception as e:
+                            error_msg = f"Error processing calendar data step: {e!s}"
+                            logger.exception(error_msg)
+                            result["metadata"]["errors"].append(error_msg)
 
                     # Log other tool calls if needed
                     else:
-                        logger.info(f"[Memory Step {i+1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}...")
+                        logger.info(
+                            f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}..."
+                        )
 
                 # Log steps that are not ActionSteps or don't have the required attributes
                 else:
-                     logger.debug(f"[Memory Step {i+1}] Skipping step (Type: {type(step)}), not a relevant ActionStep.")
+                    logger.debug(
+                        f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), not a relevant ActionStep."
+                    )
 
             # --- End Loop ---
 
             # --- Assign extracted calendar_data to result ---
             if calendar_data:
-                 result["calendar_data"] = calendar_data
-                 logger.info("Assigned calendar_data to final result.")
+                result["calendar_data"] = calendar_data
+                logger.info("Assigned calendar_data to final result.")
 
             # --- Extract the final answer text from the LLM response ---
             if hasattr(final_answer_obj, "text"):
                 final_answer_from_llm = str(final_answer_obj.text).strip()
                 logger.info("Extracted final answer from AgentResponse.text")
             elif isinstance(final_answer_obj, str):
-                 final_answer_from_llm = final_answer_obj.strip()
-                 logger.info("Extracted final answer from string")
-            elif hasattr(final_answer_obj, "_value"): # Check for older AgentText structure
+                final_answer_from_llm = final_answer_obj.strip()
+                logger.info("Extracted final answer from string")
+            elif hasattr(final_answer_obj, "_value"):  # Check for older AgentText structure
                 final_answer_from_llm = str(final_answer_obj._value).strip()
                 logger.info("Extracted final answer from AgentText._value")
-            elif hasattr(final_answer_obj, "answer"): # Handle final_answer tool call argument
+            elif hasattr(final_answer_obj, "answer"):  # Handle final_answer tool call argument
                 # Check if the argument itself is the content string
                 if isinstance(getattr(final_answer_obj, "answer", None), str):
                     final_answer_from_llm = str(final_answer_obj.answer).strip()
                     logger.info("Extracted final answer from final_answer tool argument string")
                 # Or if it's nested in arguments (less likely for final_answer but check)
-                elif isinstance(getattr(final_answer_obj, "arguments", None), dict) and "answer" in final_answer_obj.arguments:
-                     final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
-                     logger.info("Extracted final answer from final_answer tool arguments dict")
+                elif (
+                    isinstance(getattr(final_answer_obj, "arguments", None), dict)
+                    and "answer" in final_answer_obj.arguments
+                ):
+                    final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
+                    logger.info("Extracted final answer from final_answer tool arguments dict")
                 else:
-                     final_answer_from_llm = str(final_answer_obj).strip()
-                     logger.warning(f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}...")
+                    final_answer_from_llm = str(final_answer_obj).strip()
+                    logger.warning(
+                        f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}..."
+                    )
 
             else:
                 final_answer_from_llm = str(final_answer_obj).strip()
-                logger.warning(f"Could not find specific answer attribute, using str(final_answer_obj). Result: {final_answer_from_llm[:100]}...")
-
+                logger.warning(
+                    f"Could not find specific answer attribute, using str(final_answer_obj). Result: {final_answer_from_llm[:100]}..."
+                )
 
             # --- Determine the primary content for the email ---
             email_body_content = None
@@ -478,16 +520,25 @@ class EmailAgent:
                     "Warm regards,",
                     "_Feel free to reply to this email to continue our conversation._",
                     "MXtoAI Assistant",
-                    "> **Disclaimer:**" # Remove Jina's disclaimer if present before our formatter adds its own signature
+                    "> **Disclaimer:**",  # Remove Jina's disclaimer if present before our formatter adds its own signature
                 ]
                 for marker in signature_markers:
                     # Use regex for case-insensitive removal and handle potential leading/trailing spaces/newlines
-                    email_body_content = re.sub(r"^[\\s\\n]*" + re.escape(marker) + r".*$", "", email_body_content, flags=re.IGNORECASE | re.MULTILINE).strip()
+                    email_body_content = re.sub(
+                        r"^[\\s\\n]*" + re.escape(marker) + r".*$",
+                        "",
+                        email_body_content,
+                        flags=re.IGNORECASE | re.MULTILINE,
+                    ).strip()
                 logger.debug("Removed potential signature remnants from email body content.")
 
                 # Format using ReportFormatter
-                result["email_content"]["text"] = self.report_formatter.format_report(email_body_content, format_type="text", include_signature=True)
-                result["email_content"]["html"] = self.report_formatter.format_report(email_body_content, format_type="html", include_signature=True)
+                result["email_content"]["text"] = self.report_formatter.format_report(
+                    email_body_content, format_type="text", include_signature=True
+                )
+                result["email_content"]["html"] = self.report_formatter.format_report(
+                    email_body_content, format_type="html", include_signature=True
+                )
 
                 # Default enhanced to base, remove old enhancement logic
                 result["email_content"]["enhanced"]["text"] = result["email_content"]["text"]
@@ -497,36 +548,54 @@ class EmailAgent:
             else:
                 # Fallback if no content could be determined
                 logger.error("No final answer text could be extracted or generated.")
-                fallback_msg = ("I apologize, but I encountered an issue generating the detailed response. Please try again later or contact support if this issue persists.")
-                result["email_content"]["html"] = self.report_formatter.format_report(fallback_msg, format_type="html", include_signature=True)
-                result["email_content"]["text"] = self.report_formatter.format_report(fallback_msg, format_type="text", include_signature=True)
+                fallback_msg = "I apologize, but I encountered an issue generating the detailed response. Please try again later or contact support if this issue persists."
+                result["email_content"]["html"] = self.report_formatter.format_report(
+                    fallback_msg, format_type="html", include_signature=True
+                )
+                result["email_content"]["text"] = self.report_formatter.format_report(
+                    fallback_msg, format_type="text", include_signature=True
+                )
                 result["email_content"]["enhanced"]["html"] = result["email_content"]["html"]
                 result["email_content"]["enhanced"]["text"] = result["email_content"]["text"]
                 result["metadata"]["errors"].append("No final answer text was generated or extracted")
                 result["metadata"]["email_sent"]["status"] = "error"
                 result["metadata"]["email_sent"]["error"] = "No reply text was generated"
 
-            logger.debug(f"Final processing result before return: { {k: (v if k != 'email_content' else '...') for k, v in result.items()} }") # Avoid logging large email content
+            logger.debug(
+                f"Final processing result before return: { {k: (v if k != 'email_content' else '...') for k, v in result.items()} }"
+            )  # Avoid logging large email content
             return result
 
         except Exception as e:
             logger.exception(f"Critical error in _process_agent_result: {e!s}")
             # ... (existing error handling remains the same) ...
             error_result = {
-                 "metadata": {
+                "metadata": {
                     "processed_at": datetime.now().isoformat(),
                     "mode": "unknown",
                     "errors": [f"Critical error in _process_agent_result: {e!s}"],
-                    "email_sent": { "status": "error", "error": f"Critical error: {e!s}", "timestamp": datetime.now().isoformat()}
-                 },
-                 "email_content": {
-                     "html": self.report_formatter.format_report("I encountered a critical error processing your request.", format_type="html", include_signature=True),
-                     "text": self.report_formatter.format_report("I encountered a critical error processing your request.", format_type="text", include_signature=True),
-                     "enhanced": {"html": None, "text": None}
-                 },
-                 "attachments": { "summary": None, "processed": [] },
-                 "calendar_data": None,
-                 "research": None # Ensure research key exists even on error
+                    "email_sent": {
+                        "status": "error",
+                        "error": f"Critical error: {e!s}",
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                },
+                "email_content": {
+                    "html": self.report_formatter.format_report(
+                        "I encountered a critical error processing your request.",
+                        format_type="html",
+                        include_signature=True,
+                    ),
+                    "text": self.report_formatter.format_report(
+                        "I encountered a critical error processing your request.",
+                        format_type="text",
+                        include_signature=True,
+                    ),
+                    "enhanced": {"html": None, "text": None},
+                },
+                "attachments": {"summary": None, "processed": []},
+                "calendar_data": None,
+                "research": None,  # Ensure research key exists even on error
             }
             logger.debug(f"Final processing error result before return: {error_result}")
             return error_result
@@ -534,7 +603,7 @@ class EmailAgent:
     def process_email(
         self,
         email_request: EmailRequest,
-        email_instructions: "EmailHandleInstructions"  # Type hint as string to avoid circular import
+        email_instructions: "EmailHandleInstructions",  # Type hint as string to avoid circular import
     ) -> dict[str, Any]:
         """
         Process an email using the agent based on the provided email handle instructions.
@@ -561,7 +630,7 @@ class EmailAgent:
                 logger.info("Agent execution completed.")
 
                 # --- Get steps from agent memory ---
-                agent_steps = list(self.agent.memory.steps) # Use memory.steps
+                agent_steps = list(self.agent.memory.steps)  # Use memory.steps
                 logger.info(f"Captured {len(agent_steps)} steps from agent memory.")
                 # Log first few steps types for debugging
                 # for i, step in enumerate(agent_steps):
@@ -575,7 +644,7 @@ class EmailAgent:
                 # --- End logging ---
 
                 # --- Pass final answer object AND steps ---
-                processed_result = self._process_agent_result(final_answer_obj, agent_steps) # Pass steps
+                processed_result = self._process_agent_result(final_answer_obj, agent_steps)  # Pass steps
 
                 # Ensure we have a reply for email sending
                 if not processed_result.get("email_content") or not processed_result["email_content"].get("text"):
@@ -585,7 +654,7 @@ class EmailAgent:
                     if "metadata" not in processed_result:
                         processed_result["metadata"] = {}
                     if "errors" not in processed_result["metadata"]:
-                         processed_result["metadata"]["errors"] = []
+                        processed_result["metadata"]["errors"] = []
                     processed_result["metadata"]["errors"].append(msg)
                     if "email_sent" not in processed_result["metadata"]:
                         processed_result["metadata"]["email_sent"] = {}
@@ -605,18 +674,11 @@ class EmailAgent:
                 return {
                     "attachments": {"summary": None, "attachments": []},
                     "summary": None,
-                    "email_content": {
-                        "html": None,
-                        "text": None
-                    },
+                    "email_content": {"html": None, "text": None},
                     "processed_at": datetime.now().isoformat(),
                     "handle": email_instructions.handle,
                     "errors": [error_msg],
-                    "email_sent": {
-                        "status": "error",
-                        "timestamp": datetime.now().isoformat(),
-                        "error": error_msg
-                    }
+                    "email_sent": {"status": "error", "timestamp": datetime.now().isoformat(), "error": error_msg},
                 }
 
         except Exception as e:
@@ -627,16 +689,9 @@ class EmailAgent:
             return {
                 "attachments": {"summary": None, "attachments": []},
                 "summary": None,
-                "email_content": {
-                    "html": None,
-                    "text": None
-                },
+                "email_content": {"html": None, "text": None},
                 "processed_at": datetime.now().isoformat(),
                 "handle": email_instructions.handle,
                 "errors": [error_msg],
-                "email_sent": {
-                    "status": "error",
-                    "timestamp": datetime.now().isoformat(),
-                    "error": error_msg
-                }
+                "email_sent": {"status": "error", "timestamp": datetime.now().isoformat(), "error": error_msg},
             }

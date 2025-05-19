@@ -36,11 +36,7 @@ if os.environ["IS_PROD"].lower() == "true":
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
 
 # Create the email agent on startup
-email_agent = EmailAgent(
-    attachment_dir=ATTACHMENTS_DIR,
-    verbose=True,
-    enable_deep_research=True
-)
+email_agent = EmailAgent(attachment_dir=ATTACHMENTS_DIR, verbose=True, enable_deep_research=True)
 
 
 # Function to cleanup attachment files and directory
@@ -55,7 +51,10 @@ def cleanup_attachments(directory_path):
         logger.error(f"Error deleting attachment directory {directory_path}: {e!s}")
         return False
 
-def create_success_response(summary: str, email_response: dict[str, Any], attachment_info: list[dict[str, Any]]) -> Response:
+
+def create_success_response(
+    summary: str, email_response: dict[str, Any], attachment_info: list[dict[str, Any]]
+) -> Response:
     """Create a success response with summary and email details"""
     return Response(
         content=json.dumps(
@@ -90,7 +89,9 @@ def create_error_response(summary: str, attachment_info: list[dict[str, Any]], e
 
 
 # Helper function to handle uploaded files
-async def handle_file_attachments(attachments: list[EmailAttachment], email_id: str, email_data: EmailRequest) -> tuple[str, list[dict[str, Any]]]:
+async def handle_file_attachments(
+    attachments: list[EmailAttachment], email_id: str, email_data: EmailRequest
+) -> tuple[str, list[dict[str, Any]]]:
     """Process uploaded files and save them as attachments"""
     email_attachments_dir = ""
     attachment_info = []
@@ -108,7 +109,9 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
     for idx, attachment in enumerate(attachments):
         try:
             # Log file details
-            logger.info(f"Processing file {idx + 1}/{len(attachments)}: {attachment.filename} ({attachment.contentType})")
+            logger.info(
+                f"Processing file {idx + 1}/{len(attachments)}: {attachment.filename} ({attachment.contentType})"
+            )
 
             # Sanitize filename for storage
             safe_filename = Path(attachment.filename).name
@@ -140,20 +143,19 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
                 raise OSError(msg)
 
             # Store attachment info with storage path
-            attachment_info.append({
-                "filename": safe_filename,
-                "type": attachment.contentType,
-                "path": storage_path,
-                "size": file_size,
-            })
+            attachment_info.append(
+                {
+                    "filename": safe_filename,
+                    "type": attachment.contentType,
+                    "path": storage_path,
+                    "size": file_size,
+                }
+            )
 
             # Update EmailAttachment object - no need to store content after saving
             email_data.attachments.append(
                 EmailAttachment(
-                    filename=safe_filename,
-                    contentType=attachment.contentType,
-                    size=file_size,
-                    path=storage_path
+                    filename=safe_filename, contentType=attachment.contentType, size=file_size, path=storage_path
                 )
             )
 
@@ -173,6 +175,7 @@ async def handle_file_attachments(attachments: list[EmailAttachment], email_id: 
     if not attachment_info and Path(email_attachments_dir).exists():
         logger.warning("No attachments were successfully saved, cleaning up directory")
         import shutil
+
         shutil.rmtree(email_attachments_dir)
         email_attachments_dir = ""
     else:
@@ -186,11 +189,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     """Send email reply using SES and return the response details"""
     if not processing_result or "email_content" not in processing_result:
         logger.error("Invalid processing result format")
-        return {
-            "status": "error",
-            "error": "Invalid processing result format",
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"status": "error", "error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
 
     # Skip email delivery for test emails
     if email_data.from_email in SKIP_EMAIL_DELIVERY:
@@ -198,7 +197,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
         return {
             "status": "skipped",
             "message": "Email delivery skipped for test email",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     # Get email body content
@@ -209,45 +208,45 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     # Handle case where no content was generated
     if not text_content:
         logger.error("No email content was generated")
-        return {
-            "status": "error",
-            "error": "No email content was generated",
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"status": "error", "error": "No email content was generated", "timestamp": datetime.now().isoformat()}
 
     # --- Prepare attachments ---
     attachments_to_send = []
     if processing_result.get("calendar_data") and processing_result["calendar_data"].get("ics_content"):
         ics_content = processing_result["calendar_data"]["ics_content"]
-        attachments_to_send.append({
-            "filename": "invite.ics",
-            "content": ics_content, # Should be string or bytes
-            "mimetype": "text/calendar"
-        })
+        attachments_to_send.append(
+            {
+                "filename": "invite.ics",
+                "content": ics_content,  # Should be string or bytes
+                "mimetype": "text/calendar",
+            }
+        )
         logger.info("Prepared invite.ics for attachment.")
     # Add logic here if other types of attachments need to be sent back
 
     # Format the email dict for SES
     ses_email_dict = {
         "from": email_data.from_email,  # Original sender becomes recipient
-        "to": email_data.to,            # Original recipient becomes sender
+        "to": email_data.to,  # Original recipient becomes sender
         "subject": email_data.subject,
         "messageId": email_data.messageId,
         "references": email_data.references,
         "inReplyTo": email_data.messageId,
-        "cc": email_data.cc
+        "cc": email_data.cc,
     }
 
     try:
         # Log details including CC
-        logger.info(f"Sending email reply to {ses_email_dict['from']} about '{ses_email_dict['subject']}' with CC: {ses_email_dict.get('cc')}")
+        logger.info(
+            f"Sending email reply to {ses_email_dict['from']} about '{ses_email_dict['subject']}' with CC: {ses_email_dict.get('cc')}"
+        )
 
         # --- Pass attachments to send_email_reply ---
         email_response = await send_email_reply(
             original_email=ses_email_dict,
             reply_text=text_content,
             reply_html=html_content,
-            attachments=attachments_to_send  # Pass prepared attachments
+            attachments=attachments_to_send,  # Pass prepared attachments
         )
 
         reply_result = {
@@ -255,7 +254,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
             "message_id": email_response.get("MessageId", ""),
             "to": ses_email_dict["from"],  # Who we're sending to
             "from": ses_email_dict["to"],  # Who it appears to be from
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
         logger.info(f"Email sent successfully with message ID: {reply_result['message_id']}")
@@ -263,26 +262,17 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
 
     except Exception as e:
         logger.error(f"Error sending email reply: {e!s}", exc_info=True)
-        return {
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"status": "error", "error": str(e), "timestamp": datetime.now().isoformat()}
 
 
 # Helper function to create sanitized response
 def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, Any]:
     """Create a clean response suitable for API return and database storage"""
     if not isinstance(processing_result, dict):
-        return {
-            "error": "Invalid processing result format",
-            "timestamp": datetime.now().isoformat()
-        }
+        return {"error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
 
     # Start with metadata which is already clean
-    sanitized_result = {
-        "metadata": processing_result.get("metadata", {})
-    }
+    sanitized_result = {"metadata": processing_result.get("metadata", {})}
 
     # Include research if available
     if "research" in processing_result:
@@ -292,7 +282,7 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
     if "attachments" in processing_result:
         sanitized_result["attachments"] = {
             "summary": processing_result["attachments"].get("summary"),
-            "processed": processing_result["attachments"].get("processed", [])
+            "processed": processing_result["attachments"].get("processed", []),
         }
 
     # Include email content lengths for monitoring
@@ -301,7 +291,9 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
         sanitized_result["email_content_stats"] = {
             "html_length": len(email_content.get("html", "")) if email_content.get("html") else 0,
             "text_length": len(email_content.get("text", "")) if email_content.get("text") else 0,
-            "has_enhanced_content": bool(email_content.get("enhanced", {}).get("html") or email_content.get("enhanced", {}).get("text"))
+            "has_enhanced_content": bool(
+                email_content.get("enhanced", {}).get("html") or email_content.get("enhanced", {}).get("text")
+            ),
         }
 
     return sanitized_result
@@ -319,7 +311,7 @@ async def process_email(
     emailId: Annotated[Optional[str], Form()] = None,
     rawHeaders: Annotated[Optional[str], Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
-    api_key: str = Depends(api_auth_scheme)
+    api_key: str = Depends(api_auth_scheme),
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
     # Validate API key
@@ -352,11 +344,9 @@ async def process_email(
         attachments_for_validation = []
         for file in files:
             content = await file.read()
-            attachments_for_validation.append({
-                "filename": file.filename,
-                "contentType": file.content_type,
-                "size": len(content)
-            })
+            attachments_for_validation.append(
+                {"filename": file.filename, "contentType": file.content_type, "size": len(content)}
+            )
             await file.seek(0)  # Reset file pointer for later use
 
         # Validate attachments
@@ -367,13 +357,15 @@ async def process_email(
         attachments = []
         for file in files:
             content = await file.read()
-            attachments.append(EmailAttachment(
-                filename=file.filename,
-                contentType=file.content_type,
-                content=content,  # Store binary content directly
-                size=len(content),
-                path=None  # Path will be set after saving to disk
-            ))
+            attachments.append(
+                EmailAttachment(
+                    filename=file.filename,
+                    contentType=file.content_type,
+                    content=content,  # Store binary content directly
+                    size=len(content),
+                    path=None,  # Path will be set after saving to disk
+                )
+            )
             logger.info(f"Received attachment: {file.filename} (type: {file.content_type}, size: {len(content)} bytes)")
             await file.seek(0)  # Reset file pointer for later use
 
@@ -382,7 +374,6 @@ async def process_email(
 
         # Log initial email details
         logger.info("Received new email request:")
-        logger.info(f"From: {from_email}")
         logger.info(f"To: {to} (handle: {handle})")
         logger.info(f"Subject: {subject}")
         logger.info(f"Message ID: {messageId}")
@@ -418,7 +409,7 @@ async def process_email(
             emailId=emailId,
             rawHeaders=parsed_headers,
             cc=cc_list,
-            attachments=[]  # Start with empty list, will be updated after saving files
+            attachments=[],  # Start with empty list, will be updated after saving files
         )
 
         # Generate email ID
@@ -440,11 +431,13 @@ async def process_email(
                 "filename": info.get("filename", ""),
                 "type": info.get("type", info.get("contentType", "application/octet-stream")),
                 "path": info.get("path", ""),
-                "size": info.get("size", 0)
+                "size": info.get("size", 0),
             }
             processed_attachment_info.append(processed_info)
-            logger.info(f"Prepared attachment for processing: {processed_info['filename']} "
-                       f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)")
+            logger.info(
+                f"Prepared attachment for processing: {processed_info['filename']} "
+                f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)"
+            )
 
         # Enqueue the task for async processing
         process_email_task.send(email_request.model_dump(), email_attachments_dir, processed_attachment_info)
@@ -452,12 +445,14 @@ async def process_email(
 
         # Return immediate success response
         return Response(
-            content=json.dumps({
-                "message": "Email received and queued for processing",
-                "email_id": email_id,
-                "attachments_saved": len(attachment_info),
-                "status": "processing"
-            }),
+            content=json.dumps(
+                {
+                    "message": "Email received and queued for processing",
+                    "email_id": email_id,
+                    "attachments_saved": len(attachment_info),
+                    "status": "processing",
+                }
+            ),
             status_code=status.HTTP_200_OK,
             media_type="application/json",
         )
@@ -471,12 +466,14 @@ async def process_email(
 
         # Return error response
         return Response(
-            content=json.dumps({
-                "message": "Error processing email request",
-                "error": str(e),
-                "attachments_saved": len(attachment_info) if "attachment_info" in locals() else 0,
-                "attachments_deleted": True,
-            }),
+            content=json.dumps(
+                {
+                    "message": "Error processing email request",
+                    "error": str(e),
+                    "attachments_saved": len(attachment_info) if "attachment_info" in locals() else 0,
+                    "attachments_deleted": True,
+                }
+            ),
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             media_type="application/json",
         )
@@ -485,4 +482,5 @@ async def process_email(
 if __name__ == "__main__":
     # Run the server if this file is executed directly
     import uvicorn
+
     uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)

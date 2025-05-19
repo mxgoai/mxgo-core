@@ -14,6 +14,7 @@ from mxtoai.tools.mock_jina_service import MockJinaService
 # Configure logger
 logger = get_logger("research_tool")
 
+
 class DeepResearchTool(Tool):
     """
     Tool for conducting deep research based on email content using Jina AI's DeepSearch API.
@@ -45,14 +46,11 @@ class DeepResearchTool(Tool):
 
         # Define input schema before super().__init__() to ensure proper validation
         self.inputs = {
-            "query": {
-                "type": "string",
-                "description": "The research query or question to investigate"
-            },
+            "query": {"type": "string", "description": "The research query or question to investigate"},
             "context": {
                 "type": "string",
                 "description": "Additional context from email thread or other sources",
-                "nullable": True
+                "nullable": True,
             },
             "attachments": {
                 "type": "array",
@@ -63,10 +61,10 @@ class DeepResearchTool(Tool):
                     "properties": {
                         "path": {"type": "string"},
                         "type": {"type": "string"},
-                        "filename": {"type": "string"}
+                        "filename": {"type": "string"},
                     },
-                    "required": ["path", "type", "filename"]
-                }
+                    "required": ["path", "type", "filename"],
+                },
             },
             "thread_messages": {
                 "type": "array",
@@ -74,26 +72,23 @@ class DeepResearchTool(Tool):
                 "nullable": True,
                 "items": {
                     "type": "object",
-                    "properties": {
-                        "role": {"type": "string"},
-                        "content": {"type": "string"}
-                    },
-                    "required": ["role", "content"]
-                }
+                    "properties": {"role": {"type": "string"}, "content": {"type": "string"}},
+                    "required": ["role", "content"],
+                },
             },
             "stream": {
                 "type": "boolean",
                 "description": "Whether to stream the response",
                 "default": False,
-                "nullable": True
+                "nullable": True,
             },
             "reasoning_effort": {
                 "type": "string",
                 "description": "Level of reasoning effort ('low', 'medium', 'high')",
                 "enum": ["low", "medium", "high"],
                 "default": "medium",
-                "nullable": True
-            }
+                "nullable": True,
+            },
         }
 
         # Log schema before initialization
@@ -113,10 +108,7 @@ class DeepResearchTool(Tool):
 
         # Jina AI DeepSearch API configuration
         self.api_url = "https://deepsearch.jina.ai/v1/chat/completions"
-        self.headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
+        self.headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"}
 
         # Flag to track if deep research is explicitly requested
         self.deep_research_enabled = False
@@ -165,11 +157,7 @@ class DeepResearchTool(Tool):
                 file_data = f.read()
                 encoded = base64.b64encode(file_data).decode("utf-8")
 
-            return {
-                "type": "file",
-                "data": f"data:{mime_type};base64,{encoded}",
-                "mimeType": mime_type
-            }
+            return {"type": "file", "data": f"data:{mime_type};base64,{encoded}", "mimeType": mime_type}
 
         except Exception as e:
             logger.error(f"Error encoding file {file_path}: {e!s}")
@@ -195,7 +183,7 @@ class DeepResearchTool(Tool):
         query: str,
         context: Optional[str] = None,
         attachments: Optional[list[dict[str, Any]]] = None,
-        thread_messages: Optional[list[dict[str, str]]] = None
+        thread_messages: Optional[list[dict[str, str]]] = None,
     ) -> list[dict[str, Any]]:
         """
         Prepare messages for Jina API including files and context.
@@ -218,28 +206,18 @@ class DeepResearchTool(Tool):
         message_content = []
 
         # Add query as text (encoded if enabled)
-        message_content.append({
-            "type": "text",
-            "text": self._encode_text(query)
-        })
+        message_content.append({"type": "text", "text": self._encode_text(query)})
 
         # Add thread messages content if available
         if thread_messages:
             thread_context = "\nPrevious Messages:\n" + "\n".join(
-                f"{msg['role']}: {msg['content']}"
-                for msg in thread_messages
+                f"{msg['role']}: {msg['content']}" for msg in thread_messages
             )
-            message_content.append({
-                "type": "text",
-                "text": self._encode_text(thread_context)
-            })
+            message_content.append({"type": "text", "text": self._encode_text(thread_context)})
 
         # Add context if available
         if context:
-            message_content.append({
-                "type": "text",
-                "text": self._encode_text(f"\nAdditional Context:\n{context}")
-            })
+            message_content.append({"type": "text", "text": self._encode_text(f"\nAdditional Context:\n{context}")})
 
         # Add encoded files
         if attachments:
@@ -249,10 +227,7 @@ class DeepResearchTool(Tool):
                     message_content.append(file_data)
 
         # Return a single message with all content
-        return [{
-            "role": "user",
-            "content": message_content
-        }]
+        return [{"role": "user", "content": message_content}]
 
     def _process_stream_response(self, response):
         """
@@ -337,16 +312,14 @@ class DeepResearchTool(Tool):
             # Combine all findings into a single string
             combined_findings = "".join(findings).strip()
             if not combined_findings:
-                return {
-                    "error": "No content received in streaming response"
-                }
+                return {"error": "No content received in streaming response"}
 
             return {
                 "findings": combined_findings,
                 "annotations": annotations,
                 "visited_urls": list(visited_urls),
                 "read_urls": list(read_urls),
-                "timestamp": timestamp
+                "timestamp": timestamp,
             }
 
         except Exception as e:
@@ -371,11 +344,7 @@ class DeepResearchTool(Tool):
         return content
 
     def _format_research_content(
-        self,
-        content: str,
-        annotations: list[dict[str, Any]],
-        visited_urls: list[str],
-        read_urls: list[str]
+        self, content: str, annotations: list[dict[str, Any]], visited_urls: list[str], read_urls: list[str]
     ) -> str:
         """
         Format research content with proper citations and structure.
@@ -428,8 +397,7 @@ class DeepResearchTool(Tool):
                             citation_num = url_citations[url]
                             # Replace the citation in the text
                             formatted_section = formatted_section.replace(
-                                f"|^{url_info.get('id', '')}]",
-                                f"[{citation_num}]"
+                                f"|^{url_info.get('id', '')}]", f"[{citation_num}]"
                             )
 
                 formatted_sections.append(formatted_section)
@@ -445,16 +413,19 @@ class DeepResearchTool(Tool):
             for url, citation_num in sorted(url_citations.items(), key=lambda x: x[1]):
                 # Find annotation for this URL to get title and date
                 url_annotation = next(
-                    (a for a in annotations if a.get("type") == "url_citation"
-                     and a.get("url_citation", {}).get("url") == url),
-                    None
+                    (
+                        a
+                        for a in annotations
+                        if a.get("type") == "url_citation" and a.get("url_citation", {}).get("url") == url
+                    ),
+                    None,
                 )
 
                 if url_annotation:
                     url_info = url_annotation.get("url_citation", {})
-                    title = url_info.get("title", url) # Use URL as title if missing
+                    title = url_info.get("title", url)  # Use URL as title if missing
                     date_str = url_info.get("dateTime", "")
-                    retrieved_info = f" Retrieved on {date_str.split()[0]}" if date_str else "" # Add date if available
+                    retrieved_info = f" Retrieved on {date_str.split()[0]}" if date_str else ""  # Add date if available
                     # Corrected reference formatting to standard Markdown
                     references.append(f"{citation_num}. {title}.{retrieved_info} from [{url}]({url})")
                 else:
@@ -479,7 +450,7 @@ class DeepResearchTool(Tool):
         attachments: Optional[list[dict[str, Any]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
         stream: bool = False,
-        reasoning_effort: str = "medium"
+        reasoning_effort: str = "medium",
     ) -> dict[str, Any]:
         """
         Perform deep research on a query with context and attachments.
@@ -504,7 +475,7 @@ class DeepResearchTool(Tool):
             return {
                 "query": query,
                 "findings": "Research functionality is not available. JINA_API_KEY is required.",
-                "error": "API key not configured"
+                "error": "API key not configured",
             }
 
         if not self.deep_research_enabled:
@@ -512,16 +483,14 @@ class DeepResearchTool(Tool):
             return {
                 "query": query,
                 "findings": "Deep research functionality is currently disabled. Enable it explicitly before use.",
-                "error": "Deep research disabled"
+                "error": "Deep research disabled",
             }
 
         try:
             if self.use_mock_service:
                 logger.info("Using mock Jina service for load testing")
                 response_data = self.mock_service.process_request(
-                    query=query,
-                    stream=stream,
-                    reasoning_effort=reasoning_effort
+                    query=query, stream=stream, reasoning_effort=reasoning_effort
                 )
 
                 if stream:
@@ -531,12 +500,9 @@ class DeepResearchTool(Tool):
                         return {
                             "query": query,
                             "findings": f"An error occurred during research: {stream_results['error']}",
-                            "error": stream_results["error"]
+                            "error": stream_results["error"],
                         }
-                    return {
-                        "query": query,
-                        **stream_results
-                    }
+                    return {"query": query, **stream_results}
                 # Process non-streaming response from mock service
                 content = response_data["choices"][0]["message"]["content"]
                 annotations = response_data["choices"][0]["message"]["annotations"]
@@ -546,7 +512,7 @@ class DeepResearchTool(Tool):
                     content=content,
                     annotations=annotations,
                     visited_urls=response_data.get("visitedURLs", []),
-                    read_urls=response_data.get("readURLs", [])
+                    read_urls=response_data.get("readURLs", []),
                 )
 
                 return {
@@ -557,15 +523,12 @@ class DeepResearchTool(Tool):
                     "read_urls": response_data.get("readURLs", []),
                     "timestamp": response_data.get("timestamp"),
                     "usage": response_data.get("usage", {}),
-                    "num_urls": response_data.get("numURLs", 0)
+                    "num_urls": response_data.get("numURLs", 0),
                 }
 
             # Prepare messages including files and context
             messages = self._prepare_messages(
-                query=query,
-                context=context,
-                attachments=attachments,
-                thread_messages=thread_messages
+                query=query, context=context, attachments=attachments, thread_messages=thread_messages
             )
 
             # Prepare request data
@@ -574,7 +537,7 @@ class DeepResearchTool(Tool):
                 "messages": messages,
                 "stream": stream,
                 "reasoning_effort": reasoning_effort,
-                "no_direct_answer": False
+                "no_direct_answer": False,
             }
 
             # Log the complete request data
@@ -591,7 +554,7 @@ class DeepResearchTool(Tool):
                 headers=self.headers,
                 data=json.dumps(data),
                 stream=stream,
-                timeout=600  # 10 minute timeout
+                timeout=600,  # 10 minute timeout
             )
 
             logger.debug(f"Response status: {response.status_code}")
@@ -602,7 +565,7 @@ class DeepResearchTool(Tool):
                 return {
                     "query": query,
                     "findings": f"An error occurred during research: {error_msg}",
-                    "error": error_msg
+                    "error": error_msg,
                 }
 
             try:
@@ -612,14 +575,16 @@ class DeepResearchTool(Tool):
                     logger.debug(f"Non-streaming response data: {json.dumps(response_data, indent=2)}")
 
                     # Check for error in the response content
-                    if (response_data.get("choices") and
-                        response_data["choices"][0].get("message", {}).get("type") == "error"):
+                    if (
+                        response_data.get("choices")
+                        and response_data["choices"][0].get("message", {}).get("type") == "error"
+                    ):
                         error_msg = response_data["choices"][0]["message"].get("content", "Unknown error from API")
                         logger.error(f"API returned error in response: {error_msg}")
                         return {
                             "query": query,
                             "findings": f"An error occurred during research: {error_msg}",
-                            "error": error_msg
+                            "error": error_msg,
                         }
 
                     if not response_data.get("choices") or not response_data["choices"][0].get("message"):
@@ -628,7 +593,7 @@ class DeepResearchTool(Tool):
                         return {
                             "query": query,
                             "findings": f"An error occurred during research: {error_msg}",
-                            "error": error_msg
+                            "error": error_msg,
                         }
 
                     # Extract message content and annotations
@@ -641,7 +606,7 @@ class DeepResearchTool(Tool):
                         content=content,
                         annotations=annotations,
                         visited_urls=response_data.get("visitedURLs", []),
-                        read_urls=response_data.get("readURLs", [])
+                        read_urls=response_data.get("readURLs", []),
                     )
 
                     research_results = {
@@ -652,7 +617,7 @@ class DeepResearchTool(Tool):
                         "read_urls": response_data.get("readURLs", []),
                         "timestamp": response.headers.get("date"),
                         "usage": response_data.get("usage", {}),
-                        "num_urls": response_data.get("numURLs", len(response_data.get("visitedURLs", [])))
+                        "num_urls": response_data.get("numURLs", len(response_data.get("visitedURLs", []))),
                     }
                 else:
                     # Process streaming response
@@ -661,7 +626,7 @@ class DeepResearchTool(Tool):
                         return {
                             "query": query,
                             "findings": f"An error occurred during research: {stream_results['error']}",
-                            "error": stream_results["error"]
+                            "error": stream_results["error"],
                         }
                     research_results = {
                         "query": query,
@@ -669,17 +634,21 @@ class DeepResearchTool(Tool):
                         "annotations": stream_results.get("annotations", []),
                         "visited_urls": stream_results.get("visited_urls", []),
                         "read_urls": stream_results.get("read_urls", []),
-                        "timestamp": stream_results.get("timestamp") or response.headers.get("date")
+                        "timestamp": stream_results.get("timestamp") or response.headers.get("date"),
                     }
 
                 # Validate research results
                 if not research_results.get("findings") or research_results["findings"].startswith("Error:"):
-                    error_msg = research_results["findings"] if research_results.get("findings") else "No research findings returned"
+                    error_msg = (
+                        research_results["findings"]
+                        if research_results.get("findings")
+                        else "No research findings returned"
+                    )
                     logger.error(f"Invalid research results: {error_msg}")
                     return {
                         "query": query,
                         "findings": f"An error occurred during research: {error_msg}",
-                        "error": error_msg
+                        "error": error_msg,
                     }
 
                 logger.info(f"Research complete for query: {query}")
@@ -691,13 +660,9 @@ class DeepResearchTool(Tool):
                 return {
                     "query": query,
                     "findings": f"An error occurred during research: {error_msg}",
-                    "error": error_msg
+                    "error": error_msg,
                 }
 
         except Exception as e:
             logger.error(f"Error performing research: {e!s}")
-            return {
-                "query": query,
-                "findings": f"An error occurred during research: {e!s}",
-                "error": str(e)
-            }
+            return {"query": query, "findings": f"An error occurred during research: {e!s}", "error": str(e)}

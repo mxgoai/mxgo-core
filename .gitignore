@@ -235,7 +235,7 @@ email_attachments/
 *.db
 logs/
 temp/
-.DS_Store 
+.DS_Store
 
 # Logs
 

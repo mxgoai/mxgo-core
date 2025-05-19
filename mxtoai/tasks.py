@@ -5,10 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import dramatiq
+from dotenv import load_dotenv
 from dramatiq.brokers.rabbitmq import RabbitmqBroker
 from dramatiq.results import Results
 from dramatiq.results.backends.redis import RedisBackend
-from dotenv import load_dotenv
 
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
@@ -24,14 +24,14 @@ logger = get_logger(__name__)
 
 # Build RabbitMQ URL from environment variables (Broker)
 # Include heartbeat as a query parameter in the URL
-RABBITMQ_HEARTBEAT = os.getenv('RABBITMQ_HEARTBEAT', '5')
+RABBITMQ_HEARTBEAT = os.getenv("RABBITMQ_HEARTBEAT", "5")
 RABBITMQ_URL = f"amqp://{os.getenv('RABBITMQ_USER', 'guest')}:{os.getenv('RABBITMQ_PASSWORD', 'guest')}@{os.getenv('RABBITMQ_HOST', 'localhost')}:{os.getenv('RABBITMQ_PORT', '5672')}{os.getenv('RABBITMQ_VHOST', '/')}?heartbeat={RABBITMQ_HEARTBEAT}"
 
 # Build Redis URL from environment variables (Results Backend)
-REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
-REDIS_PORT = os.getenv('REDIS_PORT', '6379')
-REDIS_DB = os.getenv('REDIS_DB', '0')
-REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+REDIS_DB = os.getenv("REDIS_DB", "0")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 REDIS_URL = f"redis://{':' + REDIS_PASSWORD + '@' if REDIS_PASSWORD else ''}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
 # Initialize RabbitMQ broker
@@ -42,10 +42,7 @@ rabbitmq_broker = RabbitmqBroker(
 )
 
 # Configure Redis as the result backend
-redis_backend = RedisBackend(
-    url=REDIS_URL,
-    namespace="dramatiq-results"
-)
+redis_backend = RedisBackend(url=REDIS_URL, namespace="dramatiq-results")
 
 # Add results middleware to broker
 rabbitmq_broker.add_middleware(Results(backend=redis_backend))
@@ -76,9 +73,7 @@ def should_retry(retries_so_far, exception):
 
 @dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
 def process_email_task(
-    email_data: dict[str, Any],
-    email_attachments_dir: str,
-    attachment_info: list[dict[str, Any]]
+    email_data: dict[str, Any], email_attachments_dir: str, attachment_info: list[dict[str, Any]]
 ) -> None:
     """
     Dramatiq task for processing emails asynchronously.
@@ -132,10 +127,7 @@ def process_email_task(
         email_request.attachments = valid_attachments
 
     # Process the email using the Pydantic model directly
-    processing_result = email_agent.process_email(
-        email_request,
-        email_instructions
-    )
+    processing_result = email_agent.process_email(email_request, email_instructions)
 
     # Send reply email if generated
     if processing_result and "email_content" in processing_result:
@@ -151,14 +143,16 @@ def process_email_task(
                 email_sent_result = {"MessageId": "skipped", "status": "skipped"}
             else:
                 # --- Prepare attachments for sending ---
-                attachments_to_send = [] # Initialize empty list
+                attachments_to_send = []  # Initialize empty list
                 if processing_result.get("calendar_data") and processing_result["calendar_data"].get("ics_content"):
                     ics_content = processing_result["calendar_data"]["ics_content"]
-                    attachments_to_send.append({
-                        "filename": "invite.ics",
-                        "content": ics_content, # Should be string or bytes
-                        "mimetype": "text/calendar"
-                    })
+                    attachments_to_send.append(
+                        {
+                            "filename": "invite.ics",
+                            "content": ics_content,  # Should be string or bytes
+                            "mimetype": "text/calendar",
+                        }
+                    )
                     logger.info("Prepared invite.ics for attachment in task.")
                 # Add logic here if other types of attachments need to be sent back based on processing_result
 
@@ -169,21 +163,23 @@ def process_email_task(
                     "subject": email_request.subject,
                     "messageId": email_request.messageId,
                     "references": email_request.references,
-                    "cc": email_request.cc
+                    "cc": email_request.cc,
                 }
 
                 # Instantiate EmailSender and call send_reply method
                 try:
                     sender = EmailSender()
-                    email_sent_result = asyncio.run(sender.send_reply(
-                        original_email_details, # Pass as first positional argument
-                        reply_text=text_content,
-                        reply_html=html_content,
-                        attachments=attachments_to_send
-                    ))
+                    email_sent_result = asyncio.run(
+                        sender.send_reply(
+                            original_email_details,  # Pass as first positional argument
+                            reply_text=text_content,
+                            reply_html=html_content,
+                            attachments=attachments_to_send,
+                        )
+                    )
                 except Exception as send_err:
-                     logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)
-                     email_sent_result = {"MessageId": "error", "status": "error", "error": str(send_err)}
+                    logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)
+                    email_sent_result = {"MessageId": "error", "status": "error", "error": str(send_err)}
 
             # Update the email_sent status in metadata
             if "metadata" in processing_result:
@@ -194,9 +190,7 @@ def process_email_task(
     # Log the processing result
     metadata = processing_result.get("metadata", {}).copy()
     if "email_sent" in metadata:
-        metadata["email_sent"] = {
-            "status": "sent" if metadata["email_sent"] else "failed"
-        }
+        metadata["email_sent"] = {"status": "sent" if metadata["email_sent"] else "failed"}
     logger.info(f"Email processed successfully: {json.dumps(metadata)}")
 
     if email_attachments_dir:

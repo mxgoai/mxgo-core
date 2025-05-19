@@ -11,6 +11,7 @@ from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
 
 logger = get_logger(__name__)
 
+
 async def validate_api_key(api_key: str) -> Optional[Response]:
     """
     Validate the API key.
@@ -24,16 +25,16 @@ async def validate_api_key(api_key: str) -> Optional[Response]:
     """
     if api_key != os.environ["X_API_KEY"]:
         return Response(
-            content=json.dumps({
-                "message": "Invalid API key",
-                "status": "error"
-            }),
+            content=json.dumps({"message": "Invalid API key", "status": "error"}),
             status_code=status.HTTP_401_UNAUTHORIZED,
             media_type="application/json",
         )
     return None
 
-async def validate_email_whitelist(from_email: str, to: str, subject: str, messageId: Optional[str]) -> Optional[Response]:
+
+async def validate_email_whitelist(
+    from_email: str, to: str, subject: str, messageId: Optional[str]
+) -> Optional[Response]:
     """
     Validate if the sender's email is whitelisted and verified.
 
@@ -89,35 +90,42 @@ MX to AI Team"""
     # Send rejection email for both unverified and non-existent cases
     email_dict = {
         "from": from_email,  # Original sender becomes recipient
-        "to": to,            # Original recipient becomes sender
+        "to": to,  # Original recipient becomes sender
         "subject": f"Re: {subject}",
         "messageId": messageId,
         "references": None,
         "inReplyTo": messageId,
-        "cc": None
+        "cc": None,
     }
 
     try:
         await send_email_reply(email_dict, rejection_msg, html_rejection)
-        logger.info(f"Sent whitelist rejection email to {from_email} (exists={exists_in_whitelist}, verified={is_verified})")
+        logger.info(
+            f"Sent whitelist rejection email to {from_email} (exists={exists_in_whitelist}, verified={is_verified})"
+        )
     except Exception as e:
         logger.error(f"Failed to send whitelist rejection email: {e}")
 
     # Return appropriate error response
     status_message = "Email not whitelisted" if not exists_in_whitelist else "Email not verified"
     return Response(
-        content=json.dumps({
-            "message": f"Email rejected - {status_message}",
-            "email": from_email,
-            "exists_in_whitelist": exists_in_whitelist,
-            "is_verified": is_verified,
-            "rejection_sent": True
-        }),
+        content=json.dumps(
+            {
+                "message": f"Email rejected - {status_message}",
+                "email": from_email,
+                "exists_in_whitelist": exists_in_whitelist,
+                "is_verified": is_verified,
+                "rejection_sent": True,
+            }
+        ),
         status_code=status.HTTP_403_FORBIDDEN,
         media_type="application/json",
     )
 
-async def validate_email_handle(to: str, from_email: str, subject: str, messageId: Optional[str]) -> tuple[Optional[Response], Optional[str]]:
+
+async def validate_email_handle(
+    to: str, from_email: str, subject: str, messageId: Optional[str]
+) -> tuple[Optional[Response], Optional[str]]:
     """
     Validate if the email handle/alias is supported.
 
@@ -140,12 +148,12 @@ async def validate_email_handle(to: str, from_email: str, subject: str, messageI
         # Create email dict with proper format
         email_dict = {
             "from": from_email,  # Original sender becomes recipient
-            "to": to,            # Original recipient becomes sender
+            "to": to,  # Original recipient becomes sender
             "subject": f"Re: {subject}",
             "messageId": messageId,
             "references": None,
             "inReplyTo": messageId,
-            "cc": None
+            "cc": None,
         }
 
         try:
@@ -155,18 +163,17 @@ async def validate_email_handle(to: str, from_email: str, subject: str, messageI
             logger.error(f"Failed to send handle rejection email: {e}")
 
         return Response(
-            content=json.dumps({
-                "message": "Unsupported email handle",
-                "handle": handle,
-                "rejection_sent": True
-            }),
+            content=json.dumps({"message": "Unsupported email handle", "handle": handle, "rejection_sent": True}),
             status_code=status.HTTP_400_BAD_REQUEST,
             media_type="application/json",
         ), None
 
     return None, handle
 
-async def validate_attachments(attachments: list[dict], from_email: str, to: str, subject: str, messageId: Optional[str]) -> Optional[Response]:
+
+async def validate_attachments(
+    attachments: list[dict], from_email: str, to: str, subject: str, messageId: Optional[str]
+) -> Optional[Response]:
     """
     Validate email attachments against size and count limits.
 
@@ -207,7 +214,7 @@ Number of attachments in your email: {len(attachments)}</p>
             "messageId": messageId,
             "references": None,
             "inReplyTo": messageId,
-            "cc": None
+            "cc": None,
         }
 
         try:
@@ -217,12 +224,14 @@ Number of attachments in your email: {len(attachments)}</p>
             logger.error(f"Failed to send attachment count rejection email: {e}")
 
         return Response(
-            content=json.dumps({
-                "message": "Too many attachments",
-                "max_allowed": MAX_ATTACHMENTS_COUNT,
-                "received": len(attachments),
-                "rejection_sent": True
-            }),
+            content=json.dumps(
+                {
+                    "message": "Too many attachments",
+                    "max_allowed": MAX_ATTACHMENTS_COUNT,
+                    "received": len(attachments),
+                    "rejection_sent": True,
+                }
+            ),
             status_code=status.HTTP_400_BAD_REQUEST,
             media_type="application/json",
         )
@@ -235,7 +244,7 @@ Number of attachments in your email: {len(attachments)}</p>
             rejection_msg = f"""Your email could not be processed due to an oversized attachment.
 
 Maximum allowed size per attachment: {MAX_ATTACHMENT_SIZE_MB}MB
-Size of attachment '{attachment.get('filename', 'unknown')}': {size_mb:.1f}MB
+Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB
 
 Please reduce the file size and try again.
 
@@ -244,7 +253,7 @@ MX to AI Team"""
 
             html_rejection = f"""<p>Your email could not be processed due to an oversized attachment.</p>
 <p>Maximum allowed size per attachment: {MAX_ATTACHMENT_SIZE_MB}MB<br>
-Size of attachment '{attachment.get('filename', 'unknown')}': {size_mb:.1f}MB</p>
+Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p>
 <p>Please reduce the file size and try again.</p>
 <p>Best regards,<br>MX to AI Team</p>"""
 
@@ -255,7 +264,7 @@ Size of attachment '{attachment.get('filename', 'unknown')}': {size_mb:.1f}MB</p
                 "messageId": messageId,
                 "references": None,
                 "inReplyTo": messageId,
-                "cc": None
+                "cc": None,
             }
 
             try:
@@ -265,13 +274,15 @@ Size of attachment '{attachment.get('filename', 'unknown')}': {size_mb:.1f}MB</p
                 logger.error(f"Failed to send attachment size rejection email: {e}")
 
             return Response(
-                content=json.dumps({
-                    "message": "Attachment too large",
-                    "filename": attachment.get("filename", "unknown"),
-                    "size_mb": size_mb,
-                    "max_allowed_mb": MAX_ATTACHMENT_SIZE_MB,
-                    "rejection_sent": True
-                }),
+                content=json.dumps(
+                    {
+                        "message": "Attachment too large",
+                        "filename": attachment.get("filename", "unknown"),
+                        "size_mb": size_mb,
+                        "max_allowed_mb": MAX_ATTACHMENT_SIZE_MB,
+                        "rejection_sent": True,
+                    }
+                ),
                 status_code=status.HTTP_400_BAD_REQUEST,
                 media_type="application/json",
             )
@@ -300,7 +311,7 @@ Total size of your attachments: {total_size_mb:.1f}MB</p>
             "messageId": messageId,
             "references": None,
             "inReplyTo": messageId,
-            "cc": None
+            "cc": None,
         }
 
         try:
@@ -310,12 +321,14 @@ Total size of your attachments: {total_size_mb:.1f}MB</p>
             logger.error(f"Failed to send total attachment size rejection email: {e}")
 
         return Response(
-            content=json.dumps({
-                "message": "Total attachment size too large",
-                "total_size_mb": total_size_mb,
-                "max_allowed_mb": MAX_TOTAL_ATTACHMENTS_SIZE_MB,
-                "rejection_sent": True
-            }),
+            content=json.dumps(
+                {
+                    "message": "Total attachment size too large",
+                    "total_size_mb": total_size_mb,
+                    "max_allowed_mb": MAX_TOTAL_ATTACHMENTS_SIZE_MB,
+                    "rejection_sent": True,
+                }
+            ),
             status_code=status.HTTP_400_BAD_REQUEST,
             media_type="application/json",
         )
