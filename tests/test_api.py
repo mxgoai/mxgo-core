@@ -1,4 +1,5 @@
 import io
+import json
 import os
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -69,8 +70,8 @@ def validate_send_task(
     expected_raw_headers = {}
     if form_data.get("rawHeaders"):
         try:
-            expected_raw_headers = eval(form_data["rawHeaders"])
-        except:
+            expected_raw_headers = json.loads(form_data["rawHeaders"])
+        except (json.JSONDecodeError, TypeError, ValueError):
             expected_raw_headers = {}
 
     assert raw_headers_in_task == expected_raw_headers

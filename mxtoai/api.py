@@ -436,15 +436,11 @@ async def process_email(
         email_attachments_dir = ""
         attachment_info = []
         if email_instructions.process_attachments and attachments:
-            try:
-                email_attachments_dir, attachment_info = await handle_file_attachments(
-                    attachments, email_id, email_request
-                )
-                logger.info(f"Processed {len(attachment_info)} attachments successfully")
-                logger.info(f"Attachments directory: {email_attachments_dir}")
-            except HTTPException as e:
-                # Re-raise HTTPException to maintain the correct status code
-                raise e
+            email_attachments_dir, attachment_info = await handle_file_attachments(
+                attachments, email_id, email_request
+            )
+            logger.info(f"Processed {len(attachment_info)} attachments successfully")
+            logger.info(f"Attachments directory: {email_attachments_dir}")
 
         # Prepare attachment info for processing
         processed_attachment_info = []
