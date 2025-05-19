@@ -38,12 +38,7 @@ def make_post_request(form_data, endpoint, files=None, headers=None):
     if request_headers.get("x-api-key") is None and "x-api-key" in request_headers:
         del request_headers["x-api-key"]
 
-    return client.post(
-        endpoint,
-        data=form_data,
-        files=files,
-        headers=request_headers
-    )
+    return client.post(endpoint, data=form_data, files=files, headers=request_headers)
 
 
 def assert_successful_response(response, expected_attachments_saved=0):
@@ -57,7 +52,9 @@ def assert_successful_response(response, expected_attachments_saved=0):
     assert response_json["status"] == "processing"
 
 
-def validate_send_task(form_data, mock_task_send, expected_attachment_count=0, expected_attachment_filename=None, temp_attachments_dir=None):
+def validate_send_task(
+    form_data, mock_task_send, expected_attachment_count=0, expected_attachment_filename=None, temp_attachments_dir=None
+):
     mock_task_send.assert_called_once()
     args_task_send, _ = mock_task_send.call_args
     sent_email_request_dump = args_task_send[0]
@@ -92,8 +89,9 @@ def validate_send_task(form_data, mock_task_send, expected_attachment_count=0, e
     if expected_attachment_count > 0:
         assert email_attachments_dir_arg != ""
         if temp_attachments_dir:
-            assert Path(email_attachments_dir_arg).parent == temp_attachments_dir, \
+            assert Path(email_attachments_dir_arg).parent == temp_attachments_dir, (
                 f"Attachment directory {email_attachments_dir_arg} is not a child of tmp_path {temp_attachments_dir}"
+            )
 
             id_component_from_path = Path(email_attachments_dir_arg).name
             assert id_component_from_path != "", "Generated email ID component in path is empty"
@@ -101,8 +99,9 @@ def validate_send_task(form_data, mock_task_send, expected_attachment_count=0, e
             if expected_attachment_filename:
                 assert processed_attachment_info_arg[0]["filename"] == expected_attachment_filename
                 expected_attachment_path = str(Path(email_attachments_dir_arg) / expected_attachment_filename)
-                assert processed_attachment_info_arg[0]["path"] == expected_attachment_path, \
+                assert processed_attachment_info_arg[0]["path"] == expected_attachment_path, (
                     f"Attachment path mismatch: expected {expected_attachment_path}, got {processed_attachment_info_arg[0]['path']}"
+                )
         else:
             assert email_attachments_dir_arg != ""
     else:
@@ -111,10 +110,7 @@ def validate_send_task(form_data, mock_task_send, expected_attachment_count=0, e
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_no_attachments_ask_handle(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_no_attachments_ask_handle(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(to="ask@mxtoai.com")
 
@@ -130,10 +126,7 @@ def test_process_email_success_no_attachments_ask_handle(
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 def test_process_email_success_with_one_valid_attachment_ask_handle(
-    mock_task_send,
-    mock_validate_email_whitelist,
-    tmp_path,
-    monkeypatch
+    mock_task_send, mock_validate_email_whitelist, tmp_path, monkeypatch
 ):
     monkeypatch.setattr("mxtoai.api.ATTACHMENTS_DIR", str(tmp_path))
 
@@ -152,18 +145,18 @@ def test_process_email_success_with_one_valid_attachment_ask_handle(
     mock_validate_email_whitelist.assert_called_once_with(
         form_data["from_email"], form_data["to"], form_data["subject"], form_data["messageId"]
     )
-    validate_send_task(form_data, mock_task_send,
-                       expected_attachment_count=1,
-                       expected_attachment_filename=file_name_for_test,
-                       temp_attachments_dir=tmp_path)
+    validate_send_task(
+        form_data,
+        mock_task_send,
+        expected_attachment_count=1,
+        expected_attachment_filename=file_name_for_test,
+        temp_attachments_dir=tmp_path,
+    )
 
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_all_optional_fields_no_cc_ask_handle(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_all_optional_fields_no_cc_ask_handle(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(
         to="ask@mxtoai.com",
@@ -173,7 +166,7 @@ def test_process_email_success_all_optional_fields_no_cc_ask_handle(
         messageId="specific-msg-id-all-fields",
         date="2023-11-15T12:00:00Z",
         emailId="specific-email-id-all-fields",
-        rawHeaders='{"X-Custom-Header": "value"}'
+        rawHeaders='{"X-Custom-Header": "value"}',
     )
 
     response = make_post_request(form_data, "/process-email")
@@ -187,10 +180,7 @@ def test_process_email_success_all_optional_fields_no_cc_ask_handle(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_failure_invalid_api_key(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_failure_invalid_api_key(mock_task_send, mock_validate_email_whitelist):
     form_data = prepare_form_data()
     invalid_api_key = "this-is-a-wrong-key"
 
@@ -207,10 +197,7 @@ def test_process_email_failure_invalid_api_key(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_failure_missing_api_key_header(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_failure_missing_api_key_header(mock_task_send, mock_validate_email_whitelist):
     form_data = prepare_form_data()
 
     response = make_post_request(form_data, "/process-email", headers={"x-api-key": None})
@@ -224,10 +211,7 @@ def test_process_email_failure_missing_api_key_header(
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 def test_process_email_success_multiple_attachments_ask_handle(
-    mock_task_send,
-    mock_validate_email_whitelist,
-    tmp_path,
-    monkeypatch
+    mock_task_send, mock_validate_email_whitelist, tmp_path, monkeypatch
 ):
     monkeypatch.setattr("mxtoai.api.ATTACHMENTS_DIR", str(tmp_path))
     mock_validate_email_whitelist.return_value = None
@@ -236,7 +220,7 @@ def test_process_email_success_multiple_attachments_ask_handle(
     files_for_request = [
         ("files", ("test1.txt", io.BytesIO(b"Content 1"), "text/plain")),
         ("files", ("test2.pdf", io.BytesIO(b"Content 2"), "application/pdf")),
-        ("files", ("test3.jpg", io.BytesIO(b"Content 3"), "image/jpeg"))
+        ("files", ("test3.jpg", io.BytesIO(b"Content 3"), "image/jpeg")),
     ]
 
     response = make_post_request(form_data, "/process-email", files=files_for_request)
@@ -246,15 +230,9 @@ def test_process_email_success_multiple_attachments_ask_handle(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_with_cc_recipients(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_with_cc_recipients(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(
-        to="ask@mxtoai.com",
-        rawHeaders='{"cc": "cc1@example.com, cc2@example.com"}'
-    )
+    form_data = prepare_form_data(to="ask@mxtoai.com", rawHeaders='{"cc": "cc1@example.com, cc2@example.com"}')
 
     response = make_post_request(form_data, "/process-email")
     assert_successful_response(response)
@@ -263,10 +241,7 @@ def test_process_email_success_with_cc_recipients(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_different_handle(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_different_handle(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(to="summarize@mxtoai.com")
 
@@ -277,10 +252,7 @@ def test_process_email_success_different_handle(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_handle_alias(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_handle_alias(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(to="eli5@mxtoai.com")  # alias for simplify
 
@@ -291,10 +263,7 @@ def test_process_email_success_handle_alias(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_failure_invalid_handle(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_failure_invalid_handle(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(to="invalid@mxtoai.com")
 
@@ -307,12 +276,7 @@ def test_process_email_failure_invalid_handle(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_failure_empty_attachment(
-    mock_task_send,
-    mock_validate_email_whitelist,
-    tmp_path,
-    monkeypatch
-):
+def test_process_email_failure_empty_attachment(mock_task_send, mock_validate_email_whitelist, tmp_path, monkeypatch):
     monkeypatch.setattr("mxtoai.api.ATTACHMENTS_DIR", str(tmp_path))
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(to="ask@mxtoai.com")
@@ -329,10 +293,7 @@ def test_process_email_failure_empty_attachment(
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 def test_process_email_failure_unsupported_file_type(
-    mock_task_send,
-    mock_validate_email_whitelist,
-    tmp_path,
-    monkeypatch
+    mock_task_send, mock_validate_email_whitelist, tmp_path, monkeypatch
 ):
     monkeypatch.setattr("mxtoai.api.ATTACHMENTS_DIR", str(tmp_path))
     mock_validate_email_whitelist.return_value = None
@@ -349,15 +310,9 @@ def test_process_email_failure_unsupported_file_type(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_failure_malformed_cc_headers(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_failure_malformed_cc_headers(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(
-        to="ask@mxtoai.com",
-        rawHeaders='{"cc": "invalid-email, another@invalid"}'
-    )
+    form_data = prepare_form_data(to="ask@mxtoai.com", rawHeaders='{"cc": "invalid-email, another@invalid"}')
 
     response = make_post_request(form_data, "/process-email")
     assert_successful_response(response)  # Should still succeed as CC validation is not strict
@@ -366,14 +321,11 @@ def test_process_email_failure_malformed_cc_headers(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_failure_malformed_json_headers(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_failure_malformed_json_headers(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(
         to="ask@mxtoai.com",
-        rawHeaders='{"cc": "invalid-json'  # Malformed JSON
+        rawHeaders='{"cc": "invalid-json',  # Malformed JSON
     )
 
     response = make_post_request(form_data, "/process-email")
@@ -383,15 +335,12 @@ def test_process_email_failure_malformed_json_headers(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_html_only_content(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_html_only_content(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(
         to="ask@mxtoai.com",
         textContent="",  # Empty text content
-        htmlContent="<h1>HTML Only Content</h1><p>This is HTML content.</p>"
+        htmlContent="<h1>HTML Only Content</h1><p>This is HTML content.</p>",
     )
 
     response = make_post_request(form_data, "/process-email")
@@ -401,15 +350,12 @@ def test_process_email_success_html_only_content(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_text_only_content(
-    mock_task_send,
-    mock_validate_email_whitelist
-):
+def test_process_email_success_text_only_content(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(
         to="ask@mxtoai.com",
         textContent="This is plain text content.",
-        htmlContent=""  # Empty HTML content
+        htmlContent="",  # Empty HTML content
     )
 
     response = make_post_request(form_data, "/process-email")
@@ -420,10 +366,7 @@ def test_process_email_success_text_only_content(
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 def test_process_email_success_special_characters_filename(
-    mock_task_send,
-    mock_validate_email_whitelist,
-    tmp_path,
-    monkeypatch
+    mock_task_send, mock_validate_email_whitelist, tmp_path, monkeypatch
 ):
     monkeypatch.setattr("mxtoai.api.ATTACHMENTS_DIR", str(tmp_path))
     mock_validate_email_whitelist.return_value = None
@@ -438,12 +381,7 @@ def test_process_email_success_special_characters_filename(
 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_long_filename(
-    mock_task_send,
-    mock_validate_email_whitelist,
-    tmp_path,
-    monkeypatch
-):
+def test_process_email_success_long_filename(mock_task_send, mock_validate_email_whitelist, tmp_path, monkeypatch):
     monkeypatch.setattr("mxtoai.api.ATTACHMENTS_DIR", str(tmp_path))
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(to="ask@mxtoai.com")
@@ -454,4 +392,3 @@ def test_process_email_success_long_filename(
     response = make_post_request(form_data, "/process-email", files=files_for_request)
     assert_successful_response(response, expected_attachments_saved=1)
     validate_send_task(form_data, mock_task_send, expected_attachment_count=1, temp_attachments_dir=tmp_path)
-
