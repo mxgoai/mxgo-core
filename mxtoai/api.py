@@ -14,6 +14,7 @@ from fastapi.security import APIKeyHeader
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
+from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
@@ -21,7 +22,6 @@ from mxtoai.email_sender import (
 from mxtoai.schemas import EmailAttachment, EmailRequest
 from mxtoai.tasks import process_email_task
 from mxtoai.validators import validate_api_key, validate_attachments, validate_email_handle, validate_email_whitelist
-from mxtoai.dependencies import processing_instructions_resolver
 
 # Load environment variables
 load_dotenv()

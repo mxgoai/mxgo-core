@@ -1,5 +1,7 @@
 from typing import Optional
+
 from pydantic import BaseModel
+
 
 class ProcessingInstructions(BaseModel):
     handle: str
@@ -16,4 +18,3 @@ class ProcessingInstructions(BaseModel):
     requires_schedule_extraction: bool = False
     target_model: Optional[str] = "gpt-4"
     output_instructions: Optional[str] = None
-    

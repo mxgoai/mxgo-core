@@ -18,15 +18,15 @@ from smolagents.default_tools import (
 )
 
 from mxtoai._logging import get_logger
+from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
-    MARKDOWN_STYLE_GUIDE,
-    RESPONSE_GUIDELINES,
     LIST_FORMATTING_REQUIREMENTS,
-    RESEARCH_GUIDELINES
+    MARKDOWN_STYLE_GUIDE,
+    RESEARCH_GUIDELINES,
+    RESPONSE_GUIDELINES,
 )
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import EmailRequest
-from mxtoai.models import ProcessingInstructions
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
@@ -235,7 +235,7 @@ class EmailAgent:
         """Format attachment details for inclusion in the task."""
         return [
             f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
-            f"  EXACT FILE PATH: \"{att.path}\""
+            f'  EXACT FILE PATH: "{att.path}"'
             for att in attachments
         ]
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:

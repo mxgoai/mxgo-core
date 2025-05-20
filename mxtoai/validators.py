@@ -5,9 +5,9 @@ from typing import Optional
 from fastapi import Response, status
 
 from mxtoai._logging import get_logger
+from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import send_email_reply
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
-from mxtoai.dependencies import processing_instructions_resolver
 
 logger = get_logger(__name__)
 

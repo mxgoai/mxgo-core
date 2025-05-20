@@ -13,9 +13,9 @@ from dramatiq.results.backends.redis import RedisBackend
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
+from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import EmailSender
 from mxtoai.schemas import EmailRequest
-from mxtoai.dependencies import processing_instructions_resolver
 
 # Load environment variables
 load_dotenv()

@@ -1,6 +1,5 @@
-from mxtoai.prompts import template_prompts, output_prompts
-
 from mxtoai.models import ProcessingInstructions
+from mxtoai.prompts import output_prompts, template_prompts
 
 DEFAULT_EMAIL_HANDLES = [
     ProcessingInstructions(
