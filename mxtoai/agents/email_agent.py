@@ -237,6 +237,7 @@ class EmailAgent:
             handle_specific_template=email_instructions.task_template,
             attachment_task=attachment_task,
             deep_research_mandatory=email_instructions.deep_research_mandatory,
+            output_template=email_instructions.output_template
         )
 
     def _process_agent_result(self, final_answer_obj: Any, agent_steps: list) -> dict[str, Any]:

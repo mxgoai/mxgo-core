@@ -1,44 +1,64 @@
-"""Base prompts and templates for email processing."""
-
-FORMATTING_REQUIREMENTS = """
-CRITICAL FORMATTING REQUIREMENTS:
-1. ALWAYS use proper markdown syntax - this will be converted to HTML
-2. Ensure proper spacing between paragraphs (use blank lines)
-3. ONLY use appropriate list formatting (- for bullets, 1. for numbered)
-4. ALWAYS start with a numbered list and alternate between bullets and numbers throughout.
-5. Format emphasis correctly (**bold**, _italic_)
-6. Use proper heading levels (###) where specified
-7. Keep the response focused and relevant
-8. DO NOT add any signature - it will be added automatically"""
+"""Base prompts and common guidelines for email processing."""
 
 MARKDOWN_STYLE_GUIDE = """
-Use proper markdown formatting:
+MARKDOWN FORMATTING REQUIREMENTS:
 - **bold** for emphasis
 - _italics_ for quotes
 - ### for section headers (if needed)
 - Proper bullet points and numbered lists
-- Clear paragraph spacing"""
+- Clear paragraph spacing
+"""
 
+# Common response guidelines
 RESPONSE_GUIDELINES = """
-Generate Response:
+GENERAL RESPONSE REQUIREMENTS:
 - Write in proper markdown format
 - Include only relevant information
 - Maintain appropriate tone and style
 - Use proper spacing and formatting
-- DO NOT add any signature - it will be added automatically"""
+- DO NOT add any signature - it will be added automatically
+"""
 
+# Formatting requirements for HTML conversion
+LIST_FORMATTING_REQUIREMENTS = """
+NESTED LIST OUTPUT FORMAT GUIDELINES (for Markdown to HTML conversion):
+
+1. Always begin with a **numbered list** (use `1.`).
+2. **Alternate between numbered and bullet lists** at each level of nesting:
+   - Level 1: `1.`, `2.`, `3.` (numbered)
+     1. Level 2: `-` (bullet)
+       - Level 3: `1.`, `2.`, `3.` (numbered)
+          1. Level 4: `-` (bullet)
+            - And so on...
+3. **Indent each nested level with two spaces.**
+4. Use **blank lines** between paragraphs and between different list levels.
+
+Example:
+
+1. Main point
+  - Sub-point
+    1. Sub-sub-point
+      - Sub-sub-sub-point
+
+All list sections **must follow this structure exactly**. Improper nesting or use of list styles will break the HTML conversion.
+"""
+
+# Research guidelines
 RESEARCH_GUIDELINES = {
     "mandatory": """
 RESEARCH REQUIREMENTS:
 - You MUST use the deep_research tool to gather additional information
 - Ensure comprehensive research before responding
 - Include citations and sources in your response
-- Synthesize findings with the email content""",
+- Synthesize findings with the email content
+""",
+
     "optional": """
 RESEARCH GUIDELINES:
 - Deep research is NOT allowed for this handle
 - Only use basic tools and provided information
-- Focus on addressing the direct content of the email""",
+- Focus on addressing the direct content of the email
+""",
 }
 
 
@@ -75,6 +95,7 @@ def create_task_template(
     handle_specific_template: str = "",
     attachment_task: str = "",
     deep_research_mandatory: bool = False,
+    output_template: str = "",
 ) -> str:
     """
     Create a complete task template with all necessary sections.
@@ -96,14 +117,19 @@ def create_task_template(
     if attachment_task:
         sections.append(attachment_task)
 
+    # Add handle-specific template if provided
     if handle_specific_template:
         sections.append(handle_specific_template)
 
-    if not handle_specific_template:
-        # Add default processing steps if no specific template
-        sections.extend([MARKDOWN_STYLE_GUIDE, RESPONSE_GUIDELINES])
+    # Add output template if provided
+    if output_template:
+        sections.append(output_template)
 
-    # Always add formatting requirements at the end
-    sections.append(FORMATTING_REQUIREMENTS)
+    # Add common processing steps
+    sections.extend([
+        RESPONSE_GUIDELINES,
+        MARKDOWN_STYLE_GUIDE,
+        LIST_FORMATTING_REQUIREMENTS
+    ])
 
     return "\n\n".join(sections)
