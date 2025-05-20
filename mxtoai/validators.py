@@ -6,8 +6,8 @@ from fastapi import Response, status
 
 from mxtoai._logging import get_logger
 from mxtoai.email_sender import send_email_reply
-from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
+from mxtoai.dependencies import processing_instructions_resolver
 
 logger = get_logger(__name__)
 
@@ -140,7 +140,7 @@ async def validate_email_handle(
 
     """
     handle = to.split("@")[0].lower()
-    email_instructions = HANDLE_MAP.get(handle)
+    email_instructions = processing_instructions_resolver(handle)
 
     if not email_instructions:
         rejection_msg = "This email alias is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."

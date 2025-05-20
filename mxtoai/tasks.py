@@ -14,8 +14,8 @@ from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
 from mxtoai.email_sender import EmailSender
-from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailRequest
+from mxtoai.dependencies import processing_instructions_resolver
 
 # Load environment variables
 load_dotenv()
@@ -47,7 +47,6 @@ redis_backend = RedisBackend(url=REDIS_URL, namespace="dramatiq-results")
 # Add results middleware to broker
 rabbitmq_broker.add_middleware(Results(backend=redis_backend))
 dramatiq.set_broker(rabbitmq_broker)
-
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
     """Clean up attachments after processing."""
@@ -89,7 +88,7 @@ def process_email_task(
 
     # Extract handle from email
     handle = email_request.to.split("@")[0].lower()
-    email_instructions = HANDLE_MAP.get(handle)
+    email_instructions = processing_instructions_resolver(handle)
 
     if not email_instructions:
         logger.error(f"Unsupported email handle: {handle}")
