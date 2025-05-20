@@ -1,6 +1,10 @@
 from typing import List, Dict
 from .models import ProcessingInstructions
 
+from mxtoai._logging import get_logger
+
+logger = get_logger(__name__)
+
 class ProcessingInstructionsResolver:
     """
     Resolves processing instructions based on email handle names or aliases.
@@ -71,7 +75,8 @@ class ProcessingInstructionsResolver:
         """
 
         if handle not in self.handle_map:
-            raise ValueError(f"Unknown email handle: {handle}")
+            logger.debug("This email handle is not supported!")
+            return None
         return self.handle_map[handle]
 
     def list_available_handles(self) -> List[str]:
