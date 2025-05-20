@@ -1,5 +1,6 @@
+import json
 import os
-from typing import Any, Optional
+from typing import Any, Optional, List, Dict
 
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
@@ -27,7 +28,56 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         self.current_handle = current_handle
 
         # Configure model list from environment variables
-        model_list = [
+        model_list = self._load_model_config()
+        client_router_kwargs = self._load_router_config()
+
+        # The model_id for LiteLLMRouterModel is the default model group the router will target.
+        # Our _get_target_model() will override this per call via the 'model' param in generate().
+        default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP", "gpt-4")
+        super().__init__(
+            model_id=default_model_group,
+            model_list=model_list,
+            client_kwargs=client_router_kwargs,
+            **kwargs,  # Pass through other LiteLLMModel/Model kwargs
+        )
+
+    def _load_model_config(self) -> List[Dict[str, Any]]:
+        """
+        Load model configuration from environment variables.
+
+        Returns:
+            List[Dict[str, Any]]: List of model configurations.
+
+        """
+        model_list = []
+        index = 1
+        while True:
+            model_config_json = os.getenv(f"LITELLM_MODEL_{index}_JSON")
+            if not model_config_json:
+                break
+                
+            try:
+                model_config = json.loads(model_config_json)
+                model_list.append(model_config)
+                index += 1
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LITELLM_MODEL_{index}_JSON: {e}")
+                index += 1
+
+        if not model_list:
+            logger.warning("No model configurations found in environment. Using default configuration.")
+            model_list = self._get_default_model_list()
+            
+        return model_list
+    
+    def _get_default_model_list(self) -> List[Dict[str, Any]]:
+        """
+        Provide a default model list as fallback if no environment configuration is found.
+        
+        Returns:
+            List[Dict[str, Any]]: Default model configurations
+        """
+        return [
             {
                 "model_name": "gpt-4",
                 "litellm_params": {
@@ -60,28 +110,26 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             },
         ]
 
-        client_router_kwargs = {
-            "routing_strategy": "simple-shuffle",
-            "fallbacks": [
-                {
-                    "gpt-4": ["gpt-4-reasoning"]  # Fallback to reasoning model if both GPT-4 instances fail
-                }
-            ],
-            # "set_verbose": True,
-            # "debug_level": "DEBUG",
-            "default_litellm_params": {"drop_params": True},  # Global setting for dropping unsupported parameters
-        }
-
-        # The model_id for LiteLLMRouterModel is the default model group the router will target.
-        # Our _get_target_model() will override this per call via the 'model' param in generate().
-        default_model_group = "gpt-4"
-
-        super().__init__(
-            model_id=default_model_group,
-            model_list=model_list,
-            client_kwargs=client_router_kwargs,
-            **kwargs,  # Pass through other LiteLLMModel/Model kwargs
-        )
+    def _load_router_config(self) -> Dict[str, Any]:
+        """
+        Load router configuration from environment variables.
+        
+        Returns:
+            Dict[str, Any]: Router configuration
+        """
+        router_config_json = os.getenv("LITELLM_ROUTER_CONFIG_JSON")
+        if router_config_json:
+            try:
+                return json.loads(router_config_json)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse LITELLM_ROUTER_CONFIG_JSON: {e}")
+                return {}
+        else:
+            return {
+                "routing_strategy": "simple-shuffle",
+                "fallbacks": {"gpt-4": ["gpt-4-reasoning"]},
+                "default_litellm_params": {"drop_params": True},
+            }
 
     def _get_target_model(self) -> str:
         """
