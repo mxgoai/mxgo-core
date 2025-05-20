@@ -16,6 +16,7 @@ GENERAL RESPONSE REQUIREMENTS:
 - Include only relevant information
 - Maintain appropriate tone and style
 - Use proper spacing and formatting
+- ALWAYS Indent each nested level with two spaces
 - DO NOT add any signature - it will be added automatically
 """
 
@@ -30,8 +31,7 @@ NESTED LIST OUTPUT FORMAT GUIDELINES (for Markdown to HTML conversion):
        - Level 3: `1.`, `2.`, `3.` (numbered)
           1. Level 4: `-` (bullet)
             - And so on...
-3. **Indent each nested level with two spaces.**
-4. Use **blank lines** between paragraphs and between different list levels.
+3. Use **blank lines** between paragraphs and between different list levels.
 
 Example:
 

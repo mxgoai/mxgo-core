@@ -9,17 +9,16 @@ output structure and formatting, while avoiding redundancy with the template con
 SUMMARIZE_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
 1. Start with a brief overview sentence
-2. Use bullet points for key details
-3. Group related information together
-4. Keep the summary to 3-5 main points
-5. End with any action items or next steps
+2. Group related information together
+3. Keep the summary to 3-5 main points
+4. End with any action items or next steps
 """
 
 # Research handler output guidelines
 RESEARCH_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
 1. Executive Summary: Brief overview (2-3 sentences)
-2. Key Findings: 3-5 bullet points of most important insights
+2. Key Findings: 3-5 points of most important insights
 3. Detailed Analysis: In-depth exploration with subheadings
 4. Supporting Evidence: Data, quotes, statistics
 5. References: Numbered citations with links when available
