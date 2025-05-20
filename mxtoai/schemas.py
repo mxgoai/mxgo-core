@@ -1,9 +1,11 @@
 from typing import Any, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class EmailAttachment(BaseModel):
+    model_config = ConfigDict(validate_default=True)  # Ensure all fields are validated
+
     filename: str
     contentType: str
     contentDisposition: Optional[str] = None
@@ -12,9 +14,6 @@ class EmailAttachment(BaseModel):
     content: Optional[Union[str, bytes]] = None  # Can be string (base64) or bytes
     size: int
     path: Optional[str] = None  # Path becomes required after saving to disk
-
-    class Config:
-        validate_all = True  # Ensure all fields are validated
 
     @property
     def has_valid_content(self) -> bool:
@@ -33,6 +32,8 @@ class EmailAttachment(BaseModel):
 
 
 class EmailRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)  # Allows alias fields
+
     from_email: str = Field(..., alias="from")
     to: str
     subject: Optional[str] = ""
@@ -52,9 +53,6 @@ class EmailRequest(BaseModel):
     attachments: Optional[list[EmailAttachment]] = []
     emailId: Optional[str] = None  # Unique ID for this email
     rawHeaders: Optional[dict[str, Any]] = None  # Raw email headers
-
-    class Config:
-        populate_by_name = True  # Allows alias fields
 
 
 class ResearchResult(BaseModel):

@@ -1,5 +1,5 @@
 import os
-from typing import Optional, List, Dict, Any
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
@@ -10,6 +10,7 @@ from mxtoai.handle_configuration import EmailHandleInstructions
 load_dotenv()
 
 logger = get_logger("routed_litellm_model")
+
 
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
@@ -34,8 +35,8 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     "base_url": os.getenv("GPT4O_1_ENDPOINT"),
                     "api_key": os.getenv("GPT4O_1_API_KEY"),
                     "api_version": os.getenv("GPT4O_1_API_VERSION"),
-                    "weight": int(os.getenv("GPT4O_1_WEIGHT", 5))
-                }
+                    "weight": int(os.getenv("GPT4O_1_WEIGHT", 5)),
+                },
             },
             {
                 "model_name": "gpt-4",
@@ -45,7 +46,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     "api_key": os.getenv("GPT41_MINI_API_KEY"),
                     "api_version": os.getenv("GPT41_MINI_API_VERSION"),
                     "weight": int(os.getenv("GPT41_MINI_WEIGHT", 5)),
-                }
+                },
             },
             {
                 "model_name": "gpt-4-reasoning",
@@ -55,18 +56,20 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     "api_key": os.getenv("O3_MINI_API_KEY"),
                     "api_version": os.getenv("O3_MINI_API_VERSION"),
                     "weight": int(os.getenv("O3_MINI_WEIGHT", 1)),
-                }
-            }
+                },
+            },
         ]
 
         client_router_kwargs = {
             "routing_strategy": "simple-shuffle",
-            "fallbacks": [{
-                "gpt-4": ["gpt-4-reasoning"]  # Fallback to reasoning model if both GPT-4 instances fail
-            }],
+            "fallbacks": [
+                {
+                    "gpt-4": ["gpt-4-reasoning"]  # Fallback to reasoning model if both GPT-4 instances fail
+                }
+            ],
             # "set_verbose": True,
             # "debug_level": "DEBUG",
-            "default_litellm_params": {"drop_params": True}  # Global setting for dropping unsupported parameters
+            "default_litellm_params": {"drop_params": True},  # Global setting for dropping unsupported parameters
         }
 
         # The model_id for LiteLLMRouterModel is the default model group the router will target.
@@ -77,7 +80,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             model_id=default_model_group,
             model_list=model_list,
             client_kwargs=client_router_kwargs,
-            **kwargs  # Pass through other LiteLLMModel/Model kwargs
+            **kwargs,  # Pass through other LiteLLMModel/Model kwargs
         )
 
     def _get_target_model(self) -> str:
@@ -89,18 +92,20 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         """
         if self.current_handle and self.current_handle.target_model:
-            logger.debug(f"Using model group {self.current_handle.target_model} for handle {self.current_handle.handle}")
+            logger.debug(
+                f"Using model group {self.current_handle.target_model} for handle {self.current_handle.handle}"
+            )
             return self.current_handle.target_model
 
         return "gpt-4"  # Default to gpt-4 model group
 
     def __call__(
         self,
-        messages: List[Dict[str, Any]], # MODIFIED type hint for messages
+        messages: list[dict[str, Any]],  # MODIFIED type hint for messages
         stop_sequences: Optional[list[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[list[Tool]] = None,
-        **kwargs # kwargs from the caller of this RoutedLiteLLMModel instance
+        **kwargs,  # kwargs from the caller of this RoutedLiteLLMModel instance
     ) -> ChatMessage:
         try:
             target_model_group = self._get_target_model()
@@ -115,7 +120,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             # Remove 'model' from kwargs if present, to prevent conflict with the
             # explicit 'model=self.model_id' passed by LiteLLMModel.generate
             # to _prepare_completion_kwargs.
-            kwargs_for_super_generate = {k:v for k,v in kwargs.items() if k != 'model'}
+            kwargs_for_super_generate = {k: v for k, v in kwargs.items() if k != "model"}
 
             try:
                 chat_message = super().generate(
@@ -125,7 +130,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     tools_to_call_from=tools_to_call_from,
                     # Do not pass 'model' as an explicit argument here,
                     # as self.model_id is now set to our target_model_group.
-                    **kwargs_for_super_generate
+                    **kwargs_for_super_generate,
                 )
             finally:
                 # Restore the original model_id for the instance.
