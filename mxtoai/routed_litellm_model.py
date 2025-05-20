@@ -127,7 +127,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         else:
             return {
                 "routing_strategy": "simple-shuffle",
-                "fallbacks": {"gpt-4": ["gpt-4-reasoning"]},
+                "fallbacks": [{"gpt-4": ["gpt-4-reasoning"]}],
                 "default_litellm_params": {"drop_params": True},
             }
 
