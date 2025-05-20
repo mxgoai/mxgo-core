@@ -2,10 +2,8 @@ from typing import Optional
 
 from pydantic import BaseModel
 
-from mxtoai.prompts import (
-    template_prompts,
-    output_prompts
-)
+from mxtoai.prompts import output_prompts, template_prompts
+
 
 class EmailHandleInstructions(BaseModel):
     handle: str

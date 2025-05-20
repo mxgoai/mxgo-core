@@ -143,7 +143,7 @@ Content Guidelines:
 4. Include helpful notes
 """
 
-# Scheduling handler template  
+# Scheduling handler template
 SCHEDULE_TEMPLATE = """
 Extract meeting/scheduling related information including participants, timing, and location details to provide scheduling recommendations
 

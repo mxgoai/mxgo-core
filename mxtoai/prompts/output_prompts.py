@@ -1,6 +1,7 @@
-"""Output formatting guidelines for different email processing handlers.
+"""
+Output formatting guidelines for different email processing handlers.
 
-These guidelines complement the template prompts by focusing specifically on 
+These guidelines complement the template prompts by focusing specifically on
 output structure and formatting, while avoiding redundancy with the template content.
 """
 
@@ -14,7 +15,7 @@ Output Format Guidelines:
 5. End with any action items or next steps
 """
 
-# Research handler output guidelines  
+# Research handler output guidelines
 RESEARCH_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
 1. Executive Summary: Brief overview (2-3 sentences)
