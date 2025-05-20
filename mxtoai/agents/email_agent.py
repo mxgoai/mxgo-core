@@ -26,6 +26,7 @@ from mxtoai.prompts.base_prompts import (
 )
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import EmailRequest
+from mxtoai.models import ProcessingInstructions
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
@@ -216,7 +217,7 @@ class EmailAgent:
                 types.append(content_type)
         return types
 
-    def _create_task(self, email_request: EmailRequest, email_instructions: "EmailHandleInstructions") -> str:
+    def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
         """Create a task description for the agent based on email handle instructions."""
         attachments = self._format_attachments(email_request.attachments) \
             if email_instructions.process_attachments and email_request.attachments else []
@@ -647,7 +648,7 @@ class EmailAgent:
     def process_email(
         self,
         email_request: EmailRequest,
-        email_instructions: "EmailHandleInstructions",  # Type hint as string to avoid circular import
+        email_instructions: ProcessingInstructions,  # Type hint as string to avoid circular import
     ) -> dict[str, Any]:
         """
         Process an email using the agent based on the provided email handle instructions.
