@@ -2,7 +2,7 @@ import ast
 import os
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Dict
 
 from dotenv import load_dotenv
 
@@ -18,9 +18,15 @@ from smolagents.default_tools import (
 )
 
 from mxtoai._logging import get_logger
-from mxtoai.prompts.base_prompts import create_attachment_processing_task, create_email_context, create_task_template
+from mxtoai.models import ProcessingInstructions
+from mxtoai.prompts.base_prompts import (
+    LIST_FORMATTING_REQUIREMENTS,
+    MARKDOWN_STYLE_GUIDE,
+    RESEARCH_GUIDELINES,
+    RESPONSE_GUIDELINES,
+)
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
-from mxtoai.schemas import EmailRequest
+from mxtoai.schemas import EmailRequest, EmailAttachment
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
@@ -131,7 +137,7 @@ class EmailAgent:
                     )
 
         # Define the list of tools available to the agent
-        self.available_tools: list[Tool] = [
+        self.available_tools: List[Tool] = [
             self.attachment_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
@@ -168,7 +174,7 @@ class EmailAgent:
 
         logger.debug("Agent initialized with routed model configuration")
 
-    def _get_required_actions(self, mode: str) -> list[str]:
+    def _get_required_actions(self, mode: str) -> List[str]:
         """Get list of required actions based on mode."""
         actions = []
         if mode in ["summary", "full"]:
@@ -202,7 +208,7 @@ class EmailAgent:
 
         return mode_mapping.get(email_prefix, "full")
 
-    def _get_attachment_types(self, attachments: list[dict[str, Any]]) -> list[str]:
+    def _get_attachment_types(self, attachments: List[Dict[str, Any]]) -> List[str]:
         """Get list of attachment types."""
         types = []
         for att in attachments:
@@ -211,36 +217,74 @@ class EmailAgent:
                 types.append(content_type)
         return types
 
-    def _create_task(self, email_request: EmailRequest, email_instructions: "EmailHandleInstructions") -> str:
+    def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
         """Create a task description for the agent based on email handle instructions."""
-        # Create attachment details with explicit paths if needed
-        attachment_details = []
-        if email_instructions.process_attachments and email_request.attachments:
-            for att in email_request.attachments:
-                # Quote the file path to handle spaces correctly
-                quoted_path = f'"{att.path}"'
-                attachment_details.append(
-                    f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
-                    f"  EXACT FILE PATH: {quoted_path}"
-                )
+        attachments = self._format_attachments(email_request.attachments) \
+            if email_instructions.process_attachments and email_request.attachments else []
 
-        # Create the email context section
-        email_context = create_email_context(email_request, attachment_details)
-
-        # Create attachment processing task if needed
-        attachment_task = create_attachment_processing_task(attachment_details) if attachment_details else ""
-
-        # Create the complete task template
-        return create_task_template(
+        return self._create_task_template(
             handle=email_instructions.handle,
-            email_context=email_context,
+            email_context=self._create_email_context(email_request, attachments),
             handle_specific_template=email_instructions.task_template,
-            attachment_task=attachment_task,
+            attachment_task=self._create_attachment_task(attachments),
             deep_research_mandatory=email_instructions.deep_research_mandatory,
             output_template=email_instructions.output_template
         )
 
-    def _process_agent_result(self, final_answer_obj: Any, agent_steps: list) -> dict[str, Any]:
+    def _format_attachments(self, attachments: List[EmailAttachment]) -> List[str]:
+        """Format attachment details for inclusion in the task."""
+        return [
+            f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
+            f'  EXACT FILE PATH: "{att.path}"'
+            for att in attachments
+        ]
+    def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
+        """Generate context information from the email request."""
+        recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
+        attachments_info = f"Available Attachments:\n{chr(10).join(attachment_details)}" if attachment_details else "No attachments provided."
+
+        return f"""Email Content:
+    Subject: {email_request.subject}
+    From: {email_request.from_email}
+    Email Date: {email_request.date}
+    Recipients: {recipients}
+    CC: {email_request.cc or "N/A"}
+    BCC: {email_request.bcc or "N/A"}
+    Body: {email_request.textContent or email_request.htmlContent or ""}
+
+    {attachments_info}
+    """
+
+    def _create_attachment_task(self, attachment_details: List[str]) -> str:
+        """Return instructions for processing attachments, if any."""
+        return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
+
+    def _create_task_template(
+        self,
+        handle: str,
+        email_context: str,
+        handle_specific_template: str = "",
+        attachment_task: str = "",
+        deep_research_mandatory: bool = False,
+        output_template: str = "",
+    ) -> str:
+        """Combine all task components into the final task description."""
+        sections = [
+            f"Process this email according to the '{handle}' instruction type.\n",
+            email_context,
+            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"],
+            attachment_task,
+            handle_specific_template,
+            output_template,
+            RESPONSE_GUIDELINES,
+            MARKDOWN_STYLE_GUIDE,
+            LIST_FORMATTING_REQUIREMENTS
+        ]
+
+        return "\n\n".join(filter(None, sections))  # Filter out any empty strings
+
+
+    def _process_agent_result(self, final_answer_obj: Any, agent_steps: List) -> Dict[str, Any]:
         """
         Process the agent's result into our expected format, using the agent steps.
         Prioritizes direct output from the 'deep_research' tool if available.
@@ -604,7 +648,7 @@ class EmailAgent:
     def process_email(
         self,
         email_request: EmailRequest,
-        email_instructions: "EmailHandleInstructions",  # Type hint as string to avoid circular import
+        email_instructions: ProcessingInstructions,  # Type hint as string to avoid circular import
     ) -> dict[str, Any]:
         """
         Process an email using the agent based on the provided email handle instructions.

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
 from mxtoai._logging import get_logger
-from mxtoai.handle_configuration import EmailHandleInstructions
+from mxtoai.models import ProcessingInstructions
 
 load_dotenv()
 
@@ -15,7 +15,7 @@ logger = get_logger("routed_litellm_model")
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
 
-    def __init__(self, current_handle: Optional[EmailHandleInstructions] = None, **kwargs):
+    def __init__(self, current_handle: Optional[ProcessingInstructions] = None, **kwargs):
         """
         Initialize the routed LiteLLM model.
 
