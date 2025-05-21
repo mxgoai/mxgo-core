@@ -161,6 +161,7 @@ Extract meeting/scheduling related information including participants, timing, a
     - Respond to the user explaining which details are unclear or missing.
     - Ask specific questions to get the needed clarification (e.g., "Could you please specify the date and time for this meeting?", "What timezone should I use?", "What is the main topic or title for this event?").
     - Your entire response should be this request for clarification.
+    - Attempt to gain clarity to these questions by using tools at your disposal. For example attachment processor or web search
 
 **STEP 3: Extract and Format (If Clear)**
 - **IF** the details are clear enough:

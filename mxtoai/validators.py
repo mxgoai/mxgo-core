@@ -4,9 +4,10 @@ from typing import Optional
 
 from fastapi import Response, status
 
+import mxtoai.exceptions as exceptions
 from mxtoai._logging import get_logger
+from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import send_email_reply
-from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
 
 logger = get_logger(__name__)
@@ -140,9 +141,9 @@ async def validate_email_handle(
 
     """
     handle = to.split("@")[0].lower()
-    email_instructions = HANDLE_MAP.get(handle)
-
-    if not email_instructions:
+    try:
+        _ = processing_instructions_resolver(handle)
+    except exceptions.UnspportedHandleException:
         rejection_msg = "This email alias is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
 
         # Create email dict with proper format

@@ -14,11 +14,11 @@ from fastapi.security import APIKeyHeader
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
+from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
-from mxtoai.handle_configuration import HANDLE_MAP
 from mxtoai.schemas import EmailAttachment, EmailRequest
 from mxtoai.tasks import process_email_task
 from mxtoai.validators import validate_api_key, validate_attachments, validate_email_handle, validate_email_whitelist
@@ -386,7 +386,7 @@ async def process_email(
             await file.seek(0)  # Reset file pointer for later use
 
         # Get handle configuration
-        email_instructions = HANDLE_MAP[handle]  # Safe to use direct access now
+        email_instructions = processing_instructions_resolver(handle)  # Safe to use direct access now
 
         # Log initial email details
         logger.info("Received new email request:")

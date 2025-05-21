@@ -5,8 +5,9 @@ import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
+import mxtoai.exceptions as exceptions
 from mxtoai._logging import get_logger
-from mxtoai.handle_configuration import EmailHandleInstructions
+from mxtoai.models import ProcessingInstructions
 
 load_dotenv()
 
@@ -16,7 +17,7 @@ logger = get_logger("routed_litellm_model")
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
 
-    def __init__(self, current_handle: Optional[EmailHandleInstructions] = None, config_path: Optional[str] = "model.config.toml", **kwargs):
+    def __init__(self, current_handle: Optional[ProcessingInstructions] = None, config_path: Optional[str] = "model.config.toml", **kwargs):
         """
         Initialize the routed LiteLLM model.
 
@@ -38,8 +39,9 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP")
 
         if not default_model_group:
-            # raise custom exception after exception handling is merged
-            raise ValueError("LITELLM_DEFAULT_MODEL_GROUP environment variable is required.")
+            raise exceptions.EnvironmentVariableNotFoundException(
+                "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
+            )
 
         super().__init__(
             model_id=default_model_group,
