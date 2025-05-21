@@ -126,7 +126,7 @@ This project supports load balancing and routing across multiple models, so you 
 
 A sample configuration looks like this:
 
-```
+```toml
 [[model]]
 model_name = "gpt-4"
 
@@ -140,7 +140,7 @@ weight = 5
 
 It is also recommended that you set router configuration. It will be defaulted to the below config if not set.
 
-```
+```toml
 [router_config]
 routing_strategy = "simple-shuffle"
 
