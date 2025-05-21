@@ -23,7 +23,7 @@ model_name = "gpt-4-reasoning"
 
 [model.litellm_params]
 model = "azure/gpt-4o-mini"
-api_base = "https://your-endpoint-3.openai.azure.com"
+base_url = "https://your-endpoint-3.openai.azure.com"
 api_key = "your-key-3"
 api_version = "2023-05-15"
 weight = 1

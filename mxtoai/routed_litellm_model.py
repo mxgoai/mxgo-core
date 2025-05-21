@@ -28,7 +28,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         """
         self.current_handle = current_handle
-        self.config_path = os.getenv("LITELLM_CONFIG_PATH", "model.config.toml")
+        self.config_path = os.getenv("LITELLM_CONFIG_PATH", "model.config.example.toml")
         self.config = self._load_toml_config()
 
         # Configure model list from environment variables
