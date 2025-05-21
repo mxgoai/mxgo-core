@@ -1,7 +1,7 @@
-import json
 import os
 from typing import Any, Optional, List, Dict
 
+import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
@@ -16,7 +16,7 @@ logger = get_logger("routed_litellm_model")
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
 
-    def __init__(self, current_handle: Optional[EmailHandleInstructions] = None, **kwargs):
+    def __init__(self, current_handle: Optional[EmailHandleInstructions] = None, config_path: Optional[str] = "model.config.toml", **kwargs):
         """
         Initialize the routed LiteLLM model.
 
@@ -26,20 +26,46 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         """
         self.current_handle = current_handle
+        self.config_path = config_path
+        self.config = self._load_toml_config()
 
         # Configure model list from environment variables
         model_list = self._load_model_config()
         client_router_kwargs = self._load_router_config()
-
+        
         # The model_id for LiteLLMRouterModel is the default model group the router will target.
         # Our _get_target_model() will override this per call via the 'model' param in generate().
-        default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP", "gpt-4")
+        default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP")
+
+        if not default_model_group:
+            # raise custom exception after exception handling is merged
+            raise ValueError("LITELLM_DEFAULT_MODEL_GROUP environment variable is required.")
+
         super().__init__(
             model_id=default_model_group,
             model_list=model_list,
             client_kwargs=client_router_kwargs,
             **kwargs,  # Pass through other LiteLLMModel/Model kwargs
         )
+
+    def _load_toml_config(self) -> Dict[str, Any]:
+        """
+        Load configuration from a TOML file.
+        
+        Returns:    
+            Dict[str, Any]: Configuration loaded from the TOML file.
+        """
+
+        if not os.path.exists(self.config_path):
+            logger.error(f"Model config file not found at {self.config_path}")
+            return {}
+
+        try:
+            with open(self.config_path, "r") as f:
+                return toml.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load TOML config: {e}")
+            return {}
 
     def _load_model_config(self) -> List[Dict[str, Any]]:
         """
@@ -49,26 +75,27 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             List[Dict[str, Any]]: List of model configurations.
 
         """
+        model_entries = self.config.get("model", [])
         model_list = []
-        index = 1
-        while True:
-            model_config_json = os.getenv(f"LITELLM_MODEL_{index}_JSON")
-            if not model_config_json:
-                break
-                
-            try:
-                model_config = json.loads(model_config_json)
-                model_list.append(model_config)
-                index += 1
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse LITELLM_MODEL_{index}_JSON: {e}")
-                index += 1
+
+        if isinstance(model_entries, dict):
+            # In case there's only one model (TOML parser returns dict)
+            model_entries = [model_entries]
+
+        for entry in model_entries:
+            model_config = {
+                "model_name": entry.get("model_name"),
+                "litellm_params": entry.get("litellm_params", {}),
+                "weight": entry.get("weight", 1)
+            }
+            model_list.append(model_config)
 
         if not model_list:
-            logger.warning("No model configurations found in environment. Using default configuration.")
+            logger.warning("No models found in model.config.toml. Using default configuration.")
             model_list = self._get_default_model_list()
-            
+
         return model_list
+
     
     def _get_default_model_list(self) -> List[Dict[str, Any]]:
         """
@@ -117,19 +144,17 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         Returns:
             Dict[str, Any]: Router configuration
         """
-        router_config_json = os.getenv("LITELLM_ROUTER_CONFIG_JSON")
-        if router_config_json:
-            try:
-                return json.loads(router_config_json)
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse LITELLM_ROUTER_CONFIG_JSON: {e}")
-                return {}
-        else:
+        router_config = self.config.get("router_config", {})
+        
+        if not router_config:
+            logger.warning("No router config found in model-config.toml. Using defaults.")
             return {
                 "routing_strategy": "simple-shuffle",
                 "fallbacks": [{"gpt-4": ["gpt-4-reasoning"]}],
                 "default_litellm_params": {"drop_params": True},
             }
+        return router_config
+
 
     def _get_target_model(self) -> str:
         """
