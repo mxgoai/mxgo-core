@@ -1,11 +1,11 @@
-from typing import Optional
+from typing import Optional, Any, Dict, List
 
 from pydantic import BaseModel
 
 
 class ProcessingInstructions(BaseModel):
     handle: str
-    aliases: list[str]
+    aliases: List[str]
     process_attachments: bool
     deep_research_mandatory: bool
     rejection_message: Optional[str] = (
@@ -18,3 +18,19 @@ class ProcessingInstructions(BaseModel):
     requires_schedule_extraction: bool = False
     target_model: Optional[str] = "gpt-4"
     output_instructions: Optional[str] = None
+
+class LiteLLMParams(BaseModel):
+    model: str
+    base_url: str
+    api_key: str
+    api_version: str
+    weight: int
+
+class ModelConfig(BaseModel):
+    model_name: str
+    litellm_params: LiteLLMParams
+
+class RouterConfig(BaseModel):
+    routing_strategy: str
+    fallbacks: List[Dict[str, List[str]]]
+    default_litellm_params: Dict[str, Any]

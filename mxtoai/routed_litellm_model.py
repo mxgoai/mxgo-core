@@ -5,6 +5,7 @@ import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
+import mxtoai.models as models
 import mxtoai.exceptions as exceptions
 from mxtoai._logging import get_logger
 from mxtoai.models import ProcessingInstructions
@@ -45,8 +46,8 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         super().__init__(
             model_id=default_model_group,
-            model_list=model_list,
-            client_kwargs=client_router_kwargs,
+            model_list=[model.dict() for model in model_list],
+            client_kwargs=client_router_kwargs.dict(),
             **kwargs,  # Pass through other LiteLLMModel/Model kwargs
         )
 
@@ -59,8 +60,9 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         """
 
         if not os.path.exists(self.config_path):
-            logger.error(f"Model config file not found at {self.config_path}")
-            return {}
+            raise exceptions.ModelConfigFileNotFoundException(
+                f"Model config file not found at {self.config_path}. Please check the path."
+            )
 
         try:
             with open(self.config_path, "r") as f:
@@ -85,76 +87,36 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             model_entries = [model_entries]
 
         for entry in model_entries:
-            model_config = {
-                "model_name": entry.get("model_name"),
-                "litellm_params": entry.get("litellm_params", {}),
-                "weight": entry.get("weight", 1)
-            }
-            model_list.append(model_config)
+            model_list.append(models.ModelConfig(
+                model_name=entry.get("model_name"),
+                litellm_params=models.LiteLLMParams(
+                    **entry.get("litellm_params")
+                )
+            ))
 
         if not model_list:
-            logger.warning("No models found in model.config.toml. Using default configuration.")
-            model_list = self._get_default_model_list()
+            raise exceptions.ModelListNotFoundException(
+                "No model list found in config toml. Please check the configuration."
+            )
 
         return model_list
 
-    
-    def _get_default_model_list(self) -> List[Dict[str, Any]]:
-        """
-        Provide a default model list as fallback if no environment configuration is found.
-        
-        Returns:
-            List[Dict[str, Any]]: Default model configurations
-        """
-        return [
-            {
-                "model_name": "gpt-4",
-                "litellm_params": {
-                    "model": f"azure/{os.getenv('GPT4O_1_NAME')}",
-                    "base_url": os.getenv("GPT4O_1_ENDPOINT"),
-                    "api_key": os.getenv("GPT4O_1_API_KEY"),
-                    "api_version": os.getenv("GPT4O_1_API_VERSION"),
-                    "weight": int(os.getenv("GPT4O_1_WEIGHT", 5)),
-                },
-            },
-            {
-                "model_name": "gpt-4",
-                "litellm_params": {
-                    "model": f"azure/{os.getenv('GPT41_MINI_NAME')}",
-                    "base_url": os.getenv("GPT41_MINI_ENDPOINT"),
-                    "api_key": os.getenv("GPT41_MINI_API_KEY"),
-                    "api_version": os.getenv("GPT41_MINI_API_VERSION"),
-                    "weight": int(os.getenv("GPT41_MINI_WEIGHT", 5)),
-                },
-            },
-            {
-                "model_name": "gpt-4-reasoning",
-                "litellm_params": {
-                    "model": f"azure/{os.getenv('O3_MINI_NAME')}",
-                    "api_base": os.getenv("O3_MINI_ENDPOINT"),
-                    "api_key": os.getenv("O3_MINI_API_KEY"),
-                    "api_version": os.getenv("O3_MINI_API_VERSION"),
-                    "weight": int(os.getenv("O3_MINI_WEIGHT", 1)),
-                },
-            },
-        ]
-
-    def _load_router_config(self) -> Dict[str, Any]:
+    def _load_router_config(self) -> models.RouterConfig:
         """
         Load router configuration from environment variables.
         
         Returns:
-            Dict[str, Any]: Router configuration
+           models.RouterConfig: Router configuration
         """
-        router_config = self.config.get("router_config", {})
+        router_config = models.RouterConfig(**self.config.get("router_config"))
         
         if not router_config:
             logger.warning("No router config found in model-config.toml. Using defaults.")
-            return {
-                "routing_strategy": "simple-shuffle",
-                "fallbacks": [{"gpt-4": ["gpt-4-reasoning"]}],
-                "default_litellm_params": {"drop_params": True},
-            }
+            return models.RouterConfig(
+                routing_strategy="simple-shuffle",
+                fallbacks=[],
+                default_litellm_params={"drop_params": True},
+            )
         return router_config
 
 
