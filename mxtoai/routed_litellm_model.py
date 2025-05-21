@@ -17,7 +17,7 @@ logger = get_logger("routed_litellm_model")
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
 
-    def __init__(self, current_handle: Optional[ProcessingInstructions] = None, config_path: Optional[str] = "model.config.toml", **kwargs):
+    def __init__(self, current_handle: Optional[ProcessingInstructions] = None, **kwargs):
         """
         Initialize the routed LiteLLM model.
 
@@ -27,7 +27,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         """
         self.current_handle = current_handle
-        self.config_path = config_path
+        self.config_path = os.getenv("LITELLM_CONFIG_PATH", "model.config.toml")
         self.config = self._load_toml_config()
 
         # Configure model list from environment variables
