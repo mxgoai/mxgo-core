@@ -2,7 +2,7 @@ import ast
 import os
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Dict
 
 from dotenv import load_dotenv
 
@@ -26,7 +26,7 @@ from mxtoai.prompts.base_prompts import (
     RESPONSE_GUIDELINES,
 )
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
-from mxtoai.schemas import EmailRequest
+from mxtoai.schemas import EmailRequest, EmailAttachment
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
@@ -137,7 +137,7 @@ class EmailAgent:
                     )
 
         # Define the list of tools available to the agent
-        self.available_tools: list[Tool] = [
+        self.available_tools: List[Tool] = [
             self.attachment_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
@@ -174,7 +174,7 @@ class EmailAgent:
 
         logger.debug("Agent initialized with routed model configuration")
 
-    def _get_required_actions(self, mode: str) -> list[str]:
+    def _get_required_actions(self, mode: str) -> List[str]:
         """Get list of required actions based on mode."""
         actions = []
         if mode in ["summary", "full"]:
@@ -208,7 +208,7 @@ class EmailAgent:
 
         return mode_mapping.get(email_prefix, "full")
 
-    def _get_attachment_types(self, attachments: list[dict[str, Any]]) -> list[str]:
+    def _get_attachment_types(self, attachments: List[Dict[str, Any]]) -> List[str]:
         """Get list of attachment types."""
         types = []
         for att in attachments:
@@ -231,7 +231,7 @@ class EmailAgent:
             output_template=email_instructions.output_template
         )
 
-    def _format_attachments(self, attachments):
+    def _format_attachments(self, attachments: List[EmailAttachment]) -> List[str]:
         """Format attachment details for inclusion in the task."""
         return [
             f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
@@ -255,7 +255,7 @@ class EmailAgent:
     {attachments_info}
     """
 
-    def _create_attachment_task(self, attachment_details) -> str:
+    def _create_attachment_task(self, attachment_details: List[str]) -> str:
         """Return instructions for processing attachments, if any."""
         return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
 
@@ -284,7 +284,7 @@ class EmailAgent:
         return "\n\n".join(filter(None, sections))  # Filter out any empty strings
 
 
-    def _process_agent_result(self, final_answer_obj: Any, agent_steps: list) -> dict[str, Any]:
+    def _process_agent_result(self, final_answer_obj: Any, agent_steps: List) -> Dict[str, Any]:
         """
         Process the agent's result into our expected format, using the agent steps.
         Prioritizes direct output from the 'deep_research' tool if available.
