@@ -134,11 +134,11 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             )
             return self.current_handle.target_model
 
-        return "gpt-4"  # Default to gpt-4 model group
+        return "gpt-4"
 
     def __call__(
         self,
-        messages: list[dict[str, Any]],  # MODIFIED type hint for messages
+        messages: list[dict[str, Any]], # MODIFIED type hint for messages
         stop_sequences: Optional[list[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[list[Tool]] = None,
@@ -165,9 +165,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     stop_sequences=stop_sequences,
                     grammar=grammar,
                     tools_to_call_from=tools_to_call_from,
-                    # Do not pass 'model' as an explicit argument here,
-                    # as self.model_id is now set to our target_model_group.
-                    **kwargs_for_super_generate,
+                    **kwargs_for_super_generate
                 )
             finally:
                 # Restore the original model_id for the instance.
@@ -176,7 +174,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             return chat_message
 
         except Exception as e:
-            # Log the error and re-raise with more context
             logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
             msg = f"Failed to get completion from LiteLLM router: {e!s}"
             raise RuntimeError(msg) from e

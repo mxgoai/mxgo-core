@@ -45,6 +45,7 @@ dependencies = [
     "pydantic[email] (>=2.11.4,<3.0.0)",
     "python-multipart (>=0.0.20,<0.0.21)",
     "toml (>=0.10.2,<0.11.0)",
+    "wikipedia-api (>=0.8.1,<0.9.0)",
 ]
 
 [tool.ruff]
