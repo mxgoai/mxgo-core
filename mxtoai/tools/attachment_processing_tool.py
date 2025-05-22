@@ -1,19 +1,21 @@
-import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 from urllib.parse import unquote
 
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
 
 # Configure logger
 logger = get_logger("attachment_tool")
+
+CONTENT_TRUNCATE_LENGTH = 4000
+PREVIEW_TRUNCATE_LENGTH = 200
 
 
 class AttachmentProcessingTool(Tool):
@@ -40,7 +42,7 @@ class AttachmentProcessingTool(Tool):
     - size: File size in bytes
     """
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "attachments": {
             "type": "array",
             "description": "List of attachment dictionaries containing file information. Each dictionary must have 'filename', 'type', 'path', and 'size' keys. The path must point to a file in the attachments directory.",
@@ -71,9 +73,7 @@ class AttachmentProcessingTool(Tool):
         self.text_limit = 8000
 
         # Set up attachments directory path
-        self.attachments_dir = Path(
-            os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments"))
-        )
+        self.attachments_dir = Path(__file__).resolve().parent.parent / "attachments"
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_attachment_path(self, file_path: str) -> Path:
@@ -112,10 +112,11 @@ class AttachmentProcessingTool(Tool):
             if not result or not hasattr(result, "text_content"):
                 msg = f"Failed to convert document: {file_path}"
                 raise ValueError(msg)
-            return result.text_content
         except Exception as e:
             logger.error(f"Error converting document {file_path}: {e!s}")
             raise
+        else:
+            return result.text_content
 
     def forward(self, attachments: list[dict[str, Any]], mode: str = "basic") -> dict[str, Any]:
         """Process email attachments synchronously."""
@@ -162,7 +163,7 @@ class AttachmentProcessingTool(Tool):
 
                 # If in full mode and model is available, generate a summary
                 summary = None
-                if mode == "full" and self.model and len(content) > 4000:
+                if mode == "full" and self.model and len(content) > CONTENT_TRUNCATE_LENGTH:
                     messages = [
                         {
                             "role": MessageRole.SYSTEM,
@@ -233,7 +234,9 @@ class AttachmentProcessingTool(Tool):
                         summary_parts.append(f"Summary: {content['summary']}")
                     else:
                         text = content.get("text", "")
-                        preview = text[:200] + "..." if len(text) > 200 else text
+                        preview = (
+                            text[:PREVIEW_TRUNCATE_LENGTH] + "..." if len(text) > PREVIEW_TRUNCATE_LENGTH else text
+                        )
                         summary_parts.append(f"Preview: {preview}")
 
         status = f"Processed {successful} documents, {images} images pending visual processing"

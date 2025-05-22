@@ -1,4 +1,3 @@
-import os
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
@@ -16,8 +15,8 @@ class EmailProcessor:
             temp_dir: Directory to store extracted attachments
 
         """
-        self.temp_dir = temp_dir
-        os.makedirs(temp_dir, exist_ok=True)
+        self.temp_dir = Path(temp_dir)
+        self.temp_dir.mkdir(parents=True, exist_ok=True)
 
     def process_email_file(self, email_file: str) -> dict[str, Any]:
         """
@@ -30,7 +29,8 @@ class EmailProcessor:
             Dict containing email metadata, body, and attachment paths
 
         """
-        with open(email_file, "rb") as fp:
+        email_file_path = Path(email_file)
+        with email_file_path.open("rb") as fp:
             msg = BytesParser(policy=policy.default).parse(fp)
 
         # Extract basic metadata
@@ -55,7 +55,7 @@ class EmailProcessor:
             "body": body,
             "attachments": attachments,
             "research_instructions": research_instructions,
-            "attachment_dir": os.path.join(self.temp_dir, Path(email_file).stem) if attachments else None,
+            "attachment_dir": str(self.temp_dir / email_file_path.stem) if attachments else None,
         }
 
     def _extract_body(self, msg) -> str:
@@ -123,8 +123,8 @@ class EmailProcessor:
 
         """
         attachments = []
-        attachment_dir = os.path.join(self.temp_dir, Path(email_file).stem)
-        os.makedirs(attachment_dir, exist_ok=True)
+        attachment_dir = self.temp_dir / Path(email_file).stem
+        attachment_dir.mkdir(parents=True, exist_ok=True)
 
         if msg.is_multipart():
             for _i, part in enumerate(msg.iter_parts()):
@@ -132,10 +132,10 @@ class EmailProcessor:
                 if filename:
                     # Clean the filename
                     filename = Path(filename).name
-                    filepath = os.path.join(attachment_dir, filename)
-                    with open(filepath, "wb") as fp:
+                    filepath = attachment_dir / filename
+                    with filepath.open("wb") as fp:
                         fp.write(part.get_payload(decode=True))
-                    attachments.append(filepath)
+                    attachments.append(str(filepath))
 
         return attachments
 

@@ -1,13 +1,22 @@
 #!/usr/bin/env python
+import logging
 import os
+import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Setup logger
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO").upper())
+
+CONNECTION_ERROR_RETURN_CODE = 3  # Added constant
 
 
 def find_tasks_modules():
@@ -55,8 +64,14 @@ if __name__ == "__main__":
     while True:
         try:
             result = subprocess.run(cmd, check=False)
-            if result.returncode == 3:  # Connection error
-                subprocess.run(["sleep", str(delay)], check=False)
+            if result.returncode == CONNECTION_ERROR_RETURN_CODE:  # Connection error
+                sleep_cmd = shutil.which("sleep")
+                if sleep_cmd:
+                    subprocess.run([sleep_cmd, str(delay)], check=False)
+                else:
+                    # Fallback or error handling if sleep command is not found
+                    logger.error("sleep command not found, unable to delay retry.")
+                    time.sleep(delay)  # Python's time.sleep as a fallback
                 delay = min(delay * 2, 30)  # Exponential backoff, max 30 seconds
             else:
                 sys.exit(result.returncode)

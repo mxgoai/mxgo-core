@@ -19,7 +19,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 # Create logs directory if it doesn't exist
-os.makedirs(LOGS_DIR, exist_ok=True)
+Path(LOGS_DIR).mkdir(parents=True, exist_ok=True)
 
 # Get log level from environment or use default
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip()

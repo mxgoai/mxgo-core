@@ -1,6 +1,6 @@
 import json
-import os
 import re
+from pathlib import Path
 from typing import Any, Optional
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -24,9 +24,9 @@ class ReportFormatter:
         # Set up template directory
         if template_dir is None:
             # Default to a templates directory next to this file
-            self.template_dir = os.path.join(os.path.dirname(__file__), "templates")
+            self.template_dir = Path(__file__).parent / "templates"
         else:
-            self.template_dir = template_dir
+            self.template_dir = Path(template_dir)
 
         # Initialize Jinja environment
         self._init_template_env()
@@ -67,15 +67,15 @@ _Feel free to reply to this email to continue our conversation._
         self.themes = {"default": {}}  # Always have a default theme
 
         try:
-            themes_file = os.path.join(self.template_dir, "themes.json")
-            if os.path.exists(themes_file):
-                with open(themes_file) as f:
+            themes_file = self.template_dir / "themes.json"
+            if themes_file.exists():
+                with themes_file.open() as f:
                     self.themes.update(json.load(f))
         except Exception as e:
             logger.error(f"Failed to load themes: {e}")
 
     def format_report(
-        self, content: str, format_type: str = "markdown", include_signature: bool = True, theme: str = "default"
+        self, content: str, format_type: str = "markdown", *, include_signature: bool = True, theme: str = "default"
     ) -> str:
         """
         Format the research report in the specified format.
@@ -159,9 +159,9 @@ _Feel free to reply to this email to continue our conversation._
             # Add the formatted references section at the end
             return content.strip() + "\n\n" + "\n".join(formatted_refs)
 
-        except Exception as e:
+        except Exception:
             # Log error but don't break formatting
-            logger.exception(f"Error processing citations: {e!s}")
+            logger.exception("Error processing citations")
             return content
 
     def _remove_existing_signatures(self, content: str) -> str:

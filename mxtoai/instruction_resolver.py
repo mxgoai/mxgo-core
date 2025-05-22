@@ -32,7 +32,7 @@ class ProcessingInstructionsResolver:
         self.handle_map: dict[str, ProcessingInstructions] = {}
         self.register_handles(default_instructions)
 
-    def register_handles(self, instructions_list: list[ProcessingInstructions], overwrite: bool = False):
+    def register_handles(self, instructions_list: list[ProcessingInstructions], *, overwrite: bool = False):
         """
         Registers a list of handle instructions (including aliases).
 
@@ -49,10 +49,10 @@ class ProcessingInstructionsResolver:
             for name in all_names:
                 if name in self.handle_map and not overwrite:
                     msg = f"Handle or alias '{name}' already registered. Use `overwrite=True` to replace."
-                    raise exceptions.HandleAlreadyExistsException(msg)
+                    raise exceptions.HandleAlreadyExistsError(msg)
                 self.handle_map[name] = instructions
 
-    def add_custom_handle(self, custom_instruction: ProcessingInstructions, overwrite: bool = False):
+    def add_custom_handle(self, custom_instruction: ProcessingInstructions, *, overwrite: bool = False):
         """
         Adds a single custom handle instruction.
 
@@ -80,7 +80,7 @@ class ProcessingInstructionsResolver:
         if handle not in self.handle_map:
             logger.debug("This email handle is not supported!")
             msg = "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
-            raise exceptions.UnspportedHandleException(msg)
+            raise exceptions.UnsupportedHandleError(msg)
         return self.handle_map[handle]
 
     def list_available_handles(self) -> list[str]:

@@ -1,15 +1,12 @@
 # Shamelessly stolen from Microsoft Autogen team: thanks to them for this great resource!
 # https://github.com/microsoft/autogen/blob/gaia_multiagent_v01_march_1st/autogen/browser_utils.py
 import mimetypes
-import os
-import pathlib
 import re
 import time
-import uuid
-from typing import Any, Optional, Union
-from urllib.parse import unquote, urljoin, urlparse
+from pathlib import Path
+from typing import Any, ClassVar, Optional, Union
+from urllib.parse import urljoin, urlparse
 
-import pathvalidate
 import requests
 
 # Note: Requires 'google-search-results' package to be installed
@@ -17,7 +14,26 @@ import serpapi
 from smolagents import Tool
 
 from .cookies import COOKIES
-from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
+from .mdconvert import FileConversionError, MarkdownConverter, UnsupportedFormatError
+
+DEFAULT_REQUEST_TIMEOUT = 30
+MAX_FILENAME_SUFFIX = 1000
+
+
+class NoSearchResultsError(Exception):
+    pass
+
+
+class FileDownloadError(Exception):
+    pass
+
+
+class PageConversionError(Exception):
+    pass
+
+
+class WaybackError(Exception):
+    pass
 
 
 class SimpleTextBrowser:
@@ -72,7 +88,7 @@ class SimpleTextBrowser:
                 uri_or_path = urljoin(prior_address, uri_or_path)
                 # Update the address with the fully-qualified path
                 self.history[-1] = (uri_or_path, self.history[-1][1])
-            self._fetch_page(uri_or_path)
+            self.fetch_page(uri_or_path)
 
         self.viewport_current_page = 0
         self.find_on_page_query = None
@@ -214,7 +230,7 @@ class SimpleTextBrowser:
         self.page_title = f"{query} - Search"
         if "organic_results" not in results:
             msg = f"No results found for query: '{query}'. Use a less specific query."
-            raise Exception(msg)
+            raise NoSearchResultsError(msg)
         if len(results["organic_results"]) == 0:
             year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
             self._set_page_content(
@@ -256,97 +272,73 @@ class SimpleTextBrowser:
 
         self._set_page_content(content)
 
-    def _fetch_page(self, url: str) -> None:
-        download_path = ""
-        try:
-            if url.startswith("file://"):
-                download_path = os.path.normcase(os.path.normpath(unquote(url[7:])))
-                res = self._mdconvert.convert_local(download_path)
-                self.page_title = res.title
-                self._set_page_content(res.text_content)
-            else:
-                # Prepare the request parameters
-                request_kwargs = self.request_kwargs.copy() if self.request_kwargs is not None else {}
-                request_kwargs["stream"] = True
-
-                # Send a HTTP request to the URL
-                response = requests.get(url, **request_kwargs)
-                response.raise_for_status()
-
-                # If the HTTP request was successful
-                content_type = response.headers.get("content-type", "")
-
-                # Text or HTML
-                if "text/" in content_type.lower():
-                    res = self._mdconvert.convert_response(response)
-                    self.page_title = res.title
-                    self._set_page_content(res.text_content)
-                # A download
-                else:
-                    # Try producing a safe filename
-                    fname = None
-                    download_path = None
-                    try:
-                        fname = pathvalidate.sanitize_filename(os.path.basename(urlparse(url).path)).strip()
-                        download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
-
-                        suffix = 0
-                        while os.path.exists(download_path) and suffix < 1000:
-                            suffix += 1
-                            base, ext = os.path.splitext(fname)
-                            new_fname = f"{base}__{suffix}{ext}"
-                            download_path = os.path.abspath(os.path.join(self.downloads_folder, new_fname))
-
-                    except NameError:
-                        pass
-
-                    # No suitable name, so make one
-                    if fname is None:
-                        extension = mimetypes.guess_extension(content_type)
-                        if extension is None:
-                            extension = ".download"
-                        fname = str(uuid.uuid4()) + extension
-                        download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
-
-                    # Open a file for writing
-                    with open(download_path, "wb") as fh:
-                        for chunk in response.iter_content(chunk_size=512):
-                            fh.write(chunk)
-
-                    # Render it
-                    local_uri = pathlib.Path(download_path).as_uri()
-                    self.set_address(local_uri)
-
-        except UnsupportedFormatException:
-            self.page_title = ("Download complete.",)
-            self._set_page_content(f"# Download complete\n\nSaved file to '{download_path}'")
-        except FileConversionException:
-            self.page_title = ("Download complete.",)
-            self._set_page_content(f"# Download complete\n\nSaved file to '{download_path}'")
-        except FileNotFoundError:
-            self.page_title = "Error 404"
-            self._set_page_content(f"## Error 404\n\nFile not found: {download_path}")
-        except requests.exceptions.RequestException as request_exception:
+    def fetch_page(self, url: str) -> None:
+        # Check if the URL is a local file
+        parsed_url = urlparse(url)
+        if parsed_url.scheme == "file":
+            file_path = Path(parsed_url.path)
             try:
-                self.page_title = f"Error {response.status_code}"
+                # Try to convert the local file to markdown
+                result = self._mdconvert.convert(str(file_path))
+                markdown_content = result.text_content
+            except (UnsupportedFormatError, FileConversionError):
+                # If conversion fails, try reading as plain text
+                try:
+                    markdown_content = file_path.read_text(encoding="utf-8")
+                except Exception as read_error:
+                    msg = f"Error reading file {file_path} as plain text after conversion failure: {read_error!s}"
+                    raise PageConversionError(msg) from read_error
+            except Exception as e:
+                msg = f"Error converting file {file_path}: {e!s}"
+                raise PageConversionError(msg) from e
+            else:
+                self._set_page_content(markdown_content)
+        else:
+            # It's a web URL, fetch with requests
+            try:
+                response = requests.get(url, timeout=DEFAULT_REQUEST_TIMEOUT, **self.request_kwargs)
+                response.raise_for_status()  # Raise an exception for bad status codes
+            except requests.exceptions.RequestException as e:
+                msg = f"Error fetching URL {url}: {e!s}"
+                raise PageConversionError(msg) from e
 
-                # If the error was rendered in HTML we might as well render it
-                content_type = response.headers.get("content-type", "")
-                if content_type is not None and "text/html" in content_type.lower():
-                    res = self._mdconvert.convert(response)
-                    self.page_title = f"Error {response.status_code}"
-                    self._set_page_content(f"## Error {response.status_code}\n\n{res.text_content}")
-                else:
-                    text = ""
-                    for chunk in response.iter_content(chunk_size=512, decode_unicode=True):
-                        text += chunk
-                    self.page_title = f"Error {response.status_code}"
-                    self._set_page_content(f"## Error {response.status_code}\n\n{text}")
-            except NameError:
-                self.page_title = "Error"
-                self._set_page_content(f"## Error\n\n{request_exception!s}")
+            content_type = response.headers.get("content-type", "")
+            if "text/html" in content_type:
+                html_content = response.text
+                try:
+                    # Convert HTML to Markdown
+                    markdown_content = self._mdconvert.convert_html_to_markdown(html_content, base_url=url)
+                    self.page_title = self._mdconvert.get_title(html_content) or url
+                except Exception:
+                    # Fallback to plain text if conversion fails
+                    markdown_content = self._mdconvert.extract_text_from_html(html_content)
+                    self.page_title = url  # Use URL as title if extraction fails
+                    # Optionally, log the conversion error or handle it more gracefully
+                    # logger.warning(f"HTML to Markdown conversion failed for {url}, falling back to plain text: {e}")
+            elif "text/plain" in content_type:
+                markdown_content = response.text
+                self.page_title = url
+            elif any(ftype in content_type for ftype in [".pdf", ".docx", ".pptx"]):
+                # For these file types, suggest using DownloadTool
+                file_extension = mimetypes.guess_extension(content_type) or ".bin"
+                markdown_content = (
+                    "This page points to a "
+                    + file_extension
+                    + " file.\nPlease use the download_file tool to download it and then inspect it locally."
+                )
+                self.page_title = url
+            else:
+                # For other content types, provide a message indicating it's likely a binary file
+                markdown_content = (
+                    "This page has content type "
+                    + content_type
+                    + ".\nIt is likely a binary file or a format not suitable for direct viewing in the browser.\nConsider using the download_file tool if you wish to inspect its contents."
+                )
+                self.page_title = url
+            self._set_page_content(markdown_content)
 
-    def _state(self) -> tuple[str, str]:
+    def state(self) -> tuple[str, str]:
+        """Return a tuple of the current address and viewport content."""
         header = f"Address: {self.address}\n"
         if self.page_title is not None:
             header += f"Title: {self.page_title}\n"
@@ -367,11 +359,13 @@ class SimpleTextBrowser:
 class SearchInformationTool(Tool):
     name = "web_search"
     description = "Perform a web search query (think a google search) and returns the search results."
-    inputs = {"query": {"type": "string", "description": "The web search query to perform."}}
-    inputs["filter_year"] = {
-        "type": "string",
-        "description": "[Optional parameter]: filter the search results to only include pages from a specific year. For example, '2020' will only include pages from 2020. Make sure to use this parameter if you're trying to search for articles from a specific date!",
-        "nullable": True,
+    inputs: ClassVar[dict] = {
+        "query": {"type": "string", "description": "The web search query to perform."},
+        "filter_year": {
+            "type": "string",
+            "description": "[Optional parameter]: filter the search results to only include pages from a specific year. For example, '2020' will only include pages from 2020. Make sure to use this parameter if you're trying to search for articles from a specific date!",
+            "nullable": True,
+        },
     }
     output_type = "string"
 
@@ -381,14 +375,16 @@ class SearchInformationTool(Tool):
 
     def forward(self, query: str, filter_year: Optional[int] = None) -> str:
         self.browser.visit_page(f"google: {query}", filter_year=filter_year)
-        header, content = self.browser._state()
+        header, content = self.browser.state()
         return header.strip() + "\n=======================\n" + content
 
 
 class VisitTool(Tool):
     name = "visit_page"
     description = "Visit a webpage at a given URL and return its text. Given a url to a YouTube video, this returns the transcript."
-    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
+    inputs: ClassVar[dict] = {
+        "url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}
+    }
     output_type = "string"
 
     def __init__(self, browser):
@@ -397,7 +393,7 @@ class VisitTool(Tool):
 
     def forward(self, url: str) -> str:
         self.browser.visit_page(url)
-        header, content = self.browser._state()
+        header, content = self.browser.state()
         return header.strip() + "\n=======================\n" + content
 
 
@@ -407,7 +403,9 @@ class DownloadTool(Tool):
 Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".png", ".docx"]
 After using this tool, for further inspection of this page you should return the download path to your manager via final_answer, and they will be able to inspect it.
 DO NOT use this tool for .pdf or .txt or .htm files: for these types of files use visit_page with the file url instead."""
-    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}}
+    inputs: ClassVar[dict] = {
+        "url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}
+    }
     output_type = "string"
 
     def __init__(self, browser):
@@ -417,20 +415,22 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
     def forward(self, url: str) -> str:
         if "arxiv" in url:
             url = url.replace("abs", "pdf")
-        response = requests.get(url)
+        response = requests.get(url, timeout=DEFAULT_REQUEST_TIMEOUT)
         content_type = response.headers.get("content-type", "")
         extension = mimetypes.guess_extension(content_type)
-        if extension and isinstance(extension, str):
-            new_path = f"./downloads/file{extension}"
-        else:
-            new_path = "./downloads/file.object"
+        if extension is None:
+            extension = ".object"  # default extension
 
-        with open(new_path, "wb") as f:
+        downloads_dir = Path("./downloads")
+        downloads_dir.mkdir(parents=True, exist_ok=True)
+        new_path = downloads_dir / f"file{extension}"
+
+        with new_path.open("wb") as f:
             f.write(response.content)
 
         if "pdf" in extension or "txt" in extension or "htm" in extension:
             msg = "Do not use this tool for pdf or txt or html files: use visit_page instead."
-            raise Exception(msg)
+            raise FileDownloadError(msg)
 
         return f"File was downloaded and saved under path {new_path}."
 
@@ -438,7 +438,7 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
 class ArchiveSearchTool(Tool):
     name = "find_archived_url"
     description = "Given a url, searches the Wayback Machine and returns the archived version of the url that's closest in time to the desired date."
-    inputs = {
+    inputs: ClassVar[dict] = {
         "url": {"type": "string", "description": "The url you need the archive for."},
         "date": {
             "type": "string",
@@ -454,8 +454,8 @@ class ArchiveSearchTool(Tool):
     def forward(self, url, date) -> str:
         no_timestamp_url = f"https://archive.org/wayback/available?url={url}"
         archive_url = no_timestamp_url + f"&timestamp={date}"
-        response = requests.get(archive_url).json()
-        response_notimestamp = requests.get(no_timestamp_url).json()
+        response = requests.get(archive_url, timeout=DEFAULT_REQUEST_TIMEOUT).json()
+        response_notimestamp = requests.get(no_timestamp_url, timeout=DEFAULT_REQUEST_TIMEOUT).json()
         if "archived_snapshots" in response and "closest" in response["archived_snapshots"]:
             closest = response["archived_snapshots"]["closest"]
 
@@ -463,10 +463,10 @@ class ArchiveSearchTool(Tool):
             closest = response_notimestamp["archived_snapshots"]["closest"]
         else:
             msg = f"Your {url=} was not archived on Wayback Machine, try a different url."
-            raise Exception(msg)
+            raise WaybackError(msg)
         target_url = closest["url"]
         self.browser.visit_page(target_url)
-        header, content = self.browser._state()
+        header, content = self.browser.state()
         return (
             f"Web archive for url {url}, snapshot taken at date {closest['timestamp'][:8]}:\n"
             + header.strip()
@@ -478,7 +478,7 @@ class ArchiveSearchTool(Tool):
 class PageUpTool(Tool):
     name = "page_up"
     description = "Scroll the viewport UP one page-length in the current webpage and return the new viewport content."
-    inputs = {}
+    inputs: ClassVar[dict] = {}
     output_type = "string"
 
     def __init__(self, browser):
@@ -487,14 +487,14 @@ class PageUpTool(Tool):
 
     def forward(self) -> str:
         self.browser.page_up()
-        header, content = self.browser._state()
+        header, content = self.browser.state()
         return header.strip() + "\n=======================\n" + content
 
 
 class PageDownTool(Tool):
     name = "page_down"
     description = "Scroll the viewport DOWN one page-length in the current webpage and return the new viewport content."
-    inputs = {}
+    inputs: ClassVar[dict] = {}
     output_type = "string"
 
     def __init__(self, browser):
@@ -503,14 +503,14 @@ class PageDownTool(Tool):
 
     def forward(self) -> str:
         self.browser.page_down()
-        header, content = self.browser._state()
+        header, content = self.browser.state()
         return header.strip() + "\n=======================\n" + content
 
 
 class FinderTool(Tool):
     name = "find_on_page_ctrl_f"
     description = "Scroll the viewport to the first occurrence of the search string. This is equivalent to Ctrl+F."
-    inputs = {
+    inputs: ClassVar[dict] = {
         "search_string": {
             "type": "string",
             "description": "The string to search for on the page. This search string supports wildcards like '*'",
@@ -524,7 +524,7 @@ class FinderTool(Tool):
 
     def forward(self, search_string: str) -> str:
         find_result = self.browser.find_on_page(search_string)
-        header, content = self.browser._state()
+        header, content = self.browser.state()
 
         if find_result is None:
             return (
@@ -537,7 +537,7 @@ class FinderTool(Tool):
 class FindNextTool(Tool):
     name = "find_next"
     description = "Scroll the viewport to next occurrence of the search string. This is equivalent to finding the next match in a Ctrl+F search."
-    inputs = {}
+    inputs: ClassVar[dict] = {}
     output_type = "string"
 
     def __init__(self, browser):
@@ -546,7 +546,7 @@ class FindNextTool(Tool):
 
     def forward(self) -> str:
         find_result = self.browser.find_next()
-        header, content = self.browser._state()
+        header, content = self.browser.state()
 
         if find_result is None:
             return header.strip() + "\n=======================\nThe search string was not found on this page."

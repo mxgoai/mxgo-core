@@ -1,23 +1,23 @@
-class UnspportedHandleException(Exception):
+class UnsupportedHandleError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
 
-class HandleAlreadyExistsException(Exception):
+class HandleAlreadyExistsError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
 
-class EnvironmentVariableNotFoundException(Exception):
+class EnvironmentVariableNotFoundError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
 
-class ModelListNotFoundException(Exception):
+class ModelListNotFoundError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
 
 
-class ModelConfigFileNotFoundException(Exception):
+class ModelConfigFileNotFoundError(Exception):
     def __init__(self, message: str):
         super().__init__(message)

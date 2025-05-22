@@ -1,9 +1,19 @@
-from typing import Optional
+from typing import ClassVar, Optional
 
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
-from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
+from mxtoai._logging import get_logger
+
+from .mdconvert import FileConversionError, MarkdownConverter, UnsupportedFormatError
+
+logger = get_logger(__name__)
+
+MAX_TEXT_CONTENT_LENGTH = 4000
+
+
+class ImageFileNotAllowedError(Exception):
+    pass
 
 
 class TextInspectorTool(Tool):
@@ -12,7 +22,7 @@ class TextInspectorTool(Tool):
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
 This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "file_path": {
             "description": "The path to the file you want to read as text. Must be a '.something' file, like '.pdf'. If it is an image, use the visualizer tool instead! DO NOT use this tool for an HTML webpage: use the web_search tool instead!",
             "type": "string",
@@ -35,7 +45,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         try:
             if file_path[-4:] in [".png", ".jpg"]:
                 msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
-                raise Exception(msg)
+                raise ImageFileNotAllowedError(msg)
 
             result = self.md_converter.convert(file_path)
 
@@ -45,7 +55,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             if not question:
                 return result.text_content
 
-            if len(result.text_content) < 4000:
+            if len(result.text_content) < MAX_TEXT_CONTENT_LENGTH:
                 return "Document content: " + result.text_content
 
             messages = [
@@ -74,9 +84,10 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
                 },
             ]
             return self.model(messages).content
-        except FileConversionException as e:
-            return f"Error converting file: {e!s}"
-        except UnsupportedFormatException as e:
+        except FileConversionError as e:
+            logger.error(f"Error converting file to markdown: {e!s}")
+            return f"Error: Could not convert file to markdown: {e!s}"
+        except UnsupportedFormatError as e:
             return f"Unsupported file format: {e!s}"
         except Exception as e:
             return f"Error processing file: {e!s}"
@@ -85,7 +96,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         try:
             if file_path[-4:] in [".png", ".jpg"]:
                 msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
-                raise Exception(msg)
+                raise ImageFileNotAllowedError(msg)
 
             result = self.md_converter.convert(file_path)
 
@@ -130,9 +141,10 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
                 },
             ]
             return self.model(messages).content
-        except FileConversionException as e:
-            return f"Error converting file: {e!s}"
-        except UnsupportedFormatException as e:
+        except FileConversionError as e:
+            logger.error(f"Error converting file to markdown: {e!s}")
+            return f"Error: Could not convert file to markdown: {e!s}"
+        except UnsupportedFormatError as e:
             return f"Unsupported file format: {e!s}"
         except Exception as e:
             return f"Error processing file: {e!s}"

@@ -6,7 +6,6 @@ information for a simple references section without embedding citations in text.
 """
 
 import re
-import time
 from typing import Optional
 
 from smolagents import GoogleSearchTool
@@ -14,16 +13,15 @@ from smolagents import GoogleSearchTool
 from .text_web_browser import VisitTool
 
 # Global store for all URLs visited during research
-_all_visited_urls = []
+_all_visited_urls: list[str] = []
 
 
 def reset_citation_counter():
     """Reset the global URL store."""
-    global _all_visited_urls
-    _all_visited_urls = []
+    _all_visited_urls.clear()
 
 
-def add_url_to_references(url: str, title: Optional[str] = None, date: Optional[str] = None) -> None:
+def add_to_citation_store(url: str) -> None:
     """
     Add a URL to the global references collection.
 
@@ -33,13 +31,13 @@ def add_url_to_references(url: str, title: Optional[str] = None, date: Optional[
         date: Publication date (optional)
 
     """
-    global _all_visited_urls
-
     # Don't add duplicates
-    if url not in [u.get("url") for u in _all_visited_urls]:
-        _all_visited_urls.append(
-            {"url": url, "title": title or url, "date": date or "n.d.", "timestamp": int(time.time())}
-        )
+    if url not in _all_visited_urls:
+        _all_visited_urls.append(url)
+
+
+def get_all_visited_urls() -> list[str]:
+    return _all_visited_urls
 
 
 class CitationAwareGoogleSearchTool(GoogleSearchTool):
@@ -71,12 +69,12 @@ class CitationAwareGoogleSearchTool(GoogleSearchTool):
         # Add URLs to the global collection
         for match in title_url_matches:
             title, url = match
-            add_url_to_references(url=url, title=title)
+            add_to_citation_store(url=url)
 
         # Add any URLs that didn't have a title match
         for url in urls:
-            if url not in [u.get("url") for u in _all_visited_urls]:
-                add_url_to_references(url=url)
+            if url not in _all_visited_urls:
+                add_to_citation_store(url=url)
 
         return original_results
 
@@ -107,21 +105,18 @@ class CitationAwareVisitTool(VisitTool):
             or re.search(r"# (.*?)$", original_content, re.MULTILINE)
         )
 
-        title = title_match.group(1) if title_match else None
+        title_match.group(1) if title_match else None
 
         # Add URL to the global collection
-        add_url_to_references(url=url, title=title)
+        add_to_citation_store(url=url)
 
         return original_content
 
 
-def extract_citations(text: str) -> dict[str, dict[str, str]]:
+def extract_citations() -> dict[str, dict[str, str]]:
     """
-    This function is maintained for backward compatibility.
-    It no longer extracts citations but returns an empty dict.
-
-    Args:
-        text: Text to analyze
+    Maintained for backward compatibility.
+    This function no longer extracts citations but returns an empty dict.
 
     Returns:
         Empty dictionary

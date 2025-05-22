@@ -1,4 +1,5 @@
 import random
+import secrets
 import time
 from collections.abc import Generator
 from typing import Any
@@ -6,6 +7,8 @@ from typing import Any
 import faker
 
 fake = faker.Faker()
+
+THINKING_MARKER_PROBABILITY = 0.2
 
 
 class MockJinaService:
@@ -21,11 +24,11 @@ class MockJinaService:
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
         all_urls = [
-            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}" for _ in range(num_urls)
+            f"https://{secrets.choice(domains)}/{fake.slug()}-{secrets.randbelow(9000) + 1000}" for _ in range(num_urls)
         ]
 
         # Randomly select some URLs as "read"
-        read_urls = random.sample(all_urls, random.randint(3, len(all_urls)))
+        read_urls = random.sample(all_urls, secrets.randbelow(len(all_urls) - 3 + 1) + 3)
 
         return {"visitedURLs": all_urls, "readURLs": read_urls}
 
@@ -60,13 +63,13 @@ class MockJinaService:
             content_parts.append(f"### {section}")
 
             # Generate 2-3 paragraphs for each section
-            for _ in range(random.randint(2, 3)):
+            for _ in range(secrets.randbelow(2) + 2):
                 paragraph = fake.paragraph()
 
                 # Add 1-2 random citations to each paragraph
-                for _ in range(random.randint(1, 2)):
+                for _ in range(secrets.randbelow(2) + 1):
                     if annotations:
-                        citation = random.choice(annotations)
+                        citation = secrets.choice(annotations)
                         citation_id = citation["url_citation"]["id"]
                         paragraph += f" |^{citation_id}]"
 
@@ -89,9 +92,9 @@ class MockJinaService:
             "choices": [{"message": {"role": "assistant", "content": content, "annotations": annotations}}],
             **urls,
             "usage": {
-                "prompt_tokens": random.randint(100, 500),
-                "completion_tokens": random.randint(1000, 3000),
-                "total_tokens": random.randint(1500, 4000),
+                "prompt_tokens": secrets.randbelow(401) + 100,
+                "completion_tokens": secrets.randbelow(2001) + 1000,
+                "total_tokens": secrets.randbelow(2501) + 1500,
             },
             "numURLs": len(urls["visitedURLs"]),
         }
@@ -103,7 +106,7 @@ class MockJinaService:
 
         # Split content into chunks
         chunks = content.split("\n")
-        chunk_delay = random.uniform(0.5, 2.0)  # Delay between chunks
+        chunk_delay = random.uniform(0.5, 2.0)
 
         # Stream the role first
         yield {"choices": [{"delta": {"role": "assistant"}}]}
@@ -115,7 +118,7 @@ class MockJinaService:
                 continue
 
             # Occasionally add thinking markers
-            if random.random() < 0.2:
+            if random.random() < THINKING_MARKER_PROBABILITY:
                 yield {"choices": [{"delta": {"type": "think", "content": "<think>Analyzing sources...</think>"}}]}
                 time.sleep(chunk_delay)
 
@@ -130,7 +133,7 @@ class MockJinaService:
         yield {**{k: v for k, v in response.items() if k not in ["choices"]}, "choices": [{"delta": {}}]}
 
     def process_request(
-        self, query: str, stream: bool = False, reasoning_effort: str = "medium"
+        self, query: str, *, stream: bool = False, reasoning_effort: str = "medium"
     ) -> dict[str, Any] | Generator[dict[str, Any]]:
         """Process a mock request with realistic delays."""
         # Calculate delay based on reasoning effort

@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import ClassVar, Optional
 from urllib.parse import urlencode
 
 import pytz
@@ -48,7 +48,7 @@ class ScheduleTool(Tool):
         "based on provided event details. Expects ISO 8601 date/time strings with timezone."
     )
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "title": {"type": "string", "description": "The title or summary of the event."},
         "start_time": {
             "type": "string",
@@ -194,14 +194,16 @@ class ScheduleTool(Tool):
                 "message": "Successfully generated calendar data. The 'ics_content' should be used to create an email attachment.",
             }
             logger.info(f"{self.name} completed successfully.")  # Added logging
-            return result
+            # return result # Moved to else block
         except Exception as e:
-            logger.error(f"Error in {self.name}: {e}", exc_info=True)
+            logger.exception(f"Error in {self.name}: {e}")
             # Provide specific error feedback for the LLM
             return {
                 "status": "error",
                 "message": f"Failed to generate calendar data using {self.name}: {e}. Check input format, especially date/time (must be ISO 8601 with timezone).",
             }
+        else:  # Added else block for TRY300
+            return result
 
 
 # Example usage (for testing)

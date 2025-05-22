@@ -2,6 +2,7 @@ import base64
 import os
 import time
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Optional
 
 import boto3
@@ -110,8 +111,6 @@ class EmailSender:
 
             logger.info(f"Sending email from {source_email} to {to_address} with subject: {subject}")
             response = self.ses_client.send_email(**email_params)
-            logger.info(f"Email sent successfully: {response['MessageId']}")
-            return response
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
@@ -131,9 +130,88 @@ class EmailSender:
                 logger.exception(f"AWS SES error ({error_code}): {error_message}")
 
             raise
-        except Exception as e:
-            logger.exception(f"Error sending email: {e!s}")
+        except Exception:
+            logger.exception("Error sending email")
             raise
+        else:
+            logger.info(f"Email sent successfully: {response['MessageId']}")
+            return response
+
+    def _create_mime_message(
+        self, original_email: dict[str, Any], subject: str, sender_email: str, to_address: str
+    ) -> MIMEMultipart:
+        msg = MIMEMultipart("mixed")
+        msg["Subject"] = subject
+        msg["From"] = sender_email
+        msg["To"] = to_address
+
+        cc_addresses = []
+        original_cc_data = original_email.get("cc")
+        if original_cc_data:
+            if isinstance(original_cc_data, str):
+                potential_ccs = [addr.strip() for addr in original_cc_data.split(",") if addr.strip()]
+                cc_addresses = [addr for addr in potential_ccs if isinstance(addr, str) and "@" in addr]
+                if len(cc_addresses) != len(potential_ccs):
+                    logger.warning(f"Filtered invalid CC addresses from string: {original_cc_data}")
+            elif isinstance(original_cc_data, list):
+                cc_addresses = [addr for addr in original_cc_data if isinstance(addr, str) and "@" in addr]
+                if len(cc_addresses) != len(original_cc_data):
+                    logger.warning(f"Filtered invalid CC addresses from list: {original_cc_data}")
+            else:
+                logger.warning(f"CC field was not a string or list: {original_cc_data}")
+
+        if cc_addresses:
+            msg["Cc"] = ", ".join(cc_addresses)
+            logger.info(f"Adding valid CC addresses to reply: {cc_addresses}")
+
+        message_id = original_email.get("messageId")
+        references = original_email.get("references", "")
+        if message_id:
+            if not message_id.startswith("<"):
+                message_id = f"<{message_id}"
+            if not message_id.endswith(">"):
+                message_id = f"{message_id}>"
+            msg["In-Reply-To"] = message_id
+            msg["References"] = f"{references} {message_id}".strip() if references else message_id
+        return msg
+
+    def _create_alternative_body_part(self, reply_text: str, reply_html: Optional[str] = None) -> MIMEMultipart:
+        msg_alternative = MIMEMultipart("alternative")
+        msg_text = MIMEText(reply_text, "plain", "utf-8")
+        msg_alternative.attach(msg_text)
+        if reply_html:
+            msg_html = MIMEText(reply_html, "html", "utf-8")
+            msg_alternative.attach(msg_html)
+        return msg_alternative
+
+    def _attach_files_to_message(self, msg: MIMEMultipart, attachments: Optional[list[dict[str, Any]]] = None):
+        if not attachments:
+            return
+
+        for attachment in attachments:
+            try:
+                filename = attachment["filename"]
+                content = attachment["content"]
+                mimetype = attachment["mimetype"]
+                maintype, subtype = mimetype.split("/", 1)
+
+                attachment_content_bytes = content.encode("utf-8") if isinstance(content, str) else content
+                part = MIMEApplication(attachment_content_bytes, Name=filename)
+                part.add_header("Content-Disposition", "attachment", filename=filename)
+
+                if maintype == "text" and subtype == "calendar":
+                    part.replace_header("Content-Type", "text/calendar; method=PUBLISH; charset=utf-8")
+                    logger.info(f"Setting Content-Type for {filename} to text/calendar; method=PUBLISH")
+                else:
+                    part.replace_header("Content-Type", mimetype)
+                    logger.info(f"Setting Content-Type for {filename} to {mimetype}")
+
+                msg.attach(part)
+                logger.info(f"Attached file using MIMEApplication: {filename} ({mimetype})")
+            except KeyError as ke:
+                logger.error(f"Skipping attachment {attachment.get('filename', '(unknown)')} due to missing key: {ke}")
+            except Exception as attach_err:
+                logger.error(f"Error attaching file '{attachment.get('filename', '(unknown)')}': {attach_err}")
 
     async def send_reply(
         self,
@@ -142,148 +220,53 @@ class EmailSender:
         reply_html: Optional[str] = None,
         attachments: Optional[list[dict[str, Any]]] = None,
     ) -> dict[str, Any]:
-        """
-        Send a reply to an original email, using send_raw_email for attachment support.
-
-        Args:
-            original_email: The original email data (should contain 'from', 'to', 'subject', optional 'messageId', optional 'cc' list)
-            reply_text: The plain text reply body
-            reply_html: The HTML reply body (optional)
-            attachments: Optional list of attachments. Each dict should have:
-                         'filename' (str): Name of the file.
-                         'content' (bytes or str): File content.
-                         'mimetype' (str): MIME type (e.g., 'text/calendar', 'application/pdf').
-
-        Returns:
-            The response from AWS SES
-
-        """
         logger.info(f"Processing reply with attachments: {bool(attachments)}")
         try:
-            # --- Extract Info & Basic Headers ---
             to_address = original_email.get("from")
             if not to_address:
-                msg = "Original email 'from' address is missing for reply"
-                logger.error(msg)
-                raise ValueError(msg)
+                msg_val_err = "Original email 'from' address is missing for reply"
+                logger.error(msg_val_err)
+                raise ValueError(msg_val_err)
 
             original_subject = original_email.get("subject", "")
-            # Use the original recipient ("to") as the sender for the reply
             sender_email = original_email.get("to", self.default_sender_email)
             if not sender_email:
-                msg = "Original recipient ('to' field) missing in email data for reply."
-                logger.error(msg)
-                raise ValueError(msg)
+                msg_val_err = "Original recipient ('to' field) missing in email data for reply."
+                logger.error(msg_val_err)
+                raise ValueError(msg_val_err)
 
             subject = f"Re: {original_subject}" if not original_subject.lower().startswith("re:") else original_subject
 
-            # --- Create Root MIME message (multipart/mixed) ---
-            msg = MIMEMultipart("mixed")
-            msg["Subject"] = subject
-            msg["From"] = sender_email
-            msg["To"] = to_address
+            msg = self._create_mime_message(original_email, subject, sender_email, to_address)
 
-            # --- Handle CC Addresses (Incorporating validation from incoming change) ---
-            cc_addresses = []
-            original_cc_data = original_email.get("cc")
-            if original_cc_data:
-                if isinstance(original_cc_data, str):
-                    # Parse comma-separated string
-                    potential_ccs = [addr.strip() for addr in original_cc_data.split(",") if addr.strip()]
-                    # Validate
-                    cc_addresses = [addr for addr in potential_ccs if isinstance(addr, str) and "@" in addr]
-                    if len(cc_addresses) != len(potential_ccs):
-                        logger.warning(f"Filtered invalid CC addresses from string: {original_cc_data}")
-                elif isinstance(original_cc_data, list):
-                    # Validate list entries
-                    cc_addresses = [addr for addr in original_cc_data if isinstance(addr, str) and "@" in addr]
-                    if len(cc_addresses) != len(original_cc_data):
-                        logger.warning(f"Filtered invalid CC addresses from list: {original_cc_data}")
-                else:
-                    logger.warning(f"CC field was not a string or list: {original_cc_data}")
-
-            if cc_addresses:
-                msg["Cc"] = ", ".join(cc_addresses)
-                logger.info(f"Adding valid CC addresses to reply: {cc_addresses}")
-
-            # Handle In-Reply-To and References for threading
-            message_id = original_email.get("messageId")
-            references = original_email.get("references", "")
-            if message_id:
-                if not message_id.startswith("<"):
-                    message_id = f"<{message_id}"
-                if not message_id.endswith(">"):
-                    message_id = f"{message_id}>"
-                msg["In-Reply-To"] = message_id
-                msg["References"] = f"{references} {message_id}".strip() if references else message_id
-
-            # --- Create Alternative Part for Body (text/plain and text/html) ---
-            msg_alternative = MIMEMultipart("alternative")
-            # Attach text part
-            msg_text = MIMEText(reply_text, "plain", "utf-8")
-            msg_alternative.attach(msg_text)
-            # Attach HTML part if provided
-            if reply_html:
-                msg_html = MIMEText(reply_html, "html", "utf-8")
-                msg_alternative.attach(msg_html)
-            # Attach alternative part to the root message
+            msg_alternative = self._create_alternative_body_part(reply_text, reply_html)
             msg.attach(msg_alternative)
 
-            # --- Attach Files (as separate parts in multipart/mixed) ---
-            if attachments:
-                for attachment in attachments:
-                    try:
-                        filename = attachment["filename"]
-                        content = attachment["content"]
-                        mimetype = attachment["mimetype"]
-                        maintype, subtype = mimetype.split("/", 1)
+            self._attach_files_to_message(msg, attachments)
 
-                        # Ensure content is bytes for MIMEApplication
-                        attachment_content_bytes = content.encode("utf-8") if isinstance(content, str) else content
-
-                        # Use MIMEApplication for all attachments in this structure
-                        part = MIMEApplication(attachment_content_bytes, Name=filename)
-
-                        # Set Content-Disposition header
-                        part.add_header("Content-Disposition", "attachment", filename=filename)
-
-                        # --- Explicitly set Content-Type, especially for calendar ---
-                        if maintype == "text" and subtype == "calendar":
-                            # Override Content-Type for .ics to include method=PUBLISH
-                            part.replace_header("Content-Type", "text/calendar; method=PUBLISH; charset=utf-8")
-                            logger.info(f"Setting Content-Type for {filename} to text/calendar; method=PUBLISH")
-                        else:
-                            # For other types, explicitly set the mimetype if needed
-                            part.replace_header("Content-Type", mimetype)
-                            logger.info(f"Setting Content-Type for {filename} to {mimetype}")
-
-                        # Attach the part to the root message
-                        msg.attach(part)
-                        logger.info(f"Attached file using MIMEApplication: {filename} ({mimetype})")
-
-                    except KeyError as ke:
-                        logger.error(
-                            f"Skipping attachment {attachment.get('filename', '(unknown)')} due to missing key: {ke}"
-                        )
-                    except Exception as attach_err:
-                        logger.error(f"Error attaching file '{attachment.get('filename', '(unknown)')}': {attach_err}")
-
-            # --- Prepare destinations & Send ---
             destinations = [to_address]
-            if cc_addresses:
-                destinations.extend(cc_addresses)
+            # Retrieve cc_addresses from the created msg object if needed for Destinations
+            # This assumes _create_mime_message correctly sets the 'Cc' header.
+            if msg["Cc"]:
+                # Note: msg["Cc"] will be a string. boto3 needs a list for Destinations.
+                # email.utils.getaddresses can parse this, but we already validated them.
+                # Simplest is to re-retrieve the validated list if it was stored, or parse msg["Cc"]
+                # For now, let's assume the original cc_addresses list might be accessible or re-derived if needed.
+                # However, the Destinations field in send_raw_email takes all recipients (To, Cc, Bcc).
+                # Boto3 SES send_raw_email Destinations are implicitly handled by To, Cc, Bcc fields in MIME message for SES.
+                # So, explicit cc_addresses in Destinations list for send_raw_email is usually not needed if Cc header is set.
+                # For clarity, let's get them if they were set.
+                parsed_cc_addresses = [addr.strip() for addr in msg["Cc"].split(",") if addr.strip()]
+                destinations.extend(parsed_cc_addresses)
 
             logger.info(
-                f"Sending raw reply from {sender_email} to {to_address} (CC: {cc_addresses}) with subject: {msg['Subject']}"
+                f"Sending raw reply from {sender_email} to {to_address} (CC: {msg.get('Cc', 'None')}) with subject: {msg['Subject']}"
             )
             response = self.ses_client.send_raw_email(
                 Source=sender_email, Destinations=destinations, RawMessage={"Data": msg.as_string()}
             )
-            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
-            return response
 
         except ClientError as e:
-            # Reuse existing detailed ClientError handling
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
             error_message = e.response.get("Error", {}).get("Message", str(e))
             # Log the sender email being used when verification fails
@@ -301,9 +284,12 @@ class EmailSender:
                 logger.exception(f"AWS SES error sending raw email ({error_code}): {error_message}")
 
             raise  # Re-raise the exception after logging
-        except Exception as e:
-            logger.exception(f"Error sending raw reply: {e!s}")
+        except Exception:
+            logger.exception("Error sending raw reply")
             raise
+        else:
+            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
+            return response
 
 
 async def verify_sender_email(email_address: str) -> bool:
@@ -326,20 +312,17 @@ async def verify_sender_email(email_address: str) -> bool:
             **({"aws_session_token": session_token} if session_token else {}),
         )
 
-        # Request email verification
+        # Verify email identity
         ses_client.verify_email_identity(EmailAddress=email_address)
         logger.info(f"Verification email sent to {email_address}")
-        return True
-
     except ClientError as e:
-        error_code = e.response.get("Error", {}).get("Code", "Unknown")
-        error_message = e.response.get("Error", {}).get("Message", str(e))
-        logger.error(f"Failed to verify email ({error_code}): {error_message}")
+        logger.error(f"AWS SES ClientError during email verification for {email_address}: {e!s}")
         return False
-
-    except Exception as e:
-        logger.exception(f"Error during email verification: {e!s}")
+    except Exception:
+        logger.exception("Error during email verification")
         return False
+    else:
+        return True
 
 
 async def test_send_email(to_address, subject="Test from mxtoai", body_text="This is a test email"):
@@ -349,11 +332,12 @@ async def test_send_email(to_address, subject="Test from mxtoai", body_text="Thi
     try:
         sender = EmailSender()
         response = await sender.send_email(to_address=to_address, subject=subject, body_text=body_text)
+    except Exception:
+        logger.exception("Failed to send test email")
+        return False
+    else:
         logger.info(f"Test email sent successfully: {response['MessageId']}")
         return True
-    except Exception as e:
-        logger.exception(f"Failed to send test email: {e!s}")
-        return False
 
 
 async def run_tests():
@@ -376,9 +360,9 @@ async def run_tests():
             result = await test_func()
             results.append((test_name, result))
             logger.info(f"Test '{test_name}' {'passed' if result else 'failed'}")
-        except Exception as e:
+        except Exception:
             results.append((test_name, False))
-            logger.exception(f"Test '{test_name}' failed with error: {e!s}")
+            logger.exception(f"Test '{test_name}' failed with error")
 
     return all(result for _, result in results)
 
@@ -411,34 +395,34 @@ def save_attachments(email_data: EmailRequest, email_id: str) -> tuple[str, list
         return ATTACHMENTS_DIR, []
 
     # Create directory for this email's attachments
-    email_dir = os.path.join(ATTACHMENTS_DIR, email_id)
-    os.makedirs(email_dir, exist_ok=True)
+    email_dir = Path(ATTACHMENTS_DIR) / email_id
+    email_dir.mkdir(parents=True, exist_ok=True)
 
     attachment_info = []
     for attachment in email_data.attachments:
         try:
             # Generate a safe filename
-            filename = attachment.filename
-            file_path = os.path.join(email_dir, filename)
+            filename = Path(attachment.filename).name  # Ensure filename is just the name part
+            file_path = email_dir / filename
 
             # Save the file
-            with open(file_path, "wb") as f:
+            with file_path.open("wb") as f:
                 f.write(base64.b64decode(attachment.content))
 
             # Get file metadata
-            file_size = os.path.getsize(file_path)
+            file_size = file_path.stat().st_size
             attachment_info.append(
-                {"filename": filename, "path": file_path, "size": file_size, "type": attachment.contentType}
+                {"filename": filename, "path": str(file_path), "size": file_size, "type": attachment.contentType}
             )
 
             logger.info(f"Saved attachment: {filename} ({file_size} bytes)")
 
-        except Exception as e:
-            logger.exception(f"Error saving attachment {attachment.filename}: {e!s}")
+        except Exception:
+            logger.exception(f"Error saving attachment {attachment.filename}")
             # Continue with other attachments even if one fails
             continue
 
-    return email_dir, attachment_info
+    return str(email_dir), attachment_info
 
 
 def prepare_email_for_ai(email_data: EmailRequest, attachment_info: list[dict[str, Any]]) -> dict[str, Any]:
@@ -482,8 +466,7 @@ def create_reply_content(summary: str, attachment_info: list[dict[str, Any]]) ->
         "Attachments processed:",
     ]
 
-    for attachment in attachment_info:
-        text_content.append(f"- {attachment['filename']} ({attachment['size']} bytes)")
+    text_content.extend([f"- {attachment['filename']} ({attachment['size']} bytes)" for attachment in attachment_info])
 
     text_content.extend(["", "Best regards,", "AI Assistant"])
 
@@ -496,21 +479,22 @@ def create_reply_content(summary: str, attachment_info: list[dict[str, Any]]) ->
         "<ul>",
     ]
 
-    for attachment in attachment_info:
-        html_content.append(f"<li>{attachment['filename']} ({attachment['size']} bytes)</li>")
+    html_content.extend(
+        [f"<li>{attachment['filename']} ({attachment['size']} bytes)</li>" for attachment in attachment_info]
+    )
 
     html_content.extend(["</ul>", "<p>Best regards,<br>AI Assistant</p>", "</body></html>"])
 
-    return "\n".join(text_content), "\n".join(html_content)
+    return "\n".join(text_content), "".join(html_content)
 
 
 async def send_email_reply(email_dict: dict[str, Any], reply_text: str, reply_html: str) -> dict[str, Any]:
     """
     Send a reply to the original email.
     """
+    sender = EmailSender()
     try:
-        sender = EmailSender()
         return await sender.send_reply(original_email=email_dict, reply_text=reply_text, reply_html=reply_html)
-    except Exception as e:
-        logger.exception(f"Error sending reply: {e!s}")
+    except Exception:
+        logger.exception("Error sending reply")
         raise

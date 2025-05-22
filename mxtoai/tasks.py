@@ -1,6 +1,6 @@
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
 
@@ -32,6 +32,8 @@ load_dotenv()
 
 logger = get_logger(__name__)
 
+MAX_RETRIES = 3  # Added constant for PLR2004
+
 # Build RabbitMQ URL from environment variables (Broker)
 # Include heartbeat as a query parameter in the URL
 RABBITMQ_HEARTBEAT = os.getenv("RABBITMQ_HEARTBEAT", "5")
@@ -58,13 +60,13 @@ def cleanup_attachments(email_attachments_dir: str) -> None:
                     logger.error(f"Failed to delete file {file}: {e!s}")
             dir_path.rmdir()
             logger.info(f"Cleaned up attachments directory: {email_attachments_dir}")
-    except Exception as e:
-        logger.exception(f"Error cleaning up attachments: {e!s}")
+    except Exception:
+        logger.exception("Error cleaning up attachments")
 
 
 def should_retry(retries_so_far, exception):
     logger.warning(f"Retrying task after exception: {exception!s}, retries so far: {retries_so_far}")
-    return retries_so_far < 3
+    return retries_so_far < MAX_RETRIES
 
 
 @dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
@@ -85,7 +87,9 @@ def process_email_task(
     """
     email_request = EmailRequest(**email_data)
     handle = email_request.to.split("@")[0].lower()
-    now_iso = datetime.now().isoformat()  # Define now_iso earlier for use in error cases
+    now_iso = datetime.now(
+        timezone.utc
+    ).isoformat()  # Define now_iso earlier for use in error cases and added timezone.utc for DTZ005
 
     try:
         email_instructions: Union[ProcessingInstructions, None] = processing_instructions_resolver(handle)
@@ -194,7 +198,7 @@ def process_email_task(
                     processing_result.metadata.email_sent.error = email_sent_response.get("error", "Unknown send error")
 
             except Exception as send_err:
-                logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)
+                logger.exception(f"Error initializing EmailSender or sending reply: {send_err!s}")
                 processing_result.metadata.email_sent.status = "error"
                 processing_result.metadata.email_sent.error = str(send_err)
                 processing_result.metadata.email_sent.message_id = "error"
@@ -204,8 +208,8 @@ def process_email_task(
         # Attempt to dump the Pydantic model directly, or convert to dict if complex logging is needed
         loggable_metadata = processing_result.metadata.model_dump(mode="json")
         logger.info(f"Email processed status: {loggable_metadata.get('email_sent', {}).get('status')}")
-    except Exception as log_e:
-        logger.error(f"Error serializing processing_result for logging: {log_e!s}")
+    except Exception:
+        logger.error("Error serializing processing_result for logging")
         logger.info(f"Email processed. Status: {processing_result.metadata.email_sent.status}")  # Fallback basic log
 
     if email_attachments_dir:

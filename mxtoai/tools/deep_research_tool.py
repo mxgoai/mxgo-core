@@ -3,6 +3,7 @@ import json
 import mimetypes
 import os
 import urllib.parse
+from pathlib import Path
 from typing import Any, Optional
 
 import requests
@@ -26,7 +27,7 @@ class DeepResearchTool(Tool):
     # Define output type for the tool
     output_type = "object"  # Returns a dictionary with research findings and sources
 
-    def __init__(self, use_mock_service: bool = False):
+    def __init__(self, *, use_mock_service: bool = False):
         """
         Initialize the deep research tool.
 
@@ -142,7 +143,7 @@ class DeepResearchTool(Tool):
         """
         try:
             # Check file size
-            file_size = os.path.getsize(file_path)
+            file_size = Path(file_path).stat().st_size
             if file_size > self.max_file_size:
                 logger.warning(f"File {file_path} exceeds 10MB limit, skipping")
                 return None
@@ -153,15 +154,15 @@ class DeepResearchTool(Tool):
                 mime_type = "application/octet-stream"
 
             # Read and encode file
-            with open(file_path, "rb") as f:
+            with Path(file_path).open("rb") as f:
                 file_data = f.read()
                 encoded = base64.b64encode(file_data).decode("utf-8")
-
-            return {"type": "file", "data": f"data:{mime_type};base64,{encoded}", "mimeType": mime_type}
 
         except Exception as e:
             logger.error(f"Error encoding file {file_path}: {e!s}")
             return None
+        else:
+            return {"type": "file", "data": f"data:{mime_type};base64,{encoded}", "mimeType": mime_type}
 
     def _encode_text(self, text: str) -> str:
         """
@@ -287,10 +288,8 @@ class DeepResearchTool(Tool):
                                     continue
 
                             # Handle content
-                            if delta.get("content"):
-                                # Only append text content (ignore think content)
-                                if current_type != "think":
-                                    findings.append(delta["content"])
+                            if delta.get("content") and current_type != "think":
+                                findings.append(delta["content"])
 
                             # Handle annotations
                             if "annotations" in delta:
@@ -436,12 +435,14 @@ class DeepResearchTool(Tool):
             # Add references to the content
             formatted_content += "\n".join(references)
 
-            return formatted_content
+            # return formatted_content # TRY300
 
         except Exception as e:
             logger.error(f"Error formatting research content: {e!s}")
-            # Return original content if formatting fails
+            # Fallback to raw content if formatting fails
             return content
+        else:
+            return formatted_content
 
     def forward(
         self,
@@ -449,6 +450,7 @@ class DeepResearchTool(Tool):
         context: Optional[str] = None,
         attachments: Optional[list[dict[str, Any]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
+        *,
         stream: bool = False,
         reasoning_effort: str = "medium",
     ) -> dict[str, Any]:
@@ -652,16 +654,19 @@ class DeepResearchTool(Tool):
                     }
 
                 logger.info(f"Research complete for query: {query}")
-                return research_results
+                # return research_results # TRY300
 
             except Exception as e:
-                error_msg = f"Error processing research results: {e!s}"
-                logger.error(error_msg)
+                logger.error(f"Error in research tool forward pass: {e!s}", exc_info=True)
                 return {
+                    "status": "error",
+                    "message": str(e),
                     "query": query,
-                    "findings": f"An error occurred during research: {error_msg}",
-                    "error": error_msg,
+                    "findings": None,
+                    "sources": [],
                 }
+            else:  # TRY300
+                return research_results
 
         except Exception as e:
             logger.error(f"Error performing research: {e!s}")

@@ -7,13 +7,14 @@ class EmailAttachment(BaseModel):
     model_config = ConfigDict(validate_default=True)  # Ensure all fields are validated
 
     filename: str
-    contentType: str
-    contentDisposition: Optional[str] = None
-    contentId: Optional[str] = None
+    content_type: str
+    content_disposition: Optional[str] = None
+    content_id: Optional[str] = None
     cid: Optional[str] = None
     content: Optional[Union[str, bytes]] = None  # Can be string (base64) or bytes
-    size: int
-    path: Optional[str] = None  # Path becomes required after saving to disk
+    size: Optional[int] = None  # Size in bytes
+    path: Optional[str] = None  # Path if saved to disk
+    error: Optional[str] = None  # Error message if processing failed
 
     @property
     def has_valid_content(self) -> bool:
@@ -37,22 +38,22 @@ class EmailRequest(BaseModel):
     from_email: str = Field(..., alias="from")
     to: str
     subject: Optional[str] = ""
-    rawContent: Optional[str] = ""
+    raw_content: Optional[str] = ""
     recipients: Optional[list[str]] = []
-    messageId: Optional[str] = None
+    message_id: Optional[str] = None
     date: Optional[str] = None
-    inReplyTo: Optional[str] = None
+    in_reply_to: Optional[str] = None
     references: Optional[str] = None
     cc: Optional[list[str]] = None
     bcc: Optional[str] = None
-    replyTo: Optional[str] = None
-    returnPath: Optional[str] = None
-    textContent: Optional[str] = ""
-    htmlContent: Optional[str] = ""
+    reply_to: Optional[str] = None
+    return_path: Optional[str] = None
+    text_content: Optional[str] = ""
+    html_content: Optional[str] = ""
     headers: Optional[dict[str, str]] = {}
     attachments: Optional[list[EmailAttachment]] = []
-    emailId: Optional[str] = None  # Unique ID for this email
-    rawHeaders: Optional[dict[str, Any]] = None  # Raw email headers
+    email_id: Optional[str] = None  # Unique ID for this email
+    raw_headers: Optional[dict[str, Any]] = None  # Raw email headers
 
 
 class ResearchResult(BaseModel):

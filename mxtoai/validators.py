@@ -34,7 +34,7 @@ async def validate_api_key(api_key: str) -> Optional[Response]:
 
 
 async def validate_email_whitelist(
-    from_email: str, to: str, subject: str, messageId: Optional[str]
+    from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
     Validate if the sender's email is whitelisted and verified.
@@ -43,7 +43,7 @@ async def validate_email_whitelist(
         from_email: Sender's email address
         to: Recipient's email address
         subject: Email subject
-        messageId: Email message ID
+        message_id: Email message ID
 
     Returns:
         Response if validation fails, None if validation succeeds
@@ -93,9 +93,9 @@ MX to AI Team"""
         "from": from_email,  # Original sender becomes recipient
         "to": to,  # Original recipient becomes sender
         "subject": f"Re: {subject}",
-        "messageId": messageId,
+        "messageId": message_id,
         "references": None,
-        "inReplyTo": messageId,
+        "inReplyTo": message_id,
         "cc": None,
     }
 
@@ -125,7 +125,7 @@ MX to AI Team"""
 
 
 async def validate_email_handle(
-    to: str, from_email: str, subject: str, messageId: Optional[str]
+    to: str, from_email: str, subject: str, message_id: Optional[str]
 ) -> tuple[Optional[Response], Optional[str]]:
     """
     Validate if the email handle/alias is supported.
@@ -134,7 +134,7 @@ async def validate_email_handle(
         to: Recipient's email address
         from_email: Sender's email address
         subject: Email subject
-        messageId: Email message ID
+        message_id: Email message ID
 
     Returns:
         Tuple of (Response if validation fails, handle if validation succeeds)
@@ -151,9 +151,9 @@ async def validate_email_handle(
             "from": from_email,  # Original sender becomes recipient
             "to": to,  # Original recipient becomes sender
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 
@@ -173,7 +173,7 @@ async def validate_email_handle(
 
 
 async def validate_attachments(
-    attachments: list[dict], from_email: str, to: str, subject: str, messageId: Optional[str]
+    attachments: list[dict], from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
     Validate email attachments against size and count limits.
@@ -183,7 +183,7 @@ async def validate_attachments(
         from_email: Sender's email address
         to: Recipient's email address
         subject: Email subject
-        messageId: Email message ID
+        message_id: Email message ID
 
     Returns:
         Response if validation fails, None if validation succeeds
@@ -212,9 +212,9 @@ Number of attachments in your email: {len(attachments)}</p>
             "from": from_email,
             "to": to,
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 
@@ -262,9 +262,9 @@ Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p
                 "from": from_email,
                 "to": to,
                 "subject": f"Re: {subject}",
-                "messageId": messageId,
+                "messageId": message_id,
                 "references": None,
-                "inReplyTo": messageId,
+                "inReplyTo": message_id,
                 "cc": None,
             }
 
@@ -309,9 +309,9 @@ Total size of your attachments: {total_size_mb:.1f}MB</p>
             "from": from_email,
             "to": to,
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 

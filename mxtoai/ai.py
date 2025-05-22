@@ -68,14 +68,19 @@ async def ask_llm(prompt: str, email_data: dict[str, Any], model: Optional[str] 
             logger.info(f"Raw response type: {type(response)}")
             logger.info(f"Raw response: {response}")
 
+            # TODO: Remove this block once all models consistently use ModelResponse
             # Direct access to response.choices[0].message.content
             # This is the most reliable way to extract content from ModelResponse
-            if hasattr(response, "choices") and response.choices:
-                if hasattr(response.choices[0], "message") and hasattr(response.choices[0].message, "content"):
-                    content = response.choices[0].message.content
-                    if content:
-                        logger.info("Successfully extracted content directly from response object")
-                        return content
+            if (
+                hasattr(response, "choices")
+                and response.choices
+                and hasattr(response.choices[0], "message")
+                and hasattr(response.choices[0].message, "content")
+            ):
+                content = response.choices[0].message.content
+                if content:
+                    logger.debug(f"Extracted content from response.choices[0].message.content: {content[:100]}...")
+                    return str(content)
 
             # If direct access failed, try dictionary approach
             response_dict = {}
@@ -115,17 +120,17 @@ async def ask_llm(prompt: str, email_data: dict[str, Any], model: Optional[str] 
 
             # If all extraction methods failed
             logger.warning("Could not extract content from LLM response")
-            return "No response generated from LLM."
-
         except Exception as azure_error:
-            # Log the Azure error
-            logger.warning(f"Azure OpenAI error: {azure_error!s}")
-            return f"Error with Azure OpenAI: {azure_error!s}"
+            logger.exception("Error processing LLM response")
+            # Fallback to a generic error message if specific error handling fails
+            return f"Error: Could not process response from LLM. Details: {azure_error!s}"
+        else:
+            return "No response generated from LLM."
 
     except Exception as e:
         # Log the error and return an error message
         error_msg = f"Error processing with LLM: {e!s}"
-        logger.exception(error_msg)
+        logger.exception("Error processing with LLM")
         return error_msg
 
 

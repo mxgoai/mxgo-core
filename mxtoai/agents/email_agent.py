@@ -2,6 +2,7 @@ import ast
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Union
 
 from dotenv import load_dotenv
@@ -78,7 +79,7 @@ class EmailAgent:
     """
 
     def __init__(
-        self, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
+        self, attachment_dir: str = "email_attachments", *, verbose: bool = False, enable_deep_research: bool = False
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -93,8 +94,10 @@ class EmailAgent:
         if verbose:
             logger.debug("Verbose logging enabled via __init__ flag (actual level depends on logger config).")
 
+        self.verbose = verbose
+        self.enable_deep_research = enable_deep_research
         self.attachment_dir = attachment_dir
-        os.makedirs(self.attachment_dir, exist_ok=True)
+        Path(self.attachment_dir).mkdir(parents=True, exist_ok=True)
 
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
@@ -218,6 +221,7 @@ class EmailAgent:
         email_context: str,
         handle_specific_template: str = "",
         attachment_task: str = "",
+        *,
         deep_research_mandatory: bool = False,
         output_template: str = "",
     ) -> str:
@@ -237,7 +241,7 @@ class EmailAgent:
     def _process_agent_result(
         self, final_answer_obj: Any, agent_steps: list, current_email_handle: str
     ) -> DetailedEmailProcessingResult:
-        processed_at_time = datetime.now().isoformat()
+        processed_at_time = datetime.now(datetime.timezone.utc).isoformat()
 
         # Initialize schema components
         errors_list: list[ProcessingError] = []
@@ -305,21 +309,19 @@ class EmailAgent:
                         attachment_proc_summary = tool_output.get("summary")
                         for attachment_data in tool_output.get("attachments", []):
                             pa_detail = ProcessedAttachmentDetail(
-                                filename=attachment_data.get("filename", "unknown.file"),
+                                filename=attachment_data.get("filename", "unknown_attachment"),
+                                type=attachment_data.get("type", "application/octet-stream"),
                                 size=attachment_data.get("size", 0),
-                                type=attachment_data.get("type", "unknown"),
+                                content=attachment_data.get("content"),
+                                summary=attachment_data.get("summary", ""),
+                                error=attachment_data.get("error"),
                             )
-                            if "error" in attachment_data:
-                                pa_detail.error = attachment_data["error"]
-                                errors_list.append(
-                                    ProcessingError(
-                                        message=f"Error processing attachment {pa_detail.filename}",
-                                        details=pa_detail.error,
-                                    )
-                                )
-                            if "content" in attachment_data and isinstance(attachment_data["content"], dict):
-                                if attachment_data["content"].get("caption"):
-                                    pa_detail.caption = attachment_data["content"]["caption"]
+                            if (
+                                "content" in attachment_data
+                                and isinstance(attachment_data["content"], dict)
+                                and attachment_data["content"].get("caption")
+                            ):
+                                pa_detail.caption = attachment_data["content"]["caption"]
                             processed_attachment_details.append(pa_detail)
 
                     elif tool_name == "deep_research" and isinstance(tool_output, dict):
@@ -350,20 +352,14 @@ class EmailAgent:
                     )
 
             # Extract final answer from LLM
-            if hasattr(final_answer_obj, "text"):
-                final_answer_from_llm = str(final_answer_obj.text).strip()
-            elif isinstance(final_answer_obj, str):
+            if isinstance(final_answer_obj, str):
                 final_answer_from_llm = final_answer_obj.strip()
             elif hasattr(final_answer_obj, "_value"):
-                final_answer_from_llm = str(final_answer_obj._value).strip()
+                final_answer_from_llm = str(getattr(final_answer_obj, "_value", "")).strip()
             elif hasattr(final_answer_obj, "answer") and isinstance(getattr(final_answer_obj, "answer", None), str):
                 final_answer_from_llm = str(final_answer_obj.answer).strip()
-            elif (
-                hasattr(final_answer_obj, "arguments")
-                and isinstance(getattr(final_answer_obj, "arguments", None), dict)
-                and "answer" in final_answer_obj.arguments
-            ):
-                final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
+            elif isinstance(final_answer_obj, dict) and "output" in final_answer_obj:
+                final_answer_from_llm = str(final_answer_obj["output"]).strip()
             else:
                 final_answer_from_llm = str(final_answer_obj).strip()
                 logger.warning(
@@ -432,17 +428,11 @@ class EmailAgent:
             )
 
         except Exception as e:
-            logger.exception(f"Critical error in _process_agent_result: {e!s}")
+            logger.exception("Critical error in _process_agent_result")
             # Ensure errors_list and email_sent_status are updated
-            # If these were initialized outside and before this try-except, they might already exist.
-            # Re-initialize or ensure they are correctly formed for the error state.
-            # This part already handles populating errors_list and setting email_sent_status.
+            errors_list.append(ProcessingError(message="Critical error in _process_agent_result", details=str(e)))
 
-            # Ensure basic structure for fallback if critical error happened early
-            if not errors_list:  # If the error happened before any specific error was added
-                errors_list.append(ProcessingError(message="Critical error in _process_agent_result", details=str(e)))
-
-            current_timestamp = datetime.now().isoformat()  # Use a fresh timestamp
+            current_timestamp = datetime.now(datetime.timezone.utc).isoformat()  # Use a fresh timestamp
             if email_sent_status.status != "error":  # If not already set to error by prior logic
                 email_sent_status.status = "error"
                 email_sent_status.error = f"Critical error in _process_agent_result: {e!s}"
@@ -526,16 +516,15 @@ class EmailAgent:
 
                 logger.info(f"Email processed (but no reply text generated) with handle: {email_instructions.handle}")
                 return processed_result
-
             logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
-            return processed_result  # Added return for the successful case
+            return processed_result
 
         except Exception as e:
             error_msg = f"Critical error in email processing: {e!s}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
 
             # Construct a DetailedEmailProcessingResult for error cases
-            now_iso = datetime.now().isoformat()
+            now_iso = datetime.now(datetime.timezone.utc).isoformat()
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
                     processed_at=now_iso,

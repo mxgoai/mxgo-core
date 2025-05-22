@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 from unittest.mock import MagicMock, patch
@@ -86,8 +86,10 @@ def _assert_basic_successful_processing(
     assert not result.metadata.errors, f"Expected no errors, but got: {result.metadata.errors}"
 
     assert result.email_content is not None
-    assert result.email_content.text is not None and len(result.email_content.text) > 0, "Reply text is empty"
-    assert result.email_content.html is not None and len(result.email_content.html) > 0, "Reply HTML is empty"
+    assert result.email_content.text is not None, "Reply text is None"
+    assert len(result.email_content.text) > 0, "Reply text is empty"
+    assert result.email_content.html is not None, "Reply HTML is None"
+    assert len(result.email_content.html) > 0, "Reply HTML is empty"
 
     if expect_reply_sent:
         assert result.metadata.email_sent.status == "sent", "Email not marked as sent"
@@ -116,8 +118,8 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
     assert Path(email_attachments_dir_str).exists()
     assert (Path(email_attachments_dir_str) / f"0_{attachment_content[0]}").exists()  # Check specific file
 
-    with patch("mxtoai.tasks.EmailSender") as MockEmailSender:
-        mock_sender_instance = MockEmailSender.return_value
+    with patch("mxtoai.tasks.EmailSender") as mock_email_sender:
+        mock_sender_instance = mock_email_sender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
             return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}
@@ -168,7 +170,7 @@ def test_process_email_task_unsupported_handle(prepare_email_request_data):
 def test_process_email_task_agent_exception(prepare_email_request_data):
     """Tests behavior when EmailAgent.process_email returns a result indicating an internal error."""
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxtoai.com")
-    now_iso = datetime.now().isoformat()  # For constructing mock error response
+    now_iso = datetime.now(timezone.utc).isoformat()  # For constructing mock error response, added timezone.utc
 
     # Prepare a mock error response that EmailAgent.process_email would return
     mock_agent_error_result = DetailedEmailProcessingResult(
@@ -192,9 +194,9 @@ def test_process_email_task_agent_exception(prepare_email_request_data):
         patch(
             "mxtoai.tasks.EmailAgent.process_email", return_value=mock_agent_error_result
         ) as mock_agent_process_email,
-        patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        patch("mxtoai.tasks.EmailSender") as mock_email_sender,
     ):
-        mock_sender_instance = MockEmailSender.return_value
+        mock_sender_instance = mock_email_sender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
             return {"MessageId": "should_not_be_called", "status": "sent"}
@@ -266,10 +268,10 @@ def test_process_email_task_for_handle(
     # that the pipeline for each handle type runs and attempts a reply.
 
     with (
-        patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        patch("mxtoai.tasks.EmailSender") as mock_email_sender,
         patch.dict(os.environ, {"SKIP_EMAIL_DELIVERY": ""}),
     ):  # Ensure SKIP_EMAIL_DELIVERY is not set globally for this test run
-        mock_sender_instance = MockEmailSender.return_value
+        mock_sender_instance = mock_email_sender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
             # Check for ICS attachment if it's the schedule handle
@@ -279,6 +281,13 @@ def test_process_email_task_for_handle(
                     "ICS attachment was not prepared for sending by the schedule handle."
                 )
                 assert any(att["mimetype"] == "text/calendar" for att in sent_attachments)
+                assert returned_result.calendar_data is not None, "Calendar data should be present for schedule handle"
+                assert returned_result.calendar_data.ics_content is not None, "ICS content is None for schedule handle"
+                assert len(returned_result.calendar_data.ics_content) > 0, "ICS content is empty for schedule handle"
+            else:
+                assert not kwargs.get("attachments"), (
+                    "No attachments should be sent for non-schedule handles in this mock"
+                )
             return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}
 
         mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)

@@ -28,12 +28,12 @@ Your team then worked diligently to address that request. Read below a transcrip
 
     # copy them to this context
     try:
-        for message in inner_messages:
-            if not message.get("content"):
+        for m in inner_messages:
+            if not m.get("content"):
                 continue
-            message = copy.deepcopy(message)
-            message["role"] = MessageRole.USER
-            messages.append(message)
+            message_copy = copy.deepcopy(m)
+            message_copy["role"] = MessageRole.USER
+            messages.append(message_copy)
     except Exception:
         messages += [{"role": MessageRole.ASSISTANT, "content": str(inner_messages)}]
 

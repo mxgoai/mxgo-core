@@ -27,8 +27,7 @@ def prepare_form_data(**kwargs):
         "emailId": f"original-email-id-{os.urandom(4).hex()}",
         "rawHeaders": '{"cc": "cc@example.com"}',
     }
-    for key, value in kwargs.items():
-        form_data[key] = value
+    form_data.update(kwargs)
     return form_data
 
 

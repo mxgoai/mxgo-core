@@ -27,9 +27,10 @@ def split_string(
 def is_float(element: any) -> bool:
     try:
         float(element)
-        return True
     except ValueError:
         return False
+    else:
+        return True
 
 
 def question_scorer(
@@ -95,7 +96,7 @@ def check_close_call(prediction, true_answer, is_correct):
     )
 
 
-def normalize_str(input_str, remove_punct=True) -> str:
+def normalize_str(input_str, *, remove_punct=True) -> str:
     """
     Normalize a string by:
     - Removing all white spaces
@@ -117,3 +118,17 @@ def normalize_str(input_str, remove_punct=True) -> str:
         translator = str.maketrans("", "", string.punctuation)
         return no_spaces.lower().translate(translator)
     return no_spaces.lower()
+
+
+def is_number(element: str) -> bool:
+    """Check if a string can be converted to a float."""
+    try:
+        float(element)
+    except ValueError:
+        return False
+    else:
+        return True
+
+
+def element_matches_text(element: str, text: str) -> bool:
+    pass

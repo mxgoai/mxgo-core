@@ -8,6 +8,7 @@ including images, documents, and archives for use in the research process.
 import os
 import shutil
 import textwrap
+from pathlib import Path
 
 
 def get_image_description(file_name: str, question: str, visual_inspection_tool) -> str:
@@ -77,9 +78,9 @@ def get_single_file_description(file_path: str, question: str, visual_inspection
 
     if file_extension in ["pdf", "xls", "xlsx", "docx", "doc", "xml"]:
         file_description = f" - Attached document: {file_path}"
-        image_path = file_path.split(".")[0] + ".png"
-        if os.path.exists(image_path):
-            description = get_image_description(image_path, question, visual_inspection_tool)
+        image_path_str = file_path.split(".")[0] + ".png"
+        if Path(image_path_str).exists():
+            description = get_image_description(image_path_str, question, visual_inspection_tool)
         else:
             description = get_document_description(file_path, question, document_inspection_tool)
         file_description += f"\n     -> File description: {description}"
@@ -105,16 +106,16 @@ def get_zip_description(file_path: str, question: str, visual_inspection_tool, d
         str: Description of the zip contents
 
     """
-    folder_path = file_path.replace(".zip", "")
-    os.makedirs(folder_path, exist_ok=True)
-    shutil.unpack_archive(file_path, folder_path)
+    folder_path_str = file_path.replace(".zip", "")
+    Path(folder_path_str).mkdir(parents=True, exist_ok=True)
+    shutil.unpack_archive(file_path, folder_path_str)
 
     prompt_use_files = ""
-    for root, _, files in os.walk(folder_path):
+    for root, _, files in os.walk(folder_path_str):
         for file in files:
-            file_path = os.path.join(root, file)
+            current_file_path = Path(root) / file
             description = get_single_file_description(
-                file_path, question, visual_inspection_tool, document_inspection_tool
+                str(current_file_path), question, visual_inspection_tool, document_inspection_tool
             )
             prompt_use_files += "\n" + textwrap.indent(description, prefix="    ")
     return prompt_use_files

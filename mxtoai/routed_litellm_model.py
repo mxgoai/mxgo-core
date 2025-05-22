@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Any, Optional
 
 import toml
@@ -42,7 +43,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             msg = (
                 "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
             )
-            raise exceptions.EnvironmentVariableNotFoundException(msg)
+            raise exceptions.EnvironmentVariableNotFoundError(msg)
 
         super().__init__(
             model_id=default_model_group,
@@ -59,12 +60,12 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             Dict[str, Any]: Configuration loaded from the TOML file.
 
         """
-        if not os.path.exists(self.config_path):
+        if not Path(self.config_path).exists():
             msg = f"Model config file not found at {self.config_path}. Please check the path."
-            raise exceptions.ModelConfigFileNotFoundException(msg)
+            raise exceptions.ModelConfigFileNotFoundError(msg)
 
         try:
-            with open(self.config_path) as f:
+            with Path(self.config_path).open() as f:
                 return toml.load(f)
         except Exception as e:
             logger.error(f"Failed to load TOML config: {e}")
@@ -85,17 +86,19 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             # In case there's only one model (TOML parser returns dict)
             model_entries = [model_entries]
 
-        for entry in model_entries:
-            model_list.append(
+        # Create a list of ModelConfig objects for LiteLLMRouterModel
+        if model_entries:
+            model_list = [
                 models.ModelConfig(
                     model_name=entry.get("model_name"),
                     litellm_params=models.LiteLLMParams(**entry.get("litellm_params")),
                 )
-            )
+                for entry in model_entries
+            ]
 
-        if not model_list:
-            msg = "No model list found in config toml. Please check the configuration."
-            raise exceptions.ModelListNotFoundException(msg)
+            if not model_list:
+                msg = "No models found in the configuration file. Please add at least one model."
+                raise exceptions.ModelListNotFoundError(msg)
 
         return model_list
 
@@ -168,13 +171,15 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     **kwargs_for_super_generate,
                 )
             finally:
-                # Restore the original model_id for the instance.
+                # Restore the original model_id if it was temporarily changed
                 self.model_id = original_smol_model_id
 
+        except Exception:
+            # Log the error and re-raise to allow for higher-level error handling
+            logger.exception("Error during model generation")
+            # Restore the original model_id in case of an error during generation
+            if original_smol_model_id is not None:
+                self.model_id = original_smol_model_id
+            raise  # Re-raise the caught exception
+        else:
             return chat_message
-
-        except Exception as e:
-            # Log the error and re-raise with more context
-            logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
-            msg = f"Failed to get completion from LiteLLM router: {e!s}"
-            raise RuntimeError(msg) from e
