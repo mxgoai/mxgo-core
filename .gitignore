@@ -1,8 +1,7 @@
+*.toml
 attachments/**
 
 results/**
-
-model.config.toml
 
 # Python
 __pycache__/

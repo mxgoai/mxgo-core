@@ -18,7 +18,8 @@ from mxtoai.schemas import (
 )
 from mxtoai.tasks import process_email_task
 
-AttachmentFileContent = tuple[str, bytes, str] # (filename, content_bytes, content_type)
+AttachmentFileContent = tuple[str, bytes, str]  # (filename, content_bytes, content_type)
+
 
 @pytest.fixture
 def prepare_email_request_data(tmp_path):
@@ -29,7 +30,9 @@ def prepare_email_request_data(tmp_path):
         text_content: str = "This is a test email.",
         html_content: str = "<p>This is a test email.</p>",
         message_id: str = "<test-message-id-default>",
-        attachments_data: Optional[list[AttachmentFileContent]] = None # List of (filename, content_bytes, content_type)
+        attachments_data: Optional[
+            list[AttachmentFileContent]
+        ] = None,  # List of (filename, content_bytes, content_type)
     ) -> tuple[dict[str, Any], str, list[dict[str, Any]]]:
         """
         Prepares email_data, email_attachments_dir_str, and attachment_info_list.
@@ -50,12 +53,9 @@ def prepare_email_request_data(tmp_path):
                 email_attachments_schema_list.append(
                     {"filename": filename, "contentType": content_type, "size": dummy_file_size}
                 )
-                attachment_info_list_for_task.append({
-                    "path": str(dummy_file_path),
-                    "filename": filename,
-                    "type": content_type,
-                    "size": dummy_file_size
-                })
+                attachment_info_list_for_task.append(
+                    {"path": str(dummy_file_path), "filename": filename, "type": content_type, "size": dummy_file_size}
+                )
 
         email_data = {
             "from_email": from_email,
@@ -65,18 +65,20 @@ def prepare_email_request_data(tmp_path):
             "htmlContent": html_content,
             "messageId": message_id,
             "attachments": email_attachments_schema_list,
-            "recipients": [to_email.split("@")[0] + "@mxtoai.com"], # Simplified recipient
+            "recipients": [to_email.split("@")[0] + "@mxtoai.com"],  # Simplified recipient
             "date": "2023-01-01T12:00:00Z",
         }
 
         return email_data, str(attachments_dir_path), attachment_info_list_for_task
+
     return _prepare
+
 
 def _assert_basic_successful_processing(
     result: DetailedEmailProcessingResult,
     expected_handle: str,
     expect_reply_sent: bool = True,
-    attachments_cleaned_up_dir: Optional[str] = None
+    attachments_cleaned_up_dir: Optional[str] = None,
 ):
     """Helper function for common assertions on successful processing results."""
     assert isinstance(result, DetailedEmailProcessingResult), "Return type mismatch"
@@ -94,10 +96,11 @@ def _assert_basic_successful_processing(
         # Could be 'pending' or 'skipped' etc. depending on other factors not covered by this basic assert
         assert result.metadata.email_sent.status != "error", "Email marked as error when not expected"
 
-
     if attachments_cleaned_up_dir:
-        assert not Path(attachments_cleaned_up_dir).exists(), \
+        assert not Path(attachments_cleaned_up_dir).exists(), (
             f"Attachments directory '{attachments_cleaned_up_dir}' was not cleaned up."
+        )
+
 
 # --- Existing Happy Path Test (adapted to use new fixture) ---
 def test_process_email_task_happy_path_with_attachment(prepare_email_request_data):
@@ -107,12 +110,11 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
     """
     attachment_content = ("test_attachment.txt", b"This is a test attachment.", "text/plain")
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="ask@mxtoai.com",
-        attachments_data=[attachment_content]
+        to_email="ask@mxtoai.com", attachments_data=[attachment_content]
     )
 
     assert Path(email_attachments_dir_str).exists()
-    assert (Path(email_attachments_dir_str) / f"0_{attachment_content[0]}").exists() # Check specific file
+    assert (Path(email_attachments_dir_str) / f"0_{attachment_content[0]}").exists()  # Check specific file
 
     with patch("mxtoai.tasks.EmailSender") as MockEmailSender:
         mock_sender_instance = MockEmailSender.return_value
@@ -123,9 +125,7 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
         mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
         returned_result = process_email_task.fn(
-            email_data=email_data,
-            email_attachments_dir=email_attachments_dir_str,
-            attachment_info=attachment_info
+            email_data=email_data, email_attachments_dir=email_attachments_dir_str, attachment_info=attachment_info
         )
 
         mock_sender_instance.send_reply.assert_called_once()
@@ -134,12 +134,12 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
         assert original_email_details_arg["from"] == email_data["from_email"]
 
         _assert_basic_successful_processing(
-            returned_result,
-            expected_handle="ask",
-            attachments_cleaned_up_dir=email_attachments_dir_str
+            returned_result, expected_handle="ask", attachments_cleaned_up_dir=email_attachments_dir_str
         )
 
+
 # --- New Test Cases ---
+
 
 def test_process_email_task_unsupported_handle(prepare_email_request_data):
     """Tests behavior when an unsupported email handle is provided."""
@@ -148,9 +148,7 @@ def test_process_email_task_unsupported_handle(prepare_email_request_data):
 
     # No mocks needed as it should fail before agent or sender
     returned_result = process_email_task.fn(
-        email_data=email_data,
-        email_attachments_dir=email_attachments_dir_str,
-        attachment_info=attachment_info
+        email_data=email_data, email_attachments_dir=email_attachments_dir_str, attachment_info=attachment_info
     )
 
     assert isinstance(returned_result, DetailedEmailProcessingResult)
@@ -166,37 +164,45 @@ def test_process_email_task_unsupported_handle(prepare_email_request_data):
     # or if it was never relevant. If it was created, it might still exist.
     # For this test, the main focus is the error state.
 
+
 def test_process_email_task_agent_exception(prepare_email_request_data):
     """Tests behavior when EmailAgent.process_email returns a result indicating an internal error."""
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxtoai.com")
-    now_iso = datetime.now().isoformat() # For constructing mock error response
+    now_iso = datetime.now().isoformat()  # For constructing mock error response
 
     # Prepare a mock error response that EmailAgent.process_email would return
     mock_agent_error_result = DetailedEmailProcessingResult(
         metadata=ProcessingMetadata(
             processed_at=now_iso,
             mode="ask",
-            errors=[ProcessingError(message="Critical error during agent processing", details="Simulated agent internal crash")],
-            email_sent=EmailSentStatus(status="error", error="Simulated agent internal crash", timestamp=now_iso)
+            errors=[
+                ProcessingError(
+                    message="Critical error during agent processing", details="Simulated agent internal crash"
+                )
+            ],
+            email_sent=EmailSentStatus(status="error", error="Simulated agent internal crash", timestamp=now_iso),
         ),
         email_content=EmailContentDetails(text=None, html=None, enhanced=None),
         attachments=AttachmentsProcessingResult(processed=[]),
         calendar_data=None,
-        research=None
+        research=None,
     )
 
-    with patch("mxtoai.tasks.EmailAgent.process_email", return_value=mock_agent_error_result) as mock_agent_process_email, \
-         patch("mxtoai.tasks.EmailSender") as MockEmailSender:
-
+    with (
+        patch(
+            "mxtoai.tasks.EmailAgent.process_email", return_value=mock_agent_error_result
+        ) as mock_agent_process_email,
+        patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+    ):
         mock_sender_instance = MockEmailSender.return_value
+
         async def mock_async_send_reply(*args, **kwargs):
             return {"MessageId": "should_not_be_called", "status": "sent"}
+
         mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
         returned_task_result = process_email_task.fn(
-            email_data=email_data,
-            email_attachments_dir=email_attachments_dir_str,
-            attachment_info=attachment_info
+            email_data=email_data, email_attachments_dir=email_attachments_dir_str, attachment_info=attachment_info
         )
 
     assert isinstance(returned_task_result, DetailedEmailProcessingResult)
@@ -208,10 +214,11 @@ def test_process_email_task_agent_exception(prepare_email_request_data):
     assert returned_task_result.metadata.email_sent.error == "Simulated agent internal crash"
 
     mock_agent_process_email.assert_called_once()
-    mock_sender_instance.send_reply.assert_not_called() # Reply should not be attempted if agent indicates error
+    mock_sender_instance.send_reply.assert_not_called()  # Reply should not be attempted if agent indicates error
 
-    assert not Path(email_attachments_dir_str).exists(), \
+    assert not Path(email_attachments_dir_str).exists(), (
         f"Attachments directory '{email_attachments_dir_str}' was not cleaned up even after agent error."
+    )
 
 
 # Parametrized test for each handle
@@ -219,7 +226,7 @@ def test_process_email_task_agent_exception(prepare_email_request_data):
 def test_process_email_task_for_handle(
     handle_instructions: ProcessingInstructions,
     prepare_email_request_data,
-    tmp_path # For schedule handle specific file creation
+    tmp_path,  # For schedule handle specific file creation
 ):
     """
     Tests successful processing for each defined email handle.
@@ -238,14 +245,13 @@ def test_process_email_task_for_handle(
         text_content_for_test = "Please schedule a meeting titled 'Project Kickoff' for January 5th, 2024, at 2:00 PM EST to discuss the project milestones. My email is sender.test@example.com and please invite colleague@example.com."
         # Add a dummy file if process_attachments is True for schedule, though it might not be used
         if handle_instructions.process_attachments:
-             attachments_for_test = [("schedule_context.txt", b"Meeting context document.", "text/plain")]
-
+            attachments_for_test = [("schedule_context.txt", b"Meeting context document.", "text/plain")]
 
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
         to_email=to_email_address,
         subject=subject_for_test,
         text_content=text_content_for_test,
-        attachments_data=attachments_for_test
+        attachments_data=attachments_for_test,
     )
 
     # Set SKIP_EMAIL_DELIVERY for specific handles if they don't typically result in a direct reply "sent"
@@ -259,26 +265,26 @@ def test_process_email_task_for_handle(
     # will depend on the LLM and the prompt templates. This test primarily verifies
     # that the pipeline for each handle type runs and attempts a reply.
 
-    with patch("mxtoai.tasks.EmailSender") as MockEmailSender, \
-         patch.dict(os.environ, {"SKIP_EMAIL_DELIVERY": ""}): # Ensure SKIP_EMAIL_DELIVERY is not set globally for this test run
-
+    with (
+        patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        patch.dict(os.environ, {"SKIP_EMAIL_DELIVERY": ""}),
+    ):  # Ensure SKIP_EMAIL_DELIVERY is not set globally for this test run
         mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
             # Check for ICS attachment if it's the schedule handle
             if is_schedule_handle:
                 sent_attachments = kwargs.get("attachments", [])
-                assert any(att["filename"] == "invite.ics" for att in sent_attachments), \
+                assert any(att["filename"] == "invite.ics" for att in sent_attachments), (
                     "ICS attachment was not prepared for sending by the schedule handle."
+                )
                 assert any(att["mimetype"] == "text/calendar" for att in sent_attachments)
             return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}
 
         mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
         returned_result = process_email_task.fn(
-            email_data=email_data,
-            email_attachments_dir=email_attachments_dir_str,
-            attachment_info=attachment_info
+            email_data=email_data, email_attachments_dir=email_attachments_dir_str, attachment_info=attachment_info
         )
 
         if expect_reply_actually_sent:
@@ -286,21 +292,27 @@ def test_process_email_task_for_handle(
             _assert_basic_successful_processing(
                 returned_result,
                 expected_handle=handle_instructions.handle,
-                attachments_cleaned_up_dir=email_attachments_dir_str if attachments_for_test else None # Only check cleanup if dir was used
+                attachments_cleaned_up_dir=email_attachments_dir_str
+                if attachments_for_test
+                else None,  # Only check cleanup if dir was used
             )
             # Specific assertion for schedule handle's calendar_data
             if is_schedule_handle:
                 assert returned_result.calendar_data is not None, "Calendar data should be present for schedule handle"
-                assert returned_result.calendar_data.ics_content is not None and len(returned_result.calendar_data.ics_content) > 0, \
-                    "ICS content is missing or empty for schedule handle"
+                assert (
+                    returned_result.calendar_data.ics_content is not None
+                    and len(returned_result.calendar_data.ics_content) > 0
+                ), "ICS content is missing or empty for schedule handle"
         else:
             # If not expecting a sent reply (e.g. if we were to use SKIP_EMAIL_DELIVERY for some handles)
             mock_sender_instance.send_reply.assert_not_called()
-            assert returned_result.metadata.email_sent.status == "skipped" # or "pending" depending on logic
+            assert returned_result.metadata.email_sent.status == "skipped"  # or "pending" depending on logic
             # Further assertions for non-sent cases might be needed.
 
         # General check: No errors in metadata for any handle type on happy path
-        assert not returned_result.metadata.errors, f"Handle '{handle_instructions.handle}' produced errors: {returned_result.metadata.errors}"
+        assert not returned_result.metadata.errors, (
+            f"Handle '{handle_instructions.handle}' produced errors: {returned_result.metadata.errors}"
+        )
 
         # Ensure deep_research_mandatory flag was respected (qualitative check via EmailAgent logs if verbose, hard to assert directly without deeper mocks)
         # We trust EmailAgent tests for this part.

@@ -39,10 +39,10 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP")
 
         if not default_model_group:
-            msg = "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
-            raise exceptions.EnvironmentVariableNotFoundException(
-                msg
+            msg = (
+                "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
             )
+            raise exceptions.EnvironmentVariableNotFoundException(msg)
 
         super().__init__(
             model_id=default_model_group,
@@ -61,9 +61,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         """
         if not os.path.exists(self.config_path):
             msg = f"Model config file not found at {self.config_path}. Please check the path."
-            raise exceptions.ModelConfigFileNotFoundException(
-                msg
-            )
+            raise exceptions.ModelConfigFileNotFoundException(msg)
 
         try:
             with open(self.config_path) as f:
@@ -88,18 +86,16 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             model_entries = [model_entries]
 
         for entry in model_entries:
-            model_list.append(models.ModelConfig(
-                model_name=entry.get("model_name"),
-                litellm_params=models.LiteLLMParams(
-                    **entry.get("litellm_params")
+            model_list.append(
+                models.ModelConfig(
+                    model_name=entry.get("model_name"),
+                    litellm_params=models.LiteLLMParams(**entry.get("litellm_params")),
                 )
-            ))
+            )
 
         if not model_list:
             msg = "No model list found in config toml. Please check the configuration."
-            raise exceptions.ModelListNotFoundException(
-                msg
-            )
+            raise exceptions.ModelListNotFoundException(msg)
 
         return model_list
 
@@ -121,7 +117,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                 default_litellm_params={"drop_params": True},
             )
         return router_config
-
 
     def _get_target_model(self) -> str:
         """

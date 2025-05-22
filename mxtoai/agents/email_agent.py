@@ -170,27 +170,33 @@ class EmailAgent:
         logger.debug("Agent initialized with routed model configuration")
 
     def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
-        attachments = self._format_attachments(email_request.attachments) \
-            if email_instructions.process_attachments and email_request.attachments else []
+        attachments = (
+            self._format_attachments(email_request.attachments)
+            if email_instructions.process_attachments and email_request.attachments
+            else []
+        )
         return self._create_task_template(
             handle=email_instructions.handle,
             email_context=self._create_email_context(email_request, attachments),
             handle_specific_template=email_instructions.task_template,
             attachment_task=self._create_attachment_task(attachments),
             deep_research_mandatory=email_instructions.deep_research_mandatory,
-            output_template=email_instructions.output_template
+            output_template=email_instructions.output_template,
         )
 
     def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]:
         return [
-            f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
-            f'  EXACT FILE PATH: "{att.path}"'
+            f'- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n  EXACT FILE PATH: "{att.path}"'
             for att in attachments
         ]
 
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
         recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
-        attachments_info = f"Available Attachments:\n{chr(10).join(attachment_details)}" if attachment_details else "No attachments provided."
+        attachments_info = (
+            f"Available Attachments:\n{chr(10).join(attachment_details)}"
+            if attachment_details
+            else "No attachments provided."
+        )
         return f"""Email Content:
     Subject: {email_request.subject}
     From: {email_request.from_email}
@@ -224,11 +230,13 @@ class EmailAgent:
             output_template,
             RESPONSE_GUIDELINES,
             MARKDOWN_STYLE_GUIDE,
-            LIST_FORMATTING_REQUIREMENTS
+            LIST_FORMATTING_REQUIREMENTS,
         ]
         return "\n\n".join(filter(None, sections))
 
-    def _process_agent_result(self, final_answer_obj: Any, agent_steps: list, current_email_handle: str) -> DetailedEmailProcessingResult:
+    def _process_agent_result(
+        self, final_answer_obj: Any, agent_steps: list, current_email_handle: str
+    ) -> DetailedEmailProcessingResult:
         processed_at_time = datetime.now().isoformat()
 
         # Initialize schema components
@@ -273,15 +281,25 @@ class EmailAgent:
                         try:
                             tool_output = ast.literal_eval(tool_output)
                         except (ValueError, SyntaxError) as e:
-                            logger.error(f"[Memory Step {i + 1}] Failed to parse '{tool_name}' output: {e!s}. Content: {tool_output[:200]}...")
-                            errors_list.append(ProcessingError(message=f"Failed to parse {tool_name} output", details=str(e)))
+                            logger.error(
+                                f"[Memory Step {i + 1}] Failed to parse '{tool_name}' output: {e!s}. Content: {tool_output[:200]}..."
+                            )
+                            errors_list.append(
+                                ProcessingError(message=f"Failed to parse {tool_name} output", details=str(e))
+                            )
                             continue
                         except Exception as e:
-                            logger.error(f"[Memory Step {i+1}] Unexpected error parsing '{tool_name}' output: {e!s}. Content: {tool_output[:200]}...")
-                            errors_list.append(ProcessingError(message=f"Unexpected error parsing {tool_name} output", details=str(e)))
+                            logger.error(
+                                f"[Memory Step {i + 1}] Unexpected error parsing '{tool_name}' output: {e!s}. Content: {tool_output[:200]}..."
+                            )
+                            errors_list.append(
+                                ProcessingError(message=f"Unexpected error parsing {tool_name} output", details=str(e))
+                            )
                             continue
 
-                    logger.info(f"[Memory Step {i + 1}] Processing tool '{tool_name}', Output Type: '{type(tool_output)}'")
+                    logger.info(
+                        f"[Memory Step {i + 1}] Processing tool '{tool_name}', Output Type: '{type(tool_output)}'"
+                    )
 
                     if tool_name == "attachment_processor" and isinstance(tool_output, dict):
                         attachment_proc_summary = tool_output.get("summary")
@@ -289,14 +307,19 @@ class EmailAgent:
                             pa_detail = ProcessedAttachmentDetail(
                                 filename=attachment_data.get("filename", "unknown.file"),
                                 size=attachment_data.get("size", 0),
-                                type=attachment_data.get("type", "unknown")
+                                type=attachment_data.get("type", "unknown"),
                             )
                             if "error" in attachment_data:
                                 pa_detail.error = attachment_data["error"]
-                                errors_list.append(ProcessingError(message=f"Error processing attachment {pa_detail.filename}", details=pa_detail.error))
+                                errors_list.append(
+                                    ProcessingError(
+                                        message=f"Error processing attachment {pa_detail.filename}",
+                                        details=pa_detail.error,
+                                    )
+                                )
                             if "content" in attachment_data and isinstance(attachment_data["content"], dict):
                                 if attachment_data["content"].get("caption"):
-                                     pa_detail.caption = attachment_data["content"]["caption"]
+                                    pa_detail.caption = attachment_data["content"]["caption"]
                             processed_attachment_details.append(pa_detail)
 
                     elif tool_name == "deep_research" and isinstance(tool_output, dict):
@@ -308,7 +331,7 @@ class EmailAgent:
                             read_urls=tool_output.get("read_urls", []),
                             timestamp=tool_output.get("timestamp"),
                             usage=tool_output.get("usage", {}),
-                            num_urls=tool_output.get("num_urls", 0)
+                            num_urls=tool_output.get("num_urls", 0),
                         )
                         if not research_output_findings:
                             errors_list.append(ProcessingError(message="Deep research tool returned empty findings."))
@@ -322,7 +345,9 @@ class EmailAgent:
                     else:
                         logger.info(f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler).")
                 else:
-                    logger.debug(f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), not a relevant ActionStep or missing output.")
+                    logger.debug(
+                        f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), not a relevant ActionStep or missing output."
+                    )
 
             # Extract final answer from LLM
             if hasattr(final_answer_obj, "text"):
@@ -332,32 +357,51 @@ class EmailAgent:
             elif hasattr(final_answer_obj, "_value"):
                 final_answer_from_llm = str(final_answer_obj._value).strip()
             elif hasattr(final_answer_obj, "answer") and isinstance(getattr(final_answer_obj, "answer", None), str):
-                    final_answer_from_llm = str(final_answer_obj.answer).strip()
-            elif hasattr(final_answer_obj, "arguments") and isinstance(getattr(final_answer_obj, "arguments", None), dict) and "answer" in final_answer_obj.arguments:
-                    final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
+                final_answer_from_llm = str(final_answer_obj.answer).strip()
+            elif (
+                hasattr(final_answer_obj, "arguments")
+                and isinstance(getattr(final_answer_obj, "arguments", None), dict)
+                and "answer" in final_answer_obj.arguments
+            ):
+                final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
             else:
                 final_answer_from_llm = str(final_answer_obj).strip()
-                logger.warning(f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}...")
+                logger.warning(
+                    f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}..."
+                )
 
             # Determine email body content
             email_body_content_source = research_output_findings if research_output_findings else final_answer_from_llm
 
             if email_body_content_source:
                 signature_markers = [
-                    "Best regards,\nMXtoAI Assistant", "Best regards,", "Warm regards,",
+                    "Best regards,\nMXtoAI Assistant",
+                    "Best regards,",
+                    "Warm regards,",
                     "_Feel free to reply to this email to continue our conversation._",
-                    "MXtoAI Assistant", "> **Disclaimer:**"
+                    "MXtoAI Assistant",
+                    "> **Disclaimer:**",
                 ]
                 temp_content = email_body_content_source
                 for marker in signature_markers:
-                    temp_content = re.sub(r"^[\s\n]*" + re.escape(marker) + r".*$", "", temp_content, flags=re.IGNORECASE | re.MULTILINE).strip()
+                    temp_content = re.sub(
+                        r"^[\s\n]*" + re.escape(marker) + r".*$", "", temp_content, flags=re.IGNORECASE | re.MULTILINE
+                    ).strip()
 
-                email_text_content = self.report_formatter.format_report(temp_content, format_type="text", include_signature=True)
-                email_html_content = self.report_formatter.format_report(temp_content, format_type="html", include_signature=True)
+                email_text_content = self.report_formatter.format_report(
+                    temp_content, format_type="text", include_signature=True
+                )
+                email_html_content = self.report_formatter.format_report(
+                    temp_content, format_type="html", include_signature=True
+                )
             else:
                 fallback_msg = "I apologize, but I encountered an issue generating the detailed response. Please try again later or contact support if this issue persists."
-                email_text_content = self.report_formatter.format_report(fallback_msg, format_type="text", include_signature=True)
-                email_html_content = self.report_formatter.format_report(fallback_msg, format_type="html", include_signature=True)
+                email_text_content = self.report_formatter.format_report(
+                    fallback_msg, format_type="text", include_signature=True
+                )
+                email_html_content = self.report_formatter.format_report(
+                    fallback_msg, format_type="html", include_signature=True
+                )
                 errors_list.append(ProcessingError(message="No final answer text was generated or extracted"))
                 email_sent_status.status = "error"
                 email_sent_status.error = "No reply text was generated"
@@ -366,25 +410,25 @@ class EmailAgent:
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
                     processed_at=processed_at_time,
-                    mode=current_email_handle, # Use the passed handle for mode
+                    mode=current_email_handle,  # Use the passed handle for mode
                     errors=errors_list,
-                    email_sent=email_sent_status
+                    email_sent=email_sent_status,
                 ),
                 email_content=EmailContentDetails(
                     text=email_text_content,
                     html=email_html_content,
                     # Assuming enhanced content is same as base for now
-                    enhanced={"text": email_text_content, "html": email_html_content}
+                    enhanced={"text": email_text_content, "html": email_html_content},
                 ),
                 attachments=AttachmentsProcessingResult(
-                    summary=attachment_proc_summary,
-                    processed=processed_attachment_details
+                    summary=attachment_proc_summary, processed=processed_attachment_details
                 ),
                 calendar_data=calendar_result_data,
                 research=AgentResearchOutput(
-                    findings_content=research_output_findings,
-                    metadata=research_output_metadata
-                ) if research_output_findings or research_output_metadata else None
+                    findings_content=research_output_findings, metadata=research_output_metadata
+                )
+                if research_output_findings or research_output_metadata
+                else None,
             )
 
         except Exception as e:
@@ -395,50 +439,60 @@ class EmailAgent:
             # This part already handles populating errors_list and setting email_sent_status.
 
             # Ensure basic structure for fallback if critical error happened early
-            if not errors_list: # If the error happened before any specific error was added
-                 errors_list.append(ProcessingError(message="Critical error in _process_agent_result", details=str(e)))
+            if not errors_list:  # If the error happened before any specific error was added
+                errors_list.append(ProcessingError(message="Critical error in _process_agent_result", details=str(e)))
 
-            current_timestamp = datetime.now().isoformat() # Use a fresh timestamp
-            if email_sent_status.status != "error": # If not already set to error by prior logic
+            current_timestamp = datetime.now().isoformat()  # Use a fresh timestamp
+            if email_sent_status.status != "error":  # If not already set to error by prior logic
                 email_sent_status.status = "error"
                 email_sent_status.error = f"Critical error in _process_agent_result: {e!s}"
                 email_sent_status.timestamp = current_timestamp
 
-
             # Fallback email content if not already set
             fb_text = "I encountered a critical error processing your request during result generation."
-            final_email_text = email_text_content if email_text_content else self.report_formatter.format_report(fb_text, format_type="text", include_signature=True)
-            final_email_html = email_html_content if email_html_content else self.report_formatter.format_report(fb_text, format_type="html", include_signature=True)
+            final_email_text = (
+                email_text_content
+                if email_text_content
+                else self.report_formatter.format_report(fb_text, format_type="text", include_signature=True)
+            )
+            final_email_html = (
+                email_html_content
+                if email_html_content
+                else self.report_formatter.format_report(fb_text, format_type="html", include_signature=True)
+            )
 
             # Construct and return an error-state DetailedEmailProcessingResult
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
-                    processed_at=processed_at_time, # or current_timestamp, consider consistency
+                    processed_at=processed_at_time,  # or current_timestamp, consider consistency
                     mode=current_email_handle,
                     errors=errors_list,
-                    email_sent=email_sent_status
+                    email_sent=email_sent_status,
                 ),
                 email_content=EmailContentDetails(
                     text=final_email_text,
                     html=final_email_html,
-                    enhanced={"text": final_email_text, "html": final_email_html} # ensure enhanced also has fallback
+                    enhanced={"text": final_email_text, "html": final_email_html},  # ensure enhanced also has fallback
                 ),
                 attachments=AttachmentsProcessingResult(
-                    summary=attachment_proc_summary if attachment_proc_summary else None, # Keep any partial data if available
-                    processed=processed_attachment_details if processed_attachment_details else []
+                    summary=attachment_proc_summary
+                    if attachment_proc_summary
+                    else None,  # Keep any partial data if available
+                    processed=processed_attachment_details if processed_attachment_details else [],
                 ),
-                calendar_data=calendar_result_data, # Keep any partial data
-                research=AgentResearchOutput( # Keep any partial data
-                    findings_content=research_output_findings,
-                    metadata=research_output_metadata
-                ) if research_output_findings or research_output_metadata else None
+                calendar_data=calendar_result_data,  # Keep any partial data
+                research=AgentResearchOutput(  # Keep any partial data
+                    findings_content=research_output_findings, metadata=research_output_metadata
+                )
+                if research_output_findings or research_output_metadata
+                else None,
             )
 
     def process_email(
         self,
         email_request: EmailRequest,
         email_instructions: ProcessingInstructions,
-    ) -> DetailedEmailProcessingResult: # Updated return type annotation
+    ) -> DetailedEmailProcessingResult:  # Updated return type annotation
         """
         Process an email using the agent based on the provided email handle instructions.
 
@@ -474,7 +528,7 @@ class EmailAgent:
                 return processed_result
 
             logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
-            return processed_result # Added return for the successful case
+            return processed_result  # Added return for the successful case
 
         except Exception as e:
             error_msg = f"Critical error in email processing: {e!s}"
@@ -487,14 +541,22 @@ class EmailAgent:
                     processed_at=now_iso,
                     mode=email_instructions.handle if email_instructions else "unknown",
                     errors=[ProcessingError(message=error_msg, details=str(e))],
-                    email_sent=EmailSentStatus(status="error", error=error_msg, timestamp=now_iso)
+                    email_sent=EmailSentStatus(status="error", error=error_msg, timestamp=now_iso),
                 ),
                 email_content=EmailContentDetails(
-                    text=self.report_formatter.format_report("I encountered a critical error processing your request.", format_type="text", include_signature=True),
-                    html=self.report_formatter.format_report("I encountered a critical error processing your request.", format_type="html", include_signature=True),
-                    enhanced={"text": None, "html": None}
+                    text=self.report_formatter.format_report(
+                        "I encountered a critical error processing your request.",
+                        format_type="text",
+                        include_signature=True,
+                    ),
+                    html=self.report_formatter.format_report(
+                        "I encountered a critical error processing your request.",
+                        format_type="html",
+                        include_signature=True,
+                    ),
+                    enhanced={"text": None, "html": None},
                 ),
                 attachments=AttachmentsProcessingResult(processed=[]),
                 calendar_data=None,
-                research=None
+                research=None,
             )
