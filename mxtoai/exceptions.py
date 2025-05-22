@@ -13,7 +13,7 @@ class EnvironmentVariableNotFoundException(Exception):
 class ModelListNotFoundException(Exception):
     def __init__(self, message: str):
         super().__init__(message)
-    
+
 class ModelConfigFileNotFoundException(Exception):
     def __init__(self, message: str):
         super().__init__(message)

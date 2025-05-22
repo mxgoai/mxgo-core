@@ -1,11 +1,11 @@
-from typing import Optional, Any, Dict, List
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
 
 class ProcessingInstructions(BaseModel):
     handle: str
-    aliases: List[str]
+    aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
     rejection_message: Optional[str] = (
@@ -32,5 +32,5 @@ class ModelConfig(BaseModel):
 
 class RouterConfig(BaseModel):
     routing_strategy: str
-    fallbacks: List[Dict[str, List[str]]]
-    default_litellm_params: Dict[str, Any]
+    fallbacks: list[dict[str, list[str]]]
+    default_litellm_params: dict[str, Any]

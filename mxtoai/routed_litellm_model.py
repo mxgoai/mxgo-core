@@ -1,12 +1,11 @@
 import os
-from typing import Any, Optional, List, Dict
+from typing import Any, Optional
 
 import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
-import mxtoai.models as models
-import mxtoai.exceptions as exceptions
+from mxtoai import exceptions, models
 from mxtoai._logging import get_logger
 from mxtoai.models import ProcessingInstructions
 
@@ -34,14 +33,15 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         # Configure model list from environment variables
         model_list = self._load_model_config()
         client_router_kwargs = self._load_router_config()
-        
+
         # The model_id for LiteLLMRouterModel is the default model group the router will target.
         # Our _get_target_model() will override this per call via the 'model' param in generate().
         default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP")
 
         if not default_model_group:
+            msg = "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
             raise exceptions.EnvironmentVariableNotFoundException(
-                "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
+                msg
             )
 
         super().__init__(
@@ -51,27 +51,28 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             **kwargs,  # Pass through other LiteLLMModel/Model kwargs
         )
 
-    def _load_toml_config(self) -> Dict[str, Any]:
+    def _load_toml_config(self) -> dict[str, Any]:
         """
         Load configuration from a TOML file.
-        
-        Returns:    
-            Dict[str, Any]: Configuration loaded from the TOML file.
-        """
 
+        Returns:
+            Dict[str, Any]: Configuration loaded from the TOML file.
+
+        """
         if not os.path.exists(self.config_path):
+            msg = f"Model config file not found at {self.config_path}. Please check the path."
             raise exceptions.ModelConfigFileNotFoundException(
-                f"Model config file not found at {self.config_path}. Please check the path."
+                msg
             )
 
         try:
-            with open(self.config_path, "r") as f:
+            with open(self.config_path) as f:
                 return toml.load(f)
         except Exception as e:
             logger.error(f"Failed to load TOML config: {e}")
             return {}
 
-    def _load_model_config(self) -> List[Dict[str, Any]]:
+    def _load_model_config(self) -> list[dict[str, Any]]:
         """
         Load model configuration from environment variables.
 
@@ -95,8 +96,9 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             ))
 
         if not model_list:
+            msg = "No model list found in config toml. Please check the configuration."
             raise exceptions.ModelListNotFoundException(
-                "No model list found in config toml. Please check the configuration."
+                msg
             )
 
         return model_list
@@ -104,12 +106,13 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
     def _load_router_config(self) -> models.RouterConfig:
         """
         Load router configuration from environment variables.
-        
+
         Returns:
            models.RouterConfig: Router configuration
+
         """
         router_config = models.RouterConfig(**self.config.get("router_config"))
-        
+
         if not router_config:
             logger.warning("No router config found in model-config.toml. Using defaults.")
             return models.RouterConfig(

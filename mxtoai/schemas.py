@@ -86,3 +86,67 @@ class EmailProcessingResponse(BaseModel):
     email_id: str = Field(..., description="Unique ID for the processed email")
     results: dict[str, Any] = Field(..., description="Processing results")
     status: str = Field(..., description="Processing status")
+
+
+# --- New Schemas for Detailed Email Processing Result ---
+
+class EmailSentStatus(BaseModel):
+    status: str
+    timestamp: Optional[str] = None
+    error: Optional[str] = None
+    message_id: Optional[str] = Field(None, alias="MessageId") # If the key is "MessageId"
+
+class ProcessingError(BaseModel):
+    message: str
+    details: Optional[str] = None
+
+class ProcessingMetadata(BaseModel):
+    processed_at: str
+    mode: Optional[str] = None
+    errors: list[ProcessingError] = [] # Updated to use ProcessingError model
+    email_sent: EmailSentStatus
+
+class EmailContentDetails(BaseModel):
+    html: Optional[str] = None
+    text: Optional[str] = None
+    enhanced: Optional[dict[str, Optional[str]]] = None # Retaining dict for simplicity, or could be another EmailContentDetails
+
+class ProcessedAttachmentDetail(BaseModel):
+    filename: str
+    size: int
+    type: str
+    error: Optional[str] = None
+    caption: Optional[str] = None
+    # Add other fields from 'sanitized_att' if they exist, e.g., content summary if stored per attachment
+
+class AttachmentsProcessingResult(BaseModel):
+    summary: Optional[str] = None
+    processed: list[ProcessedAttachmentDetail] = []
+
+class CalendarResult(BaseModel):
+    ics_content: str
+    # calendar_links: Optional[dict[str, str]] = None # If this exists as per comments in agent
+
+class AgentResearchMetadata(BaseModel):
+    query: Optional[str] = None
+    annotations: Optional[list[Any]] = [] # Define more specific type if known
+    visited_urls: Optional[list[str]] = []
+    read_urls: Optional[list[str]] = []
+    timestamp: Optional[str] = None
+    usage: Optional[dict[str, Any]] = {}
+    num_urls: Optional[int] = 0
+
+class AgentResearchOutput(BaseModel):
+    findings_content: Optional[str] = None # The main text from research
+    metadata: Optional[AgentResearchMetadata] = None
+
+class DetailedEmailProcessingResult(BaseModel):
+    metadata: ProcessingMetadata
+    email_content: EmailContentDetails
+    attachments: AttachmentsProcessingResult
+    calendar_data: Optional[CalendarResult] = None
+    research: Optional[AgentResearchOutput] = None
+    # Add other top-level keys from the agent's result dict if any (e.g. 'summary', 'handle' but they seem to be in error dicts)
+
+    # Ensure Pydantic can populate by name and validate defaults
+    model_config = ConfigDict(populate_by_name=True, validate_default=True)
