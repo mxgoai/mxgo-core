@@ -61,6 +61,14 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --with dev
 
+      - name: Create LiteLLM config from secret
+        env:
+          MODEL_CONFIG_CONTENT: ${{ secrets.MODEL_CONFIG }}
+        run: |
+          echo "$MODEL_CONFIG_CONTENT" > litellm_config.toml
+          echo "LITELLM_CONFIG_PATH=$(pwd)/litellm_config.toml" >> $GITHUB_ENV
+          echo "Created litellm_config.toml and set LITELLM_CONFIG_PATH"
+
       - name: Run tests
         run: poetry run pytest -v --timeout 180 --cov-report=term-missing:skip-covered --cov-report=html:htmlcov --cov=mxtoai --log-cli-level=INFO --pytest-durations-min=5
 

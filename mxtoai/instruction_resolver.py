@@ -1,4 +1,4 @@
-import mxtoai.exceptions as exceptions
+from mxtoai import exceptions
 from mxtoai._logging import get_logger
 
 from .models import ProcessingInstructions
@@ -78,8 +78,9 @@ class ProcessingInstructionsResolver:
         """
         if handle not in self.handle_map:
             logger.debug("This email handle is not supported!")
+            msg = "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
             raise exceptions.UnspportedHandleException(
-                "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+                msg
             )
         return self.handle_map[handle]
 
