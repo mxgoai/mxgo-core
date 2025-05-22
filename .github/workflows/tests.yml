@@ -22,6 +22,7 @@ jobs:
     env:
       X_API_KEY: "some-api-key"
       IS_PROD: "true"
+      LITELLM_DEFAULT_MODEL_GROUP: ${{ secrets.LITELLM_DEFAULT_MODEL_GROUP }}
 
     steps:
       - name: Checkout repository

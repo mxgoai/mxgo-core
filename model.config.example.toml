@@ -1,0 +1,38 @@
+[[model]]
+model_name = "gpt-4"
+
+[model.litellm_params]
+model = "azure/gpt-4"
+base_url = "https://your-endpoint.openai.azure.com"
+api_key = "your-key"
+api_version = "2023-05-15"
+weight = 5
+
+[[model]]
+model_name = "gpt-4"
+
+[model.litellm_params]
+model = "azure/gpt-4-1106-preview"
+base_url = "https://your-endpoint-2.openai.azure.com"
+api_key = "your-key-2"
+api_version = "2023-05-15"
+weight = 5
+
+[[model]]
+model_name = "gpt-4-reasoning"
+
+[model.litellm_params]
+model = "azure/gpt-4o-mini"
+base_url = "https://your-endpoint-3.openai.azure.com"
+api_key = "your-key-3"
+api_version = "2023-05-15"
+weight = 1
+
+[router_config]
+routing_strategy = "simple-shuffle"
+
+[[router_config.fallbacks]]
+gpt-4 = ["gpt-4-reasoning"]
+
+[router_config.default_litellm_params]
+drop_params = true

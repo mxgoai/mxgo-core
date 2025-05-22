@@ -2,6 +2,8 @@ attachments/**
 
 results/**
 
+model.config.toml
+
 # Python
 __pycache__/
 *.py[cod]

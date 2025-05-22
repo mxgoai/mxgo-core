@@ -105,15 +105,11 @@ poetry run dramatiq mxtoai.tasks --watch ./.
 Copy the `.env.example` file to `.env` and update with your specific configuration:
 
 ```env
+LITELLM_CONFIG_PATH=model.config.toml
+
 # Redis configuration
 REDIS_HOST=localhost
 REDIS_PORT=6379
-
-# Model configuration
-MODEL_ENDPOINT=your_azure_openai_endpoint
-MODEL_API_KEY=your_azure_openai_api_key
-MODEL_NAME=your-azure-openai-model-deployment
-MODEL_API_VERSION=2025-01-01-preview
 
 # Optional for research functionality
 JINA_API_KEY=your-jina-api-key
@@ -124,6 +120,35 @@ AZURE_VISION_KEY=your-azure-vision-key
 
 # For web search functionality
 SERPAPI_API_KEY=your-serpapi-api-key
+```
+
+This project supports load balancing and routing across multiple models, so you can define as many models as you'd like. Copy `model.config.example.toml` to a toml file and update it with your preferred configuration. Update `.env` with the path your toml relative to root.
+
+A sample configuration looks like this:
+
+```toml
+[[model]]
+model_name = "gpt-4"
+
+[model.litellm_params]
+model = "azure/gpt-4"
+base_url = "https://your-endpoint.openai.azure.com"
+api_key = "your-key"
+api_version = "2023-05-15"
+weight = 5
+```
+
+It is also recommended that you set router configuration. It will be defaulted to the below config if not set.
+
+```toml
+[router_config]
+routing_strategy = "simple-shuffle"
+
+[[router_config.fallbacks]]
+gpt-4 = ["gpt-4-reasoning"]
+
+[router_config.default_litellm_params]
+drop_params = true
 ```
 
 ## API Endpoints
