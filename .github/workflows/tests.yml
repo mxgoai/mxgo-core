@@ -23,6 +23,8 @@ jobs:
       X_API_KEY: "some-api-key"
       IS_PROD: "true"
       LITELLM_DEFAULT_MODEL_GROUP: ${{ secrets.LITELLM_DEFAULT_MODEL_GROUP }}
+      # TODO: Ideally, this shouldn't be needed, remove later
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
 
     steps:
       - name: Checkout repository
