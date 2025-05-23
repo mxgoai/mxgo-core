@@ -1,4 +1,6 @@
-"""Base prompts and common guidelines for email processing."""
+"""
+Base prompts and common guidelines for email processing.
+"""
 
 MARKDOWN_STYLE_GUIDE = """
 MARKDOWN FORMATTING REQUIREMENTS:

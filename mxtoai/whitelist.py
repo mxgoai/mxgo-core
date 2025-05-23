@@ -12,7 +12,9 @@ supabase: Optional[Client] = None
 
 
 def init_supabase():
-    """Initialize Supabase client"""
+    """
+    Initialize Supabase client
+    """
     global supabase
     if supabase is None:
         try:
@@ -65,5 +67,10 @@ async def is_email_whitelisted(email: str) -> tuple[bool, bool]:
 
 
 def get_whitelist_signup_url() -> str:
-    """Get the URL where users can sign up to be whitelisted"""
+    """
+    Get the URL where users can sign up to be whitelisted
+
+    Returns:
+        str: The URL for whitelist signup
+    """
     return os.getenv("WHITELIST_SIGNUP_URL", "https://mxtoai.com/whitelist-signup")

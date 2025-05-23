@@ -1,6 +1,7 @@
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts import output_prompts, template_prompts
 
+# default email handles for processing instructions
 DEFAULT_EMAIL_HANDLES = [
     ProcessingInstructions(
         handle="summarize",

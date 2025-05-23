@@ -11,7 +11,9 @@ logger = get_logger(__name__)
 
 
 class ReportFormatter:
-    """Format research reports and emails for delivery."""
+    """
+    Format research reports and emails for delivery.
+    """
 
     def __init__(self, template_dir: Optional[str] = None):
         """
@@ -23,15 +25,12 @@ class ReportFormatter:
         """
         # Set up template directory
         if template_dir is None:
-            # Default to a templates directory next to this file
             self.template_dir = os.path.join(os.path.dirname(__file__), "templates")
         else:
             self.template_dir = template_dir
 
-        # Initialize Jinja environment
+        # Initialize Jinja environment and load themes
         self._init_template_env()
-
-        # Load themes
         self._load_themes()
 
         # Default signature
@@ -111,7 +110,14 @@ _Feel free to reply to this email to continue our conversation._
         return content
 
     def _process_citations(self, content: str) -> str:
-        """Process citations and references in the content."""
+        """
+        Process citations and references in the content.
+
+        Args:
+            content: Report content
+        Returns:
+            Processed content with citations and references formatted
+        """
         try:
             # Find all references sections
             reference_sections = list(
@@ -160,12 +166,18 @@ _Feel free to reply to this email to continue our conversation._
             return content.strip() + "\n\n" + "\n".join(formatted_refs)
 
         except Exception as e:
-            # Log error but don't break formatting
             logger.exception(f"Error processing citations: {e!s}")
             return content
 
     def _remove_existing_signatures(self, content: str) -> str:
-        """Remove any existing signature blocks from the content."""
+        """
+        Remove any existing signature blocks from the content.
+
+        Args:
+            content: Report content
+        Returns:
+            Content with existing signatures removed
+        """
         signature_patterns = [
             r"\n\s*Warm regards,?\s*\n\s*MXtoAI Assistant\s*\n",
             r"\n\s*Best regards,?\s*\n\s*MXtoAI Assistant\s*\n",

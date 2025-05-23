@@ -119,11 +119,12 @@ class EmailAgent:
         logger.info("Email agent initialized successfully")
 
     def _init_agent(self):
-        """Initialize the ToolCallingAgent with Azure OpenAI."""
-        # Initialize the model with routing capabilities
-        self.routed_model = RoutedLiteLLMModel()  # Store as instance variable to update handle later
+        """
+        Initialize the ToolCallingAgent with Azure OpenAI.
+        """
+        # Initialize the routed model with the default model group
+        self.routed_model = RoutedLiteLLMModel()
 
-        # Initialize the agent
         self.agent = ToolCallingAgent(
             model=self.routed_model,
             tools=self.available_tools,
@@ -138,7 +139,12 @@ class EmailAgent:
         logger.debug("Agent initialized with routed model configuration")
 
     def _initialize_search_tools(self) -> SearchWithFallbackTool:
-        """Initializes and configures the search tools, returning the SearchWithFallbackTool."""
+        """
+        Initializes and configures the search tools, returning the SearchWithFallbackTool.
+
+        Returns:
+            SearchWithFallbackTool: The configured search tool with Bing and DuckDuckGo as primary engines and Google as fallback.
+        """
         bing_search_tool = WebSearchTool(engine="bing", max_results=5)
         logger.debug("Initialized WebSearchTool with Bing engine.")
 
@@ -166,6 +172,25 @@ class EmailAgent:
         fallback_name = getattr(google_search_fallback_tool, "name", "None") if google_search_fallback_tool else "None"
         logger.info(f"Initialized SearchWithFallbackTool. Primary engines: {primary_names}, Fallback: {fallback_name}")
         return search_tool
+
+    def _get_required_actions(self, mode: str) -> List[str]:
+        """
+        Get list of required actions based on mode.
+
+        Args:
+            mode: The mode of operation (e.g., "summary", "reply", "research", "full")
+
+        Returns:
+            List[str]: List of actions to be performed by the agent
+        """
+        actions = []
+        if mode in ["summary", "full"]:
+            actions.append("Generate summary")
+        if mode in ["reply", "full"]:
+            actions.append("Generate reply")
+        if mode in ["research", "full"]:
+            actions.append("Conduct research")
+        return actions
 
     def _initialize_google_search_tool(self) -> Optional[GoogleSearchTool]:
         """
@@ -195,7 +220,15 @@ class EmailAgent:
         return None
 
     def _initialize_deep_research_tool(self, enable_deep_research: bool) -> Optional[DeepResearchTool]:
-        """Initializes the DeepResearchTool if API key is available."""
+        """
+        Initializes the DeepResearchTool if API key is available.
+
+        Args:
+            enable_deep_research: Flag to enable deep research functionality
+
+        Returns:
+            Optional[DeepResearchTool]: Initialized DeepResearchTool instance or None if API key is not found
+        """
         research_tool: Optional[DeepResearchTool] = None
         if os.getenv("JINA_API_KEY"):
             research_tool = DeepResearchTool()
@@ -210,7 +243,18 @@ class EmailAgent:
         return research_tool
 
     def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
-        """Create a task description for the agent based on email handle instructions."""
+        """
+        Create a task description for the agent based on email handle instructions.
+
+        Args:
+            email_request: EmailRequest instance containing email data
+            email_instructions: EmailHandleInstructions object containing processing configuration
+
+        Returns:
+            str: The task description for the agent
+        """
+
+        # process attachments if specified
         attachments = self._format_attachments(email_request.attachments) \
             if email_instructions.process_attachments and email_request.attachments else []
 
@@ -224,14 +268,31 @@ class EmailAgent:
         )
 
     def _format_attachments(self, attachments: List[EmailAttachment]) -> List[str]:
-        """Format attachment details for inclusion in the task."""
+        """
+        Format attachment details for inclusion in the task.
+
+        Args:
+            attachments: List of EmailAttachment objects
+
+        Returns:
+            List[str]: Formatted attachment details
+        """
         return [
             f"- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n"
             f'  EXACT FILE PATH: "{att.path}"'
             for att in attachments
         ]
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
-        """Generate context information from the email request."""
+        """
+        Generate context information from the email request.
+
+        Args:
+            email_request: EmailRequest instance containing email data
+            attachment_details: List of formatted attachment details
+
+        Returns:
+            str: The context information for the agent
+        """
         recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
         attachments_info = f"Available Attachments:\n{chr(10).join(attachment_details)}" if attachment_details else "No attachments provided."
 
@@ -248,7 +309,15 @@ class EmailAgent:
     """
 
     def _create_attachment_task(self, attachment_details: List[str]) -> str:
-        """Return instructions for processing attachments, if any."""
+        """
+        Return instructions for processing attachments, if any.
+
+        Args:
+            attachment_details: List of formatted attachment details
+
+        Returns:
+            str: Instructions for processing attachments
+        """
         return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
 
     def _create_task_template(
@@ -260,7 +329,22 @@ class EmailAgent:
         deep_research_mandatory: bool = False,
         output_template: str = "",
     ) -> str:
-        """Combine all task components into the final task description."""
+        """
+        Combine all task components into the final task description.
+
+        Args:
+            handle: The email handle being processed.
+            email_context: The context information extracted from the email.
+            handle_specific_template: Any specific template for the handle.
+            attachment_task: Instructions for processing attachments.
+            deep_research_mandatory: Flag indicating if deep research is mandatory.
+            output_template: The output template to use.
+
+        Returns:
+            str: The complete task description for the agent.
+        """
+
+        # Merge the task components into a single string by listing the sections
         sections = [
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
@@ -330,7 +414,6 @@ class EmailAgent:
                         )
                         tool_name = None  # Reset tool_name if extraction failed
 
-                    # Revised Output Extraction
                     action_out = getattr(step, "action_output", None)
                     obs_out = getattr(step, "observations", None)
 
@@ -422,7 +505,6 @@ class EmailAgent:
                         logger.debug(f"[Memory Step {i+1}] Matched tool: deep_research")
                         try:
                             if isinstance(tool_output, dict):
-                                # Store the primary findings content
                                 research_findings_content = tool_output.get("findings", "")
                                 # Store metadata separately
                                 research_metadata = {
@@ -533,7 +615,6 @@ class EmailAgent:
 
             # --- Format the selected content ---
             if email_body_content:
-                # Remove signature remnants before formatting
                 signature_markers = [
                     "Best regards,\nMXtoAI Assistant",
                     "Best regards,",
@@ -552,7 +633,6 @@ class EmailAgent:
                     ).strip()
                 logger.debug("Removed potential signature remnants from email body content.")
 
-                # Format using ReportFormatter
                 result["email_content"]["text"] = self.report_formatter.format_report(
                     email_body_content, format_type="text", include_signature=True
                 )
@@ -637,13 +717,10 @@ class EmailAgent:
 
         """
         try:
-            # Update the model's current handle
+            # create task
             self.routed_model.current_handle = email_instructions
-
-            # Create task with specific instructions
             task = self._create_task(email_request, email_instructions)
 
-            # Run the agent
             try:
                 logger.info("Starting agent execution...")
                 final_answer_obj = self.agent.run(task)
@@ -670,7 +747,7 @@ class EmailAgent:
                 if not processed_result.get("email_content") or not processed_result["email_content"].get("text"):
                     msg = "No reply text was generated by _process_agent_result"
                     logger.error(msg)
-                    # Populate errors within the existing structure if possible
+
                     if "metadata" not in processed_result:
                         processed_result["metadata"] = {}
                     if "errors" not in processed_result["metadata"]:
@@ -680,7 +757,7 @@ class EmailAgent:
                         processed_result["metadata"]["email_sent"] = {}
                     processed_result["metadata"]["email_sent"]["status"] = "error"
                     processed_result["metadata"]["email_sent"]["error"] = msg
-                    # Return the partially processed result with error flags
+
                     return processed_result
 
                 logger.info(f"Email processed successfully with handle: {email_instructions.handle}")

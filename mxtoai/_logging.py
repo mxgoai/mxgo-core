@@ -83,7 +83,18 @@ def get_logger(source: str) -> Any:
 def span(
     msg_template: str, name: str | None = None, tags: Sequence[str] | None = None, **msg_template_kwargs: Any
 ) -> Any:
-    """Context manager for creating spans in logging."""
+    """
+    Context manager for creating spans in logging.
+
+    Args:
+        msg_template (str): The message template for the span.
+        name (str | None): Optional name for the span.
+        tags (Sequence[str] | None): Optional tags for the span.
+        **msg_template_kwargs: Additional keyword arguments for the message template.
+
+    Yields:
+        Any: The span context manager or a dummy context manager.
+    """
     # Check if LOGFIRE_TOKEN environment variable is defined
     if os.getenv("LOGFIRE_TOKEN"):
         if tags:
