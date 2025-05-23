@@ -65,6 +65,12 @@ class AttachmentProcessingTool(Tool):
     output_type = "object"
 
     def __init__(self, model: Optional[Model] = None):
+        """
+        Initialize the attachment processing tool.
+
+        Args:
+            model: Optional model for generating summaries or processing content.
+        """
         super().__init__()
         self.md_converter = MarkdownConverter()
         self.model = model
@@ -77,7 +83,15 @@ class AttachmentProcessingTool(Tool):
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_attachment_path(self, file_path: str) -> Path:
-        """Validate and resolve the attachment file path."""
+        """
+        Validate and resolve the attachment file path.
+
+        Args:
+            file_path: Path to the attachment file.
+
+        Returns:
+            Path: The resolved file path.
+        """
         try:
             if not file_path:
                 msg = "Empty file path provided"
@@ -106,7 +120,15 @@ class AttachmentProcessingTool(Tool):
             raise
 
     def _process_document(self, file_path: Path) -> str:
-        """Process document using MarkdownConverter."""
+        """
+        Process document using MarkdownConverter.
+
+        Args:
+            file_path: Path to the document file.
+
+        Returns:
+            str: The text content extracted from the document.
+        """
         try:
             result = self.md_converter.convert(str(file_path))
             if not result or not hasattr(result, "text_content"):
@@ -118,7 +140,16 @@ class AttachmentProcessingTool(Tool):
             raise
 
     def forward(self, attachments: list[dict[str, Any]], mode: str = "basic") -> dict[str, Any]:
-        """Process email attachments synchronously."""
+        """
+        Process email attachments synchronously.
+
+        Args:
+            attachments: List of attachment dictionaries containing file information.
+            mode: Processing mode: 'basic' for metadata only, 'full' for complete content analysis.
+
+        Returns:
+            dict: Processed attachments with content and summaries.
+        """
         processed_attachments = []
         logger.info(f"Processing {len(attachments)} attachments in {mode} mode")
 
@@ -206,7 +237,15 @@ class AttachmentProcessingTool(Tool):
         return {"attachments": processed_attachments, "summary": self._create_attachment_summary(processed_attachments)}
 
     def _create_attachment_summary(self, attachments: list[dict[str, Any]]) -> str:
-        """Create a summary of processed attachments."""
+        """
+        Create a summary of processed attachments.
+
+        Args:
+            attachments: List of processed attachment dictionaries.
+
+        Returns:
+            str: Summary of processed attachments.
+        """
         if not attachments:
             return "No attachments processed."
 

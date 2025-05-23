@@ -21,7 +21,16 @@ load_dotenv(override=True)
 logger = get_logger("azure_visualizer")
 
 
-def process_images_and_text(image_path, query, client):
+def process_images_and_text(image_path: str, query: str, client: InferenceClient):
+    """
+    Process images and text using the IDEFICS model.
+
+    Args:
+        image_path: Path to the image file.
+        query: The question to ask about the image.
+        client: Inference client for the model.
+
+    """
     from transformers import AutoProcessor
 
     messages = [
@@ -66,7 +75,15 @@ def process_images_and_text(image_path, query, client):
 
 
 # Function to encode the image
-def encode_image(image_path):
+def encode_image(image_path: str) -> str:
+    """
+    Encode an image to base64 format.
+
+    Args:
+        image_path: The path to the image file.
+    Returns:
+        str: The base64 encoded string of the image.
+    """
     if image_path.startswith("http"):
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
         request_kwargs = {
@@ -99,7 +116,16 @@ def encode_image(image_path):
 headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
 
 
-def resize_image(image_path):
+def resize_image(image_path: str) -> str:
+    """
+    Resize the image to half its original size.
+
+    Args:
+        image_path: The path to the image file.
+
+    Returns:
+        str: The path to the resized image.
+    """
     img = Image.open(image_path)
     width, height = img.size
     img = img.resize((int(width / 2), int(height / 2)))
@@ -123,6 +149,16 @@ class VisualQATool(Tool):
     client = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
     def forward(self, image_path: str, question: Optional[str] = None) -> str:
+        """
+        Process the image and return a short caption based on the content.
+        
+        Args:
+            image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
+            question: The question to answer.
+
+        Returns:
+            str: The generated caption or the text content of the file.
+        """
         output = ""
         add_note = False
         if not question:
