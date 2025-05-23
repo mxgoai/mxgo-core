@@ -40,8 +40,17 @@ email_agent = EmailAgent(attachment_dir=ATTACHMENTS_DIR, verbose=True, enable_de
 
 
 # Function to cleanup attachment files and directory
-def cleanup_attachments(directory_path):
-    """Delete attachment directory and all its contents"""
+def cleanup_attachments(directory_path: str) -> bool:
+    """
+    Delete attachment directory and all its contents
+
+    Args:
+        directory_path (str): Path to the directory to be deleted
+
+    Returns:
+        bool: True if deletion was successful, False otherwise
+
+    """
     try:
         if os.path.exists(directory_path):
             shutil.rmtree(directory_path)
@@ -55,7 +64,18 @@ def cleanup_attachments(directory_path):
 def create_success_response(
     summary: str, email_response: dict[str, Any], attachment_info: list[dict[str, Any]]
 ) -> Response:
-    """Create a success response with summary and email details"""
+    """
+    Create a success response with summary and email details
+
+    Args:
+        summary (str): Summary of the email processing
+        email_response (dict): Response from the email sending service
+        attachment_info (list): List of processed attachments
+
+    Returns:
+        Response: FastAPI Response object with JSON content
+
+    """
     return Response(
         content=json.dumps(
             {
@@ -72,7 +92,18 @@ def create_success_response(
 
 
 def create_error_response(summary: str, attachment_info: list[dict[str, Any]], error: str) -> Response:
-    """Create an error response with summary and error details"""
+    """
+    Create an error response with summary and error details
+
+    Args:
+        summary (str): Summary of the email processing
+        attachment_info (list): List of processed attachments
+        error (str): Error message
+
+    Returns:
+        Response: FastAPI Response object with JSON content
+
+    """
     return Response(
         content=json.dumps(
             {
@@ -92,7 +123,18 @@ def create_error_response(summary: str, attachment_info: list[dict[str, Any]], e
 async def handle_file_attachments(
     attachments: list[EmailAttachment], email_id: str, email_data: EmailRequest
 ) -> tuple[str, list[dict[str, Any]]]:
-    """Process uploaded files and save them as attachments"""
+    """
+    Process uploaded files and save them as attachments
+
+    Args:
+        attachments (list[EmailAttachment]): List of EmailAttachment objects
+        email_id (str): Unique identifier for the email
+        email_data (EmailRequest): EmailRequest object containing email details
+
+    Returns:
+        tuple[str, list[dict[str, Any]]]: Tuple containing the directory path and list of processed attachments
+
+    """
     email_attachments_dir = ""
     attachment_info = []
 
@@ -202,7 +244,17 @@ async def handle_file_attachments(
 
 # Helper function to send email reply using SES
 async def send_agent_email_reply(email_data: EmailRequest, processing_result: dict[str, Any]) -> dict[str, Any]:
-    """Send email reply using SES and return the response details"""
+    """
+    Send email reply using SES and return the response details
+
+    Args:
+        email_data (EmailRequest): EmailRequest object containing email details
+        processing_result (dict): Result of the email processing
+
+    Returns:
+        dict: Response details including status and message ID
+
+    """
     if not processing_result or "email_content" not in processing_result:
         logger.error("Invalid processing result format")
         return {"status": "error", "error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
@@ -283,7 +335,16 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
 
 # Helper function to create sanitized response
 def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, Any]:
-    """Create a clean response suitable for API return and database storage"""
+    """
+    Create a clean response suitable for API return and database storage
+
+    Args:
+        processing_result (dict): Result of the email processing
+
+    Returns:
+        dict: Sanitized response with metadata, research, and attachment info
+
+    """
     if not isinstance(processing_result, dict):
         return {"error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
 
@@ -329,7 +390,26 @@ async def process_email(
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: str = Depends(api_auth_scheme),
 ):
-    """Process an incoming email with attachments, analyze content, and send reply"""
+    """
+    Process an incoming email with attachments, analyze content, and send reply
+
+    Args:
+        from_email (str): Sender's email address
+        to (str): Recipient's email address
+        subject (str): Subject of the email
+        textContent (str): Plain text content of the email
+        htmlContent (str): HTML content of the email
+        messageId (str): Unique identifier for the email message
+        date (str): Date when the email was sent
+        emailId (str): Unique identifier for the email in the system
+        rawHeaders (str): Raw headers of the email in JSON format
+        files (list[UploadFile] | None): List of uploaded files as attachments
+        api_key (str): API key for authentication
+
+    Returns:
+        Response: FastAPI Response object with JSON content
+
+    """
     # Validate API key
     if response := await validate_api_key(api_key):
         return response
@@ -436,9 +516,7 @@ async def process_email(
         email_attachments_dir = ""
         attachment_info = []
         if email_instructions.process_attachments and attachments:
-            email_attachments_dir, attachment_info = await handle_file_attachments(
-                attachments, email_id, email_request
-            )
+            email_attachments_dir, attachment_info = await handle_file_attachments(attachments, email_id, email_request)
             logger.info(f"Processed {len(attachment_info)} attachments successfully")
             logger.info(f"Attachments directory: {email_attachments_dir}")
 

@@ -706,7 +706,6 @@ COOKIES_LIST += [
     },
 ]
 
-# Create a RequestsCookieJar instance
 COOKIES = RequestsCookieJar()
 
 # Add cookies to the jar

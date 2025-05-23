@@ -46,7 +46,13 @@ dramatiq.set_broker(rabbitmq_broker)
 
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
-    """Clean up attachments after processing."""
+    """
+    Clean up attachments after processing.
+
+    Args:
+        email_attachments_dir: Directory containing email attachments
+
+    """
     try:
         dir_path = Path(email_attachments_dir)
         if dir_path.exists():
@@ -62,7 +68,18 @@ def cleanup_attachments(email_attachments_dir: str) -> None:
         logger.exception(f"Error cleaning up attachments: {e!s}")
 
 
-def should_retry(retries_so_far, exception):
+def should_retry(retries_so_far: int, exception: Exception) -> bool:
+    """
+    Determine whether to retry the task based on the exception and retry count.
+
+    Args:
+        retries_so_far: Number of retries attempted
+        exception: Exception raised during task execution
+
+    Returns:
+        bool: True if the task should be retried, False otherwise
+
+    """
     logger.warning(f"Retrying task after exception: {exception!s}, retries so far: {retries_so_far}")
     return retries_so_far < 3
 

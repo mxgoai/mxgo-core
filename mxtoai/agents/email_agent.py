@@ -115,7 +115,7 @@ class EmailAgent:
             self.search_with_fallback_tool,
             self.python_tool,
             self.wikipedia_search_tool,
-            azure_visualizer
+            azure_visualizer,
         ]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
@@ -125,7 +125,12 @@ class EmailAgent:
         logger.info("Email agent initialized successfully")
 
     def _init_agent(self):
+        """
+        Initialize the ToolCallingAgent with Azure OpenAI.
+        """
+        # Initialize the routed model with the default model group
         self.routed_model = RoutedLiteLLMModel()
+
         self.agent = ToolCallingAgent(
             model=self.routed_model,
             tools=self.available_tools,
@@ -139,7 +144,13 @@ class EmailAgent:
         logger.debug("Agent initialized with routed model configuration")
 
     def _initialize_search_tools(self) -> SearchWithFallbackTool:
-        """Initializes and configures the search tools, returning the SearchWithFallbackTool."""
+        """
+        Initializes and configures the search tools, returning the SearchWithFallbackTool.
+
+        Returns:
+            SearchWithFallbackTool: The configured search tool with Bing and DuckDuckGo as primary engines and Google as fallback.
+
+        """
         bing_search_tool = WebSearchTool(engine="bing", max_results=5)
         logger.debug("Initialized WebSearchTool with Bing engine.")
 
@@ -150,23 +161,44 @@ class EmailAgent:
 
         primary_search_engines: list[Tool] = []
         # Ensure tools are only added if successfully initialized (though WebSearchTool constructor doesn't typically fail here)
-        if bing_search_tool: # bing_search_tool is always initialized
+        if bing_search_tool:  # bing_search_tool is always initialized
             primary_search_engines.append(bing_search_tool)
-        if ddg_search_tool: # ddg_search_tool is always initialized
+        if ddg_search_tool:  # ddg_search_tool is always initialized
             primary_search_engines.append(ddg_search_tool)
 
-        if not primary_search_engines: # Should not happen with current WebSearchTool, but good practice
-            logger.warning("No primary search engines (Bing, DuckDuckGo) could be initialized for SearchWithFallbackTool.")
+        if not primary_search_engines:  # Should not happen with current WebSearchTool, but good practice
+            logger.warning(
+                "No primary search engines (Bing, DuckDuckGo) could be initialized for SearchWithFallbackTool."
+            )
 
         search_tool = SearchWithFallbackTool(
-            primary_search_tools=primary_search_engines,
-            fallback_search_tool=google_search_fallback_tool
+            primary_search_tools=primary_search_engines, fallback_search_tool=google_search_fallback_tool
         )
 
         primary_names = [getattr(p, "engine", "UnknownEngine") for p in primary_search_engines]
         fallback_name = getattr(google_search_fallback_tool, "name", "None") if google_search_fallback_tool else "None"
         logger.info(f"Initialized SearchWithFallbackTool. Primary engines: {primary_names}, Fallback: {fallback_name}")
         return search_tool
+
+    def _get_required_actions(self, mode: str) -> list[str]:
+        """
+        Get list of required actions based on mode.
+
+        Args:
+            mode: The mode of operation (e.g., "summary", "reply", "research", "full")
+
+        Returns:
+            List[str]: List of actions to be performed by the agent
+
+        """
+        actions = []
+        if mode in ["summary", "full"]:
+            actions.append("Generate summary")
+        if mode in ["reply", "full"]:
+            actions.append("Generate reply")
+        if mode in ["research", "full"]:
+            actions.append("Conduct research")
+        return actions
 
     def _initialize_google_search_tool(self) -> Optional[GoogleSearchTool]:
         """
@@ -191,31 +223,59 @@ class EmailAgent:
             except ValueError as e:
                 logger.warning(f"Failed to initialize GoogleSearchTool with Serper for fallback: {e}")
         else:
-            logger.warning("GoogleSearchTool (for fallback) not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY.")
+            logger.warning(
+                "GoogleSearchTool (for fallback) not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY."
+            )
 
         return None
 
     def _initialize_deep_research_tool(self, enable_deep_research: bool) -> Optional[DeepResearchTool]:
-        """Initializes the DeepResearchTool if API key is available."""
+        """
+        Initializes the DeepResearchTool if API key is available.
+
+        Args:
+            enable_deep_research: Flag to enable deep research functionality
+
+        Returns:
+            Optional[DeepResearchTool]: Initialized DeepResearchTool instance or None if API key is not found
+
+        """
         research_tool: Optional[DeepResearchTool] = None
         if os.getenv("JINA_API_KEY"):
             research_tool = DeepResearchTool()
             if enable_deep_research:
                 # Assuming DeepResearchTool is enabled by its presence and API key.
                 # If specific enabling logic is needed in DeepResearchTool, it should be called here.
-                logger.debug("DeepResearchTool instance created; deep research functionality is active if enable_deep_research is true.")
+                logger.debug(
+                    "DeepResearchTool instance created; deep research functionality is active if enable_deep_research is true."
+                )
             else:
-                logger.debug("DeepResearchTool instance created, but deep research is not explicitly enabled via agent config (enable_deep_research=False). Tool may operate in a basic mode or not be used by agent logic if dependent on this flag.")
+                logger.debug(
+                    "DeepResearchTool instance created, but deep research is not explicitly enabled via agent config (enable_deep_research=False). Tool may operate in a basic mode or not be used by agent logic if dependent on this flag."
+                )
         else:
             logger.info("JINA_API_KEY not found. DeepResearchTool not initialized.")
         return research_tool
 
     def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
+        """
+        Create a task description for the agent based on email handle instructions.
+
+        Args:
+            email_request: EmailRequest instance containing email data
+            email_instructions: EmailHandleInstructions object containing processing configuration
+
+        Returns:
+            str: The task description for the agent
+
+        """
+        # process attachments if specified
         attachments = (
             self._format_attachments(email_request.attachments)
             if email_instructions.process_attachments and email_request.attachments
             else []
         )
+
         return self._create_task_template(
             handle=email_instructions.handle,
             email_context=self._create_email_context(email_request, attachments),
@@ -226,12 +286,33 @@ class EmailAgent:
         )
 
     def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]:
+        """
+        Format attachment details for inclusion in the task.
+
+        Args:
+            attachments: List of EmailAttachment objects
+
+        Returns:
+            List[str]: Formatted attachment details
+
+        """
         return [
             f'- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n  EXACT FILE PATH: "{att.path}"'
             for att in attachments
         ]
 
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
+        """
+        Generate context information from the email request.
+
+        Args:
+            email_request: EmailRequest instance containing email data
+            attachment_details: List of formatted attachment details
+
+        Returns:
+            str: The context information for the agent
+
+        """
         recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
         attachments_info = (
             f"Available Attachments:\n{chr(10).join(attachment_details)}"
@@ -251,6 +332,16 @@ class EmailAgent:
     """
 
     def _create_attachment_task(self, attachment_details: list[str]) -> str:
+        """
+        Return instructions for processing attachments, if any.
+
+        Args:
+            attachment_details: List of formatted attachment details
+
+        Returns:
+            str: Instructions for processing attachments
+
+        """
         return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
 
     def _create_task_template(
@@ -262,6 +353,22 @@ class EmailAgent:
         deep_research_mandatory: bool = False,
         output_template: str = "",
     ) -> str:
+        """
+        Combine all task components into the final task description.
+
+        Args:
+            handle: The email handle being processed.
+            email_context: The context information extracted from the email.
+            handle_specific_template: Any specific template for the handle.
+            attachment_task: Instructions for processing attachments.
+            deep_research_mandatory: Flag indicating if deep research is mandatory.
+            output_template: The output template to use.
+
+        Returns:
+            str: The complete task description for the agent.
+
+        """
+        # Merge the task components into a single string by listing the sections
         sections = [
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
@@ -301,7 +408,7 @@ class EmailAgent:
             logger.debug(f"Processing {len(agent_steps)} agent step entries.")
 
             for i, step in enumerate(agent_steps):
-                logger.debug(f"[Memory Step {i+1}] Type: {type(step)}")
+                logger.debug(f"[Memory Step {i + 1}] Type: {type(step)}")
 
                 tool_name = None
                 tool_output = None
@@ -339,7 +446,9 @@ class EmailAgent:
                             )
                             continue
 
-                    logger.debug(f"[Memory Step {i+1}] Processing tool call: '{tool_name}', Output Type: '{type(tool_output)}'")
+                    logger.debug(
+                        f"[Memory Step {i + 1}] Processing tool call: '{tool_name}', Output Type: '{type(tool_output)}'"
+                    )
 
                     if tool_name == "attachment_processor" and isinstance(tool_output, dict):
                         attachment_proc_summary = tool_output.get("summary")
@@ -383,7 +492,9 @@ class EmailAgent:
                             error_msg = tool_output.get("message", "Schedule generator failed or missing ICS content.")
                             errors_list.append(ProcessingError(message="Schedule Tool Error", details=error_msg))
                     else:
-                        logger.debug(f"[Memory Step {i+1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}...")
+                        logger.debug(
+                            f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}..."
+                        )
                 else:
                     logger.debug(
                         f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), not a relevant ActionStep or missing output."
@@ -396,18 +507,21 @@ class EmailAgent:
             elif isinstance(final_answer_obj, str):
                 final_answer_from_llm = final_answer_obj.strip()
                 logger.debug("Extracted final answer from string")
-            elif hasattr(final_answer_obj, "_value"): # Check for older AgentText structure
+            elif hasattr(final_answer_obj, "_value"):  # Check for older AgentText structure
                 final_answer_from_llm = str(final_answer_obj._value).strip()
                 logger.debug("Extracted final answer from AgentText._value")
-            elif hasattr(final_answer_obj, "answer"): # Handle final_answer tool call argument
+            elif hasattr(final_answer_obj, "answer"):  # Handle final_answer tool call argument
                 # Check if the argument itself is the content string
                 if isinstance(getattr(final_answer_obj, "answer", None), str):
                     final_answer_from_llm = str(final_answer_obj.answer).strip()
                     logger.debug("Extracted final answer from final_answer tool argument string")
                 # Or if it's nested in arguments (less likely for final_answer but check)
-                elif isinstance(getattr(final_answer_obj, "arguments", None), dict) and "answer" in final_answer_obj.arguments:
-                     final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
-                     logger.debug("Extracted final answer from final_answer tool arguments dict")
+                elif (
+                    isinstance(getattr(final_answer_obj, "arguments", None), dict)
+                    and "answer" in final_answer_obj.arguments
+                ):
+                    final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
+                    logger.debug("Extracted final answer from final_answer tool arguments dict")
                 else:
                     final_answer_from_llm = str(final_answer_obj).strip()
                     logger.warning(

@@ -136,12 +136,26 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
     def __call__(
         self,
-        messages: list[dict[str, Any]], # MODIFIED type hint for messages
+        messages: list[dict[str, Any]],  # MODIFIED type hint for messages
         stop_sequences: Optional[list[str]] = None,
         grammar: Optional[str] = None,
         tools_to_call_from: Optional[list[Tool]] = None,
         **kwargs,  # kwargs from the caller of this RoutedLiteLLMModel instance
     ) -> ChatMessage:
+        """
+        Generate a response based on the provided messages and other parameters.
+
+        Args:
+            messages (list[dict[str, Any]]): List of messages to process.
+            stop_sequences (Optional[list[str]]): List of stop sequences.
+            grammar (Optional[str]): Grammar to use for the response.
+            tools_to_call_from (Optional[list[Tool]]): List of tools to call from.
+            **kwargs: Additional arguments passed to the generate method.
+
+        Returns:
+            ChatMessage: The generated chat message.
+
+        """
         try:
             target_model_group = self._get_target_model()
 
@@ -163,7 +177,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     stop_sequences=stop_sequences,
                     grammar=grammar,
                     tools_to_call_from=tools_to_call_from,
-                    **kwargs_for_super_generate
+                    **kwargs_for_super_generate,
                 )
             finally:
                 # Restore the original model_id for the instance.

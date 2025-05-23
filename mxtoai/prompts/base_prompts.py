@@ -1,4 +1,6 @@
-"""Base prompts and common guidelines for email processing."""
+"""
+Base prompts and common guidelines for email processing.
+"""
 
 MARKDOWN_STYLE_GUIDE = """
 MARKDOWN FORMATTING REQUIREMENTS:
@@ -52,7 +54,6 @@ RESEARCH REQUIREMENTS:
 - Include citations and sources in your response
 - Synthesize findings with the email content
 """,
-
     "optional": """
 RESEARCH GUIDELINES:
 - Deep research is NOT allowed for this handle

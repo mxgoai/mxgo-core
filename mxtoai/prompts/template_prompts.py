@@ -1,4 +1,6 @@
-"""Template prompts for different email processing handlers."""
+"""
+Template prompts for different email processing handlers.
+"""
 
 # Summarize email handler template
 SUMMARIZE_TEMPLATE = """

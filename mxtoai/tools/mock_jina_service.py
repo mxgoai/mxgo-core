@@ -9,15 +9,28 @@ fake = faker.Faker()
 
 
 class MockJinaService:
-    """Mock service to simulate Jina AI's DeepSearch API behavior for load testing."""
+    """
+    Mock service to simulate Jina AI's DeepSearch API behavior for load testing.
+    """
 
     def __init__(self):
-        """Initialize the mock service with configuration."""
+        """
+        Initialize the mock service with configuration.
+        """
         self.min_delay = 60  # 1 minute minimum
         self.max_delay = 600  # 10 minutes maximum
 
     def _generate_mock_urls(self, num_urls: int = 10) -> dict[str, list]:
-        """Generate mock visited and read URLs."""
+        """
+        Generate mock visited and read URLs.
+
+        Args:
+            num_urls: Number of URLs to generate
+
+        Returns:
+            dict: Dictionary containing visited and read URLs
+
+        """
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
         all_urls = [
@@ -30,7 +43,16 @@ class MockJinaService:
         return {"visitedURLs": all_urls, "readURLs": read_urls}
 
     def _generate_mock_annotations(self, urls: dict[str, list]) -> list:
-        """Generate mock annotations for the URLs."""
+        """
+        Generate mock annotations for the URLs.
+
+        Args:
+            urls: Dictionary containing visited and read URLs
+
+        Returns:
+            list: List of annotations for the URLs
+
+        """
         annotations = []
         for i, url in enumerate(urls["readURLs"], 1):
             annotations.append(
@@ -47,7 +69,17 @@ class MockJinaService:
         return annotations
 
     def _generate_mock_content(self, query: str, annotations: list) -> str:
-        """Generate mock research content with citations."""
+        """
+        Generate mock research content with citations.
+
+        Args:
+            query: Research query
+            annotations: List of annotations for the URLs
+
+        Returns:
+            str: Generated content with citations
+
+        """
         sections = ["Introduction", "Background", "Methodology", "Results", "Discussion", "Conclusion"]
 
         content_parts = []
@@ -75,7 +107,16 @@ class MockJinaService:
         return "\n".join(content_parts)
 
     def _generate_mock_response(self, query: str) -> dict[str, Any]:
-        """Generate a complete mock response."""
+        """
+        Generate a complete mock response.
+
+        Args:
+            query: Research query
+
+        Returns:
+            dict: Mock response containing choices, URLs, and usage information
+
+        """
         # Generate mock URLs
         urls = self._generate_mock_urls()
 
@@ -97,7 +138,15 @@ class MockJinaService:
         }
 
     def _stream_mock_response(self, response: dict[str, Any]) -> Generator[dict[str, Any]]:
-        """Stream a mock response with realistic delays."""
+        """
+        Stream a mock response with realistic delays.
+
+        Args:
+            response: Mock response containing choices, URLs, and usage information
+        Yields:
+            dict: Streamed response with role, content, and annotations
+
+        """
         content = response["choices"][0]["message"]["content"]
         annotations = response["choices"][0]["message"]["annotations"]
 
@@ -132,7 +181,18 @@ class MockJinaService:
     def process_request(
         self, query: str, stream: bool = False, reasoning_effort: str = "medium"
     ) -> dict[str, Any] | Generator[dict[str, Any]]:
-        """Process a mock request with realistic delays."""
+        """
+        Process a mock request with realistic delays.
+
+        Args:
+            query: Research query
+            stream: Whether to stream the response
+            reasoning_effort: Level of reasoning effort ("low", "medium", "high")
+
+        Returns:
+            dict or Generator: Mock response or streamed response
+
+        """
         # Calculate delay based on reasoning effort
         effort_multipliers = {"low": 0.7, "medium": 1.0, "high": 1.3}
 
