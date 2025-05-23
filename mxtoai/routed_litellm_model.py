@@ -223,7 +223,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         Returns:
             ChatMessage: The generated chat message.
         """
-        print("RoutedLiteLLMModel __call__ method invoked")
         try:
             target_model_group = self._get_target_model()
 
