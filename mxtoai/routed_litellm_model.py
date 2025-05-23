@@ -34,11 +34,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         # Configure model list from environment variables
         model_list = self._load_model_config()
         client_router_kwargs = self._load_router_config()
-
-        self.model_mapping = {
-            model.model_name: model.litellm_params
-            for model in model_list
-        }
         
         # The model_id for LiteLLMRouterModel is the default model group the router will target.
         # Our _get_target_model() will override this per call via the 'model' param in generate().
