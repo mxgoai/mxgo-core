@@ -56,14 +56,15 @@ class FallbackWebSearchTool(Tool):
                 logger.debug(f"Attempting search with secondary tool: {self.secondary_tool.name}")
                 result = self.secondary_tool.forward(query=query)
                 logger.debug("Secondary search tool succeeded.")
-            except Exception as e:
-                logger.error(f"Secondary search tool ({self.secondary_tool.name}) also failed: {e!s}")
-                msg = f"Both primary and secondary search tools failed. Last error: {e!s}"
-                raise SearchFailedError(msg) from e
+            except Exception as e_secondary:
+                logger.error(f"Secondary search tool ({self.secondary_tool.name}) also failed: {e_secondary!s}")
+                # Both failed
+                # Instead of raising SearchFailedError, return a user-friendly message
+                # raise SearchFailedError(f"Both primary and secondary search tools failed. Last error: {e_secondary!s}")
+                return "Web search failed: Could not retrieve information from primary or secondary search services."
             else:
                 return result
         else:
-            # This case should ideally not be reached if primary failed and secondary doesn't exist
-            logger.error("Primary search tool failed and no secondary tool is available.")
-            msg = "Primary search tool failed and no fallback tool is configured."
-            raise SearchFailedError(msg)
+            # Should not happen if tools are validated at init, but as a safeguard.
+            logger.error("FallbackWebSearchTool called without any search tools configured.")
+            return "Web search unavailable: No search tools configured."

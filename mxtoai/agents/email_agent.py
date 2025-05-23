@@ -4,31 +4,37 @@ import re
 from typing import Any, Optional
 
 from loguru import logger
+from smolagents import ToolCallingAgent, GoogleSearchTool, DuckDuckGoSearchTool
 
-from mxtoai.llm_utils import RoutedChatOpenAI
+from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.prompts.base_prompts import (
     LIST_FORMATTING_REQUIREMENTS,
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
 )
+from mxtoai.models import ProcessingInstructions
 from mxtoai.schemas import (
     AgentResearchMetadata,
     AgentResearchOutput,
     AttachmentsProcessingResult,
     CalendarResult,
     DetailedEmailProcessingResult,
-    EmailAttachment,
     EmailContentDetails,
     EmailRequest,
     EmailSentStatus,
     ProcessedAttachmentDetail,
     ProcessingError,
-    ProcessingInstructions,
     ProcessingMetadata,
-    ReportFormatter,
+    EmailAttachment,
 )
-from mxtoai.tool_utils import create_tools, initialize_agent_memory, setup_agent_executor
+from mxtoai.scripts.report_formatter import ReportFormatter
+
+# Import specific tools
+from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
+from mxtoai.tools.deep_research_tool import DeepResearchTool
+from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
+from mxtoai.tools.schedule_tool import ScheduleTool
 
 # Placeholder for the actual datetime if it's used directly
 # from datetime import datetime, timezone # Already imported via `import datetime`
@@ -43,14 +49,55 @@ class EmailAgent:
         self.report_formatter = ReportFormatter()
         self.enable_deep_research = enable_deep_research
 
-        self.routed_model = RoutedChatOpenAI(temperature=0.1, model_kwargs={"seed": 42})
-        self.tools = create_tools(self.attachment_dir, enable_deep_research=self.enable_deep_research)
-        self.memory = initialize_agent_memory(self.routed_model.model)
-        self.agent = setup_agent_executor(self.routed_model.model, self.tools, self.memory, verbose=self.verbose)
+        self.routed_model = RoutedLiteLLMModel(temperature=0.1, seed=42)
+
+        # Instantiate tools directly
+        self.attachment_processor_tool = AttachmentProcessingTool(model=self.routed_model)
+        self.deep_research_tool = DeepResearchTool() # enable_deep_research is handled by a method on the tool if needed by tasks.py
+        
+        # Setup search tools
+        primary_search = None
+        try:
+            primary_search = GoogleSearchTool()
+            logger.info("GoogleSearchTool initialized successfully.")
+        except Exception as e:
+            logger.warning(f"Failed to initialize GoogleSearchTool (primary search), will rely on fallback: {e}")
+            # Fallback to DuckDuckGo if GoogleSearchTool fails (e.g. missing API key)
+            primary_search = DuckDuckGoSearchTool()
+            logger.info("Using DuckDuckGoSearchTool as the primary web search tool due to GoogleSearchTool init failure.")
+
+        self.web_search_tool = FallbackWebSearchTool(
+            primary_tool=primary_search, 
+            secondary_tool=DuckDuckGoSearchTool() # Always have DuckDuckGo as secondary
+        )
+        
+        self.schedule_tool = ScheduleTool()
+
+        tools_list = [
+            self.attachment_processor_tool,
+            self.deep_research_tool,
+            self.web_search_tool,
+            self.schedule_tool,
+        ]
+        
+        self.agent = ToolCallingAgent(
+            model=self.routed_model, 
+            tools=tools_list,
+            verbosity_level=2 if verbose else 0, 
+        )
+        # Initial configuration for deep research based on agent's setting
+        if self.enable_deep_research:
+            self.deep_research_tool.enable_deep_research()
+        else:
+            self.deep_research_tool.disable_deep_research()
 
     def _init_agent(self):
         # Re-initialize or reset parts of the agent if necessary
-        self.memory.clear()  # Clear memory for a new run
+        if hasattr(self.agent, 'memory') and hasattr(self.agent.memory, 'reset'):
+            self.agent.memory.reset()
+            logger.info("Agent memory reset.")
+        else:
+            logger.warning("Agent or agent memory does not support reset. Skipping memory clear.")
         # Potentially re-initialize other stateful components if they exist
         logger.info("Agent re-initialized for a new request.")
 
@@ -58,70 +105,83 @@ class EmailAgent:
         # Ensure agent is re-initialized for each new task
         self._init_agent()
 
+        # Use email_request.attachments (List[EmailAttachment]) directly for context,
+        # _format_attachments will handle it.
         email_context = self._create_email_context(
-            email_request, attachment_details=email_request.decoded_attachments
+            email_request, attachment_details=email_request.attachments 
         )
-        attachment_task_str = self._create_attachment_task(email_request.decoded_attachments)
+        
+        # _create_attachment_task now expects List[EmailAttachment] or similar an will format internally
+        # For now, let's assume attachment_details for the prompt are best derived from _format_attachments
+        formatted_attachment_prompt_lines = self._format_attachments(email_request.attachments)
+        attachment_task_str = self._create_attachment_task(formatted_attachment_prompt_lines)
+
 
         output_template = email_instructions.output_template or ""
-        deep_research_mandatory = email_instructions.deep_research_mandatory or False
+        # Deep research mandatory flag from instructions is handled by _configure_agent_research in tasks.py
+        # The agent's own enable_deep_research flag sets the tool's default state at init.
 
-        # Always add schedule_generator to tools if not present
-        if not any(tool.name == "schedule_generator" for tool in self.tools):
-            # This assumes create_tools can be called to get specific tools or a way to add it.
-            # For simplicity, let's assume tools are fixed after init for now or handled in create_tools.
-            logger.warning("schedule_generator tool not explicitly added, relying on initial setup.")
+        # Check if schedule_tool (which has name 'schedule_generator') is in agent tools
+        if "schedule_generator" not in self.agent.tools: # Check if the key exists in the tools dictionary
+            logger.warning("schedule_generator tool not found in agent's tools. Scheduling might fail.")
+            # Potentially add it if it's critical and missing, though ideally tools are fixed at init.
+            # self.agent.tools[self.schedule_tool.name] = self.schedule_tool # If we need to add it
 
         return self._create_task_template(
             handle=email_instructions.handle,
             email_context=email_context,
-            handle_specific_template=email_instructions.template,
+            handle_specific_template=email_instructions.task_template or "",
             attachment_task=attachment_task_str,
-            deep_research_mandatory=deep_research_mandatory,
+            deep_research_mandatory=email_instructions.deep_research_mandatory or False, # Pass along for template
             output_template=output_template,
         )
 
-    def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]:
+    def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]: # Input is List[EmailAttachment]
         if not attachments:
             return []
+        # Return only filenames for the prompt. The tool will use current_task_attachment_dir to find them.
         return [
-            f"- {att.filename} ({att.content_type}, {att.size} bytes)" for att in attachments if att.filename
+            att.filename 
+            for att in attachments 
+            if att.filename
         ]
 
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
-        formatted_attachments = []
-        if attachment_details: # Check if attachment_details is not None
-            # Assuming attachment_details is a list of strings or can be processed into one
-            if isinstance(attachment_details, list) and all(isinstance(item, str) for item in attachment_details):
-                formatted_attachments = attachment_details
-            elif isinstance(attachment_details, list) and all(isinstance(item, dict) for item in attachment_details):
-                # If it's a list of dicts (like DecodedAttachment), extract relevant info
-                 formatted_attachments = [
-                    f"- {att.get('filename', 'N/A')} ({att.get('content_type', 'N/A')}, {att.get('size', 0)} bytes)"
-                    for att in attachment_details
-                ]
+        # attachment_details here is expected to be email_request.attachments (List[EmailAttachment])
+        formatted_attachments_for_context: list[str] = []
+        if isinstance(attachment_details, list) and all(isinstance(item, EmailAttachment) for item in attachment_details):
+            formatted_attachments_for_context = self._format_attachments(attachment_details)
+        elif isinstance(attachment_details, list): # Fallback for other list types if any
+            formatted_attachments_for_context = [
+                f"- {att.get('filename', 'N/A')} ({att.get('content_type', 'N/A')}, {att.get('size', 0)} bytes)"
+                for att in attachment_details if isinstance(att, dict)
+            ]
+            if not formatted_attachments_for_context and attachment_details: # if it was a list of non-dicts
+                formatted_attachments_for_context = [str(att) for att in attachment_details]
 
+
+        # Use direct attributes from EmailRequest schema
         return f"""
 From: {email_request.from_email}
-To: {email_request.to_email}
-Cc: {email_request.cc_email}
-Bcc: {email_request.bcc_email}
+To: {email_request.to}
+Cc: {', '.join(email_request.cc) if email_request.cc else 'N/A'}
+Bcc: {', '.join(email_request.bcc) if email_request.bcc else 'N/A'}
 Subject: {email_request.subject}
-Date: {email_request.date}
+Date: {email_request.date.isoformat() if isinstance(email_request.date, datetime.datetime) else email_request.date}
 Message ID: {email_request.message_id}
 Reply-To: {email_request.reply_to}
 
 Attachments:
-{formatted_attachments if formatted_attachments else "No attachments."}
+{formatted_attachments_for_context if formatted_attachments_for_context else "No attachments."}
 
-Body:
-{email_request.body}
+Raw Content Snippet (first 200 chars):
+{email_request.raw_content[:200] if email_request.raw_content else "N/A"}
 """
 
-    def _create_attachment_task(self, attachment_details: list[str]) -> str:
+    def _create_attachment_task(self, attachment_filenames: list[str]) -> str: # Changed param name
         return (
-            "Process these attachments and use their content: \\n" + "\\n".join(attachment_details)
-            if attachment_details
+            "Process these attachments and use their content: \n" + "\n".join(attachment_filenames) # Join filenames
+            if attachment_filenames
             else ""
         )
 
@@ -200,8 +260,11 @@ Body:
             usage=tool_output.get("usage", {}),
             num_urls=tool_output.get("num_urls", 0),
         )
-        if not research_output_findings:
-            errors_list.append(ProcessingError(message="Deep research tool returned empty findings."))
+        # Do not add an error if findings are empty, as this can be a valid state
+        # if the tool is disabled (e.g. JINA_API_KEY not set) or finds nothing.
+        # The calling code can decide how to handle empty findings.
+        # if not research_output_findings:
+        #     errors_list.append(ProcessingError(message="Deep research tool returned empty findings."))
         return research_output_findings, research_output_metadata
 
     def _process_schedule_generator_output(

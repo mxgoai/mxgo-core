@@ -1,15 +1,16 @@
 import sys
 from pathlib import Path
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar, Optional, Union, Generator
 from urllib.parse import unquote
 
-from smolagents import Tool
-from smolagents.models import MessageRole, Model
+from smolagents import Tool, Model
+from smolagents.models import MessageRole
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
+from mxtoai.schemas import AttachmentsProcessingResult, ProcessedAttachmentDetail
 
 # Configure logger
 logger = get_logger("attachment_tool")
@@ -66,6 +67,10 @@ class AttachmentProcessingTool(Tool):
     }
     output_type = "object"
 
+    model: Optional[Model] = None
+    current_task_attachment_dir: Optional[Path] = None
+    base_dir = Path("mxtoai/attachments").resolve()
+
     def __init__(self, model: Optional[Model] = None):
         super().__init__()
         self.md_converter = MarkdownConverter()
@@ -76,21 +81,50 @@ class AttachmentProcessingTool(Tool):
         self.attachments_dir = Path(__file__).resolve().parent.parent / "attachments"
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
-    def _validate_attachment_path(self, file_path: str) -> Path:
-        """Validate and resolve the attachment file path."""
+    def _validate_attachment_path(self, file_path_or_name: str) -> Optional[Path]:
+        """Validate and find the actual path of an attachment."""
+        logger.debug(f"AttachmentTool: Validating path. Input: '{file_path_or_name}', Current Task Dir: '{self.current_task_attachment_dir}'")
+
+        # 1. Try with current_task_attachment_dir if set
+        if self.current_task_attachment_dir:
+            filename_to_check = file_path_or_name
+            # If LLM provides an absolute-like path /attachments/filename.txt, just use the filename part
+            if file_path_or_name.startswith("/attachments/"):
+                logger.warning(f"AttachmentTool: Received absolute-like path '{file_path_or_name}' from LLM. Using basename.")
+                filename_to_check = Path(file_path_or_name).name
+            
+            try:
+                task_specific_path = self.current_task_attachment_dir / filename_to_check
+                if task_specific_path.is_file() and task_specific_path.exists():
+                    logger.debug(f"AttachmentTool: Found in task_specific_path: {task_specific_path}")
+                    return task_specific_path
+            except Exception: # pylint: disable=broad-except
+                pass # Path resolution or check failed
+
+        # 2. Try relative to the class's base_dir (e.g., mxtoai/attachments for non-task specific files)
+        if self.base_dir:
+            try:
+                base_dir_path = (self.base_dir / file_path_or_name).resolve()
+                if base_dir_path.is_file() and base_dir_path.exists():
+                    logger.debug(f"AttachmentTool: Found in base_dir_path: {base_dir_path}")
+                    return base_dir_path
+            except Exception: # pylint: disable=broad-except
+                pass
+
+        # 3. Try as an absolute path or CWD-relative (resolve handles CWD)
         try:
-            if not file_path:
+            if not file_path_or_name:
                 msg = "Empty file path provided"
                 raise ValueError(msg)
 
             # Clean up the path
-            file_path = file_path.strip("\"'")
+            file_path_or_name = file_path_or_name.strip("\"'")
 
             # Try different path variations
             paths_to_try = [
-                Path(file_path),  # Direct path
-                Path(unquote(file_path)),  # URL decoded path
-                self.attachments_dir / Path(file_path).name,  # Relative to attachments dir
+                Path(file_path_or_name),  # Direct path
+                Path(unquote(file_path_or_name)),  # URL decoded path
+                self.attachments_dir / Path(file_path_or_name).name,  # Relative to attachments dir
             ]
 
             for path in paths_to_try:
@@ -102,7 +136,7 @@ class AttachmentProcessingTool(Tool):
             raise FileNotFoundError(msg)
 
         except Exception as e:
-            logger.error(f"Error validating path {file_path}: {e!s}")
+            logger.error(f"Error validating path {file_path_or_name}: {e!s}")
             raise
 
     def _process_document(self, file_path: Path) -> str:

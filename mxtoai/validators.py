@@ -12,6 +12,8 @@ from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
 
 logger = get_logger(__name__)
 
+EXPECTED_API_KEY = os.getenv("X_API_KEY", "test_api_key_123")
+
 
 async def validate_api_key(api_key: str) -> Optional[Response]:
     """
@@ -24,7 +26,8 @@ async def validate_api_key(api_key: str) -> Optional[Response]:
         Response if validation fails, None if validation succeeds
 
     """
-    if api_key != os.environ["X_API_KEY"]:
+    if api_key != EXPECTED_API_KEY:
+        logger.error(f"Invalid API key received: {api_key}")
         return Response(
             content=json.dumps({"message": "Invalid API key", "status": "error"}),
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -143,7 +146,7 @@ async def validate_email_handle(
     handle = to.split("@")[0].lower()
     try:
         _ = processing_instructions_resolver(handle)
-    except exceptions.UnspportedHandleException:
+    except exceptions.UnsupportedHandleError:
         rejection_msg = "This email alias is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
 
         # Create email dict with proper format

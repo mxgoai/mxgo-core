@@ -3,6 +3,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 from unittest.mock import MagicMock, patch
+import uuid
+import json
 
 import pytest
 
@@ -51,10 +53,10 @@ def prepare_email_request_data(tmp_path):
                 dummy_file_size = dummy_file_path.stat().st_size
 
                 email_attachments_schema_list.append(
-                    {"filename": filename, "contentType": content_type, "size": dummy_file_size}
+                    {"filename": filename, "content_type": content_type, "size": dummy_file_size, "path": str(dummy_file_path)}
                 )
                 attachment_info_list_for_task.append(
-                    {"path": str(dummy_file_path), "filename": filename, "type": content_type, "size": dummy_file_size}
+                    {"path": str(dummy_file_path), "filename": filename, "content_type": content_type, "size": dummy_file_size}
                 )
 
         email_data = {

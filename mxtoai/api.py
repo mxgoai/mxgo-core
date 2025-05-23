@@ -31,7 +31,10 @@ logger = get_logger(__name__)
 MAX_FILENAME_LENGTH = 100
 
 app = FastAPI()
-if os.environ["IS_PROD"].lower() == "true":
+IS_DEV = os.getenv("IS_DEV", "True").lower() == "true"
+IS_PROD = os.getenv("IS_PROD", "false").lower() == "true"
+
+if IS_PROD:
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
@@ -101,7 +104,7 @@ def _process_single_attachment(
     """Processes a single attachment: validates, saves, and returns its info."""
     try:
         logger.info(
-            f"Processing file {idx + 1}/{num_attachments}: {attachment.filename} ({attachment.contentType})"
+            f"Processing file {idx + 1}/{num_attachments}: {attachment.filename} ({attachment.content_type})"
         )
 
         if not attachment.content or len(attachment.content) == 0:
@@ -109,8 +112,8 @@ def _process_single_attachment(
             msg = "Empty attachment"
             raise ValueError(msg)
 
-        if attachment.contentType in ["application/x-msdownload", "application/x-executable"]:
-            logger.error(f"Unsupported file type: {attachment.contentType}")
+        if attachment.content_type in ["application/x-msdownload", "application/x-executable"]:
+            logger.error(f"Unsupported file type: {attachment.content_type}")
             msg = "Unsupported file type"
             raise ValueError(msg)
 
@@ -146,14 +149,14 @@ def _process_single_attachment(
 
         attachment_info_dict = {
             "filename": safe_filename,
-            "type": attachment.contentType,
+            "type": attachment.content_type,
             "path": str(storage_path),
             "size": file_size,
         }
 
         email_data_attachments.append(
             EmailAttachment(
-                filename=safe_filename, contentType=attachment.contentType, size=file_size, path=str(storage_path)
+                filename=safe_filename, content_type=attachment.content_type, size=file_size, path=str(storage_path)
             )
         )
         logger.info(f"Successfully saved attachment: {safe_filename} ({file_size} bytes)")
@@ -425,37 +428,37 @@ async def _create_email_request_object(
         except Exception as e:
             logger.warning(f"Could not parse CC header '{raw_cc_header}': {e!s}")
 
+    # Process attachments
     attachments_data = []
-    for file_in_list in uploaded_files:
-        content = await file_in_list.read()
-        attachments_data.append(
-            EmailAttachment(
-                filename=file_in_list.filename,
-                contentType=file_in_list.content_type,
-                content=content,
-                size=len(content),
-                path=None,
+    if uploaded_files: # Changed from attachments to uploaded_files to match function signature
+        for file_in_list in uploaded_files:
+            content = await file_in_list.read()
+            attachments_data.append(
+                EmailAttachment(
+                    filename=file_in_list.filename,
+                    content_type=file_in_list.content_type, # Ensure this line is present
+                    content=content,
+                    size=len(content),
+                    path=None, # Explicitly set path to None as it's not available here
+                )
             )
-        )
-        logger.info(f"Prepared EmailAttachment for: {file_in_list.filename}")
-        await file_in_list.seek(0) # Reset file pointer
+            logger.info(f"Prepared EmailAttachment for: {file_in_list.filename}")
+            await file_in_list.seek(0) # Reset file pointer
 
     return EmailRequest(
         from_email=from_email,
-        to_email=to, # Ensure field name consistency if EmailRequest uses to_email
+        to=to, # Corrected from to_email
         subject=subject,
-        body=text_content or "", # Assuming text_content is primary body if html is also present
-        # Consider how to handle text vs html. For now, using text for main body.
-        # html_content might be stored separately or used if text_content is empty.
+        raw_content=text_content or html_content or "", # Use raw_content
         text_content=text_content,
         html_content=html_content,
         message_id=message_id,
         date=date,
-        email_id=email_id_param, # Use the passed email_id parameter
+        email_id=email_id_param,
         raw_headers=parsed_headers,
-        cc_addresses=cc_list, # Ensure field name consistency
-        attachments=attachments_data, # This will be EmailAttachment objects
-        decoded_attachments=[] # This seems to be populated later or differently
+        cc=cc_list, # Corrected from cc_addresses
+        attachments=attachments_data,
+        # decoded_attachments was removed as it's not in the schema
     )
 
 
@@ -465,14 +468,14 @@ def _prepare_attachment_info_for_task(attachment_info_from_handler: list[dict[st
     for info in attachment_info_from_handler:
         processed_info = {
             "filename": info.get("filename", ""),
-            "type": info.get("type", info.get("contentType", "application/octet-stream")),
+            "content_type": info.get("type", info.get("content_type", "application/octet-stream")),
             "path": info.get("path", ""),
             "size": info.get("size", 0),
         }
         processed_attachment_info_for_task.append(processed_info)
         logger.info(
             f"Prepared attachment for task: {processed_info['filename']} "
-            f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)"
+            f"(type: {processed_info['content_type']}, size: {processed_info['size']} bytes)"
         )
     return processed_attachment_info_for_task
 
@@ -521,7 +524,7 @@ async def process_email(
 
         # Log initial email details
         logger.info("Received new email request:")
-        logger.info(f"To: {email_request.to_email} (handle: {handle})") # Use field from email_request
+        logger.info(f"To: {email_request.to} (handle: {handle})") # Use field from email_request
         logger.info(f"Subject: {email_request.subject}")
         logger.info(f"Message ID: {email_request.message_id}")
         logger.info(f"Date: {email_request.date}")
@@ -605,4 +608,9 @@ if __name__ == "__main__":
     # Run the server if this file is executed directly
     import uvicorn
 
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    if IS_PROD: # Check against the boolean variable
+        logger.info("Production mode detected. Swagger UI disabled.")
+        # In a real production scenario, other production-specific configurations
+        # like rate limiting or different middleware might be applied here.
+
+    uvicorn.run("mxtoai.api:app", host="0.0.0.0", port=8000, reload=IS_DEV) # Use IS_DEV for reload

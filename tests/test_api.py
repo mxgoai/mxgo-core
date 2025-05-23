@@ -3,14 +3,20 @@ import json
 import os
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
+import uuid
 
 from fastapi.testclient import TestClient
+from dotenv import load_dotenv
 
 from mxtoai._logging import get_logger
 from mxtoai.api import app
 
-client = TestClient(app)
-API_KEY = os.environ["X_API_KEY"]
+load_dotenv()
+
+# Global variables for tests
+API_KEY = os.getenv("X_API_KEY", "test_api_key_123") # Provide a default for tests
+BASE_URL = "http://localhost:8000"
+CLIENT = TestClient(app)
 
 logger = get_logger(__name__)
 
@@ -22,10 +28,10 @@ def prepare_form_data(**kwargs):
         "subject": "Test Subject",
         "textContent": "Test text content",
         "htmlContent": "<p>Test HTML content</p>",
-        "messageId": f"test-message-id-{os.urandom(4).hex()}",
+        "message_id": f"test-message-id-{uuid.uuid4().hex[:8]}",
         "date": "2023-10-26T10:00:00Z",
-        "emailId": f"original-email-id-{os.urandom(4).hex()}",
-        "rawHeaders": '{"cc": "cc@example.com"}',
+        "email_id": f"original-email-id-{uuid.uuid4().hex[:8]}",
+        "raw_headers": '{"cc": "cc@example.com"}',
     }
     form_data.update(kwargs)
     return form_data
@@ -38,7 +44,7 @@ def make_post_request(form_data, endpoint, files=None, headers=None):
     if request_headers.get("x-api-key") is None and "x-api-key" in request_headers:
         del request_headers["x-api-key"]
 
-    return client.post(endpoint, data=form_data, files=files, headers=request_headers)
+    return CLIENT.post(endpoint, data=form_data, files=files, headers=request_headers)
 
 
 def assert_successful_response(response, expected_attachments_saved=0):
@@ -65,11 +71,11 @@ def validate_send_task(
     assert sent_email_request_dump["to"] == form_data["to"]
     assert sent_email_request_dump["subject"] == form_data["subject"]
 
-    raw_headers_in_task = sent_email_request_dump.get("rawHeaders", {})
+    raw_headers_in_task = sent_email_request_dump.get("raw_headers", {})
     expected_raw_headers = {}
-    if form_data.get("rawHeaders"):
+    if form_data.get("raw_headers"):
         try:
-            expected_raw_headers = json.loads(form_data["rawHeaders"])
+            expected_raw_headers = json.loads(form_data["raw_headers"])
         except (json.JSONDecodeError, TypeError, ValueError):
             expected_raw_headers = {}
 
@@ -118,7 +124,7 @@ def test_process_email_success_no_attachments_ask_handle(mock_task_send, mock_va
     assert_successful_response(response, expected_attachments_saved=0)
 
     mock_validate_email_whitelist.assert_called_once_with(
-        form_data["from_email"], form_data["to"], form_data["subject"], form_data["messageId"]
+        form_data["from_email"], form_data["to"], form_data["subject"], form_data["message_id"]
     )
     validate_send_task(form_data, mock_task_send, expected_attachment_count=0)
 
@@ -143,7 +149,7 @@ def test_process_email_success_with_one_valid_attachment_ask_handle(
     assert_successful_response(response, expected_attachments_saved=1)
 
     mock_validate_email_whitelist.assert_called_once_with(
-        form_data["from_email"], form_data["to"], form_data["subject"], form_data["messageId"]
+        form_data["from_email"], form_data["to"], form_data["subject"], form_data["message_id"]
     )
     validate_send_task(
         form_data,
@@ -163,17 +169,17 @@ def test_process_email_success_all_optional_fields_no_cc_ask_handle(mock_task_se
         subject="Comprehensive Subject",
         textContent="Detailed text content here.",
         htmlContent="<h1>Detailed HTML</h1><p>With paragraphs.</p>",
-        messageId="specific-msg-id-all-fields",
+        message_id="specific-msg-id-all-fields",
         date="2023-11-15T12:00:00Z",
-        emailId="specific-email-id-all-fields",
-        rawHeaders='{"X-Custom-Header": "value"}',
+        email_id="specific-email-id-all-fields",
+        raw_headers='{"X-Custom-Header": "value"}',
     )
 
     response = make_post_request(form_data, "/process-email")
     assert_successful_response(response, expected_attachments_saved=0)
 
     mock_validate_email_whitelist.assert_called_once_with(
-        form_data["from_email"], form_data["to"], form_data["subject"], form_data["messageId"]
+        form_data["from_email"], form_data["to"], form_data["subject"], form_data["message_id"]
     )
     validate_send_task(form_data, mock_task_send, expected_attachment_count=0)
 
@@ -232,7 +238,7 @@ def test_process_email_success_multiple_attachments_ask_handle(
 @patch("mxtoai.api.process_email_task.send")
 def test_process_email_success_with_cc_recipients(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(to="ask@mxtoai.com", rawHeaders='{"cc": "cc1@example.com, cc2@example.com"}')
+    form_data = prepare_form_data(to="ask@mxtoai.com", raw_headers='{"cc": "cc1@example.com, cc2@example.com"}')
 
     response = make_post_request(form_data, "/process-email")
     assert_successful_response(response)
@@ -312,7 +318,7 @@ def test_process_email_failure_unsupported_file_type(
 @patch("mxtoai.api.process_email_task.send")
 def test_process_email_failure_malformed_cc_headers(mock_task_send, mock_validate_email_whitelist):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(to="ask@mxtoai.com", rawHeaders='{"cc": "invalid-email, another@invalid"}')
+    form_data = prepare_form_data(to="ask@mxtoai.com", raw_headers='{"cc": "invalid-email, another@invalid"}')
 
     response = make_post_request(form_data, "/process-email")
     assert_successful_response(response)  # Should still succeed as CC validation is not strict
@@ -325,7 +331,7 @@ def test_process_email_failure_malformed_json_headers(mock_task_send, mock_valid
     mock_validate_email_whitelist.return_value = None
     form_data = prepare_form_data(
         to="ask@mxtoai.com",
-        rawHeaders='{"cc": "invalid-json',  # Malformed JSON
+        raw_headers='{"cc": "invalid-json',  # Malformed JSON
     )
 
     response = make_post_request(form_data, "/process-email")

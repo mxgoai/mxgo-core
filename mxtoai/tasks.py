@@ -85,7 +85,7 @@ def _resolve_email_instructions(
                 attachments=AttachmentsProcessingResult(processed=[]), calendar_data=None, research=None,
             )
             return None, error_result
-    except exceptions.UnspportedHandleException as e:
+    except exceptions.UnsupportedHandleError as e:
         logger.error(f"Unsupported email handle: {handle}. Error: {e!s}")
         error_detail = f"Unsupported email handle: {handle} - {e!s}"
         error_result = DetailedEmailProcessingResult(
@@ -102,10 +102,12 @@ def _resolve_email_instructions(
 
 def _configure_agent_research(email_agent: EmailAgent, email_instructions: ProcessingInstructions) -> None:
     """Configures deep research for the email agent."""
-    if email_instructions.deep_research_mandatory and email_agent.research_tool:
-        email_agent.research_tool.enable_deep_research()
-    elif email_agent.research_tool:
-        email_agent.research_tool.disable_deep_research()
+    if email_instructions.deep_research_mandatory and email_agent.deep_research_tool:
+        email_agent.deep_research_tool.enable_deep_research()
+    elif email_agent.deep_research_tool:
+        email_agent.deep_research_tool.disable_deep_research()
+    # If no specific instruction, it defaults to the agent's init state (enable_deep_research flag)
+    # or the tool's own default if not explicitly set during agent init.
 
 def _prepare_valid_attachments(email_request: EmailRequest, attachment_info: list[dict[str, Any]]) -> None:
     """Validates and prepares attachments for the email request."""
@@ -127,8 +129,8 @@ def _prepare_valid_attachments(email_request: EmailRequest, attachment_info: lis
                         continue
 
                     attachment_model.path = str(attachment_path) # Ensure it's a string
-                    attachment_model.contentType = (
-                        info_dict.get("type") or info_dict.get("contentType") or "application/octet-stream"
+                    attachment_model.content_type = (
+                        info_dict.get("type") or info_dict.get("content_type") or "application/octet-stream"
                     )
                     attachment_model.size = info_dict.get("size", 0)
                     valid_attachments.append(attachment_model)
@@ -160,11 +162,12 @@ def _handle_email_sending(processing_result: DetailedEmailProcessingResult, emai
 
     original_email_details = {
         "from": email_request.from_email,
-        "to": email_request.to_email, # Assuming EmailRequest has to_email
+        "to": email_request.to, # Changed to_email to to
         "subject": email_request.subject,
         "messageId": email_request.message_id, # Assuming EmailRequest has message_id
         "references": email_request.references, # Assuming EmailRequest has references
-        "cc": email_request.cc_addresses, # Assuming EmailRequest has cc_addresses
+        "inReplyTo": email_request.message_id, # Assuming EmailRequest has in_reply_to or use message_id
+        "cc": email_request.cc, # Changed from cc_addresses
     }
     try:
         sender = EmailSender()
@@ -195,7 +198,7 @@ def process_email_task(
     Dramatiq task for processing emails asynchronously.
     """
     email_request = EmailRequest(**email_data)
-    handle = email_request.to_email.split("@")[0].lower() if email_request.to_email else "unknown_handle"
+    handle = email_request.to.split("@")[0].lower() if email_request.to else "unknown_handle"
     now_iso = datetime.now(timezone.utc).isoformat()
 
     email_instructions, error_result = _resolve_email_instructions(handle, now_iso)
@@ -212,7 +215,23 @@ def process_email_task(
     _configure_agent_research(email_agent, email_instructions)
     _prepare_valid_attachments(email_request, attachment_info)
 
+    # Set current task attachment directory for the tool, if attachments were processed
+    if email_attachments_dir and Path(email_attachments_dir).exists():
+        try:
+            resolved_attachment_dir = Path(email_attachments_dir).resolve(strict=True)
+            email_agent.attachment_processor_tool.current_task_attachment_dir = resolved_attachment_dir
+            logger.info(f"Set current_task_attachment_dir for AttachmentProcessingTool: {resolved_attachment_dir}")
+        except FileNotFoundError:
+            logger.error(f"Task attachment directory {email_attachments_dir} not found during resolve. Tool may not find attachments.")
+            email_agent.attachment_processor_tool.current_task_attachment_dir = None
+    else:
+        # Ensure it's None if no specific dir for this task
+        email_agent.attachment_processor_tool.current_task_attachment_dir = None
+
     processing_result = email_agent.process_email(email_request, email_instructions)
+
+    # Reset current task attachment directory after processing
+    email_agent.attachment_processor_tool.current_task_attachment_dir = None
 
     _handle_email_sending(processing_result, email_request)
 
