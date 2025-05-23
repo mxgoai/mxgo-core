@@ -34,6 +34,11 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         # Configure model list from environment variables
         model_list = self._load_model_config()
         client_router_kwargs = self._load_router_config()
+
+        self.model_mapping = {
+            model.model_name: model.litellm_params
+            for model in model_list
+        }
         
         # The model_id for LiteLLMRouterModel is the default model group the router will target.
         # Our _get_target_model() will override this per call via the 'model' param in generate().
@@ -71,7 +76,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             logger.error(f"Failed to load TOML config: {e}")
             return {}
 
-    def _load_model_config(self) -> List[Dict[str, Any]]:
+    def _load_model_config(self) -> List[models.ModelConfig]:
         """
         Load model configuration from environment variables.
 
@@ -135,6 +140,67 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             return self.current_handle.target_model
 
         return "gpt-4"
+    
+    def generate(
+        self,
+        messages: list[dict[str, str | list[dict]]],
+        stop_sequences: list[str] | None = None,
+        grammar: str | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """
+        Generate a response using either a local or remote LLM.
+
+        Args:
+            messages (list[dict[str, str | list[dict]]]): List of messages to process.
+            stop_sequences (list[str] | None): List of stop sequences.
+            grammar (str | None): Grammar specification for generation.
+            tools_to_call_from (list[Tool] | None): List of tools available for calling.
+            **kwargs: Additional arguments passed to the generate method.
+
+        Returns:
+            ChatMessage: The generated chat message.
+        """
+        # Check if this is a local LLM
+        is_local_llm = (
+            self.model_id.startswith("ollama") or 
+            (self.api_base and "localhost" in self.api_base) or
+            (self.api_base and "127.0.0.1" in self.api_base)
+        )
+        
+        # For local LLMs, filter out buggy string messages
+        if is_local_llm:
+            litellm_messages = []
+            for msg in messages:
+                if isinstance(msg, str):
+                    # skip the buggy char split strings coming in as message. This is a litellm bug.
+                    continue
+                litellm_messages.append(msg)
+            messages = litellm_messages
+
+        # Prepare completion kwargs - for local LLMs, exclude grammar and tools
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=None if is_local_llm else grammar,
+            tools_to_call_from=None if is_local_llm else tools_to_call_from,
+            model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key,
+            convert_images_to_image_urls=True,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+
+        response = self.client.completion(**completion_kwargs)
+
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+        return ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
+        )
 
     def __call__(
         self,
@@ -157,6 +223,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         Returns:
             ChatMessage: The generated chat message.
         """
+        print("RoutedLiteLLMModel __call__ method invoked")
         try:
             target_model_group = self._get_target_model()
 
@@ -173,7 +240,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             kwargs_for_super_generate = {k: v for k, v in kwargs.items() if k != "model"}
 
             try:
-                chat_message = super().generate(
+                chat_message = self.generate(
                     messages=messages,
                     stop_sequences=stop_sequences,
                     grammar=grammar,

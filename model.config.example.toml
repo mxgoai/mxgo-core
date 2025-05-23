@@ -28,6 +28,16 @@ api_key = "your-key-3"
 api_version = "2023-05-15"
 weight = 1
 
+[[model]]
+model_name = "ollama"
+
+[model.litellm_params]
+model = "ollama/tinyllama"
+base_url = "http://localhost:11434"
+api_key = "dummy"
+api_version = ""
+weight = 1
+
 [router_config]
 routing_strategy = "simple-shuffle"
 
