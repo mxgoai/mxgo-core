@@ -2,7 +2,7 @@ import ast
 import os
 import re
 from datetime import datetime
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from dotenv import load_dotenv
 
@@ -11,10 +11,11 @@ from smolagents import Tool, ToolCallingAgent
 
 # Add imports for the new default tools
 from smolagents.default_tools import (
-    DuckDuckGoSearchTool,
     GoogleSearchTool,
     PythonInterpreterTool,
     VisitWebpageTool,
+    WebSearchTool,
+    WikipediaSearchTool,
 )
 
 from mxtoai._logging import get_logger
@@ -44,19 +45,16 @@ from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
-
-# Import the new fallback search tool
-from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 from mxtoai.tools.schedule_tool import ScheduleTool
+
+# Import the refactored fallback search tool
+from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
 
 # Load environment variables
 load_dotenv(override=True)
 
 # Configure logger
 logger = get_logger("email_agent")
-
-# Custom role conversations for the model
-custom_role_conversions = {"tool-call": "assistant", "tool-response": "user"}
 
 # Define allowed imports for PythonInterpreterTool
 ALLOWED_PYTHON_IMPORTS = [
@@ -68,7 +66,9 @@ ALLOWED_PYTHON_IMPORTS = [
     "time",
     "collections",
     "itertools",
-    # Add any other safe standard library modules needed
+    "xml.etree.ElementTree",
+    "csv",
+    "urllib.parse",
 ]
 
 
@@ -91,7 +91,8 @@ class EmailAgent:
         """
         # Set up logging
         if verbose:
-            logger.debug("Verbose logging enabled via __init__ flag (actual level depends on logger config).")
+            # Consider configuring logging level via environment variables or central logging setup
+            logger.debug("Verbose logging potentially enabled (actual level depends on logger config).")
 
         self.attachment_dir = attachment_dir
         os.makedirs(self.attachment_dir, exist_ok=True)
@@ -101,52 +102,20 @@ class EmailAgent:
         self.schedule_tool = ScheduleTool()
         self.visit_webpage_tool = VisitWebpageTool()
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
+        self.wikipedia_search_tool = WikipediaSearchTool()
 
-        ddg_search_tool = DuckDuckGoSearchTool()
-        google_search_tool = None
-        if os.getenv("SERPAPI_API_KEY"):
-            try:
-                google_search_tool = GoogleSearchTool(provider="serpapi")
-                logger.info("Initialized GoogleSearchTool with SerpAPI.")
-            except ValueError as e:
-                logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI: {e}")
-        elif os.getenv("SERPER_API_KEY"):
-            try:
-                google_search_tool = GoogleSearchTool(provider="serper")
-                logger.info("Initialized GoogleSearchTool with Serper.")
-            except ValueError as e:
-                logger.warning(f"Failed to initialize GoogleSearchTool with Serper: {e}")
-        else:
-            logger.warning(
-                "GoogleSearchTool not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY environment variable."
-            )
-
-        self.fallback_search_tool = FallbackWebSearchTool(
-            primary_tool=google_search_tool, secondary_tool=ddg_search_tool
-        )
-        logger.info(
-            f"Initialized FallbackWebSearchTool. Primary: {google_search_tool.name if google_search_tool else 'None'}, Secondary: {ddg_search_tool.name}"
-        )
-
-        self.research_tool = None
-        if os.getenv("JINA_API_KEY"):
-            self.research_tool = DeepResearchTool()
-            if enable_deep_research:
-                try:
-                    self.research_tool.enable_deep_research()
-                    logger.info("Deep research functionality enabled for DeepResearchTool.")
-                except AttributeError:
-                    logger.warning(
-                        "DeepResearchTool does not require explicit enabling or lacks 'enable_deep_research' method."
-                    )
+        # Initialize complex tools using helper methods
+        self.search_with_fallback_tool = self._initialize_search_tools()
+        self.research_tool = self._initialize_deep_research_tool(enable_deep_research)
 
         self.available_tools: list[Tool] = [
             self.attachment_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
-            self.fallback_search_tool,
+            self.search_with_fallback_tool,
             self.python_tool,
-            azure_visualizer,
+            self.wikipedia_search_tool,
+            azure_visualizer
         ]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
@@ -168,6 +137,78 @@ class EmailAgent:
             provide_run_summary=True,
         )
         logger.debug("Agent initialized with routed model configuration")
+
+    def _initialize_search_tools(self) -> SearchWithFallbackTool:
+        """Initializes and configures the search tools, returning the SearchWithFallbackTool."""
+        bing_search_tool = WebSearchTool(engine="bing", max_results=5)
+        logger.debug("Initialized WebSearchTool with Bing engine.")
+
+        ddg_search_tool = WebSearchTool(engine="duckduckgo", max_results=5)
+        logger.debug("Initialized WebSearchTool with DuckDuckGo engine.")
+
+        google_search_fallback_tool = self._initialize_google_search_tool()
+
+        primary_search_engines: list[Tool] = []
+        # Ensure tools are only added if successfully initialized (though WebSearchTool constructor doesn't typically fail here)
+        if bing_search_tool: # bing_search_tool is always initialized
+            primary_search_engines.append(bing_search_tool)
+        if ddg_search_tool: # ddg_search_tool is always initialized
+            primary_search_engines.append(ddg_search_tool)
+
+        if not primary_search_engines: # Should not happen with current WebSearchTool, but good practice
+            logger.warning("No primary search engines (Bing, DuckDuckGo) could be initialized for SearchWithFallbackTool.")
+
+        search_tool = SearchWithFallbackTool(
+            primary_search_tools=primary_search_engines,
+            fallback_search_tool=google_search_fallback_tool
+        )
+
+        primary_names = [getattr(p, "engine", "UnknownEngine") for p in primary_search_engines]
+        fallback_name = getattr(google_search_fallback_tool, "name", "None") if google_search_fallback_tool else "None"
+        logger.info(f"Initialized SearchWithFallbackTool. Primary engines: {primary_names}, Fallback: {fallback_name}")
+        return search_tool
+
+    def _initialize_google_search_tool(self) -> Optional[GoogleSearchTool]:
+        """
+        Initialize Google search tool with either SerpAPI or Serper provider.
+
+        Returns:
+            Optional[GoogleSearchTool]: Initialized GoogleSearchTool instance or None if initialization fails
+
+        """
+        if os.getenv("SERPAPI_API_KEY"):
+            try:
+                tool = GoogleSearchTool(provider="serpapi")
+                logger.debug("Initialized GoogleSearchTool with SerpAPI for fallback.")
+                return tool
+            except ValueError as e:
+                logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI for fallback: {e}")
+        elif os.getenv("SERPER_API_KEY"):
+            try:
+                tool = GoogleSearchTool(provider="serper")
+                logger.debug("Initialized GoogleSearchTool with Serper for fallback.")
+                return tool
+            except ValueError as e:
+                logger.warning(f"Failed to initialize GoogleSearchTool with Serper for fallback: {e}")
+        else:
+            logger.warning("GoogleSearchTool (for fallback) not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY.")
+
+        return None
+
+    def _initialize_deep_research_tool(self, enable_deep_research: bool) -> Optional[DeepResearchTool]:
+        """Initializes the DeepResearchTool if API key is available."""
+        research_tool: Optional[DeepResearchTool] = None
+        if os.getenv("JINA_API_KEY"):
+            research_tool = DeepResearchTool()
+            if enable_deep_research:
+                # Assuming DeepResearchTool is enabled by its presence and API key.
+                # If specific enabling logic is needed in DeepResearchTool, it should be called here.
+                logger.debug("DeepResearchTool instance created; deep research functionality is active if enable_deep_research is true.")
+            else:
+                logger.debug("DeepResearchTool instance created, but deep research is not explicitly enabled via agent config (enable_deep_research=False). Tool may operate in a basic mode or not be used by agent logic if dependent on this flag.")
+        else:
+            logger.info("JINA_API_KEY not found. DeepResearchTool not initialized.")
+        return research_tool
 
     def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
         attachments = (
@@ -256,11 +297,12 @@ class EmailAgent:
         email_html_content: Union[str, None] = None
 
         try:
-            logger.info(f"Processing final answer object type: {type(final_answer_obj)}")
-            logger.info(f"Processing {len(agent_steps)} agent step entries.")
+            logger.debug(f"Processing final answer object type: {type(final_answer_obj)}")
+            logger.debug(f"Processing {len(agent_steps)} agent step entries.")
 
             for i, step in enumerate(agent_steps):
-                logger.info(f"[Memory Step {i + 1}] Type: {type(step)}")
+                logger.debug(f"[Memory Step {i+1}] Type: {type(step)}")
+
                 tool_name = None
                 tool_output = None
 
@@ -297,9 +339,7 @@ class EmailAgent:
                             )
                             continue
 
-                    logger.info(
-                        f"[Memory Step {i + 1}] Processing tool '{tool_name}', Output Type: '{type(tool_output)}'"
-                    )
+                    logger.debug(f"[Memory Step {i+1}] Processing tool call: '{tool_name}', Output Type: '{type(tool_output)}'")
 
                     if tool_name == "attachment_processor" and isinstance(tool_output, dict):
                         attachment_proc_summary = tool_output.get("summary")
@@ -343,7 +383,7 @@ class EmailAgent:
                             error_msg = tool_output.get("message", "Schedule generator failed or missing ICS content.")
                             errors_list.append(ProcessingError(message="Schedule Tool Error", details=error_msg))
                     else:
-                        logger.info(f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler).")
+                        logger.debug(f"[Memory Step {i+1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}...")
                 else:
                     logger.debug(
                         f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), not a relevant ActionStep or missing output."
@@ -352,18 +392,27 @@ class EmailAgent:
             # Extract final answer from LLM
             if hasattr(final_answer_obj, "text"):
                 final_answer_from_llm = str(final_answer_obj.text).strip()
+                logger.debug("Extracted final answer from AgentResponse.text")
             elif isinstance(final_answer_obj, str):
                 final_answer_from_llm = final_answer_obj.strip()
-            elif hasattr(final_answer_obj, "_value"):
+                logger.debug("Extracted final answer from string")
+            elif hasattr(final_answer_obj, "_value"): # Check for older AgentText structure
                 final_answer_from_llm = str(final_answer_obj._value).strip()
-            elif hasattr(final_answer_obj, "answer") and isinstance(getattr(final_answer_obj, "answer", None), str):
-                final_answer_from_llm = str(final_answer_obj.answer).strip()
-            elif (
-                hasattr(final_answer_obj, "arguments")
-                and isinstance(getattr(final_answer_obj, "arguments", None), dict)
-                and "answer" in final_answer_obj.arguments
-            ):
-                final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
+                logger.debug("Extracted final answer from AgentText._value")
+            elif hasattr(final_answer_obj, "answer"): # Handle final_answer tool call argument
+                # Check if the argument itself is the content string
+                if isinstance(getattr(final_answer_obj, "answer", None), str):
+                    final_answer_from_llm = str(final_answer_obj.answer).strip()
+                    logger.debug("Extracted final answer from final_answer tool argument string")
+                # Or if it's nested in arguments (less likely for final_answer but check)
+                elif isinstance(getattr(final_answer_obj, "arguments", None), dict) and "answer" in final_answer_obj.arguments:
+                     final_answer_from_llm = str(final_answer_obj.arguments["answer"]).strip()
+                     logger.debug("Extracted final answer from final_answer tool arguments dict")
+                else:
+                    final_answer_from_llm = str(final_answer_obj).strip()
+                    logger.warning(
+                        f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}..."
+                    )
             else:
                 final_answer_from_llm = str(final_answer_obj).strip()
                 logger.warning(

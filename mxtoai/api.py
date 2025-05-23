@@ -30,7 +30,7 @@ load_dotenv()
 logger = get_logger(__name__)
 
 app = FastAPI()
-if os.environ["IS_PROD"].lower() == "true":
+if os.getenv("IS_PROD", "true").lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
