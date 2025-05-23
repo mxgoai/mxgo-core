@@ -196,11 +196,12 @@ class ScheduleTool(Tool):
             logger.info(f"{self.name} completed successfully.")  # Added logging
             # return result # Moved to else block
         except Exception as e:
-            logger.exception(f"Error in {self.name}: {e}")
+            logger.exception(f"Error in {self.name}") # TRY401: Removed e from message
+            logger.error(f"Details of error in {self.name}: {e!s}") # Log details separately
             # Provide specific error feedback for the LLM
             return {
                 "status": "error",
-                "message": f"Failed to generate calendar data using {self.name}: {e}. Check input format, especially date/time (must be ISO 8601 with timezone).",
+                "message": f"Failed to generate calendar data using {self.name}. Check input format, especially date/time (must be ISO 8601 with timezone).",
             }
         else:  # Added else block for TRY300
             return result

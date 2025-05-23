@@ -26,10 +26,12 @@ def get_supabase_client() -> Client:  # Renamed and changed to return client
             supabase_key=supabase_key,
         )
         logger.info("Supabase client initialized successfully")
-        return client  # Return the client
+        # return client # Moved to else block
     except Exception as e:
         logger.error(f"Failed to initialize Supabase client: {e}")
         raise
+    else:
+        return client
 
 
 async def is_email_whitelisted(email: str) -> tuple[bool, bool]:

@@ -10,9 +10,8 @@ from typing import Any, ClassVar, Optional
 import requests
 from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
-from litellm import completion
 from PIL import Image
-from smolagents import Tool, tool
+from smolagents import Tool
 
 from mxtoai._logging import get_logger
 
@@ -85,47 +84,7 @@ def process_images_and_text(image_path, query, client):
     return json.loads(client.post(json=payload).decode())[0]
 
 
-# Function to encode the image
-def encode_image(image_path):
-    if image_path.startswith("http"):
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
-        request_kwargs = {
-            "headers": {"User-Agent": user_agent},
-            "stream": True,
-        }
-
-        # Send a HTTP request to the URL
-        response = requests.get(image_path, **request_kwargs)
-        response.raise_for_status()
-        content_type = response.headers.get("content-type", "")
-
-        extension = mimetypes.guess_extension(content_type)
-        if extension is None:
-            extension = ".download"
-
-        fname = str(uuid.uuid4()) + extension
-        download_path = os.path.abspath(os.path.join("downloads", fname))
-
-        with open(download_path, "wb") as fh:
-            for chunk in response.iter_content(chunk_size=512):
-                fh.write(chunk)
-
-        image_path = download_path
-
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
-
-
 headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
-
-
-def resize_image(image_path):
-    img = Image.open(image_path)
-    width, height = img.size
-    img = img.resize((int(width / 2), int(height / 2)))
-    new_image_path = f"resized_{image_path}"
-    img.save(new_image_path)
-    return new_image_path
 
 
 class VisualQATool(Tool):
@@ -247,6 +206,8 @@ class VisualQATool(Tool):
             return base64.b64encode(image_file.read()).decode("utf-8")
 
     def _azure_vision_request(self, image_path: str, question: Optional[str] = None) -> str:
+        _ = image_path # Acknowledge to satisfy ARG002 for placeholder
+        _ = question
         # Placeholder for Azure logic based on common patterns
         # Ensure to handle exceptions and return structure similar to OpenAI part
         try:
@@ -284,132 +245,3 @@ class VisualQATool(Tool):
             raise VisualQAError(msg) from e
         else:
             return output  # Moved to else block for TRY300
-
-
-@tool
-def visualizer(image_path: str, question: Optional[str] = None) -> str:
-    """
-    A tool that can answer questions about attached images.
-
-    Args:
-        image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
-        question: The question to answer.
-
-    """
-    add_note = False
-    if not question:
-        add_note = True
-        question = "Please write a detailed caption for this image."
-    if not isinstance(image_path, str):
-        msg = "You should provide at least `image_path` string argument to this tool!"
-        raise Exception(msg)
-
-    mime_type, _ = mimetypes.guess_type(image_path)
-    base64_image = encode_image(image_path)
-
-    payload = {
-        "model": "gpt-4o",
-        "messages": [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": question},
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
-                ],
-            }
-        ],
-        "max_tokens": 1000,
-    }
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    try:
-        output = response.json()["choices"][0]["message"]["content"]
-    except Exception:
-        msg = f"Response format unexpected: {response.json()}"
-        raise Exception(msg)
-
-    if add_note:
-        output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
-
-    return output
-
-
-@tool
-def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
-    """
-    A tool that can answer questions about attached images using Azure OpenAI.
-
-    Args:
-        image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
-        question: The question to answer.
-
-    """
-    add_note = False
-    if not question:
-        add_note = True
-        question = "Please write a detailed caption for this image."
-
-    try:
-        # Get image MIME type
-        mime_type, _ = mimetypes.guess_type(image_path)
-        if not mime_type:
-            mime_type = "image/jpeg"  # Default to JPEG if can't determine
-
-        # Encode the image to base64
-        base64_image = encode_image(image_path)
-
-        # Format the content for the Azure OpenAI API
-        content = [
-            {"type": "text", "text": question},
-            {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
-        ]
-
-        # Get Azure OpenAI configuration
-        model = f"azure/{os.getenv('MODEL_NAME', 'gpt-4o')}"
-        api_key = os.getenv("MODEL_API_KEY")
-        api_base = os.getenv("MODEL_ENDPOINT")
-        api_version = os.getenv("MODEL_API_VERSION")
-
-        logger.info(f"Sending image to Azure OpenAI model: {model}")
-        # Call Azure OpenAI using litellm
-        response = completion(
-            model=model,
-            messages=[{"role": "user", "content": content}],
-            api_key=api_key,
-            api_base=api_base,
-            api_version=api_version,
-            max_tokens=1000,
-        )
-
-        # Extract content from response
-        if hasattr(response, "choices") and response.choices:
-            if hasattr(response.choices[0], "message") and hasattr(response.choices[0].message, "content"):
-                output = response.choices[0].message.content
-            else:
-                # Fallback if direct access doesn't work
-                output = response.choices[0].get("message", {}).get("content", "")
-        else:
-            # Handle unusual response format
-            output = str(response)
-
-        if not output:
-            msg = "Empty response from Azure OpenAI"
-            raise Exception(msg)
-
-        # Add note if no question was provided
-        if add_note:
-            output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
-
-        return output
-
-    except Exception as e:
-        logger.error(f"Error in azure_visualizer: {e!s}")
-
-        # Try resizing the image if it might be too large
-        if "too large" in str(e).lower() or "payload" in str(e).lower():
-            try:
-                new_image_path = resize_image(image_path)
-                return azure_visualizer(new_image_path, question)
-            except Exception as resize_error:
-                logger.error(f"Error resizing image: {resize_error!s}")
-
-        return f"Error processing image: {e!s}"

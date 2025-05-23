@@ -21,6 +21,74 @@ import litellm
 litellm.enable_preview_features = True
 
 
+def _try_extract_from_choice_message_content(choice: Any, logger_instance: Any) -> Optional[str]:
+    """Tries to extract content from choice.message.content structure."""
+    if hasattr(choice, "message") and hasattr(choice.message, "content"):
+        content = choice.message.content
+        if content:
+            logger_instance.info("Extracted content via choice.message.content attribute")
+            return str(content)
+    # Try dictionary access if object access failed for message.content
+    if isinstance(choice, dict) and "message" in choice and isinstance(choice["message"], dict):
+        content = choice["message"].get("content")
+        if content:
+            logger_instance.info("Extracted content via choice['message']['content'] dict access")
+            return str(content)
+    return None
+
+def _try_extract_from_choice_text(choice: Any, logger_instance: Any) -> Optional[str]:
+    """Tries to extract content from choice.text structure."""
+    if hasattr(choice, "text"):
+        content = choice.text
+        if content:
+            logger_instance.info("Extracted content via choice.text attribute")
+            return str(content)
+    # Try dictionary access if object access failed for text
+    if isinstance(choice, dict) and "text" in choice:
+        content = choice["text"]
+        if content:
+            logger_instance.info("Extracted content via choice['text'] dict access")
+            return str(content)
+    return None
+
+def _extract_content_from_llm_response(response: Any, logger_instance: Any) -> Optional[str]:
+    """Helper function to extract content from various LLM response formats."""
+    # Attempt 1: Direct attribute access (common for many SDKs)
+    if (
+        hasattr(response, "choices")
+        and response.choices
+        and isinstance(response.choices, list)
+        and len(response.choices) > 0
+    ):
+        first_choice = response.choices[0]
+        content = _try_extract_from_choice_message_content(first_choice, logger_instance)
+        if content:
+            return content
+        content = _try_extract_from_choice_text(first_choice, logger_instance)
+        if content:
+            return content
+
+    # Attempt 2: Dictionary access (common for raw API responses or some SDKs)
+    response_dict = {}
+    if hasattr(response, "__dict__"):
+        response_dict = response.__dict__
+    elif isinstance(response, dict):
+        response_dict = response
+
+    if response_dict.get("choices") and isinstance(response_dict["choices"], list) and len(response_dict["choices"]) > 0:
+        first_choice_dict = response_dict["choices"][0]
+        # Pass the dictionary form of the choice to helper
+        content = _try_extract_from_choice_message_content(first_choice_dict, logger_instance)
+        if content:
+            return content
+        content = _try_extract_from_choice_text(first_choice_dict, logger_instance)
+        if content:
+            return content
+
+    logger_instance.warning("Could not extract content using known patterns.")
+    return None
+
+
 async def ask_llm(prompt: str, email_data: dict[str, Any], model: Optional[str] = None) -> str:
     """
     Process an email using LiteLLM to generate a response.
@@ -68,64 +136,17 @@ async def ask_llm(prompt: str, email_data: dict[str, Any], model: Optional[str] 
             logger.info(f"Raw response type: {type(response)}")
             logger.info(f"Raw response: {response}")
 
-            # TODO: Remove this block once all models consistently use ModelResponse
-            # Direct access to response.choices[0].message.content
-            # This is the most reliable way to extract content from ModelResponse
-            if (
-                hasattr(response, "choices")
-                and response.choices
-                and hasattr(response.choices[0], "message")
-                and hasattr(response.choices[0].message, "content")
-            ):
-                content = response.choices[0].message.content
-                if content:
-                    logger.debug(f"Extracted content from response.choices[0].message.content: {content[:100]}...")
-                    return str(content)
+            content = _extract_content_from_llm_response(response, logger)
 
-            # If direct access failed, try dictionary approach
-            response_dict = {}
-            if hasattr(response, "__dict__"):
-                response_dict = response.__dict__
-            elif isinstance(response, dict):
-                response_dict = response
-
-            logger.info(f"Response dict keys: {list(response_dict.keys()) if response_dict else 'None'}")
-
-            # Try to extract content from the dictionary
-            if response_dict.get("choices"):
-                choices = response_dict["choices"]
-                if isinstance(choices, list) and len(choices) > 0:
-                    first_choice = choices[0]
-                    logger.debug(f"First choice: {first_choice}")
-
-                    # Try to access message.content
-                    if hasattr(first_choice, "message") and hasattr(first_choice.message, "content"):
-                        content = first_choice.message.content
-                        if content:
-                            logger.info("Successfully extracted content from choices[0].message.content")
-                            return content
-
-                    # Try dictionary access if object access failed
-                    if isinstance(first_choice, dict):
-                        if "message" in first_choice and isinstance(first_choice["message"], dict):
-                            content = first_choice["message"].get("content")
-                            if content:
-                                logger.info("Successfully extracted content from dictionary")
-                                return content
-                        elif "text" in first_choice:
-                            content = first_choice["text"]
-                            if content:
-                                logger.info("Successfully extracted content from text field")
-                                return content
-
-            # If all extraction methods failed
-            logger.warning("Could not extract content from LLM response")
         except Exception as azure_error:
             logger.exception("Error processing LLM response")
             # Fallback to a generic error message if specific error handling fails
             return f"Error: Could not process response from LLM. Details: {azure_error!s}"
         else:
-            return "No response generated from LLM."
+            if content:
+                return content
+            logger.warning("Could not extract content from LLM response after acompletion success")
+            return "Error: Failed to extract a meaningful response from the LLM (after successful acompletion)."
 
     except Exception as e:
         # Log the error and return an error message

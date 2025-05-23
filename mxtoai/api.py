@@ -91,118 +91,140 @@ def create_error_response(summary: str, attachment_info: list[dict[str, Any]], e
     )
 
 
+def _process_single_attachment(
+    attachment: EmailAttachment,
+    idx: int,
+    num_attachments: int,
+    email_attachments_dir_path: Path,
+    email_data_attachments: list[EmailAttachment] # To append processed attachment info
+) -> Optional[dict[str, Any]]:
+    """Processes a single attachment: validates, saves, and returns its info."""
+    try:
+        logger.info(
+            f"Processing file {idx + 1}/{num_attachments}: {attachment.filename} ({attachment.contentType})"
+        )
+
+        if not attachment.content or len(attachment.content) == 0:
+            logger.error(f"Empty content received for file: {attachment.filename}")
+            msg = "Empty attachment"
+            raise ValueError(msg)
+
+        if attachment.contentType in ["application/x-msdownload", "application/x-executable"]:
+            logger.error(f"Unsupported file type: {attachment.contentType}")
+            msg = "Unsupported file type"
+            raise ValueError(msg)
+
+        safe_filename = Path(attachment.filename).name
+        if not safe_filename:
+            safe_filename = f"attachment_{idx}.bin"
+            logger.warning(f"Using generated filename for attachment {idx}: {safe_filename}")
+
+        if len(safe_filename) > MAX_FILENAME_LENGTH:
+            ext = Path(safe_filename).suffix
+            safe_filename = (
+                safe_filename[: MAX_FILENAME_LENGTH - len(ext) - 5] + "..." + ext
+            )
+            logger.warning(f"Truncated long filename to: {safe_filename}")
+
+        storage_path = email_attachments_dir_path / safe_filename
+        logger.debug(f"Will save file to: {storage_path!s}")
+
+        with storage_path.open("wb") as f:
+            f.write(attachment.content)
+
+        if not storage_path.exists():
+            logger.error(f"Failed to save attachment: {attachment.filename} to {storage_path!s}")
+            return None # Indicate failure
+
+        file_size = storage_path.stat().st_size
+        if file_size == 0:
+            # Clean up empty file
+            storage_path.unlink()
+            logger.error(f"Saved file is empty, removed: {storage_path!s}")
+            msg = f"Saved file is empty: {storage_path}"
+            raise OSError(msg)
+
+        attachment_info_dict = {
+            "filename": safe_filename,
+            "type": attachment.contentType,
+            "path": str(storage_path),
+            "size": file_size,
+        }
+
+        email_data_attachments.append(
+            EmailAttachment(
+                filename=safe_filename, contentType=attachment.contentType, size=file_size, path=str(storage_path)
+            )
+        )
+        logger.info(f"Successfully saved attachment: {safe_filename} ({file_size} bytes)")
+        return attachment_info_dict
+
+    except ValueError as e: # Specific validation errors
+        logger.error(f"Validation error for file {attachment.filename}: {e!s}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+    except Exception: # General processing error for this attachment
+        logger.exception(f"Error processing file {attachment.filename}")
+        # Try to clean up any partially saved file if storage_path was defined
+        if "storage_path" in locals() and isinstance(storage_path, Path) and storage_path.exists():
+            try:
+                storage_path.unlink()
+                logger.info(f"Cleaned up partial file: {storage_path!s}")
+            except Exception as cleanup_error:
+                logger.error(f"Error cleaning up partial file: {cleanup_error!s}")
+        return None # Indicate failure for this attachment
+    else:
+        return attachment_info_dict
+
+
 # Helper function to handle uploaded files
 async def handle_file_attachments(
     attachments: list[EmailAttachment], email_id: str, email_data: EmailRequest
 ) -> tuple[str, list[dict[str, Any]]]:
     """Process uploaded files and save them as attachments"""
-    email_attachments_dir = ""
-    attachment_info = []
+    email_attachments_dir_str = ""
+    attachment_info_list = []
 
     if not attachments:
         logger.debug("No files to process")
-        return email_attachments_dir, attachment_info
+        return email_attachments_dir_str, attachment_info_list
 
-    # Create directory for this email's attachments using pathlib
-    email_attachments_dir = str(Path(ATTACHMENTS_DIR) / email_id)
-    Path(email_attachments_dir).mkdir(parents=True, exist_ok=True)
-    logger.info(f"Created attachments directory: {email_attachments_dir}")
+    email_attachments_dir_path = Path(ATTACHMENTS_DIR) / email_id
+    email_attachments_dir_path.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Created attachments directory: {email_attachments_dir_path!s}")
 
-    # Process each attachment
-    for idx, attachment in enumerate(attachments):
-        try:
-            # Log file details
-            logger.info(
-                f"Processing file {idx + 1}/{len(attachments)}: {attachment.filename} ({attachment.contentType})"
-            )
+    # Clear existing attachments from email_data if any, as we are processing new ones.
+    email_data.attachments = []
 
-            # Validate file size
-            if not attachment.content or len(attachment.content) == 0:
-                logger.error(f"Empty content received for file: {attachment.filename}")
-                msg = "Empty attachment"
-                raise ValueError(msg)
+    for idx, attachment_model in enumerate(attachments):
+        processed_info = _process_single_attachment(
+            attachment=attachment_model,
+            idx=idx,
+            num_attachments=len(attachments),
+            email_attachments_dir_path=email_attachments_dir_path,
+            email_data_attachments=email_data.attachments # Pass the list to be modified
+        )
+        if processed_info:
+            attachment_info_list.append(processed_info)
 
-            # Validate file type
-            if attachment.contentType in ["application/x-msdownload", "application/x-executable"]:
-                logger.error(f"Unsupported file type: {attachment.contentType}")
-                msg = "Unsupported file type"
-                raise ValueError(msg)
+    email_attachments_dir_str = str(email_attachments_dir_path)
 
-            # Sanitize filename for storage
-            safe_filename = Path(attachment.filename).name
-            if not safe_filename:
-                safe_filename = f"attachment_{idx}.bin"
-                logger.warning(f"Using generated filename for attachment {idx}: {safe_filename}")
-
-            # Truncate filename if too long (max 100 chars)
-            if len(safe_filename) > MAX_FILENAME_LENGTH:
-                ext = Path(safe_filename).suffix
-                safe_filename = (
-                    safe_filename[: MAX_FILENAME_LENGTH - len(ext) - 5] + "..." + ext
-                )  # ensure space for ellipsis and extension
-                logger.warning(f"Truncated long filename to: {safe_filename}")
-
-            # Full path to save the attachment
-            storage_path = str(Path(email_attachments_dir) / safe_filename)
-            logger.debug(f"Will save file to: {storage_path}")
-
-            # Write content to disk
-            with storage_path.open("wb") as f:
-                f.write(attachment.content)
-
-            # Check if file was successfully saved
-            if not storage_path.exists():
-                logger.error(f"Failed to save attachment: {attachment.filename} to {storage_path}")
-                # Optionally, raise an error or handle accordingly
-
-            file_size = storage_path.stat().st_size
-            if file_size == 0:
-                msg = f"Saved file is empty: {storage_path}"
-                raise OSError(msg)
-
-            # Store attachment info with storage path
-            attachment_info.append(
-                {
-                    "filename": safe_filename,
-                    "type": attachment.contentType,
-                    "path": storage_path,
-                    "size": file_size,
-                }
-            )
-
-            # Update EmailAttachment object - no need to store content after saving
-            email_data.attachments.append(
-                EmailAttachment(
-                    filename=safe_filename, contentType=attachment.contentType, size=file_size, path=storage_path
-                )
-            )
-
-            logger.info(f"Successfully saved attachment: {safe_filename} ({file_size} bytes)")
-
-        except ValueError as e:
-            logger.error(f"Validation error for file {attachment.filename}: {e!s}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
-        except Exception:
-            logger.exception(f"Error processing file {attachment.filename}")
-            # Try to clean up any partially saved file
-            try:
-                if storage_path.exists():
-                    storage_path.unlink()
-                    logger.info(f"Cleaned up partial file: {storage_path}")
-            except Exception as cleanup_error:
-                logger.error(f"Error cleaning up partial file: {cleanup_error!s}")
-
-    # If no attachments were successfully saved, clean up the directory
-    if not attachment_info and Path(email_attachments_dir).exists():
+    if not attachment_info_list and email_attachments_dir_path.exists():
         logger.warning("No attachments were successfully saved, cleaning up directory")
-        import shutil
-
-        shutil.rmtree(email_attachments_dir)
-        email_attachments_dir = ""
+        shutil.rmtree(email_attachments_dir_path)
+        email_attachments_dir_str = ""
+    elif attachment_info_list:
+        logger.info(f"Successfully processed {len(attachment_info_list)} attachments into {email_attachments_dir_str}")
     else:
-        logger.info(f"Successfully processed {len(attachment_info)} attachments")
+        # This case means attachments might have existed, but all failed processing.
+        # Directory might still exist if it wasn't empty initially or if rmtree failed (though unlikely here).
+        logger.info("No attachments were processed or saved.")
+        # If the directory is now empty (because it was created by us and all files failed), clean it up.
+        if email_attachments_dir_path.exists() and not any(email_attachments_dir_path.iterdir()):
+            logger.info(f"Cleaning up empty attachments directory: {email_attachments_dir_path!s}")
+            shutil.rmtree(email_attachments_dir_path)
+            email_attachments_dir_str = ""
 
-    return email_attachments_dir, attachment_info
+    return email_attachments_dir_str, attachment_info_list
 
 
 # Helper function to send email reply using SES
@@ -334,6 +356,127 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
     return sanitized_result
 
 
+async def _run_initial_validations(
+    api_key: str,
+    from_email: str,
+    to: str,
+    subject: Optional[str],
+    message_id: Optional[str],
+    files: list[UploadFile]
+) -> Optional[Response]: # Returns a Response if validation fails, else None
+    """Runs all initial validations for the process_email endpoint."""
+    if response := await validate_api_key(api_key):
+        return response
+
+    # Parse raw headers if provided - This seems to be more related to request creation, moving it there.
+
+    if response := await validate_email_whitelist(from_email, to, subject, message_id):
+        return response
+
+    response, handle = await validate_email_handle(to, from_email, subject, message_id)
+    if response:
+        return response
+    # Store handle for later use if needed, or just let it be validated.
+    # For now, the handle itself isn't directly used by this validation function beyond its own validation.
+
+    attachments_for_validation = []
+    for file_in_list in files:
+        content = await file_in_list.read()
+        attachments_for_validation.append(
+            {"filename": file_in_list.filename, "contentType": file_in_list.content_type, "size": len(content)}
+        )
+        await file_in_list.seek(0)  # Reset file pointer
+
+    if response := await validate_attachments(attachments_for_validation, from_email, to, subject, message_id):
+        return response
+
+    return None # All validations passed
+
+
+async def _create_email_request_object(
+    from_email: str,
+    to: str,
+    subject: Optional[str],
+    text_content: Optional[str],
+    html_content: Optional[str],
+    message_id: Optional[str],
+    date: Optional[str],
+    email_id_param: Optional[str], # Renamed to avoid conflict with generated email_id
+    raw_headers: Optional[str],
+    uploaded_files: list[UploadFile] # For converting to EmailAttachment
+) -> EmailRequest:
+    """Creates and populates the EmailRequest object."""
+    parsed_headers = {}
+    if raw_headers:
+        try:
+            parsed_headers = json.loads(raw_headers)
+            logger.info(f"Received raw headers: {json.dumps(parsed_headers, indent=2)}")
+        except json.JSONDecodeError:
+            logger.warning(f"Could not parse rawHeaders JSON: {raw_headers}")
+
+    cc_list = []
+    raw_cc_header = parsed_headers.get("cc", "")
+    if isinstance(raw_cc_header, str) and raw_cc_header:
+        try:
+            addresses = getaddresses([raw_cc_header])
+            cc_list = [addr for name, addr in addresses if addr]
+            if cc_list:
+                logger.info(f"Parsed CC list: {cc_list}")
+        except Exception as e:
+            logger.warning(f"Could not parse CC header '{raw_cc_header}': {e!s}")
+
+    attachments_data = []
+    for file_in_list in uploaded_files:
+        content = await file_in_list.read()
+        attachments_data.append(
+            EmailAttachment(
+                filename=file_in_list.filename,
+                contentType=file_in_list.content_type,
+                content=content,
+                size=len(content),
+                path=None,
+            )
+        )
+        logger.info(f"Prepared EmailAttachment for: {file_in_list.filename}")
+        await file_in_list.seek(0) # Reset file pointer
+
+    return EmailRequest(
+        from_email=from_email,
+        to_email=to, # Ensure field name consistency if EmailRequest uses to_email
+        subject=subject,
+        body=text_content or "", # Assuming text_content is primary body if html is also present
+        # Consider how to handle text vs html. For now, using text for main body.
+        # html_content might be stored separately or used if text_content is empty.
+        text_content=text_content,
+        html_content=html_content,
+        message_id=message_id,
+        date=date,
+        email_id=email_id_param, # Use the passed email_id parameter
+        raw_headers=parsed_headers,
+        cc_addresses=cc_list, # Ensure field name consistency
+        attachments=attachments_data, # This will be EmailAttachment objects
+        decoded_attachments=[] # This seems to be populated later or differently
+    )
+
+
+def _prepare_attachment_info_for_task(attachment_info_from_handler: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Prepares the attachment information for the task queue."""
+    processed_attachment_info_for_task = []
+    for info in attachment_info_from_handler:
+        processed_info = {
+            "filename": info.get("filename", ""),
+            "type": info.get("type", info.get("contentType", "application/octet-stream")),
+            "path": info.get("path", ""),
+            "size": info.get("size", 0),
+        }
+        processed_attachment_info_for_task.append(processed_info)
+        logger.info(
+            f"Prepared attachment for task: {processed_info['filename']} "
+            f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)"
+        )
+    return processed_attachment_info_for_task
+
+
 @app.post("/process-email")
 async def process_email(
     from_email: Annotated[str, Form()],
@@ -349,142 +492,83 @@ async def process_email(
     files: Annotated[list[UploadFile] | None, File()] = None,
 ):
     """Process an incoming email with attachments, analyze content, and send reply"""
-    # Validate API key
-    if response := await validate_api_key(api_key):
-        return response
-
+    # Validate API key and other initial checks
     if files is None:
-        files = []
-    parsed_headers = {}
+        files = [] # Ensure files is a list even if None
+
+    if validation_response := await _run_initial_validations(api_key, from_email, to, subject, message_id, files):
+        return validation_response
+
+    # At this point, initial validations have passed.
+    # The 'handle' is implicitly validated by _run_initial_validations through validate_email_handle
+    # We need to get the handle again for email_instructions or have _run_initial_validations return it.
+    # For simplicity, let's re-fetch the handle here, assuming validate_email_handle is idempotent and cheap.
+    _, handle = await validate_email_handle(to, from_email, subject, message_id)
+    if not handle: # Should not happen if _run_initial_validations passed, but as a safeguard.
+        logger.error("Handle could not be determined after successful validation.")
+        raise HTTPException(status_code=500, detail="Internal server error: handle determination failed.")
+
     try:
-        # Parse raw headers if provided
-        if raw_headers:
-            try:
-                parsed_headers = json.loads(raw_headers)
-                logger.info(f"Received raw headers: {json.dumps(parsed_headers, indent=2)}")
-            except json.JSONDecodeError:
-                logger.warning(f"Could not parse rawHeaders JSON: {raw_headers}")
-                # Continue processing even if headers are malformed
-
-        # Validate email whitelist
-        if response := await validate_email_whitelist(from_email, to, subject, message_id):
-            return response
-
-        # Validate email handle
-        response, handle = await validate_email_handle(to, from_email, subject, message_id)
-        if response:
-            return response
-
-        # Convert uploaded files to dictionaries for validation
-        attachments_for_validation = []
-        for file in files:
-            content = await file.read()
-            attachments_for_validation.append(
-                {"filename": file.filename, "contentType": file.content_type, "size": len(content)}
-            )
-            await file.seek(0)  # Reset file pointer for later use
-
-        # Validate attachments
-        if response := await validate_attachments(attachments_for_validation, from_email, to, subject, message_id):
-            return response
-
-        # Convert validated files to EmailAttachment objects
-        attachments = []
-        for file in files:
-            content = await file.read()
-            attachments.append(
-                EmailAttachment(
-                    filename=file.filename,
-                    contentType=file.content_type,
-                    content=content,  # Store binary content directly
-                    size=len(content),
-                    path=None,  # Path will be set after saving to disk
-                )
-            )
-            logger.info(f"Received attachment: {file.filename} (type: {file.content_type}, size: {len(content)} bytes)")
-            await file.seek(0)  # Reset file pointer for later use
+        email_request = await _create_email_request_object(
+            from_email=from_email, to=to, subject=subject,
+            text_content=text_content, html_content=html_content,
+            message_id=message_id, date=date, email_id_param=email_id, # Pass the original email_id from form
+            raw_headers=raw_headers, uploaded_files=files
+        )
 
         # Get handle configuration
         email_instructions = processing_instructions_resolver(handle)  # Safe to use direct access now
 
         # Log initial email details
         logger.info("Received new email request:")
-        logger.info(f"To: {to} (handle: {handle})")
-        logger.info(f"Subject: {subject}")
-        logger.info(f"Message ID: {message_id}")
-        logger.info(f"Date: {date}")
-        logger.info(f"Email ID: {email_id}")
-        logger.info(f"Number of attachments: {len(files)}")
-        # Log raw headers count if present
-        if parsed_headers:
-            logger.info(f"Number of raw headers received: {len(parsed_headers)}")
+        logger.info(f"To: {email_request.to_email} (handle: {handle})") # Use field from email_request
+        logger.info(f"Subject: {email_request.subject}")
+        logger.info(f"Message ID: {email_request.message_id}")
+        logger.info(f"Date: {email_request.date}")
+        logger.info(f"Email ID (param): {email_request.email_id}") # Log the passed email_id
+        logger.info(f"Number of attachments from request: {len(email_request.attachments)}")
+        if email_request.raw_headers:
+            logger.info(f"Number of raw headers received: {len(email_request.raw_headers)}")
 
-        # Parse CC addresses from raw headers
-        cc_list = []
-        raw_cc_header = parsed_headers.get("cc", "")
-        if isinstance(raw_cc_header, str) and raw_cc_header:
-            try:
-                # Use getaddresses to handle names and comma separation
-                addresses = getaddresses([raw_cc_header])
-                cc_list = [addr for name, addr in addresses if addr]
-                if cc_list:
-                    logger.info(f"Parsed CC list: {cc_list}")
-            except Exception as e:
-                logger.warning(f"Could not parse CC header '{raw_cc_header}': {e!s}")
-
-        # Create EmailRequest instance
-        email_request = EmailRequest(
-            from_email=from_email,
-            to=to,
-            subject=subject,
-            textContent=text_content,
-            htmlContent=html_content,
-            messageId=message_id,
-            date=date,
-            emailId=email_id,
-            rawHeaders=parsed_headers,
-            cc=cc_list,
-            attachments=[],  # Start with empty list, will be updated after saving files
-        )
-
-        # Generate email ID
-        email_id = generate_email_id(email_request)
-        logger.info(f"Generated email ID: {email_id}")
+        # Generate email ID (potentially overriding the one from param if needed, or use the one from param)
+        # For now, let's assume the one from param is for tracking and we generate a new one for processing.
+        generated_email_id = generate_email_id(email_request) # This uses the content to generate an ID.
+        email_request.email_id = generated_email_id # Update request with the truly unique generated ID.
+        logger.info(f"Generated/Final email ID for processing: {generated_email_id}")
 
         # Handle attachments only if the handle requires it
         email_attachments_dir = ""
-        attachment_info = []
-        if email_instructions.process_attachments and attachments:
-            email_attachments_dir, attachment_info = await handle_file_attachments(attachments, email_id, email_request)
-            logger.info(f"Processed {len(attachment_info)} attachments successfully")
+        attachment_info_for_task = [] # Renamed to avoid confusion with other attachment_info vars
+        if email_instructions.process_attachments and email_request.attachments:
+            # handle_file_attachments now takes EmailAttachment objects directly
+            # It also updates email_request.attachments internally with paths after saving
+            email_attachments_dir, attachment_info_for_task = await handle_file_attachments(
+                email_request.attachments, # Pass the List[EmailAttachment] from the request object
+                generated_email_id, # Use the generated ID for the directory
+                email_request # Pass the whole request object for context if needed by handle_file_attachments
+            )
+            logger.info(f"Processed {len(attachment_info_for_task)} attachments successfully")
             logger.info(f"Attachments directory: {email_attachments_dir}")
 
-        # Prepare attachment info for processing
-        processed_attachment_info = []
-        for info in attachment_info:
-            processed_info = {
-                "filename": info.get("filename", ""),
-                "type": info.get("type", info.get("contentType", "application/octet-stream")),
-                "path": info.get("path", ""),
-                "size": info.get("size", 0),
-            }
-            processed_attachment_info.append(processed_info)
-            logger.info(
-                f"Prepared attachment for processing: {processed_info['filename']} "
-                f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)"
-            )
+        # The attachment_info_for_task from handle_file_attachments is what we need for the task.
+        # It contains {"filename", "type", "path", "size"}.
+        # This list is already in the correct format for the task, so no further processing needed here.
+        # If it needed transformation, we would call _prepare_attachment_info_for_task here.
+        # For now, the existing attachment_info_for_task is directly usable.
 
         # Enqueue the task for async processing
-        process_email_task.send(email_request.model_dump(), email_attachments_dir, processed_attachment_info)
-        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments")
+        # Use the attachment_info_for_task directly from handle_file_attachments
+        task_attachments = _prepare_attachment_info_for_task(attachment_info_for_task)
+        process_email_task.send(email_request.model_dump(), email_attachments_dir, task_attachments)
+        logger.info(f"Enqueued email {generated_email_id} for processing with {len(task_attachments)} attachments")
 
         # Return immediate success response
         return Response(
             content=json.dumps(
                 {
                     "message": "Email received and queued for processing",
-                    "email_id": email_id,
-                    "attachments_saved": len(attachment_info),
+                    "email_id": generated_email_id,
+                    "attachments_saved": len(task_attachments),
                     "status": "processing",
                 }
             ),
@@ -508,7 +592,7 @@ async def process_email(
                 {
                     "message": "Error processing email request",
                     "error": str(e),
-                    "attachments_saved": len(attachment_info) if "attachment_info" in locals() else 0,
+                    "attachments_saved": len(attachment_info_for_task) if "attachment_info_for_task" in locals() else 0,
                     "attachments_deleted": True,
                 }
             ),

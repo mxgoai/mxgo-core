@@ -63,11 +63,11 @@ if __name__ == "__main__":
     delay = 1
     while True:
         try:
-            result = subprocess.run(cmd, check=False)
+            result = subprocess.run(cmd, check=False)  # noqa: S603
             if result.returncode == CONNECTION_ERROR_RETURN_CODE:  # Connection error
                 sleep_cmd = shutil.which("sleep")
                 if sleep_cmd:
-                    subprocess.run([sleep_cmd, str(delay)], check=False)
+                    subprocess.run([sleep_cmd, str(delay)], check=False)  # noqa: S603
                 else:
                     # Fallback or error handling if sleep command is not found
                     logger.error("sleep command not found, unable to delay retry.")

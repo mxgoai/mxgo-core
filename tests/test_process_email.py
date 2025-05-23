@@ -282,8 +282,8 @@ def test_process_email_task_for_handle(
                 )
                 assert any(att["mimetype"] == "text/calendar" for att in sent_attachments)
                 assert returned_result.calendar_data is not None, "Calendar data should be present for schedule handle"
-                assert returned_result.calendar_data.ics_content is not None, "ICS content is None for schedule handle"
-                assert len(returned_result.calendar_data.ics_content) > 0, "ICS content is empty for schedule handle"
+                assert returned_result.calendar_data.ics_content is not None, "ICS content (None) for schedule handle"
+                assert len(returned_result.calendar_data.ics_content) > 0, "ICS content (empty) for schedule handle"
             else:
                 assert not kwargs.get("attachments"), (
                     "No attachments should be sent for non-schedule handles in this mock"
@@ -305,13 +305,11 @@ def test_process_email_task_for_handle(
                 if attachments_for_test
                 else None,  # Only check cleanup if dir was used
             )
-            # Specific assertion for schedule handle's calendar_data
+            # Calendar data checks for schedule handle
             if is_schedule_handle:
                 assert returned_result.calendar_data is not None, "Calendar data should be present for schedule handle"
-                assert (
-                    returned_result.calendar_data.ics_content is not None
-                    and len(returned_result.calendar_data.ics_content) > 0
-                ), "ICS content is missing or empty for schedule handle"
+                assert returned_result.calendar_data.ics_content is not None, "ICS content (None) for schedule handle"
+                assert len(returned_result.calendar_data.ics_content) > 0, "ICS content (empty) for schedule handle"
         else:
             # If not expecting a sent reply (e.g. if we were to use SKIP_EMAIL_DELIVERY for some handles)
             mock_sender_instance.send_reply.assert_not_called()

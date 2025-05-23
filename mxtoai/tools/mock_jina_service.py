@@ -106,7 +106,7 @@ class MockJinaService:
 
         # Split content into chunks
         chunks = content.split("\n")
-        chunk_delay = random.uniform(0.5, 2.0)
+        chunk_delay = random.uniform(0.5, 2.0)  # noqa: S311
 
         # Stream the role first
         yield {"choices": [{"delta": {"role": "assistant"}}]}
@@ -118,7 +118,7 @@ class MockJinaService:
                 continue
 
             # Occasionally add thinking markers
-            if random.random() < THINKING_MARKER_PROBABILITY:
+            if random.random() < THINKING_MARKER_PROBABILITY:  # noqa: S311
                 yield {"choices": [{"delta": {"type": "think", "content": "<think>Analyzing sources...</think>"}}]}
                 time.sleep(chunk_delay)
 
@@ -139,7 +139,7 @@ class MockJinaService:
         # Calculate delay based on reasoning effort
         effort_multipliers = {"low": 0.7, "medium": 1.0, "high": 1.3}
 
-        base_delay = random.uniform(self.min_delay, self.max_delay)
+        base_delay = random.uniform(self.min_delay, self.max_delay)  # noqa: S311
         total_delay = base_delay * effort_multipliers[reasoning_effort]
 
         # Generate mock response

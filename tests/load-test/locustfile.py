@@ -138,7 +138,7 @@ class SystemStatsWriter:
     def __init__(self, filename: str):
         self.filename = filename
         Path(filename).parent.mkdir(parents=True, exist_ok=True)
-        self._file_handle = Path(filename).open("w", newline="")
+        self._file_handle = Path(filename).open("w", newline="")  # noqa: SIM115
         self.writer = csv.writer(self._file_handle)
         self.writer.writerow(["timestamp", "cpu_percent", "memory_percent", "num_threads", "connections"])
 

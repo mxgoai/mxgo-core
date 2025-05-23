@@ -49,10 +49,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
             result = self.md_converter.convert(file_path)
 
-            if ".zip" in file_path:
-                return result.text_content
-
-            if not question:
+            if (".zip" in file_path) or (not question):
                 return result.text_content
 
             if len(result.text_content) < MAX_TEXT_CONTENT_LENGTH:

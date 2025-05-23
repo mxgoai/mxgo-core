@@ -251,100 +251,139 @@ class WikipediaConverter(DocumentConverter):
 class YouTubeConverter(DocumentConverter):
     """Handle YouTube specially, focusing on the video title, description, and transcript."""
 
-    def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
-        # Bail if not YouTube
-        extension = kwargs.get("file_extension", "")
-        if extension.lower() not in [".html", ".htm"]:
-            return None
-        url = kwargs.get("url", "")
-        if not url.startswith("https://www.youtube.com/watch?"):
-            return None
+    def _parse_ytinitialdata_from_script(self, script_content: str, metadata: dict[str, str]):
+        """Parses ytInitialData from script content and updates metadata."""
+        if not script_content or "ytInitialData" not in script_content:
+            return
 
-        # Parse the file
-        soup = None
-        with Path(local_path).open(encoding="utf-8") as fh:
-            soup = BeautifulSoup(fh.read(), "html.parser")
-
-        # Read the meta tags
-        # assert soup.title is not None
-        # assert soup.title.string is not None
-        metadata: dict[str, str] = {"title": soup.title.string}
-        for meta in soup(["meta"]):
-            for a in meta.attrs:
-                if a in ["itemprop", "property", "name"]:
-                    metadata[meta[a]] = meta.get("content", "")
-                    break
-
-        # We can also try to read the full description. This is more prone to breaking, since it reaches into the page implementation
         try:
-            for script in soup(["script"]):
-                content = script.text
-                if "ytInitialData" in content:
-                    lines = re.split(r"\r?\n", content)
-                    obj_start = lines[0].find("{")
-                    obj_end = lines[0].rfind("}")
-                    if obj_start >= 0 and obj_end >= 0:
-                        data = json.loads(lines[0][obj_start : obj_end + 1])
-                        attrdesc = self._find_key(data, "attributedDescriptionBodyText")  # type: ignore
-                        if attrdesc:
-                            metadata["description"] = str(attrdesc["content"])
-                    break
+            # Simplified JSON extraction, assuming it's a valid JS object assignment
+            match = re.search(r"var\s+ytInitialData\s*=\s*({.*?});", script_content, re.DOTALL)
+            if not match:
+                match = re.search(r"window\[\"ytInitialData\"\]\s*=\s*({.*?});", script_content, re.DOTALL)
+
+            if match:
+                json_str = match.group(1)
+                data = json.loads(json_str)
+                attrdesc_node = self._find_key(data, "attributedDescriptionBodyText")
+                if attrdesc_node and isinstance(attrdesc_node, dict) and "content" in attrdesc_node:
+                    metadata["description"] = str(attrdesc_node["content"])
+
+                video_details_node = self._find_key(data, "videoDetails")
+                if isinstance(video_details_node, dict):
+                    if video_details_node.get("viewCount"):
+                        metadata["interactionCount"] = video_details_node["viewCount"]
+                    if video_details_node.get("keywords") and isinstance(video_details_node["keywords"], list):
+                        metadata["keywords"] = ", ".join(video_details_node["keywords"])
+                    if video_details_node.get("lengthSeconds"):
+                        secs = int(video_details_node["lengthSeconds"])
+                        mins, secs = divmod(secs, 60)
+                        hours, mins = divmod(mins, 60)
+                        duration_str = "PT"
+                        if hours > 0:
+                            duration_str += f"{hours}H"
+                        if mins > 0 or hours > 0:
+                            duration_str += f"{mins}M"
+                        duration_str += f"{secs}S"
+                        metadata["duration"] = duration_str
         except Exception:
-            logger.debug("Ignoring exception in YouTube metadata parsing", exc_info=True)
+            logger.debug("Ignoring exception in YouTube ytInitialData parsing", exc_info=True)
 
-        # Start preparing the page
-        webpage_text = "# YouTube\n"
+    def _extract_youtube_metadata_from_soup(self, soup: BeautifulSoup) -> dict[str, str]:
+        metadata: dict[str, str] = {"title": soup.title.string if soup.title else "Untitled"}
+        for meta in soup.find_all("meta"):
+            for attr_name in ["itemprop", "property", "name"]:
+                if meta.has_attr(attr_name):
+                    metadata[meta[attr_name]] = meta.get("content", "")
+                    break
+        # Removed try-except block for script processing, moved to helper
+        for script in soup.find_all("script"):
+            script_text_content = script.string # Use .string to get script content
+            if script_text_content: # Ensure content exists before passing
+                self._parse_ytinitialdata_from_script(script_text_content, metadata)
+                # If description or other key data is found, we could break early,
+                # but multiple script tags might contain parts of ytInitialData or other relevant JSONs.
+                # For now, iterate all as before, helper decides if data is relevant.
 
-        title = self._get(metadata, ["title", "og:title", "name"])  # type: ignore
-        # assert isinstance(title, str)
+        return metadata
 
+    def _format_youtube_video_info(self, metadata: dict[str,str]) -> tuple[str, str]:
+        webpage_text_parts = []
+        title = self._get(metadata, ["title", "og:title", "name"])
         if title:
-            webpage_text += f"\n## {title}\n"
+            webpage_text_parts.append(f"## {title}\n")
 
-        stats = ""
-        views = self._get(metadata, ["interactionCount"])  # type: ignore
+        stats_parts = []
+        views = self._get(metadata, ["interactionCount"])
         if views:
-            stats += f"- **Views:** {views}\n"
-
-        keywords = self._get(metadata, ["keywords"])  # type: ignore
+            stats_parts.append(f"- **Views:** {views}")
+        keywords = self._get(metadata, ["keywords"])
         if keywords:
-            stats += f"- **Keywords:** {keywords}\n"
-
-        runtime = self._get(metadata, ["duration"])  # type: ignore
+            stats_parts.append(f"- **Keywords:** {keywords}")
+        runtime = self._get(metadata, ["duration"])
         if runtime:
-            stats += f"- **Runtime:** {runtime}\n"
+            stats_parts.append(f"- **Runtime:** {runtime}")
 
-        if len(stats) > 0:
-            webpage_text += f"\n### Video Metadata\n{stats}\n"
+        if stats_parts:
+            webpage_text_parts.append("### Video Metadata")
+            webpage_text_parts.extend(stats_parts)
+            webpage_text_parts.append("") # Add a newline after stats
 
-        description = self._get(metadata, ["description", "og:description"])  # type: ignore
+        description = self._get(metadata, ["description", "og:description"])
         if description:
-            webpage_text += f"\n### Description\n{description}\n"
+            webpage_text_parts.append("### Description")
+            webpage_text_parts.append(description)
+            webpage_text_parts.append("") # Add a newline after description
 
+        return "\n".join(webpage_text_parts), title or "Untitled YouTube Video"
+
+    def _fetch_youtube_transcript(self, url: str) -> str:
         transcript_text = ""
-        parsed_url = urlparse(url)  # type: ignore
-        params = parse_qs(parsed_url.query)  # type: ignore
-        if "v" in params:
-            # assert isinstance(params["v"][0], str)
+        parsed_url = urlparse(url)
+        params = parse_qs(parsed_url.query)
+        if params.get("v"):
             video_id = str(params["v"][0])
             try:
-                # Must be a single transcript.
-                transcript = YouTubeTranscriptApi.get_transcript(video_id)  # type: ignore
-                # transcript_text = " ".join([part["text"] for part in transcript])  # type: ignore
-                # Alternative formatting:
-                transcript_text = SRTFormatter().format_transcript(transcript)
+                transcript_list = YouTubeTranscriptApi.get_transcript(video_id)
+                transcript_text = SRTFormatter().format_transcript(transcript_list)
             except Exception:
                 logger.debug("Ignoring exception in YouTube transcript fetching/formatting", exc_info=True)
+        return transcript_text
 
+    def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+        extension = kwargs.get("file_extension", "")
+        url = kwargs.get("url", "")
+        if not (extension.lower() in [".html", ".htm"] and url.startswith("https://www.youtube.com/watch?")):
+            return None
+
+        try:
+            with Path(local_path).open(encoding="utf-8") as fh:
+                soup = BeautifulSoup(fh.read(), "html.parser")
+        except Exception as e:
+            logger.error(f"Failed to read or parse local HTML file {local_path}: {e}")
+            return None
+
+        metadata = self._extract_youtube_metadata_from_soup(soup)
+        formatted_info, primary_title = self._format_youtube_video_info(metadata)
+        transcript_text = self._fetch_youtube_transcript(url)
+
+        webpage_text_parts = ["# YouTube", formatted_info]
         if transcript_text:
-            webpage_text += f"\n### Transcript\n{transcript_text}\n"
+            webpage_text_parts.append("### Transcript")
+            webpage_text_parts.append(transcript_text)
 
-        title = title if title else soup.title.string
-        # assert isinstance(title, str)
+        final_text_content = "\n".join(filter(None, webpage_text_parts))
+
+        # Ensure title is a string, fallback to soup.title or a generic title
+        final_title = primary_title
+        if not final_title and soup.title and soup.title.string:
+            final_title = soup.title.string
+        elif not final_title:
+            final_title = "YouTube Video"
 
         return DocumentConverterResult(
-            title=title,
-            text_content=webpage_text,
+            title=str(final_title), # Ensure title is always a string
+            text_content=final_text_content,
         )
 
     def _get(self, metadata: dict[str, str], keys: list[str], default: Union[str, None] = None) -> Union[str, None]:
@@ -433,66 +472,91 @@ class PptxConverter(HtmlConverter):
     Converts PPTX files to Markdown. Supports heading, tables and images with alt text.
     """
 
+    def _process_pptx_shape(self, shape: pptx.shapes.autoshape.Shape, slide_title_shape: Optional[pptx.shapes.autoshape.Shape]) -> str:
+        """Processes a single shape from a PPTX slide and returns its markdown representation."""
+        shape_md_parts = []
+        # Pictures
+        if self._is_picture(shape):
+            alt_text = ""
+            with contextlib.suppress(Exception):
+                alt_text = shape._element._nvXxPr.cNvPr.attrib.get("descr", "")  # noqa: SLF001
+            filename = re.sub(r"\W", "", shape.name) + ".jpg" # A placeholder name
+            shape_md_parts.append(f"![{alt_text if alt_text else shape.name}]({filename})")
+
+        # Tables
+        elif self._is_table(shape):
+            html_table = "<html><body><table>"
+            first_row = True
+            for row in shape.table.rows:
+                html_table += "<tr>"
+                for cell in row.cells:
+                    html_table += f"<{'th' if first_row else 'td'}>{html.escape(cell.text)}</{'th' if first_row else 'td'}>"
+                html_table += "</tr>"
+                first_row = False
+            html_table += "</table></body></html>"
+            # Assuming self._convert is available from HtmlConverter inheritance
+            converted_table = self._convert(html_table)
+            if converted_table and converted_table.text_content:
+                shape_md_parts.append(converted_table.text_content.strip())
+
+        # Text areas
+        elif shape.has_text_frame and shape.text:
+            text = shape.text.strip()
+            if text: # Only add if there is actual text
+                if shape == slide_title_shape:
+                    shape_md_parts.append(f"# {text.lstrip()}")
+                else:
+                    shape_md_parts.append(text)
+
+        return "\n".join(shape_md_parts)
+
+    def _process_pptx_notes_slide(self, slide: pptx.slide.Slide) -> str:
+        """Processes the notes slide and returns its markdown representation."""
+        notes_md = ""
+        if slide.has_notes_slide:
+            notes_frame = slide.notes_slide.notes_text_frame
+            if notes_frame and notes_frame.text:
+                notes_text = notes_frame.text.strip()
+                if notes_text:
+                    notes_md = f"### Notes:\n{notes_text}"
+        return notes_md
+
     def convert(self, local_path, **kwargs) -> Union[None, DocumentConverterResult]:
-        # Bail if not a PPTX
         extension = kwargs.get("file_extension", "")
         if extension.lower() != ".pptx":
             return None
 
-        md_content = ""
+        md_content_parts = []
+        try:
+            presentation = pptx.Presentation(local_path)
+        except Exception as e:
+            logger.error(f"Failed to open PPTX file {local_path}: {e}")
+            return None
 
-        presentation = pptx.Presentation(local_path)
         for slide_num, slide in enumerate(presentation.slides):
-            md_content += f"\n\n<!-- Slide number: {slide_num + 1} -->\n"
+            slide_md_parts = [f"<!-- Slide number: {slide_num + 1} -->"]
 
-            title = slide.shapes.title
+            slide_title_shape = slide.shapes.title if slide.shapes.has_title else None
+
             for shape in slide.shapes:
-                # Pictures
-                if self._is_picture(shape):
-                    # https://github.com/scanny/python-pptx/pull/512#issuecomment-1713100069
-                    alt_text = ""
-                    with contextlib.suppress(Exception):
-                        alt_text = shape._element._nvXxPr.cNvPr.attrib.get("descr", "")  # noqa: SLF001
+                shape_md = self._process_pptx_shape(shape, slide_title_shape)
+                if shape_md:
+                    slide_md_parts.append(shape_md)
 
-                    # A placeholder name
-                    filename = re.sub(r"\W", "", shape.name) + ".jpg"
-                    md_content += "\n![" + (alt_text if alt_text else shape.name) + "](" + filename + ")\n"
+            notes_md = self._process_pptx_notes_slide(slide)
+            if notes_md:
+                slide_md_parts.append(notes_md)
 
-                # Tables
-                if self._is_table(shape):
-                    html_table = "<html><body><table>"
-                    first_row = True
-                    for row in shape.table.rows:
-                        html_table += "<tr>"
-                        for cell in row.cells:
-                            if first_row:
-                                html_table += "<th>" + html.escape(cell.text) + "</th>"
-                            else:
-                                html_table += "<td>" + html.escape(cell.text) + "</td>"
-                        html_table += "</tr>"
-                        first_row = False
-                    html_table += "</table></body></html>"
-                    md_content += "\n" + self._convert(html_table).text_content.strip() + "\n"
+            # Join parts for the current slide, filtering out empty strings
+            slide_content = "\n".join(filter(None, slide_md_parts)).strip()
+            if slide_content:
+                 md_content_parts.append(slide_content)
 
-                # Text areas
-                elif shape.has_text_frame:
-                    if shape == title:
-                        md_content += "# " + shape.text.lstrip() + "\n"
-                    else:
-                        md_content += shape.text + "\n"
-
-            md_content = md_content.strip()
-
-            if slide.has_notes_slide:
-                md_content += "\n\n### Notes:\n"
-                notes_frame = slide.notes_slide.notes_text_frame
-                if notes_frame is not None:
-                    md_content += notes_frame.text
-                md_content = md_content.strip()
+        final_md_content = "\n\n".join(md_content_parts).strip() # Join slides with double newline
 
         return DocumentConverterResult(
-            title=None,
-            text_content=md_content.strip(),
+            title=None, # PPTX files don't have a single document title in the same way as others
+            text_content=final_md_content,
         )
 
     def _is_picture(self, shape):
@@ -514,7 +578,7 @@ class MediaConverter(DocumentConverter):
         if not exiftool:
             return None
         try:
-            result = subprocess.run([exiftool, "-json", local_path], capture_output=True, text=True, check=False).stdout
+            result = subprocess.run([exiftool, "-json", local_path], capture_output=True, text=True, check=False).stdout # noqa: S603
             return json.loads(result)[0]
         except Exception:
             return None
@@ -625,7 +689,7 @@ class Mp3Converter(WavConverter):
 
         finally:
             with contextlib.suppress(Exception):
-                fh.close()
+                pass
             Path(temp_path).unlink()
 
         # Return the result
@@ -973,7 +1037,7 @@ class MarkdownConverter:
                     res.text_content = "\n".join([line.rstrip() for line in re.split(r"\r?\n", res.text_content)])
                     res.text_content = re.sub(r"\n{3,}", "\n\n", res.text_content)
 
-                    # TODO
+                    # TODO: Add further post-processing if necessary
                     return res
 
         # If we got this far without success, report any exceptions
