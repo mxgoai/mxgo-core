@@ -81,8 +81,10 @@ def encode_image(image_path: str) -> str:
 
     Args:
         image_path: The path to the image file.
+
     Returns:
         str: The base64 encoded string of the image.
+
     """
     if image_path.startswith("http"):
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
@@ -125,6 +127,7 @@ def resize_image(image_path: str) -> str:
 
     Returns:
         str: The path to the resized image.
+
     """
     img = Image.open(image_path)
     width, height = img.size
@@ -151,13 +154,14 @@ class VisualQATool(Tool):
     def forward(self, image_path: str, question: Optional[str] = None) -> str:
         """
         Process the image and return a short caption based on the content.
-        
+
         Args:
             image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
             question: The question to answer.
 
         Returns:
             str: The generated caption or the text content of the file.
+
         """
         output = ""
         add_note = False

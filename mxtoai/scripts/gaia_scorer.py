@@ -11,6 +11,7 @@ def normalize_number_str(number_str: str) -> float:
         number_str: str, the number string to normalize
     Returns:
         float, the normalized number
+
     """
     # we replace these common units and commas to allow
     # conversion to float
@@ -35,6 +36,7 @@ def split_string(
 
     Returns:
         list of str, the split elements
+
     """
     if char_list is None:
         char_list = [",", ";"]
@@ -51,6 +53,7 @@ def is_float(element: any) -> bool:
 
     Returns:
         bool, True if the element can be converted to a float, False otherwise
+
     """
     try:
         float(element)
@@ -72,6 +75,7 @@ def question_scorer(
 
     Returns:
         bool, True if the model answer is correct, False otherwise
+
     """
     # if gt is a number
     if is_float(ground_truth):
@@ -113,6 +117,7 @@ def check_prediction_contains_answer_letters_in_order(prediction: str, true_answ
 
     Returns:
         bool, True if the prediction contains the letters of the true answer in order, False otherwise
+
     """
     prediction = prediction.lower()
     true_answer = true_answer.lower()
@@ -138,6 +143,7 @@ def check_close_call(prediction: str, true_answer: str, is_correct: bool) -> boo
 
     Returns:
         bool, True if the prediction is a close call to the true answer, False otherwise
+
     """
     if is_correct:
         return True
@@ -161,6 +167,7 @@ def normalize_str(input_str: str, remove_punct: bool = True) -> str:
 
     Returns:
         str, the normalized string
+
     """
     # Remove all white spaces. Required e.g for seagull vs. sea gull
     no_spaces = re.sub(r"\s", "", input_str)

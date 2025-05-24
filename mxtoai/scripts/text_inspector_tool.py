@@ -10,6 +10,7 @@ class TextInspectorTool(Tool):
     """
     Tool to inspect files as text and ask questions about them.
     """
+
     name = "inspect_file_as_text"
     description = """
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
@@ -32,9 +33,11 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
     def __init__(self, model: Model, text_limit: int):
         """
         Initialize the TextInspectorTool.
+
         Args:
             model: The model to use for processing the text.
             text_limit: The maximum number of characters to process from the file.
+
         """
         super().__init__()
         self.model = model
@@ -50,6 +53,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
         Returns:
             str: The generated caption or the text content of the file.
+
         """
         try:
             if file_path[-4:] in [".png", ".jpg"]:
@@ -110,6 +114,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
         Returns:
             str: The generated response or the text content of the file.
+
         """
         try:
             if file_path[-4:] in [".png", ".jpg"]:

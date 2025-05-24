@@ -1,21 +1,31 @@
 import asyncio
-import json
 import os
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, Union
 
 import dramatiq
 from dotenv import load_dotenv
 from dramatiq.brokers.rabbitmq import RabbitmqBroker
-from dramatiq.results import Results
-from dramatiq.results.backends.redis import RedisBackend
 
+from mxtoai import exceptions  # Import custom exceptions
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import EmailSender
-from mxtoai.schemas import EmailRequest
+from mxtoai.schemas import (
+    AttachmentsProcessingResult,
+    DetailedEmailProcessingResult,
+    EmailContentDetails,
+    EmailRequest,
+    EmailSentStatus,
+    ProcessingError,
+    ProcessingMetadata,
+)
+
+if TYPE_CHECKING:
+    from mxtoai.models import ProcessingInstructions
 
 # Load environment variables
 load_dotenv()
@@ -27,26 +37,13 @@ logger = get_logger(__name__)
 RABBITMQ_HEARTBEAT = os.getenv("RABBITMQ_HEARTBEAT", "5")
 RABBITMQ_URL = f"amqp://{os.getenv('RABBITMQ_USER', 'guest')}:{os.getenv('RABBITMQ_PASSWORD', 'guest')}@{os.getenv('RABBITMQ_HOST', 'localhost')}:{os.getenv('RABBITMQ_PORT', '5672')}{os.getenv('RABBITMQ_VHOST', '/')}?heartbeat={RABBITMQ_HEARTBEAT}"
 
-# Build Redis URL from environment variables (Results Backend)
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
-REDIS_PORT = os.getenv("REDIS_PORT", "6379")
-REDIS_DB = os.getenv("REDIS_DB", "0")
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
-REDIS_URL = f"redis://{':' + REDIS_PASSWORD + '@' if REDIS_PASSWORD else ''}{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
 # Initialize RabbitMQ broker
 rabbitmq_broker = RabbitmqBroker(
     url=RABBITMQ_URL,
     confirm_delivery=True,  # Ensures messages are delivered
-    # heartbeat is now part of the URL
 )
-
-# Configure Redis as the result backend
-redis_backend = RedisBackend(url=REDIS_URL, namespace="dramatiq-results")
-
-# Add results middleware to broker
-rabbitmq_broker.add_middleware(Results(backend=redis_backend))
 dramatiq.set_broker(rabbitmq_broker)
+
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
     """
@@ -54,6 +51,7 @@ def cleanup_attachments(email_attachments_dir: str) -> None:
 
     Args:
         email_attachments_dir: Directory containing email attachments
+
     """
     try:
         dir_path = Path(email_attachments_dir)
@@ -80,6 +78,7 @@ def should_retry(retries_so_far: int, exception: Exception) -> bool:
 
     Returns:
         bool: True if the task should be retried, False otherwise
+
     """
     logger.warning(f"Retrying task after exception: {exception!s}, retries so far: {retries_so_far}")
     return retries_so_far < 3
@@ -88,7 +87,7 @@ def should_retry(retries_so_far: int, exception: Exception) -> bool:
 @dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
 def process_email_task(
     email_data: dict[str, Any], email_attachments_dir: str, attachment_info: list[dict[str, Any]]
-) -> None:
+) -> DetailedEmailProcessingResult:
     """
     Dramatiq task for processing emails asynchronously.
 
@@ -97,115 +96,136 @@ def process_email_task(
         email_attachments_dir: Directory containing email attachments
         attachment_info: List of attachment information dictionaries
 
+    Returns:
+        DetailedEmailProcessingResult: The result of the email processing.
+
     """
-    # Create EmailRequest instance from the dict
     email_request = EmailRequest(**email_data)
-
-    # Extract handle from email
     handle = email_request.to.split("@")[0].lower()
-    email_instructions = processing_instructions_resolver(handle)
+    now_iso = datetime.now().isoformat()  # Define now_iso earlier for use in error cases
 
-    if not email_instructions:
-        logger.error(f"Unsupported email handle: {handle}")
-        return
+    try:
+        email_instructions: Union[ProcessingInstructions, None] = processing_instructions_resolver(handle)
+        if not email_instructions:  # This case might be redundant if resolver always raises on not found
+            logger.error(f"Unsupported email handle (resolved to None): {handle}")
+            return DetailedEmailProcessingResult(
+                metadata=ProcessingMetadata(
+                    processed_at=now_iso,
+                    mode=handle,
+                    errors=[ProcessingError(message=f"Unsupported email handle (resolved to None): {handle}")],
+                    email_sent=EmailSentStatus(
+                        status="error",
+                        error=f"Unsupported email handle (resolved to None): {handle}",
+                        timestamp=now_iso,
+                    ),
+                ),
+                email_content=EmailContentDetails(text=None, html=None, enhanced=None),
+                attachments=AttachmentsProcessingResult(processed=[]),
+                calendar_data=None,
+                research=None,
+            )
+    except exceptions.UnspportedHandleException as e:  # Catch specific exception
+        logger.error(f"Unsupported email handle: {handle}. Error: {e!s}")
+        return DetailedEmailProcessingResult(
+            metadata=ProcessingMetadata(
+                processed_at=now_iso,
+                mode=handle,
+                errors=[ProcessingError(message=f"Unsupported email handle: {handle}", details=str(e))],
+                email_sent=EmailSentStatus(
+                    status="error", error=f"Unsupported email handle: {handle} - {e!s}", timestamp=now_iso
+                ),
+            ),
+            email_content=EmailContentDetails(text=None, html=None, enhanced=None),
+            attachments=AttachmentsProcessingResult(processed=[]),
+            calendar_data=None,
+            research=None,
+        )
+    # Removed the early return for `if not email_instructions` as the try-except handles it.
 
-    # Initialize EmailAgent
     email_agent = EmailAgent()
 
-    # Enable/disable deep research based on handle configuration
-    if email_instructions.deep_research_mandatory:
+    if email_instructions.deep_research_mandatory and email_agent.research_tool:
         email_agent.research_tool.enable_deep_research()
-    else:
+    elif email_agent.research_tool:  # Ensure research_tool exists before trying to disable
         email_agent.research_tool.disable_deep_research()
 
-    # Update attachment paths in email_request
     if email_request.attachments and attachment_info:
         valid_attachments = []
-        for attachment, info in zip(email_request.attachments, attachment_info, strict=False):
+        for attachment_model, info_dict in zip(email_request.attachments, attachment_info, strict=False):
             try:
-                # Validate file exists
-                if not Path(info["path"]).exists():
-                    logger.error(f"Attachment file not found: {info['path']}")
+                if not Path(info_dict["path"]).exists():
+                    logger.error(f"Attachment file not found: {info_dict['path']}")
                     continue
-
-                # Update the attachment with file info
-                attachment.path = info["path"]
-                attachment.contentType = info.get("type") or info.get("contentType") or "application/octet-stream"
-                attachment.size = info.get("size", 0)
-                valid_attachments.append(attachment)
+                attachment_model.path = info_dict["path"]
+                attachment_model.contentType = (
+                    info_dict.get("type") or info_dict.get("contentType") or "application/octet-stream"
+                )
+                attachment_model.size = info_dict.get("size", 0)
+                valid_attachments.append(attachment_model)
             except Exception as e:
-                logger.error(f"Error processing attachment {attachment.filename}: {e!s}")
-                # Continue processing other attachments
-
-        # Update request with only valid attachments
+                logger.error(f"Error processing attachment {attachment_model.filename}: {e!s}")
         email_request.attachments = valid_attachments
 
-    # Process the email using the Pydantic model directly
     processing_result = email_agent.process_email(email_request, email_instructions)
 
-    # Send reply email if generated
-    if processing_result and "email_content" in processing_result:
-        email_content = processing_result["email_content"]
-        # Get the enhanced content if available, otherwise use base content
-        html_content = email_content.get("enhanced", {}).get("html") or email_content.get("html")
-        text_content = email_content.get("enhanced", {}).get("text") or email_content.get("text")
+    if processing_result.email_content and processing_result.email_content.text:
+        if email_request.from_email in SKIP_EMAIL_DELIVERY:
+            logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
+            processing_result.metadata.email_sent.status = "skipped"
+            processing_result.metadata.email_sent.message_id = "skipped"
+        else:
+            attachments_to_send = []
+            if processing_result.calendar_data and processing_result.calendar_data.ics_content:
+                attachments_to_send.append(
+                    {
+                        "filename": "invite.ics",
+                        "content": processing_result.calendar_data.ics_content,
+                        "mimetype": "text/calendar",
+                    }
+                )
+                logger.info("Prepared invite.ics for attachment in task.")
 
-        if text_content:  # Only send if we have at least text content
-            # Skip email delivery for test emails
-            if email_request.from_email in SKIP_EMAIL_DELIVERY:
-                logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
-                email_sent_result = {"MessageId": "skipped", "status": "skipped"}
-            else:
-                # --- Prepare attachments for sending ---
-                attachments_to_send = []  # Initialize empty list
-                if processing_result.get("calendar_data") and processing_result["calendar_data"].get("ics_content"):
-                    ics_content = processing_result["calendar_data"]["ics_content"]
-                    attachments_to_send.append(
-                        {
-                            "filename": "invite.ics",
-                            "content": ics_content,  # Should be string or bytes
-                            "mimetype": "text/calendar",
-                        }
+            original_email_details = {
+                "from": email_request.from_email,
+                "to": email_request.to,
+                "subject": email_request.subject,
+                "messageId": email_request.messageId,
+                "references": email_request.references,
+                "cc": email_request.cc,
+            }
+            try:
+                sender = EmailSender()
+                email_sent_response = asyncio.run(
+                    sender.send_reply(
+                        original_email_details,
+                        reply_text=processing_result.email_content.text,
+                        reply_html=processing_result.email_content.html,
+                        attachments=attachments_to_send,
                     )
-                    logger.info("Prepared invite.ics for attachment in task.")
-                # Add logic here if other types of attachments need to be sent back based on processing_result
+                )
+                processing_result.metadata.email_sent.status = email_sent_response.get(
+                    "status", "sent"
+                )  # Or map more carefully
+                processing_result.metadata.email_sent.message_id = email_sent_response.get("MessageId")
+                if email_sent_response.get("status") == "error":
+                    processing_result.metadata.email_sent.error = email_sent_response.get("error", "Unknown send error")
 
-                # Define the original email details for clarity
-                original_email_details = {
-                    "from": email_request.from_email,
-                    "to": email_request.to,
-                    "subject": email_request.subject,
-                    "messageId": email_request.messageId,
-                    "references": email_request.references,
-                    "cc": email_request.cc,
-                }
+            except Exception as send_err:
+                logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)
+                processing_result.metadata.email_sent.status = "error"
+                processing_result.metadata.email_sent.error = str(send_err)
+                processing_result.metadata.email_sent.message_id = "error"
 
-                # Instantiate EmailSender and call send_reply method
-                try:
-                    sender = EmailSender()
-                    email_sent_result = asyncio.run(
-                        sender.send_reply(
-                            original_email_details,  # Pass as first positional argument
-                            reply_text=text_content,
-                            reply_html=html_content,
-                            attachments=attachments_to_send,
-                        )
-                    )
-                except Exception as send_err:
-                    logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)
-                    email_sent_result = {"MessageId": "error", "status": "error", "error": str(send_err)}
-
-            # Update the email_sent status in metadata
-            if "metadata" in processing_result:
-                processing_result["metadata"]["email_sent"] = email_sent_result
-            else:
-                processing_result["metadata"] = {"email_sent": email_sent_result}
-
-    # Log the processing result
-    metadata = processing_result.get("metadata", {}).copy()
-    if "email_sent" in metadata:
-        metadata["email_sent"] = {"status": "sent" if metadata["email_sent"] else "failed"}
-    logger.info(f"Email processed successfully: {json.dumps(metadata)}")
+    # Log the processing result (consider converting Pydantic model to dict for json.dumps if needed)
+    try:
+        # Attempt to dump the Pydantic model directly, or convert to dict if complex logging is needed
+        loggable_metadata = processing_result.metadata.model_dump(mode="json")
+        logger.info(f"Email processed status: {loggable_metadata.get('email_sent', {}).get('status')}")
+    except Exception as log_e:
+        logger.error(f"Error serializing processing_result for logging: {log_e!s}")
+        logger.info(f"Email processed. Status: {processing_result.metadata.email_sent.status}")  # Fallback basic log
 
     if email_attachments_dir:
         cleanup_attachments(email_attachments_dir)
+
+    return processing_result

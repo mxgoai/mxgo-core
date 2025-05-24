@@ -72,5 +72,6 @@ def get_whitelist_signup_url() -> str:
 
     Returns:
         str: The URL for whitelist signup
+
     """
     return os.getenv("WHITELIST_SIGNUP_URL", "https://mxtoai.com/whitelist-signup")

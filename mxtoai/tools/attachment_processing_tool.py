@@ -70,6 +70,7 @@ class AttachmentProcessingTool(Tool):
 
         Args:
             model: Optional model for generating summaries or processing content.
+
         """
         super().__init__()
         self.md_converter = MarkdownConverter()
@@ -91,6 +92,7 @@ class AttachmentProcessingTool(Tool):
 
         Returns:
             Path: The resolved file path.
+
         """
         try:
             if not file_path:
@@ -128,6 +130,7 @@ class AttachmentProcessingTool(Tool):
 
         Returns:
             str: The text content extracted from the document.
+
         """
         try:
             result = self.md_converter.convert(str(file_path))
@@ -149,6 +152,7 @@ class AttachmentProcessingTool(Tool):
 
         Returns:
             dict: Processed attachments with content and summaries.
+
         """
         processed_attachments = []
         logger.info(f"Processing {len(attachments)} attachments in {mode} mode")
@@ -245,6 +249,7 @@ class AttachmentProcessingTool(Tool):
 
         Returns:
             str: Summary of processed attachments.
+
         """
         if not attachments:
             return "No attachments processed."

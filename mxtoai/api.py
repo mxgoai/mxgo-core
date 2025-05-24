@@ -30,7 +30,7 @@ load_dotenv()
 logger = get_logger(__name__)
 
 app = FastAPI()
-if os.environ["IS_PROD"].lower() == "true":
+if os.getenv("IS_PROD", "true").lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
@@ -49,6 +49,7 @@ def cleanup_attachments(directory_path: str) -> bool:
 
     Returns:
         bool: True if deletion was successful, False otherwise
+
     """
     try:
         if os.path.exists(directory_path):
@@ -73,6 +74,7 @@ def create_success_response(
 
     Returns:
         Response: FastAPI Response object with JSON content
+
     """
     return Response(
         content=json.dumps(
@@ -100,6 +102,7 @@ def create_error_response(summary: str, attachment_info: list[dict[str, Any]], e
 
     Returns:
         Response: FastAPI Response object with JSON content
+
     """
     return Response(
         content=json.dumps(
@@ -130,6 +133,7 @@ async def handle_file_attachments(
 
     Returns:
         tuple[str, list[dict[str, Any]]]: Tuple containing the directory path and list of processed attachments
+
     """
     email_attachments_dir = ""
     attachment_info = []
@@ -249,6 +253,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
 
     Returns:
         dict: Response details including status and message ID
+
     """
     if not processing_result or "email_content" not in processing_result:
         logger.error("Invalid processing result format")
@@ -338,6 +343,7 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
 
     Returns:
         dict: Sanitized response with metadata, research, and attachment info
+
     """
     if not isinstance(processing_result, dict):
         return {"error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
@@ -402,6 +408,7 @@ async def process_email(
 
     Returns:
         Response: FastAPI Response object with JSON content
+
     """
     # Validate API key
     if response := await validate_api_key(api_key):
@@ -509,9 +516,7 @@ async def process_email(
         email_attachments_dir = ""
         attachment_info = []
         if email_instructions.process_attachments and attachments:
-            email_attachments_dir, attachment_info = await handle_file_attachments(
-                attachments, email_id, email_request
-            )
+            email_attachments_dir, attachment_info = await handle_file_attachments(attachments, email_id, email_request)
             logger.info(f"Processed {len(attachment_info)} attachments successfully")
             logger.info(f"Attachments directory: {email_attachments_dir}")
 

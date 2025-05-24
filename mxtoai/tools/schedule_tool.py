@@ -93,6 +93,7 @@ class ScheduleTool(Tool):
 
         Returns:
             str: The .ics file content as a string.
+
         """
         c = Calendar()
         e = Event()
@@ -131,6 +132,7 @@ class ScheduleTool(Tool):
 
         Returns:
             dict: Dictionary containing links for Google Calendar and Outlook.
+
         """
         links = {}
 
@@ -198,10 +200,11 @@ class ScheduleTool(Tool):
             end_time: The optional end date and time (ISO 8601 format with timezone).
             description: A detailed description of the event (optional).
             location: The location (physical address or virtual meeting link) (optional).
-            attendees: List of attendee email addresses (optional). 
+            attendees: List of attendee email addresses (optional).
 
         Returns:
             dict: A dictionary containing the status, ICS content, calendar links, and a message.
+
         """
         logger.info(f"Running {self.name} tool with title: '{title}'")  # Added logging
         try:
