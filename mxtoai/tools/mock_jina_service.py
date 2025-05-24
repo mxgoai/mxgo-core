@@ -29,6 +29,7 @@ class MockJinaService:
 
         Returns:
             dict: Dictionary containing visited and read URLs
+
         """
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
@@ -50,6 +51,7 @@ class MockJinaService:
 
         Returns:
             list: List of annotations for the URLs
+
         """
         annotations = []
         for i, url in enumerate(urls["readURLs"], 1):
@@ -76,6 +78,7 @@ class MockJinaService:
 
         Returns:
             str: Generated content with citations
+
         """
         sections = ["Introduction", "Background", "Methodology", "Results", "Discussion", "Conclusion"]
 
@@ -112,6 +115,7 @@ class MockJinaService:
 
         Returns:
             dict: Mock response containing choices, URLs, and usage information
+
         """
         # Generate mock URLs
         urls = self._generate_mock_urls()
@@ -141,6 +145,7 @@ class MockJinaService:
             response: Mock response containing choices, URLs, and usage information
         Yields:
             dict: Streamed response with role, content, and annotations
+
         """
         content = response["choices"][0]["message"]["content"]
         annotations = response["choices"][0]["message"]["annotations"]
@@ -186,6 +191,7 @@ class MockJinaService:
 
         Returns:
             dict or Generator: Mock response or streamed response
+
         """
         # Calculate delay based on reasoning effort
         effort_multipliers = {"low": 0.7, "medium": 1.0, "high": 1.3}

@@ -4,7 +4,7 @@ from typing import Optional
 
 from fastapi import Response, status
 
-import mxtoai.exceptions as exceptions
+from mxtoai import exceptions
 from mxtoai._logging import get_logger
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import send_email_reply

@@ -117,6 +117,7 @@ _Feel free to reply to this email to continue our conversation._
             content: Report content
         Returns:
             Processed content with citations and references formatted
+
         """
         try:
             # Find all references sections
@@ -177,6 +178,7 @@ _Feel free to reply to this email to continue our conversation._
             content: Report content
         Returns:
             Content with existing signatures removed
+
         """
         signature_patterns = [
             r"\n\s*Warm regards,?\s*\n\s*MXtoAI Assistant\s*\n",

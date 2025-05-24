@@ -102,6 +102,7 @@ class EmailSender:
 
         Returns:
             The response from AWS SES
+
         """
         try:
             # Use provided sender_email or fall back to default
@@ -327,6 +328,7 @@ async def verify_sender_email(email_address: str) -> bool:
 
     Returns:
         bool: True if verification was successful, False otherwise.
+
     """
     try:
         # AWS SES client configuration
@@ -371,6 +373,7 @@ async def test_send_email(to_address, subject="Test from mxtoai", body_text="Thi
 
     Returns:
         bool: True if the test email was sent successfully, False otherwise.
+
     """
     try:
         sender = EmailSender()
@@ -388,6 +391,7 @@ async def run_tests():
 
     Returns:
         bool: True if all tests passed, False otherwise.
+
     """
     test_email = os.getenv("TEST_EMAIL")
     if not test_email:
@@ -418,6 +422,7 @@ def log_received_email(email_data: EmailRequest) -> None:
 
     Args:
         email_data: The email data to log.
+
     """
     logger.info(f"Received email from {email_data.from_email} to {email_data.to}")
     logger.info(f"Subject: {email_data.subject}")
@@ -435,6 +440,7 @@ def generate_email_id(email_data: EmailRequest) -> str:
 
     Returns:
         str: A unique ID for the email.
+
     """
     timestamp = int(time.time())
     hash_input = f"{email_data.from_email}-{email_data.to}-{timestamp}"
@@ -451,6 +457,7 @@ def save_attachments(email_data: EmailRequest, email_id: str) -> tuple[str, list
 
     Returns:
         tuple[str, list[dict[str, Any]]]: The directory where attachments are saved and a list of attachment metadata.
+
     """
     if not email_data.attachments:
         return ATTACHMENTS_DIR, []
@@ -496,6 +503,7 @@ def prepare_email_for_ai(email_data: EmailRequest, attachment_info: list[dict[st
 
     Returns:
         dict[str, Any]: The prepared email data.
+
     """
     # Create a copy to avoid modifying the original
     email_dict = deepcopy(email_data.dict())
@@ -523,6 +531,7 @@ async def generate_email_summary(email_dict: dict[str, Any], attachment_info: li
 
     Returns:
         str: The generated summary.
+
     """
     # TODO: Implement AI-based summarization
     return f"Email from {email_dict['from_email']} with {len(attachment_info)} attachments"
@@ -538,6 +547,7 @@ def create_reply_content(summary: str, attachment_info: list[dict[str, Any]]) ->
 
     Returns:
         tuple[str, str]: The plain text and HTML content for the reply.
+
     """
     # Create plain text version
     text_content = [
@@ -581,6 +591,7 @@ async def send_email_reply(email_dict: dict[str, Any], reply_text: str, reply_ht
 
     Returns:
         dict[str, Any]: The response from the email sending service.
+
     """
     try:
         sender = EmailSender()

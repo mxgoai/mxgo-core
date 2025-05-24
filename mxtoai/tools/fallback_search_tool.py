@@ -30,6 +30,7 @@ class FallbackWebSearchTool(Tool):
         Args:
             primary_tool: The primary search tool to use (e.g., GoogleSearchTool).
             secondary_tool: The secondary search tool to use if the primary fails (e.g., DuckDuckGoSearchTool).
+
         """
         if not primary_tool and not secondary_tool:
             msg = "FallbackWebSearchTool requires at least one search tool."
@@ -46,9 +47,10 @@ class FallbackWebSearchTool(Tool):
 
         Args:
             query: The search query to perform.
-            
+
         Returns:
             str: The search results from the successful tool.
+
         """
         if self.primary_tool:
             try:

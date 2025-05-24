@@ -54,7 +54,6 @@ RESEARCH REQUIREMENTS:
 - Include citations and sources in your response
 - Synthesize findings with the email content
 """,
-
     "optional": """
 RESEARCH GUIDELINES:
 - Deep research is NOT allowed for this handle

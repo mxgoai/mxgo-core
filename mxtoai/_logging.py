@@ -94,6 +94,7 @@ def span(
 
     Yields:
         Any: The span context manager or a dummy context manager.
+
     """
     # Check if LOGFIRE_TOKEN environment variable is defined
     if os.getenv("LOGFIRE_TOKEN"):
