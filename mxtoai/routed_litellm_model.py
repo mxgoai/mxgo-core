@@ -46,8 +46,8 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         super().__init__(
             model_id=default_model_group,
-            model_list=[model.dict() for model in model_list],
-            client_kwargs=client_router_kwargs.dict(),
+            model_list=[model.model_dump() for model in model_list],
+            client_kwargs=client_router_kwargs.model_dump(),
             **kwargs,  # Pass through other LiteLLMModel/Model kwargs
         )
 
