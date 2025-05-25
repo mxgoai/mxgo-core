@@ -139,6 +139,8 @@ pytest-sugar = "^1.0.0"
 pytest-cov = "^6.1.1"
 pytest-timeout = "^2.4.0"
 pytest-durations = "^1.5.2"
+fakeredis = "^2.29.0"
+freezegun = "^1.5.2"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
