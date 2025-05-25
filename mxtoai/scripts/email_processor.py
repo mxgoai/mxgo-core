@@ -6,7 +6,9 @@ from typing import Any
 
 
 class EmailProcessor:
-    """Process email content and attachments."""
+    """
+    Process email content and attachments.
+    """
 
     def __init__(self, temp_dir: str = "email_attachments"):
         """
@@ -41,13 +43,8 @@ class EmailProcessor:
             "date": msg.get("date", ""),
         }
 
-        # Extract body content (plain text preferred)
         body = self._extract_body(msg)
-
-        # Extract and save attachments
         attachments = self._extract_attachments(msg, email_file)
-
-        # Identify research instructions from the body
         research_instructions = self._extract_research_instructions(body)
 
         return {
@@ -105,9 +102,7 @@ class EmailProcessor:
         # Simple implementation - can be improved with BeautifulSoup
         import re
 
-        # Remove HTML tags
         text = re.sub(r"<[^>]+>", " ", html)
-        # Fix whitespace
         return re.sub(r"\s+", " ", text).strip()
 
     def _extract_attachments(self, msg, email_file: str) -> list[str]:
@@ -127,7 +122,7 @@ class EmailProcessor:
         os.makedirs(attachment_dir, exist_ok=True)
 
         if msg.is_multipart():
-            for _i, part in enumerate(msg.iter_parts()):
+            for _, part in enumerate(msg.iter_parts()):
                 filename = part.get_filename()
                 if filename:
                     # Clean the filename

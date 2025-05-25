@@ -7,6 +7,10 @@ from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFo
 
 
 class TextInspectorTool(Tool):
+    """
+    Tool to inspect files as text and ask questions about them.
+    """
+
     name = "inspect_file_as_text"
     description = """
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
@@ -27,11 +31,30 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
     md_converter = MarkdownConverter()
 
     def __init__(self, model: Model, text_limit: int):
+        """
+        Initialize the TextInspectorTool.
+
+        Args:
+            model: The model to use for processing the text.
+            text_limit: The maximum number of characters to process from the file.
+
+        """
         super().__init__()
         self.model = model
         self.text_limit = text_limit
 
     def forward_initial_exam_mode(self, file_path, question):
+        """
+        Process the file and return a short caption based on the content.
+
+        Args:
+            file_path: Path to the file to be processed.
+            question: Optional question to guide the caption generation.
+
+        Returns:
+            str: The generated caption or the text content of the file.
+
+        """
         try:
             if file_path[-4:] in [".png", ".jpg"]:
                 msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
@@ -82,6 +105,17 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             return f"Error processing file: {e!s}"
 
     def forward(self, file_path, question: Optional[str] = None) -> str:
+        """
+        Process the file and return a response based on the content and question.
+
+        Args:
+            file_path: Path to the file to be processed.
+            question: Optional question to guide the response generation.
+
+        Returns:
+            str: The generated response or the text content of the file.
+
+        """
         try:
             if file_path[-4:] in [".png", ".jpg"]:
                 msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"

@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import toml
 from dotenv import load_dotenv
@@ -39,15 +39,15 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         default_model_group = os.getenv("LITELLM_DEFAULT_MODEL_GROUP")
 
         if not default_model_group:
-            msg = "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
-            raise exceptions.EnvironmentVariableNotFoundException(
-                msg
+            msg = (
+                "LITELLM_DEFAULT_MODEL_GROUP environment variable not found. Please set it to the default model group."
             )
+            raise exceptions.EnvironmentVariableNotFoundException(msg)
 
         super().__init__(
             model_id=default_model_group,
-            model_list=[model.dict() for model in model_list],
-            client_kwargs=client_router_kwargs.dict(),
+            model_list=[model.model_dump() for model in model_list],
+            client_kwargs=client_router_kwargs.model_dump(),
             **kwargs,  # Pass through other LiteLLMModel/Model kwargs
         )
 
@@ -61,9 +61,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         """
         if not os.path.exists(self.config_path):
             msg = f"Model config file not found at {self.config_path}. Please check the path."
-            raise exceptions.ModelConfigFileNotFoundException(
-                msg
-            )
+            raise exceptions.ModelConfigFileNotFoundException(msg)
 
         try:
             with open(self.config_path) as f:
@@ -72,7 +70,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             logger.error(f"Failed to load TOML config: {e}")
             return {}
 
-    def _load_model_config(self) -> list[dict[str, Any]]:
+    def _load_model_config(self) -> List[models.ModelConfig]:
         """
         Load model configuration from environment variables.
 
@@ -88,18 +86,16 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             model_entries = [model_entries]
 
         for entry in model_entries:
-            model_list.append(models.ModelConfig(
-                model_name=entry.get("model_name"),
-                litellm_params=models.LiteLLMParams(
-                    **entry.get("litellm_params")
+            model_list.append(
+                models.ModelConfig(
+                    model_name=entry.get("model_name"),
+                    litellm_params=models.LiteLLMParams(**entry.get("litellm_params")),
                 )
-            ))
+            )
 
         if not model_list:
             msg = "No model list found in config toml. Please check the configuration."
-            raise exceptions.ModelListNotFoundException(
-                msg
-            )
+            raise exceptions.ModelListNotFoundException(msg)
 
         return model_list
 
@@ -122,7 +118,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             )
         return router_config
 
-
     def _get_target_model(self) -> str:
         """
         Determine which model to route to based on the current handle configuration.
@@ -137,7 +132,68 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             )
             return self.current_handle.target_model
 
-        return "gpt-4"  # Default to gpt-4 model group
+        return "gpt-4"
+    
+    def generate(
+        self,
+        messages: list[dict[str, str | list[dict]]],
+        stop_sequences: list[str] | None = None,
+        grammar: str | None = None,
+        tools_to_call_from: list[Tool] | None = None,
+        **kwargs,
+    ) -> ChatMessage:
+        """
+        Generate a response using either a local or remote LLM.
+
+        Args:
+            messages (list[dict[str, str | list[dict]]]): List of messages to process.
+            stop_sequences (list[str] | None): List of stop sequences.
+            grammar (str | None): Grammar specification for generation.
+            tools_to_call_from (list[Tool] | None): List of tools available for calling.
+            **kwargs: Additional arguments passed to the generate method.
+
+        Returns:
+            ChatMessage: The generated chat message.
+        """
+        # Check if this is a local LLM
+        is_local_llm = (
+            self.model_id.startswith("ollama") or 
+            (self.api_base and "localhost" in self.api_base) or
+            (self.api_base and "127.0.0.1" in self.api_base)
+        )
+        
+        # TODO: Get a permanent fix for this. Currently a temporary workaround
+        if is_local_llm:
+            litellm_messages = []
+            for msg in messages:
+                if isinstance(msg, str):
+                    # skip the buggy char split strings coming in as message. This is a litellm bug.
+                    continue
+                litellm_messages.append(msg)
+            messages = litellm_messages
+
+        # Prepare completion kwargs - for local LLMs, exclude grammar and tools
+        completion_kwargs = self._prepare_completion_kwargs(
+            messages=messages,
+            stop_sequences=stop_sequences,
+            grammar=None if is_local_llm else grammar,
+            tools_to_call_from=None if is_local_llm else tools_to_call_from,
+            model=self.model_id,
+            api_base=self.api_base,
+            api_key=self.api_key,
+            convert_images_to_image_urls=True,
+            custom_role_conversions=self.custom_role_conversions,
+            **kwargs,
+        )
+
+        response = self.client.completion(**completion_kwargs)
+
+        self.last_input_token_count = response.usage.prompt_tokens
+        self.last_output_token_count = response.usage.completion_tokens
+        return ChatMessage.from_dict(
+            response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
+            raw=response,
+        )
 
     def __call__(
         self,
@@ -147,6 +203,20 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         tools_to_call_from: Optional[list[Tool]] = None,
         **kwargs,  # kwargs from the caller of this RoutedLiteLLMModel instance
     ) -> ChatMessage:
+        """
+        Generate a response based on the provided messages and other parameters.
+
+        Args:
+            messages (list[dict[str, Any]]): List of messages to process.
+            stop_sequences (Optional[list[str]]): List of stop sequences.
+            grammar (Optional[str]): Grammar to use for the response.
+            tools_to_call_from (Optional[list[Tool]]): List of tools to call from.
+            **kwargs: Additional arguments passed to the generate method.
+
+        Returns:
+            ChatMessage: The generated chat message.
+
+        """
         try:
             target_model_group = self._get_target_model()
 
@@ -163,13 +233,11 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             kwargs_for_super_generate = {k: v for k, v in kwargs.items() if k != "model"}
 
             try:
-                chat_message = super().generate(
+                chat_message = self.generate(
                     messages=messages,
                     stop_sequences=stop_sequences,
                     grammar=grammar,
                     tools_to_call_from=tools_to_call_from,
-                    # Do not pass 'model' as an explicit argument here,
-                    # as self.model_id is now set to our target_model_group.
                     **kwargs_for_super_generate,
                 )
             finally:
@@ -179,7 +247,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             return chat_message
 
         except Exception as e:
-            # Log the error and re-raise with more context
             logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
             msg = f"Failed to get completion from LiteLLM router: {e!s}"
             raise RuntimeError(msg) from e

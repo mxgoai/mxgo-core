@@ -24,6 +24,14 @@ class FallbackWebSearchTool(Tool):
         primary_tool: Optional[Tool] = None,
         secondary_tool: Optional[Tool] = None,
     ):
+        """
+        Initialize the FallbackWebSearchTool.
+
+        Args:
+            primary_tool: The primary search tool to use (e.g., GoogleSearchTool).
+            secondary_tool: The secondary search tool to use if the primary fails (e.g., DuckDuckGoSearchTool).
+
+        """
         if not primary_tool and not secondary_tool:
             msg = "FallbackWebSearchTool requires at least one search tool."
             raise ValueError(msg)
@@ -36,6 +44,13 @@ class FallbackWebSearchTool(Tool):
     def forward(self, query: str) -> str:
         """
         Execute the search, attempting primary tool first, then secondary.
+
+        Args:
+            query: The search query to perform.
+
+        Returns:
+            str: The search results from the successful tool.
+
         """
         if self.primary_tool:
             try:

@@ -19,6 +19,7 @@ class ProcessingInstructions(BaseModel):
     target_model: Optional[str] = "gpt-4"
     output_instructions: Optional[str] = None
 
+
 class LiteLLMParams(BaseModel):
     model: str
     base_url: str
@@ -26,9 +27,11 @@ class LiteLLMParams(BaseModel):
     api_version: str
     weight: int
 
+
 class ModelConfig(BaseModel):
     model_name: str
     litellm_params: LiteLLMParams
+
 
 class RouterConfig(BaseModel):
     routing_strategy: str

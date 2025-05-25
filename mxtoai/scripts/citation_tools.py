@@ -18,7 +18,9 @@ _all_visited_urls = []
 
 
 def reset_citation_counter():
-    """Reset the global URL store."""
+    """
+    Reset the global URL store
+    """
     global _all_visited_urls
     _all_visited_urls = []
 
@@ -59,21 +61,16 @@ class CitationAwareGoogleSearchTool(GoogleSearchTool):
             Original search results
 
         """
-        # Get original results
         original_results = super().forward(query, filter_year)
 
         # Extract URLs from search results
         urls = re.findall(r"\[.*?\]\((https?://.*?)\)", original_results)
-
-        # Extract titles alongside URLs where possible
         title_url_matches = re.findall(r"\[(.*?)\]\((https?://.*?)\)", original_results)
 
-        # Add URLs to the global collection
         for match in title_url_matches:
             title, url = match
             add_url_to_references(url=url, title=title)
 
-        # Add any URLs that didn't have a title match
         for url in urls:
             if url not in [u.get("url") for u in _all_visited_urls]:
                 add_url_to_references(url=url)
@@ -100,18 +97,14 @@ class CitationAwareVisitTool(VisitTool):
         # Get original content
         original_content = super().forward(url)
 
-        # Extract title if present
         title_match = (
             re.search(r"<title>(.*?)</title>", original_content)
             or re.search(r"<h1>(.*?)</h1>", original_content)
             or re.search(r"# (.*?)$", original_content, re.MULTILINE)
         )
-
         title = title_match.group(1) if title_match else None
 
-        # Add URL to the global collection
         add_url_to_references(url=url, title=title)
-
         return original_content
 
 

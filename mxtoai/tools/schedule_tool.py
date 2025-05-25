@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class EventDetails(BaseModel):
-    """Data model for event details extracted by the LLM."""
+    """
+    Data model for event details extracted by the LLM.
+    """
 
     title: str = Field(..., description="The title or summary of the event.")
     start_time: datetime = Field(..., description="The start date and time of the event. Must include timezone info.")
@@ -39,7 +41,9 @@ class EventDetails(BaseModel):
 
 # Inherit from smolagents.Tool
 class ScheduleTool(Tool):
-    """Tool to generate iCalendar (.ics) data and 'Add to Calendar' links."""
+    """
+    Tool to generate iCalendar (.ics) data and 'Add to Calendar' links.
+    """
 
     # Add required attributes for Smol Gents
     name = "schedule_generator"
@@ -81,7 +85,16 @@ class ScheduleTool(Tool):
     )
 
     def generate_ics_content(self, details: EventDetails) -> str:
-        """Generates the content for an .ics calendar file."""
+        """
+        Generates the content for an .ics calendar file.
+
+        Args:
+            details: Event details to include in the .ics file.
+
+        Returns:
+            str: The .ics file content as a string.
+
+        """
         c = Calendar()
         e = Event()
 
@@ -111,7 +124,16 @@ class ScheduleTool(Tool):
         return str(c) + "\\n"
 
     def generate_calendar_links(self, details: EventDetails) -> dict[str, str]:
-        """Generates 'Add to Calendar' links for popular services."""
+        """
+        Generates 'Add to Calendar' links for popular services.
+
+        Args:
+            details: Event details to include in the links.
+
+        Returns:
+            dict: Dictionary containing links for Google Calendar and Outlook.
+
+        """
         links = {}
 
         # Ensure start_time is timezone-aware (validator should handle this, but double-check)
@@ -171,6 +193,18 @@ class ScheduleTool(Tool):
         Expects datetime strings in ISO 8601 format (or similar parsable format).
         LLM should be prompted to provide dates in this format including timezone offset.
         e.g., "2024-07-29T14:30:00+01:00" or "2024-07-29T13:30:00Z"
+
+        Args:
+            title: The title or summary of the event.
+            start_time: The start date and time (ISO 8601 format with timezone).
+            end_time: The optional end date and time (ISO 8601 format with timezone).
+            description: A detailed description of the event (optional).
+            location: The location (physical address or virtual meeting link) (optional).
+            attendees: List of attendee email addresses (optional).
+
+        Returns:
+            dict: A dictionary containing the status, ICS content, calendar links, and a message.
+
         """
         logger.info(f"Running {self.name} tool with title: '{title}'")  # Added logging
         try:
