@@ -33,6 +33,7 @@ from mxtoai.validators import (
     validate_email_whitelist,
     validate_rate_limits,
 )
+from mxtoai import validators
 
 # Load environment variables
 load_dotenv()
@@ -47,14 +48,13 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Application startup: Initializing Redis client for rate limiter...")
-    global validator_redis_client
     try:
-        validator_redis_client = aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
-        await validator_redis_client.ping()
+        validators.redis_client = aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        await validators.redis_client.ping()
         logger.info(f"Redis client connected for rate limiting: {REDIS_URL}")
     except Exception as e:
         logger.error(f"Could not connect to Redis for rate limiting at {REDIS_URL}: {e}")
-        validator_redis_client = None
+        validators.redis_client = None
 
     # Load email provider domains
     global validator_email_provider_domain_set
@@ -81,8 +81,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Application shutdown: Closing Redis client...")
-    if validator_redis_client:
-        await validator_redis_client.aclose()
+    if validators.redis_client:
+        await validators.redis_client.aclose()
         logger.info("Redis client closed.")
 
 
