@@ -1,12 +1,14 @@
 import json
 import os
 import shutil
+from contextlib import asynccontextmanager
 from datetime import datetime
 from email.utils import getaddresses
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
 import aiofiles
+import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
@@ -19,18 +21,73 @@ from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
-from mxtoai.schemas import EmailAttachment, EmailRequest
+from mxtoai.schemas import EmailAttachment, EmailRequest, RateLimitPlan
 from mxtoai.tasks import process_email_task
-from mxtoai.validators import validate_api_key, validate_attachments, validate_email_handle, validate_email_whitelist
+from mxtoai.validators import (
+    email_provider_domain_set as validator_email_provider_domain_set,
+)
+from mxtoai.validators import (
+    validate_api_key,
+    validate_attachments,
+    validate_email_handle,
+    validate_email_whitelist,
+    validate_rate_limits,
+)
+from mxtoai import validators
 
 # Load environment variables
 load_dotenv()
+REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Configure logging
 logger = get_logger(__name__)
 
-app = FastAPI()
-if os.getenv("IS_PROD", "true").lower() == "true":
+
+# Lifespan manager for app startup and shutdown
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Application startup: Initializing Redis client for rate limiter...")
+    try:
+        validators.redis_client = aioredis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
+        await validators.redis_client.ping()
+        logger.info(f"Redis client connected for rate limiting: {REDIS_URL}")
+    except Exception as e:
+        logger.error(f"Could not connect to Redis for rate limiting at {REDIS_URL}: {e}")
+        validators.redis_client = None
+
+    # Load email provider domains
+    global validator_email_provider_domain_set
+    try:
+        current_dir = Path(__file__).parent
+        domains_file_path = current_dir / "email_provider_domains.txt"
+        if not domains_file_path.exists():
+            domains_file_path = Path("mxtoai/email_provider_domains.txt")
+
+        if domains_file_path.exists():
+            with open(domains_file_path) as f:
+                validator_email_provider_domain_set.update([line.strip().lower() for line in f if line.strip()])
+            logger.info(
+                f"Loaded {len(validator_email_provider_domain_set)} email provider domains for rate limit exclusion."
+            )
+        else:
+            logger.warning(
+                f"Email provider domains file not found at {domains_file_path}. Domain-specific rate limits might not work as expected."
+            )
+    except Exception as e:
+        logger.error(f"Error loading email provider domains: {e}")
+
+    yield  # Application runs here
+
+    # Shutdown
+    logger.info("Application shutdown: Closing Redis client...")
+    if validators.redis_client:
+        await validators.redis_client.aclose()
+        logger.info("Redis client closed.")
+
+
+app = FastAPI(lifespan=lifespan)
+if os.environ["IS_PROD"].lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
@@ -412,6 +469,10 @@ async def process_email(
     """
     # Validate API key
     if response := await validate_api_key(api_key):
+        return response
+
+    # Validate rate limits before other processing
+    if response := await validate_rate_limits(from_email, to, subject, messageId, plan=RateLimitPlan.BETA):
         return response
 
     if files is None:

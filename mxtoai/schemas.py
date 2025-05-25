@@ -1,6 +1,12 @@
+from enum import Enum  # Added for RateLimitPlan
 from typing import Any, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+# Enum for Rate Limit Plans
+class RateLimitPlan(Enum):
+    BETA = "beta"
 
 
 class EmailAttachment(BaseModel):

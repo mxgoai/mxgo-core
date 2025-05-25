@@ -1,16 +1,241 @@
 import json
 import os
+
+# import shelve # Removed shelve
+from datetime import datetime, timezone  # Added timezone
+from email.utils import parseaddr
 from typing import Optional
 
+import redis.asyncio as aioredis  # Added redis
 from fastapi import Response, status
 
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import send_email_reply
+from mxtoai.schemas import RateLimitPlan
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
 
 logger = get_logger(__name__)
+
+# Globals to be initialized from api.py
+redis_client: Optional[aioredis.Redis] = None
+email_provider_domain_set: set[str] = set() # Still useful for the domain check logic
+
+# Rate limit settings
+RATE_LIMITS_BY_PLAN = {
+    RateLimitPlan.BETA: {
+        "hour": {"limit": 20, "period_seconds": 3600, "expiry_seconds": 3600 * 2}, # 2hr expiry for 1hr window
+        "day": {"limit": 50, "period_seconds": 86400, "expiry_seconds": 86400 + 3600}, # 25hr expiry for 24hr window
+        "month": {"limit": 300, "period_seconds": 30 * 86400, "expiry_seconds": (30 * 86400) + 86400} # 31day expiry for 30day window
+    }
+}
+RATE_LIMIT_PER_DOMAIN_HOUR = { # Consistent structure for domain limits
+    "hour": {"limit": 50, "period_seconds": 3600, "expiry_seconds": 3600 * 2}
+}
+
+# TTLs for different periods (approximate for safety)
+PERIOD_EXPIRY = {
+    "hour": 3600 * 2,  # 2 hours
+    "day": 86400 + 3600,  # 25 hours
+    "month": 30 * 86400 + 86400, # 31 days
+}
+
+
+def get_current_timestamp_for_period(period_name: str, dt: datetime) -> str:
+    if period_name == "hour":
+        return dt.strftime("%Y%m%d%H")
+    if period_name == "day":
+        return dt.strftime("%Y%m%d")
+    if period_name == "month":
+        return dt.strftime("%Y%m")
+    msg = f"Unknown period name: {period_name}"
+    raise ValueError(msg)
+
+
+async def check_rate_limit_redis(
+    key_type: str, # "email" or "domain"
+    identifier: str,
+    plan_or_domain_limits: dict[str, dict[str, int]], # e.g., RATE_LIMITS_BY_PLAN[RateLimitPlan.BETA] or RATE_LIMIT_PER_DOMAIN_HOUR
+    current_dt: datetime,
+    plan_name_for_key: str = "" # e.g. "beta" or "" for domain
+) -> Optional[str]:
+    """
+    Checks and updates rate limits using Redis.
+
+    Args:
+        key_type: "email" or "domain".
+        identifier: Normalized email or domain string.
+        plan_or_domain_limits: Dictionary defining limits for "hour", "day", "month".
+                               Each entry is a dict with "limit" and "expiry_seconds".
+        current_dt: Current datetime object (timezone-aware).
+        plan_name_for_key: String representation of the plan (e.g. "beta") for key namespacing.
+
+    Returns:
+        A string describing the limit exceeded (e.g., "hour") or None if within limits.
+
+    """
+    if redis_client is None:
+        logger.error("Redis client not initialized for rate limiting.")
+        return None # Fail open if Redis is not ready
+
+    for period_name, config in plan_or_domain_limits.items():
+        limit = config["limit"]
+        # Use fixed expiry from PERIOD_EXPIRY, not config["expiry_seconds"] if that was for the period itself
+        # The key identifies the *start* of the window
+        time_bucket = get_current_timestamp_for_period(period_name, current_dt)
+
+        redis_key_parts = ["rate_limit", key_type, identifier]
+        if plan_name_for_key: # Add plan to key for email limits
+            redis_key_parts.append(plan_name_for_key)
+        redis_key_parts.extend([period_name, time_bucket])
+        redis_key = ":".join(redis_key_parts)
+
+        try:
+            async with redis_client.pipeline(transaction=True) as pipe:
+                pipe.incr(redis_key)
+                pipe.expire(redis_key, PERIOD_EXPIRY[period_name])
+                results = await pipe.execute()
+
+            current_count = results[0]
+
+            # Log current count for the identifier and period
+            logger.info(
+                f"Rate limit check for {key_type} '{identifier}' (Plan: '{plan_name_for_key if plan_name_for_key else 'N/A'}'): "
+                f"Period '{period_name}' (bucket: {time_bucket}), Current count: {current_count}/{limit}. Key: {redis_key}"
+            )
+
+            if current_count > limit:
+                logger.warning(
+                    f"Rate limit EXCEEDED for {key_type} '{identifier}' (Plan: '{plan_name_for_key if plan_name_for_key else 'N/A'}'): "
+                    f"Period '{period_name}', Count: {current_count}/{limit}. Key: {redis_key}"
+                )
+                return period_name # e.g., "hour", "day", "month"
+        except aioredis.RedisError as e:
+            logger.error(f"Redis error during rate limit check for key {redis_key}: {e}")
+            return None # Fail open on Redis error to avoid blocking legitimate requests
+
+    return None
+
+
+def normalize_email(email_address: str) -> str:
+    """Normalize email address by removing +alias and lowercasing domain."""
+    name, addr = parseaddr(email_address)
+    if not addr:
+        return email_address.lower()  # Fallback for unparseable addresses
+
+    local_part, domain_part = addr.split("@", 1)
+    domain_part = domain_part.lower()
+
+    # Remove +alias from local_part
+    if "+" in local_part:
+        local_part = local_part.split("+", 1)[0]
+
+    return f"{local_part}@{domain_part}"
+
+
+def get_domain_from_email(email_address: str) -> str:
+    """Extract domain from email address."""
+    try:
+        return email_address.split("@", 1)[1].lower()
+    except IndexError:
+        return "" # Should not happen for valid emails
+
+
+async def send_rate_limit_rejection_email(
+    from_email: str, to: str, subject: Optional[str], messageId: Optional[str], limit_type: str
+) -> None:
+    """Send a rejection email for rate limit exceeded."""
+    rejection_subject = f"Re: {subject}" if subject else "Usage Limit Exceeded"
+    rejection_text = f"""Your email could not be processed because the usage limit has been exceeded ({limit_type}).
+Please try again after some time.
+
+Best,
+MX to AI Team"""
+    html_rejection_text = f"""<p>Your email could not be processed because the usage limit has been exceeded ({limit_type}).</p>
+<p>Please try again after some time.</p>
+<p>Best regards,<br>MX to AI Team</p>"""
+
+    email_dict = {
+        "from": from_email,
+        "to": to,
+        "subject": rejection_subject,
+        "messageId": messageId,
+        "references": None,
+        "inReplyTo": messageId,
+        "cc": None,
+    }
+    try:
+        await send_email_reply(email_dict, rejection_text, html_rejection_text)
+        logger.info(f"Sent rate limit ({limit_type}) rejection email to {from_email}")
+    except Exception as e:
+        logger.error(f"Failed to send rate limit rejection email to {from_email}: {e}")
+
+
+async def validate_rate_limits(
+    from_email: str, to: str, subject: Optional[str], messageId: Optional[str], plan: RateLimitPlan
+) -> Optional[Response]:
+    """
+    Validate incoming email against defined rate limits based on the plan, using Redis.
+    """
+    if redis_client is None: # Should not happen if initialized correctly
+        logger.warning("Redis client not initialized. Skipping rate limit check.")
+        return None
+
+    normalized_user_email = normalize_email(from_email)
+    email_domain = get_domain_from_email(normalized_user_email)
+    current_dt = datetime.now(timezone.utc) # Use timezone-aware datetime
+
+    # 1. Per-email limits based on plan
+    plan_email_limits_config = RATE_LIMITS_BY_PLAN.get(plan)
+    if not plan_email_limits_config:
+        logger.error(f"Rate limits for plan {plan.value} not configured. Skipping email rate limit check.")
+    else:
+        email_limit_exceeded_period = await check_rate_limit_redis(
+            key_type="email",
+            identifier=normalized_user_email,
+            plan_or_domain_limits=plan_email_limits_config,
+            current_dt=current_dt,
+            plan_name_for_key=plan.value
+        )
+        if email_limit_exceeded_period:
+            limit_type_msg = f"email {email_limit_exceeded_period} for {plan.value} plan"
+            await send_rate_limit_rejection_email(from_email, to, subject, messageId, limit_type_msg)
+            return Response(
+                content=json.dumps(
+                    {
+                        "message": f"Rate limit exceeded ({limit_type_msg}). Please try again later.",
+                        "status": "error",
+                    }
+                ),
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                media_type="application/json",
+            )
+
+    # 2. Per-domain limits (if not in provider list)
+    if email_domain and email_domain not in email_provider_domain_set:
+        # Domain limits are currently only hourly
+        domain_limit_exceeded_period = await check_rate_limit_redis(
+            key_type="domain",
+            identifier=email_domain,
+            plan_or_domain_limits=RATE_LIMIT_PER_DOMAIN_HOUR, # This needs to be a dict of periods
+            current_dt=current_dt
+        )
+        if domain_limit_exceeded_period: # This will be "hour" if exceeded
+            limit_type_msg = f"domain {domain_limit_exceeded_period}"
+            await send_rate_limit_rejection_email(from_email, to, subject, messageId, limit_type_msg)
+            return Response(
+                content=json.dumps(
+                    {
+                        "message": f"Rate limit exceeded ({limit_type_msg}). Please try again later.",
+                        "status": "error",
+                    }
+                ),
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                media_type="application/json",
+            )
+
+    return None
 
 
 async def validate_api_key(api_key: str) -> Optional[Response]:
