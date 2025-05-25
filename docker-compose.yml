@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"     # RabbitMQ main port
+      - "15672:15672"   # RabbitMQ management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  ollama:
+    image: ollama/ollama
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # Optional: Uncomment below to disable if not needed
+    # deploy:
+    #   replicas: 0
+
+  api_server:
+    build:
+      context: .
+      dockerfile: docker/api_server.dockerfile
+    container_name: api_server
+    depends_on:
+      - rabbitmq
+    ports:
+      - "8000:8000"
+    environment:
+      # Add your environment variables or load from `.env`
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq//
+    volumes:
+      - .:/app
+    command: ["poetry", "run", "python", "run_api.py"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.dockerfile
+    container_name: worker
+    depends_on:
+      - rabbitmq
+    environment:
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq//
+    volumes:
+      - .:/app
+    command: ["poetry", "run", "dramatiq", "mxtoai.tasks", "--watch", "./."]
+
+volumes:
+  rabbitmq_data:
+  ollama_data:
