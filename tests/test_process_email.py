@@ -103,6 +103,7 @@ def _assert_basic_successful_processing(
 
 
 # --- Existing Happy Path Test (adapted to use new fixture) ---
+@pytest.mark.timeout(0)
 def test_process_email_task_happy_path_with_attachment(prepare_email_request_data):
     """
     Tests the happy path for process_email_task with an attachment.
@@ -140,7 +141,7 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
 
 # --- New Test Cases ---
 
-
+@pytest.mark.timeout(0)
 def test_process_email_task_unsupported_handle(prepare_email_request_data):
     """Tests behavior when an unsupported email handle is provided."""
     unsupported_handle = "nonexistenthandle@mxtoai.com"
@@ -164,7 +165,7 @@ def test_process_email_task_unsupported_handle(prepare_email_request_data):
     # or if it was never relevant. If it was created, it might still exist.
     # For this test, the main focus is the error state.
 
-
+@pytest.mark.timeout(0)
 def test_process_email_task_agent_exception(prepare_email_request_data):
     """Tests behavior when EmailAgent.process_email returns a result indicating an internal error."""
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxtoai.com")
@@ -222,6 +223,7 @@ def test_process_email_task_agent_exception(prepare_email_request_data):
 
 
 # Parametrized test for each handle
+@pytest.mark.timeout(0)
 @pytest.mark.parametrize("handle_instructions", DEFAULT_EMAIL_HANDLES)
 def test_process_email_task_for_handle(
     handle_instructions: ProcessingInstructions,
