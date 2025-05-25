@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 class RateLimitPlan(Enum):
     BETA = "beta"
 
+
 class EmailAttachment(BaseModel):
     model_config = ConfigDict(validate_default=True)  # Ensure all fields are validated
 
@@ -95,6 +96,7 @@ class EmailProcessingResponse(BaseModel):
 
 # --- New Schemas for Detailed Email Processing Result ---
 
+
 class EmailSentStatus(BaseModel):
     status: str
     timestamp: Optional[str] = None
@@ -130,9 +132,11 @@ class ProcessedAttachmentDetail(BaseModel):
     caption: Optional[str] = None
     # Add other fields from 'sanitized_att' if they exist, e.g., content summary if stored per attachment
 
+
 class AttachmentsProcessingResult(BaseModel):
     summary: Optional[str] = None
     processed: list[ProcessedAttachmentDetail] = []
+
 
 class CalendarResult(BaseModel):
     ics_content: str

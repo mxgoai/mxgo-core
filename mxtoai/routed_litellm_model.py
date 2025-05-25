@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional, List
+from typing import Any, Optional
 
 import toml
 from dotenv import load_dotenv
@@ -70,7 +70,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             logger.error(f"Failed to load TOML config: {e}")
             return {}
 
-    def _load_model_config(self) -> List[models.ModelConfig]:
+    def _load_model_config(self) -> list[models.ModelConfig]:
         """
         Load model configuration from environment variables.
 
@@ -133,7 +133,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             return self.current_handle.target_model
 
         return "gpt-4"
-    
+
     def generate(
         self,
         messages: list[dict[str, str | list[dict]]],
@@ -154,14 +154,15 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         Returns:
             ChatMessage: The generated chat message.
+
         """
         # Check if this is a local LLM
         is_local_llm = (
-            self.model_id.startswith("ollama") or 
-            (self.api_base and "localhost" in self.api_base) or
-            (self.api_base and "127.0.0.1" in self.api_base)
+            self.model_id.startswith("ollama")
+            or (self.api_base and "localhost" in self.api_base)
+            or (self.api_base and "127.0.0.1" in self.api_base)
         )
-        
+
         # TODO: Get a permanent fix for this. Currently a temporary workaround
         if is_local_llm:
             litellm_messages = []

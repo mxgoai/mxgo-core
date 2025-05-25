@@ -538,7 +538,9 @@ class EmailAgent:
 
             if email_body_content_source:
                 signature_markers = [
-                    "Best regards,\nMXtoAI Assistant", "Best regards,", "Warm regards,",
+                    "Best regards,\nMXtoAI Assistant",
+                    "Best regards,",
+                    "Warm regards,",
                     "_Feel free to reply to this email to continue our conversation._",
                     "MXtoAI Assistant",
                     "> **Disclaimer:**",

@@ -99,8 +99,17 @@ async def check_rate_limit_redis(
 
             current_count = results[0]
 
+            # Log current count for the identifier and period
+            logger.info(
+                f"Rate limit check for {key_type} '{identifier}' (Plan: '{plan_name_for_key if plan_name_for_key else 'N/A'}'): "
+                f"Period '{period_name}' (bucket: {time_bucket}), Current count: {current_count}/{limit}. Key: {redis_key}"
+            )
+
             if current_count > limit:
-                logger.warning(f"Rate limit exceeded for {key_type} '{identifier}' on {period_name} ({current_count}/{limit}). Key: {redis_key}")
+                logger.warning(
+                    f"Rate limit EXCEEDED for {key_type} '{identifier}' (Plan: '{plan_name_for_key if plan_name_for_key else 'N/A'}'): "
+                    f"Period '{period_name}', Count: {current_count}/{limit}. Key: {redis_key}"
+                )
                 return period_name # e.g., "hour", "day", "month"
         except aioredis.RedisError as e:
             logger.error(f"Redis error during rate limit check for key {redis_key}: {e}")

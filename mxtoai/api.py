@@ -41,6 +41,7 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 # Configure logging
 logger = get_logger(__name__)
 
+
 # Lifespan manager for app startup and shutdown
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -66,9 +67,13 @@ async def lifespan(app: FastAPI):
         if domains_file_path.exists():
             with open(domains_file_path) as f:
                 validator_email_provider_domain_set.update([line.strip().lower() for line in f if line.strip()])
-            logger.info(f"Loaded {len(validator_email_provider_domain_set)} email provider domains for rate limit exclusion.")
+            logger.info(
+                f"Loaded {len(validator_email_provider_domain_set)} email provider domains for rate limit exclusion."
+            )
         else:
-            logger.warning(f"Email provider domains file not found at {domains_file_path}. Domain-specific rate limits might not work as expected.")
+            logger.warning(
+                f"Email provider domains file not found at {domains_file_path}. Domain-specific rate limits might not work as expected."
+            )
     except Exception as e:
         logger.error(f"Error loading email provider domains: {e}")
 
@@ -79,6 +84,7 @@ async def lifespan(app: FastAPI):
     if validator_redis_client:
         await validator_redis_client.aclose()
         logger.info("Redis client closed.")
+
 
 app = FastAPI(lifespan=lifespan)
 if os.environ["IS_PROD"].lower() == "true":
