@@ -1,6 +1,15 @@
 version: "3.9"
 
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
@@ -12,9 +21,15 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   ollama:
-    image: ollama/ollama
+    image: ollama/ollama:latest
     container_name: ollama
     ports:
       - "11434:11434"
@@ -31,12 +46,16 @@ services:
       dockerfile: docker/api_server.dockerfile
     container_name: api_server
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
     ports:
       - "8000:8000"
     environment:
-      # Add your environment variables or load from `.env`
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq//
+      - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - OLLAMA_URL=http://ollama:11434
     volumes:
       - .:/app
     command: ["poetry", "run", "python", "run_api.py"]
@@ -47,9 +66,14 @@ services:
       dockerfile: docker/worker.dockerfile
     container_name: worker
     depends_on:
-      - rabbitmq
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
     environment:
-      RABBITMQ_URL: amqp://guest:guest@rabbitmq//
+      - REDIS_URL=redis://redis:6379/0
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - OLLAMA_URL=http://ollama:11434
     volumes:
       - .:/app
     command: ["poetry", "run", "dramatiq", "mxtoai.tasks", "--watch", "./."]
@@ -57,3 +81,5 @@ services:
 volumes:
   rabbitmq_data:
   ollama_data:
+  redis_data:
+  
