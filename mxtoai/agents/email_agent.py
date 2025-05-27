@@ -21,7 +21,6 @@ from smolagents.default_tools import (
 from mxtoai._logging import get_logger
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
-    LIST_FORMATTING_REQUIREMENTS,
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
