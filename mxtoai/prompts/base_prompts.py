@@ -20,6 +20,7 @@ GENERAL RESPONSE REQUIREMENTS:
 - Use proper spacing and formatting
 - ALWAYS Indent each nested level with two spaces
 - DO NOT add any signature - it will be added automatically
+- If web search tools were used, create a 'References' section at the end of your response. List the titles and URLs of the web pages used, formatted as markdown links (e.g., `1. [Page Title](URL)`).
 """
 
 # Formatting requirements for HTML conversion
