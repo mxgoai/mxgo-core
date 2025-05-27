@@ -245,6 +245,9 @@ _Feel free to reply to this email to continue our conversation._
             from markdown.extensions.tables import TableExtension
             from markdown.extensions.toc import TocExtension
 
+            # Pre-process to ensure lists following non-empty lines have a preceding blank line
+            markdown_content = re.sub(r'([^\n])\n(\s*(?:[-*+]|\d+\.)[ \t])', r'\1\n\n\2', markdown_content)
+
             # Configure extensions with specific settings
             extensions = [
                 TableExtension(),  # Support for tables
