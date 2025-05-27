@@ -1,33 +1,28 @@
-# docker/api_server.Dockerfile
-
 FROM python:3.13-slim-bookworm
 
-# System deps
+# System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
- # Set workdir
+# Set working directory
 WORKDIR /app
 
-# Install Poetry
-ENV POETRY_VERSION=2.1.3
+# Install Poetry (latest)
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
     ln -s /root/.local/bin/poetry /usr/local/bin/poetry
 
-# Copy only dependency files to leverage Docker cache
+# Copy dependency files first (for cache)
 COPY pyproject.toml poetry.lock ./
 
-# Install dependencies (no venv)
+# Install dependencies (no virtualenv)
 RUN poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
 
-# Copy the rest of the application
-COPY . .
+# Copy only the relevant application code
+COPY mxtoai ./mxtoai
+COPY run_api.py .
 
-# Expose API port (change as needed)
-EXPOSE 8000
-
-# Run the API
-CMD ["poetry", "run", "python", "run_api.py"]
+# Run the API via uvicorn
+CMD ["poetry", "run", "uvicorn", "mxtoai.api:app", "--host", "0.0.0.0", "--port", "9292", "--workers", "4"]

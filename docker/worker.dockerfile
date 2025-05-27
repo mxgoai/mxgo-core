@@ -1,30 +1,27 @@
-# docker/worker.Dockerfile
-
 FROM python:3.13-slim-bookworm
 
-# System deps
+# System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
     ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 
-# Set workdir
+# Set working directory
 WORKDIR /app
 
-# Install Poetry
-ENV POETRY_VERSION=2.1.3
+# Install Poetry (latest)
 RUN curl -sSL https://install.python-poetry.org | python3 - && \
     ln -s /root/.local/bin/poetry /usr/local/bin/poetry
 
-# Copy only dependency files
+# Copy dependency files first (for cache)
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies
 RUN poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
 
-# Copy rest of the worker code
-COPY . .
+# Copy only the relevant worker code
+COPY mxtoai ./mxtoai
 
-# Run Dramatiq worker (entrypoint can be adjusted)
-CMD ["poetry", "run", "dramatiq", "mxtoai.tasks", "--watch", "./."]
+# Run the Dramatiq worker
+CMD ["poetry", "run", "dramatiq", "mxtoai.tasks", "--watch", "./mxtoai"]
