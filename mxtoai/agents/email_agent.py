@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
-from smolagents import Tool, ToolCallingAgent
+from smolagents import Tool, CodeAgent
 
 # Add imports for the new default tools
 from smolagents.default_tools import (
@@ -128,12 +128,12 @@ class EmailAgent:
 
     def _init_agent(self):
         """
-        Initialize the ToolCallingAgent with Azure OpenAI.
+        Initialize the CodeAgent with Azure OpenAI.
         """
         # Initialize the routed model with the default model group
         self.routed_model = RoutedLiteLLMModel()
 
-        self.agent = ToolCallingAgent(
+        self.agent = CodeAgent(
             model=self.routed_model,
             tools=self.available_tools,
             max_steps=12,
