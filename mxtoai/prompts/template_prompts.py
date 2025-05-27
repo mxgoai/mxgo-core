@@ -31,7 +31,7 @@ Response Requirements:
    - ### Detailed Analysis
    - ### Supporting Evidence
    - ### References
-2. Include proper citations [1], [2], etc.
+2. Include proper citations [1], [2], etc. if the deep_research tool provides them. For web_search results, extract the title and URL for each source and list them under the 'References' section using markdown link format (e.g., 1. [Page Title](URL)).
 3. Format tables using markdown table syntax
 4. Use proper paragraph spacing
 
@@ -74,16 +74,16 @@ Do not use deep search directly, use web search and page visit tool, if you're n
 Response Requirements:
 1. Use proper markdown formatting:
    - **Claim**: for stating each claim
-   - _Source_: for source citations
+   - _Source_: for source citations (when provided by deep_research tool)
    - ✓ or ❌ for verification status
    - Bullet points for supporting evidence
-   - [text](url) for reference links
+   - [text](url) for reference links in the 'References' section
 2. Structure each fact-check:
    - Original claim
    - Verification status
    - Supporting evidence
-   - Source citations
-3. Use clear paragraph breaks between checks
+3. Create a 'References' section at the end. For each web search result used, list its title and URL using markdown link format (e.g., 1. [Page Title](URL)).
+4. Use clear paragraph breaks between checks
 
 Content Guidelines:
 1. State each claim clearly
@@ -106,7 +106,7 @@ Response Requirements:
    - ### Detailed Analysis
    - ### Supporting Evidence
    - ### References
-2. Include proper citations [1], [2], etc.
+2. Include proper citations [1], [2], etc. if the deep_research tool provides them. For web_search results, extract the title and URL for each source and list them under the 'References' section using markdown link format (e.g., 1. [Page Title](URL)).
 3. Format tables using markdown table syntax
 4. Use proper paragraph spacing
 
