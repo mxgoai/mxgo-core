@@ -378,7 +378,6 @@ class EmailAgent:
             output_template,
             RESPONSE_GUIDELINES,
             MARKDOWN_STYLE_GUIDE,
-            LIST_FORMATTING_REQUIREMENTS,
         ]
         return "\n\n".join(filter(None, sections))
 

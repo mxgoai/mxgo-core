@@ -245,6 +245,8 @@ _Feel free to reply to this email to continue our conversation._
             from markdown.extensions.tables import TableExtension
             from markdown.extensions.toc import TocExtension
 
+            processed_content = self._preprocess_lists(markdown_content)
+
             # Configure extensions with specific settings
             extensions = [
                 TableExtension(),  # Support for tables
@@ -266,6 +268,8 @@ _Feel free to reply to this email to continue our conversation._
                 output_format="html5",  # Use html5 for better compatibility
             )
 
+            html_content = self._postprocess_html_lists(html_content)
+
             if self.template_env:
                 try:
                     theme_settings = self.themes.get(theme, self.themes["default"])
@@ -282,6 +286,64 @@ _Feel free to reply to this email to continue our conversation._
         except ImportError:
             logger.error("Markdown package not available - this should never happen as it's a required dependency")
             raise  # We should always have markdown package available
+
+    def _preprocess_lists(self, markdown: str) -> str:
+        """
+        Pre-process markdown to ensure consistent list formatting.
+        
+        Args:
+            markdown: Raw markdown content
+            
+        Returns:
+            Processed markdown with consistent list formatting
+        """
+        lines = markdown.split('\n')
+        processed_lines = []
+        
+        for i, line in enumerate(lines):
+            # Ensure proper spacing before lists
+            if (line.strip().startswith(('- ', '* ', '+ ')) or 
+                re.match(r'^\s*\d+\.\s', line.strip())):
+                
+                # Check if previous line exists and isn't empty or another list item
+                if (i > 0 and 
+                    processed_lines and 
+                    processed_lines[-1].strip() and 
+                    not processed_lines[-1].strip().startswith(('- ', '* ', '+ ')) and
+                    not re.match(r'^\s*\d+\.\s', processed_lines[-1].strip())):
+                    
+                    # Add empty line before list if there isn't one
+                    processed_lines.append('')
+            
+            processed_lines.append(line)
+    
+        return '\n'.join(processed_lines)
+
+    def _postprocess_html_lists(self, html: str) -> str:
+        """
+        Post-process HTML to ensure consistent list structure.
+        
+        Args:
+            html: HTML content with lists
+            
+        Returns:
+            HTML with consistent list formatting
+        """
+        import re
+        
+        # Ensure proper spacing around lists
+        # Add space before lists that immediately follow paragraphs
+        html = re.sub(r'</p>\s*<ul>', '</p>\n<ul>', html)
+        html = re.sub(r'</p>\s*<ol>', '</p>\n<ol>', html)
+        
+        # Add space after lists that are followed by paragraphs
+        html = re.sub(r'</ul>\s*<p>', '</ul>\n<p>', html)
+        html = re.sub(r'</ol>\s*<p>', '</ol>\n<p>', html)
+        
+        # Clean up excessive whitespace
+        html = re.sub(r'\n\s*\n\s*\n', '\n\n', html)
+        
+        return html
 
     def _basic_html_render(self, html_content: str) -> str:
         """

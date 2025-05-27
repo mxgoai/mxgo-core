@@ -76,55 +76,82 @@
             text-decoration: underline;
         }
         
+        /* FIXED LIST STYLES - Consistent indentation and spacing */
         ul, ol {
-            margin: 0 0 1rem 0.5rem;
-            padding-left: 2rem;
+            margin: 1rem 0;
+            padding: 0;
             list-style-position: outside;
         }
         
-        /* Base list styles */
-        ul { list-style-type: disc; }
-        ol { list-style-type: decimal; }
+        /* Top-level lists */
+        ul {
+            list-style-type: disc;
+            margin-left: 2rem;
+        }
         
-        ul ul, 
-        ol ul { 
-            list-style-type: circle; 
+        ol {
+            list-style-type: decimal;
+            margin-left: 2rem;
+        }
+        
+        /* Nested lists - consistent indentation */
+        ul ul {
+            list-style-type: circle;
             margin: 0.5rem 0;
-            padding-left: 3rem;
+            margin-left: 1.5rem;
         }
         
-        ul ul ul, 
-        ol ul ul { 
-            list-style-type: square; 
-        }
-        
-        ol ol, 
-        ul ol { 
-            list-style-type: lower-alpha; 
+        ol ol {
+            list-style-type: lower-alpha;
             margin: 0.5rem 0;
-            padding-left: 4rem;
+            margin-left: 1.5rem;
         }
         
-        ol ol ol, 
-        ul ol ol { 
-            list-style-type: lower-roman; 
+        ul ol {
+            list-style-type: lower-alpha;
+            margin: 0.5rem 0;
+            margin-left: 1.5rem;
         }
         
+        ol ul {
+            list-style-type: circle;
+            margin: 0.5rem 0;
+            margin-left: 1.5rem;
+        }
+        
+        /* Third level nesting */
+        ul ul ul,
+        ol ol ol,
+        ul ol ol,
+        ol ul ul {
+            list-style-type: square;
+            margin-left: 1.5rem;
+        }
+        
+        /* List items */
         li {
-            margin: 0.5rem 0.5rem;
-            line-height: 1.5;
-            display: list-item;
-            position: relative;
-        }
-        
-        li p {
             margin: 0.5rem 0;
-            display: inline-block;
+            line-height: 1.6;
+            padding-left: 0.25rem;
         }
         
-        li > ul, 
-        li > ol {
-            margin-bottom: 0.5rem;
+        /* Handle paragraphs within list items */
+        li p {
+            margin: 0.25rem 0 0.5rem 0;
+        }
+        
+        /* Ensure lists after paragraphs have proper spacing */
+        p + ul,
+        p + ol {
+            margin-top: 0.5rem;
+        }
+        
+        /* Ensure consistent spacing between different elements */
+        ul + p,
+        ol + p,
+        ul + h1, ul + h2, ul + h3, ul + h4, ul + h5, ul + h6,
+        ol + h1, ol + h2, ol + h3, ol + h4, ol + h5, ol + h6 {
+            margin-top: 1rem;
         }
         
         code {
@@ -230,7 +257,7 @@
         
         .toc ul {
             list-style-type: none;
-            padding-left: 1rem;
+            margin-left: 1rem;
         }
         
         .toc li {
@@ -306,6 +333,11 @@
             h2, h3 {
                 page-break-after: avoid;
             }
+            
+            /* Print-specific list adjustments */
+            ul, ol {
+                margin-left: 1.5rem;
+            }
         }
         
         /* Responsive adjustments */
@@ -324,6 +356,15 @@
             
             pre {
                 padding: 0.75rem;
+            }
+            
+            /* Mobile list adjustments */
+            ul, ol {
+                margin-left: 1.5rem;
+            }
+            
+            ul ul, ol ol, ul ol, ol ul {
+                margin-left: 1.2rem;
             }
         }
     </style>
