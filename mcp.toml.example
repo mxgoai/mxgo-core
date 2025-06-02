@@ -1,0 +1,111 @@
+# mcp.toml.example
+# Configuration file for Model Context Protocol (MCP) servers.
+#
+# This file allows the EmailAgent to connect to various MCP servers
+# and utilize the tools they provide.
+#
+# Security Warning:
+# Enabling MCP servers, especially Stdio-based ones, involves running external commands
+# and potentially arbitrary code. The `trust_remote_code=True` flag is used when loading
+# these tools with smolagents, which is necessary for their operation but carries inherent risks.
+# ALWAYS ENSURE YOU TRUST THE SOURCE AND IMPLEMENTATION OF ANY MCP SERVER YOU CONFIGURE.
+# For Stdio-based servers, the commands are executed on the machine where the agent is running.
+# For SSE-based servers, while the server itself runs remotely, ensure the endpoint is trusted.
+
+# [[mcp_servers]] # Use a list of tables for multiple servers of the same type or for clarity
+# name = "filesystem_example"
+# type = "stdio" # "stdio" or "sse"
+# command = "npx"
+# args = [
+#     "-y",
+#     "@modelcontextprotocol/server-filesystem",
+#     "/path/to/your/Desktop",  # Replace with actual accessible paths
+#     "/path/to/your/Downloads" # Replace with actual accessible paths
+# ]
+# # Optional environment variables for the command
+# # env = { "SOME_VARIABLE" = "some_value" }
+
+# [[mcp_servers]]
+# name = "github_stdio_example"
+# type = "stdio"
+# command = "npx"
+# args = [
+#     "-y",
+#     "@modelcontextprotocol/server-github"
+# ]
+# env = { GITHUB_PERSONAL_ACCESS_TOKEN = "<YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>" } # Replace with your token
+
+# [[mcp_servers]]
+# name = "github_docker_example"
+# type = "stdio"
+# command = "docker"
+# args = [
+#     "run",
+#     "-i", # For interactive processes
+#     "--rm", # Automatically remove the container when it exits
+#     "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", # Pass the environment variable to the container
+#     "mcp/github" # The Docker image for the GitHub MCP server
+# ]
+# env = { GITHUB_PERSONAL_ACCESS_TOKEN = "<YOUR_DOCKER_GITHUB_TOKEN>" } # Replace with your token
+
+# [[mcp_servers]]
+# name = "remote_sse_example"
+# type = "sse"
+# url = "http://127.0.0.1:8000/sse" # Replace with the actual URL of your SSE MCP server
+# # Optional: any other parameters required by the mcp.client.sse.sse_client
+# # extra_params = { "some_other_sse_param" = "value" }
+
+
+# More structured way using TOML tables:
+# Each key under [mcp_servers] will be treated as a server configuration.
+# The name of the server will be the key itself (e.g., "filesystem", "github_service").
+
+[mcp_servers.filesystem]
+type = "stdio" # "stdio" or "sse"
+command = "npx"
+args = [
+    "-y",
+    "@modelcontextprotocol/server-filesystem",
+    "/path/to/your/Desktop",  # IMPORTANT: Replace with actual, accessible paths
+    "/path/to/your/Downloads" # IMPORTANT: Replace with actual, accessible paths
+]
+# Optional environment variables for the command
+# env = { "SOME_VARIABLE" = "some_value" }
+# enabled = true # Optional: defaults to true if not specified. Set to false to disable.
+
+[mcp_servers.github_stdio]
+type = "stdio"
+command = "npx"
+args = [
+    "-y",
+    "@modelcontextprotocol/server-github"
+]
+env = { GITHUB_PERSONAL_ACCESS_TOKEN = "<YOUR_GITHUB_PERSONAL_ACCESS_TOKEN>" } # IMPORTANT: Replace with your token
+# enabled = true
+
+[mcp_servers.github_docker]
+type = "stdio"
+command = "docker"
+args = [
+    "run",
+    "-i", # For interactive processes
+    "--rm", # Automatically remove the container when it exits
+    "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", # Pass the environment variable to the container
+    "mcp/github" # The Docker image for the GitHub MCP server
+]
+env = { GITHUB_PERSONAL_ACCESS_TOKEN = "<YOUR_DOCKER_GITHUB_TOKEN>" } # IMPORTANT: Replace with your token
+# enabled = true
+
+[mcp_servers.pubmed_example]
+type = "stdio"
+command = "uvx" # Using uvx as per smolagents documentation example
+args = ["--quiet", "pubmedmcp@0.1.3"]
+env = {"UV_PYTHON" = "3.12"} # Ensure this matches your environment if needed, os.environ will be merged.
+# enabled = true
+
+[mcp_servers.remote_sse_service]
+type = "sse"
+url = "http://127.0.0.1:8000/sse" # IMPORTANT: Replace with the actual URL of your SSE MCP server
+# Optional: any other parameters required by the mcp.client.sse.sse_client for SSE connections
+# extra_params = { "some_other_sse_param" = "value" }
+# enabled = true 

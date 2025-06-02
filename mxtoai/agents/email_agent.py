@@ -1,15 +1,14 @@
 import ast
 import os
 import re
+import tomllib  # For Python 3.11+
 from datetime import datetime
 from typing import Any, Optional, Union
+import contextlib # Added import
 
 from dotenv import load_dotenv
-
-# Update imports to use proper classes from smolagents
+from mcp import StdioServerParameters
 from smolagents import Tool, ToolCallingAgent
-
-# Add imports for the new default tools
 from smolagents.default_tools import (
     GoogleSearchTool,
     PythonInterpreterTool,
@@ -19,6 +18,7 @@ from smolagents.default_tools import (
 )
 
 from mxtoai._logging import get_logger
+from mxtoai.mcp import load_mcp_tools_from_config
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
     LIST_FORMATTING_REQUIREMENTS,
@@ -46,8 +46,6 @@ from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.schedule_tool import ScheduleTool
-
-# Import the refactored fallback search tool
 from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
 # Import the new Brave Search tool
 from mxtoai.tools.brave_search_tool import initialize_brave_search_tool
@@ -80,37 +78,36 @@ class EmailAgent:
     """
 
     def __init__(
-        self, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
+        self,
+        attachment_dir: str = "email_attachments",
+        verbose: bool = False,
+        enable_deep_research: bool = False,
     ):
         """
         Initialize the email agent with tools for different operations.
 
         Args:
-            attachment_dir: Directory to store email attachments
-            verbose: Whether to enable verbose logging
-            enable_deep_research: Whether to enable Jina AI deep research functionality (uses API tokens)
-
+            attachment_dir: Directory to store email attachments.
+            verbose: Whether to enable verbose logging.
+            enable_deep_research: Whether to enable Jina AI deep research functionality (uses API tokens).
         """
-        # Set up logging
         if verbose:
-            # Consider configuring logging level via environment variables or central logging setup
             logger.debug("Verbose logging potentially enabled (actual level depends on logger config).")
 
         self.attachment_dir = attachment_dir
         os.makedirs(self.attachment_dir, exist_ok=True)
 
+        # Initialize base tools (non-MCP)
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
         self.schedule_tool = ScheduleTool()
         self.visit_webpage_tool = VisitWebpageTool()
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
-
-        # Initialize complex tools using helper methods
         self.search_with_fallback_tool = self._initialize_search_tools()
         self.research_tool = self._initialize_deep_research_tool(enable_deep_research)
 
-        self.available_tools: list[Tool] = [
+        self.base_tools: list[Tool] = [
             self.attachment_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
@@ -120,30 +117,57 @@ class EmailAgent:
             azure_visualizer,
         ]
         if self.research_tool:
-            self.available_tools.append(self.research_tool)
+            self.base_tools.append(self.research_tool)
+        
+        self.routed_model = RoutedLiteLLMModel() # Keep routed model initialization
 
-        logger.info(f"Agent tools initialized: {[tool.name for tool in self.available_tools]}")
-        self._init_agent()
-        logger.info("Email agent initialized successfully")
+        tool_names = [tool.name for tool in self.base_tools]
+        logger.info(f"Base agent tools initialized: {tool_names}")
+        logger.info("Email agent initialized (MCP tools will be loaded dynamically per request)")
 
-    def _init_agent(self):
+    def _get_mcp_servers_config(self) -> dict[str, dict[str, Any]]:
         """
-        Initialize the ToolCallingAgent with Azure OpenAI.
+        Parses the mcp.toml file and returns server configurations
+        for enabled MCP servers.
         """
-        # Initialize the routed model with the default model group
-        self.routed_model = RoutedLiteLLMModel()
+        effective_mcp_config_path = os.getenv("MCP_CONFIG_PATH", "mcp.toml")
 
-        self.agent = ToolCallingAgent(
-            model=self.routed_model,
-            tools=self.available_tools,
-            max_steps=12,
-            verbosity_level=2,
-            planning_interval=4,
-            name="email_processing_agent",
-            description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities including web search, web browsing, and code execution.",
-            provide_run_summary=True,
-        )
-        logger.debug("Agent initialized with routed model configuration")
+        if not os.path.exists(effective_mcp_config_path):
+            logger.debug(f"MCP configuration file not found at '{effective_mcp_config_path}'. No MCP tools will be loaded.")
+            return {}
+
+        try:
+            with open(effective_mcp_config_path, "rb") as f:
+                config = tomllib.load(f)
+        except tomllib.TOMLDecodeError as e:
+            logger.error(f"Error decoding MCP TOML file at '{effective_mcp_config_path}': {e}")
+            return {}
+        except OSError as e:
+            logger.error(f"Error reading MCP TOML file at '{effective_mcp_config_path}': {e}")
+            return {}
+
+        mcp_servers_config = config.get("mcp_servers", {})
+        if not mcp_servers_config:
+            logger.info(f"No 'mcp_servers' table found in '{effective_mcp_config_path}'. No MCP tools will be loaded.")
+            return {}
+
+        # Filter for enabled servers and merge environment variables
+        enabled_servers = {}
+        for server_name, server_details in mcp_servers_config.items():
+            if not server_details.get("enabled", True):  # Default to enabled if not specified
+                logger.debug(f"MCP server '{server_name}' is disabled in config. Skipping.")
+                continue
+
+            # Create a copy and merge environment variables for stdio servers
+            server_config = server_details.copy()
+            if server_config.get("type") == "stdio" and "env" in server_config:
+                # Merge with current environment
+                server_config["env"] = {**os.environ, **server_config["env"]}
+            
+            enabled_servers[server_name] = server_config
+
+        logger.info(f"Found {len(enabled_servers)} enabled MCP servers in configuration.")
+        return enabled_servers
 
     def _initialize_search_tools(self) -> SearchWithFallbackTool:
         """
@@ -179,7 +203,9 @@ class EmailAgent:
 
         primary_names = [getattr(p, "name", "UnknownTool") for p in primary_search_engines]
         fallback_name = getattr(google_search_fallback_tool, "name", "None") if google_search_fallback_tool else "None"
-        logger.info(f"Initialized SearchWithFallbackTool. Primary engines: {primary_names}, Fallback: {fallback_name}")
+        logger.info(
+            f"Initialized SearchWithFallbackTool. Primary engines: {primary_names}, Fallback: {fallback_name}"
+        )
         return search_tool
 
     def _get_required_actions(self, mode: str) -> list[str]:
@@ -187,11 +213,10 @@ class EmailAgent:
         Get list of required actions based on mode.
 
         Args:
-            mode: The mode of operation (e.g., "summary", "reply", "research", "full")
+            mode: The mode of operation (e.g., "summary", "reply", "research", "full").
 
         Returns:
-            List[str]: List of actions to be performed by the agent
-
+            List of actions to be performed by the agent.
         """
         actions = []
         if mode in ["summary", "full"]:
@@ -207,8 +232,7 @@ class EmailAgent:
         Initialize Google search tool with either SerpAPI or Serper provider.
 
         Returns:
-            Optional[GoogleSearchTool]: Initialized GoogleSearchTool instance or None if initialization fails
-
+            Optional[GoogleSearchTool]: Initialized GoogleSearchTool instance or None if fails.
         """
         if os.getenv("SERPAPI_API_KEY"):
             try:
@@ -216,19 +240,16 @@ class EmailAgent:
                 logger.debug("Initialized GoogleSearchTool with SerpAPI for fallback.")
                 return tool
             except ValueError as e:
-                logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI for fallback: {e}")
+                logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI: {e}")
         elif os.getenv("SERPER_API_KEY"):
             try:
                 tool = GoogleSearchTool(provider="serper")
                 logger.debug("Initialized GoogleSearchTool with Serper for fallback.")
                 return tool
             except ValueError as e:
-                logger.warning(f"Failed to initialize GoogleSearchTool with Serper for fallback: {e}")
+                logger.warning(f"Failed to initialize GoogleSearchTool with Serper: {e}")
         else:
-            logger.warning(
-                "GoogleSearchTool (for fallback) not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY."
-            )
-
+            logger.warning("GoogleSearchTool (fallback) not initialized: SERPAPI_API_KEY or SERPER_API_KEY missing.")
         return None
 
     def _initialize_deep_research_tool(self, enable_deep_research: bool) -> Optional[DeepResearchTool]:
@@ -236,27 +257,24 @@ class EmailAgent:
         Initializes the DeepResearchTool if API key is available.
 
         Args:
-            enable_deep_research: Flag to enable deep research functionality
+            enable_deep_research: Flag to enable deep research functionality.
 
         Returns:
-            Optional[DeepResearchTool]: Initialized DeepResearchTool instance or None if API key is not found
-
+            Optional[DeepResearchTool]: Initialized DeepResearchTool instance or None.
         """
-        research_tool: Optional[DeepResearchTool] = None
-        if os.getenv("JINA_API_KEY"):
-            research_tool = DeepResearchTool()
-            if enable_deep_research:
-                # Assuming DeepResearchTool is enabled by its presence and API key.
-                # If specific enabling logic is needed in DeepResearchTool, it should be called here.
-                logger.debug(
-                    "DeepResearchTool instance created; deep research functionality is active if enable_deep_research is true."
-                )
-            else:
-                logger.debug(
-                    "DeepResearchTool instance created, but deep research is not explicitly enabled via agent config (enable_deep_research=False). Tool may operate in a basic mode or not be used by agent logic if dependent on this flag."
-                )
-        else:
+        if not os.getenv("JINA_API_KEY"):
             logger.info("JINA_API_KEY not found. DeepResearchTool not initialized.")
+            return None
+
+        research_tool = DeepResearchTool()
+        if enable_deep_research:
+            logger.debug(
+                "DeepResearchTool instance created; deep research functionality is active."
+            )
+        else:
+            logger.debug(
+                "DeepResearchTool instance created, but deep research is not explicitly enabled via agent config."
+            )
         return research_tool
 
     def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
@@ -264,19 +282,15 @@ class EmailAgent:
         Create a task description for the agent based on email handle instructions.
 
         Args:
-            email_request: EmailRequest instance containing email data
-            email_instructions: EmailHandleInstructions object containing processing configuration
+            email_request: EmailRequest instance containing email data.
+            email_instructions: EmailHandleInstructions object with processing configuration.
 
         Returns:
-            str: The task description for the agent
-
+            The task description for the agent.
         """
-        # process attachments if specified
-        attachments = (
-            self._format_attachments(email_request.attachments)
-            if email_instructions.process_attachments and email_request.attachments
-            else []
-        )
+        attachments = []
+        if email_instructions.process_attachments and email_request.attachments:
+            attachments = self._format_attachments(email_request.attachments)
 
         return self._create_task_template(
             handle=email_instructions.handle,
@@ -292,28 +306,26 @@ class EmailAgent:
         Format attachment details for inclusion in the task.
 
         Args:
-            attachments: List of EmailAttachment objects
+            attachments: List of EmailAttachment objects.
 
         Returns:
-            List[str]: Formatted attachment details
-
+            List of formatted attachment details.
         """
         return [
             f'- {att.filename} (Type: {att.contentType}, Size: {att.size} bytes)\n  EXACT FILE PATH: "{att.path}"'
             for att in attachments
         ]
 
-    def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
+    def _create_email_context(self, email_request: EmailRequest, attachment_details: Optional[list[str]] = None) -> str:
         """
         Generate context information from the email request.
 
         Args:
-            email_request: EmailRequest instance containing email data
-            attachment_details: List of formatted attachment details
+            email_request: EmailRequest instance containing email data.
+            attachment_details: List of formatted attachment details.
 
         Returns:
-            str: The context information for the agent
-
+            The context information for the agent.
         """
         recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
         attachments_info = (
@@ -321,6 +333,7 @@ class EmailAgent:
             if attachment_details
             else "No attachments provided."
         )
+        body_content = email_request.textContent or email_request.htmlContent or ""
         return f"""Email Content:
     Subject: {email_request.subject}
     From: {email_request.from_email}
@@ -328,7 +341,7 @@ class EmailAgent:
     Recipients: {recipients}
     CC: {email_request.cc or "N/A"}
     BCC: {email_request.bcc or "N/A"}
-    Body: {email_request.textContent or email_request.htmlContent or ""}
+    Body: {body_content}
 
     {attachments_info}
     """
@@ -338,11 +351,10 @@ class EmailAgent:
         Return instructions for processing attachments, if any.
 
         Args:
-            attachment_details: List of formatted attachment details
+            attachment_details: List of formatted attachment details.
 
         Returns:
-            str: Instructions for processing attachments
-
+            Instructions for processing attachments.
         """
         return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
 
@@ -357,24 +369,12 @@ class EmailAgent:
     ) -> str:
         """
         Combine all task components into the final task description.
-
-        Args:
-            handle: The email handle being processed.
-            email_context: The context information extracted from the email.
-            handle_specific_template: Any specific template for the handle.
-            attachment_task: Instructions for processing attachments.
-            deep_research_mandatory: Flag indicating if deep research is mandatory.
-            output_template: The output template to use.
-
-        Returns:
-            str: The complete task description for the agent.
-
         """
-        # Merge the task components into a single string by listing the sections
+        research_guideline = RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"]
         sections = [
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
-            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"],
+            research_guideline,
             attachment_task,
             handle_specific_template,
             output_template,
@@ -389,21 +389,16 @@ class EmailAgent:
     ) -> DetailedEmailProcessingResult:
         processed_at_time = datetime.now().isoformat()
 
-        # Initialize schema components
         errors_list: list[ProcessingError] = []
         email_sent_status = EmailSentStatus(status="pending", timestamp=processed_at_time)
-
-        attachment_proc_summary: Union[str, None] = None
+        attachment_proc_summary: Optional[str] = None
         processed_attachment_details: list[ProcessedAttachmentDetail] = []
-
-        calendar_result_data: Union[CalendarResult, None] = None
-
-        research_output_findings: Union[str, None] = None
-        research_output_metadata: Union[AgentResearchMetadata, None] = None
-
-        final_answer_from_llm: Union[str, None] = None
-        email_text_content: Union[str, None] = None
-        email_html_content: Union[str, None] = None
+        calendar_result_data: Optional[CalendarResult] = None
+        research_output_findings: Optional[str] = None
+        research_output_metadata: Optional[AgentResearchMetadata] = None
+        final_answer_from_llm: Optional[str] = None
+        email_text_content: Optional[str] = None
+        email_html_content: Optional[str] = None
 
         try:
             logger.debug(f"Processing final answer object type: {type(final_answer_obj)}")
@@ -411,17 +406,14 @@ class EmailAgent:
 
             for i, step in enumerate(agent_steps):
                 logger.debug(f"[Memory Step {i + 1}] Type: {type(step)}")
+                tool_name: Optional[str] = None
+                tool_output: Any = None
 
-                tool_name = None
-                tool_output = None
-
-                if hasattr(step, "tool_calls") and isinstance(step.tool_calls, list) and len(step.tool_calls) > 0:
+                if hasattr(step, "tool_calls") and isinstance(step.tool_calls, list) and step.tool_calls:
                     first_tool_call = step.tool_calls[0]
                     tool_name = getattr(first_tool_call, "name", None)
                     if not tool_name:
                         logger.warning(f"[Memory Step {i + 1}] Could not extract tool name from first call.")
-                        tool_name = None
-
                     action_out = getattr(step, "action_output", None)
                     obs_out = getattr(step, "observations", None)
                     tool_output = action_out if action_out is not None else obs_out
@@ -432,24 +424,29 @@ class EmailAgent:
                         try:
                             tool_output = ast.literal_eval(tool_output)
                         except (ValueError, SyntaxError) as e:
-                            logger.error(
-                                f"[Memory Step {i + 1}] Failed to parse '{tool_name}' output: {e!s}. Content: {tool_output[:200]}..."
+                            msg = (
+                                f"[Memory Step {i + 1}] Failed to parse '{tool_name}' output: {e!s}. "
+                                f"Content: {tool_output[:200]}..."
                             )
+                            logger.error(msg)
                             errors_list.append(
                                 ProcessingError(message=f"Failed to parse {tool_name} output", details=str(e))
                             )
                             continue
-                        except Exception as e:
-                            logger.error(
-                                f"[Memory Step {i + 1}] Unexpected error parsing '{tool_name}' output: {e!s}. Content: {tool_output[:200]}..."
+                        except Exception as e: # pylint: disable=broad-except
+                            msg = (
+                                f"[Memory Step {i + 1}] Unexpected error parsing '{tool_name}' output: {e!s}. "
+                                f"Content: {tool_output[:200]}..."
                             )
+                            logger.error(msg)
                             errors_list.append(
                                 ProcessingError(message=f"Unexpected error parsing {tool_name} output", details=str(e))
                             )
                             continue
 
                     logger.debug(
-                        f"[Memory Step {i + 1}] Processing tool call: '{tool_name}', Output Type: '{type(tool_output)}'"
+                        f"[Memory Step {i + 1}] Processing tool call: '{tool_name}', "
+                        f"Output Type: '{type(tool_output)}'"
                     )
 
                     if tool_name == "attachment_processor" and isinstance(tool_output, dict):
@@ -495,14 +492,15 @@ class EmailAgent:
                             errors_list.append(ProcessingError(message="Schedule Tool Error", details=error_msg))
                     else:
                         logger.debug(
-                            f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}..."
+                            f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler). "
+                            f"Output: {str(tool_output)[:200]}..."
                         )
                 else:
                     logger.debug(
-                        f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), not a relevant ActionStep or missing output."
+                        f"[Memory Step {i + 1}] Skipping step (Type: {type(step)}), "
+                        "not a relevant ActionStep or missing output."
                     )
 
-            # Extract final answer from LLM
             if hasattr(final_answer_obj, "text"):
                 final_answer_from_llm = str(final_answer_obj.text).strip()
                 logger.debug("Extracted final answer from AgentResponse.text")
@@ -512,12 +510,10 @@ class EmailAgent:
             elif hasattr(final_answer_obj, "_value"):  # Check for older AgentText structure
                 final_answer_from_llm = str(final_answer_obj._value).strip()
                 logger.debug("Extracted final answer from AgentText._value")
-            elif hasattr(final_answer_obj, "answer"):  # Handle final_answer tool call argument
-                # Check if the argument itself is the content string
+            elif hasattr(final_answer_obj, "answer"):
                 if isinstance(getattr(final_answer_obj, "answer", None), str):
                     final_answer_from_llm = str(final_answer_obj.answer).strip()
                     logger.debug("Extracted final answer from final_answer tool argument string")
-                # Or if it's nested in arguments (less likely for final_answer but check)
                 elif (
                     isinstance(getattr(final_answer_obj, "arguments", None), dict)
                     and "answer" in final_answer_obj.arguments
@@ -527,15 +523,16 @@ class EmailAgent:
                 else:
                     final_answer_from_llm = str(final_answer_obj).strip()
                     logger.warning(
-                        f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}..."
+                        f"Could not find specific answer attribute in final_answer object, using str(). "
+                        f"Result: {final_answer_from_llm[:100]}..."
                     )
             else:
                 final_answer_from_llm = str(final_answer_obj).strip()
                 logger.warning(
-                    f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}..."
+                    f"Could not find specific answer attribute in final_answer object, using str(). "
+                    f"Result: {final_answer_from_llm[:100]}..."
                 )
 
-            # Determine email body content
             email_body_content_source = research_output_findings if research_output_findings else final_answer_from_llm
 
             if email_body_content_source:
@@ -550,7 +547,10 @@ class EmailAgent:
                 temp_content = email_body_content_source
                 for marker in signature_markers:
                     temp_content = re.sub(
-                        r"^[\s\n]*" + re.escape(marker) + r".*$", "", temp_content, flags=re.IGNORECASE | re.MULTILINE
+                        r"^[\s\n]*" + re.escape(marker) + r".*$",
+                        "",
+                        temp_content,
+                        flags=re.IGNORECASE | re.MULTILINE,
                     ).strip()
 
                 email_text_content = self.report_formatter.format_report(
@@ -560,7 +560,10 @@ class EmailAgent:
                     temp_content, format_type="html", include_signature=True
                 )
             else:
-                fallback_msg = "I apologize, but I encountered an issue generating the detailed response. Please try again later or contact support if this issue persists."
+                fallback_msg = (
+                    "I apologize, but I encountered an issue generating the detailed response. "
+                    "Please try again later or contact support if this issue persists."
+                )
                 email_text_content = self.report_formatter.format_report(
                     fallback_msg, format_type="text", include_signature=True
                 )
@@ -571,18 +574,16 @@ class EmailAgent:
                 email_sent_status.status = "error"
                 email_sent_status.error = "No reply text was generated"
 
-            # Construct the final Pydantic model INSIDE the try block
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
                     processed_at=processed_at_time,
-                    mode=current_email_handle,  # Use the passed handle for mode
+                    mode=current_email_handle,
                     errors=errors_list,
                     email_sent=email_sent_status,
                 ),
                 email_content=EmailContentDetails(
                     text=email_text_content,
                     html=email_html_content,
-                    # Assuming enhanced content is same as base for now
                     enhanced={"text": email_text_content, "html": email_html_content},
                 ),
                 attachments=AttachmentsProcessingResult(
@@ -596,40 +597,28 @@ class EmailAgent:
                 else None,
             )
 
-        except Exception as e:
+        except Exception as e: # pylint: disable=broad-except
             logger.exception(f"Critical error in _process_agent_result: {e!s}")
-            # Ensure errors_list and email_sent_status are updated
-            # If these were initialized outside and before this try-except, they might already exist.
-            # Re-initialize or ensure they are correctly formed for the error state.
-            # This part already handles populating errors_list and setting email_sent_status.
-
-            # Ensure basic structure for fallback if critical error happened early
-            if not errors_list:  # If the error happened before any specific error was added
+            if not errors_list:
                 errors_list.append(ProcessingError(message="Critical error in _process_agent_result", details=str(e)))
 
-            current_timestamp = datetime.now().isoformat()  # Use a fresh timestamp
-            if email_sent_status.status != "error":  # If not already set to error by prior logic
+            current_timestamp = datetime.now().isoformat()
+            if email_sent_status.status != "error":
                 email_sent_status.status = "error"
                 email_sent_status.error = f"Critical error in _process_agent_result: {e!s}"
                 email_sent_status.timestamp = current_timestamp
 
-            # Fallback email content if not already set
             fb_text = "I encountered a critical error processing your request during result generation."
-            final_email_text = (
-                email_text_content
-                if email_text_content
-                else self.report_formatter.format_report(fb_text, format_type="text", include_signature=True)
+            final_email_text = email_text_content or self.report_formatter.format_report(
+                fb_text, format_type="text", include_signature=True
             )
-            final_email_html = (
-                email_html_content
-                if email_html_content
-                else self.report_formatter.format_report(fb_text, format_type="html", include_signature=True)
+            final_email_html = email_html_content or self.report_formatter.format_report(
+                fb_text, format_type="html", include_signature=True
             )
 
-            # Construct and return an error-state DetailedEmailProcessingResult
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
-                    processed_at=processed_at_time,  # or current_timestamp, consider consistency
+                    processed_at=processed_at_time,
                     mode=current_email_handle,
                     errors=errors_list,
                     email_sent=email_sent_status,
@@ -637,16 +626,14 @@ class EmailAgent:
                 email_content=EmailContentDetails(
                     text=final_email_text,
                     html=final_email_html,
-                    enhanced={"text": final_email_text, "html": final_email_html},  # ensure enhanced also has fallback
+                    enhanced={"text": final_email_text, "html": final_email_html},
                 ),
                 attachments=AttachmentsProcessingResult(
-                    summary=attachment_proc_summary
-                    if attachment_proc_summary
-                    else None,  # Keep any partial data if available
-                    processed=processed_attachment_details if processed_attachment_details else [],
+                    summary=attachment_proc_summary,
+                    processed=processed_attachment_details,
                 ),
-                calendar_data=calendar_result_data,  # Keep any partial data
-                research=AgentResearchOutput(  # Keep any partial data
+                calendar_data=calendar_result_data,
+                research=AgentResearchOutput(
                     findings_content=research_output_findings, metadata=research_output_metadata
                 )
                 if research_output_findings or research_output_metadata
@@ -657,29 +644,100 @@ class EmailAgent:
         self,
         email_request: EmailRequest,
         email_instructions: ProcessingInstructions,
-    ) -> DetailedEmailProcessingResult:  # Updated return type annotation
+    ) -> DetailedEmailProcessingResult:
         """
         Process an email using the agent based on the provided email handle instructions.
 
         Args:
-            email_request: EmailRequest instance containing email data
-            email_instructions: ProcessingInstructions object containing processing configuration
+            email_request: EmailRequest instance containing email data.
+            email_instructions: ProcessingInstructions object with processing configuration.
 
         Returns:
             DetailedEmailProcessingResult: Pydantic model with structured processing results.
-
         """
         try:
             self.routed_model.current_handle = email_instructions
             task = self._create_task(email_request, email_instructions)
+            logger.info("Starting agent execution setup...")
 
-            logger.info("Starting agent execution...")
-            final_answer_obj = self.agent.run(task)
-            logger.info("Agent execution completed.")
+            # Get MCP server configurations
+            mcp_servers_config = self._get_mcp_servers_config()
+            
+            all_tools = list(self.base_tools)  # Start with base tools
+            agent_steps = []
+            final_answer_obj = None
+            
+            agent_description = (
+                "An agent that processes emails, generates summaries, replies, and conducts research "
+                "with advanced capabilities including web search, web browsing, code execution, and MCP tools."
+            )
 
-            agent_steps = list(self.agent.memory.steps)
-            logger.info(f"Captured {len(agent_steps)} steps from agent memory.")
+            # Load MCP tools using our custom implementation
+            if mcp_servers_config:
+                try:
+                    logger.info(f"Loading MCP tools from {len(mcp_servers_config)} configured servers")
+                    
+                    with load_mcp_tools_from_config(mcp_servers_config) as mcp_tools:
+                        all_tools.extend(mcp_tools)
+                        mcp_tools_count = len(mcp_tools)
+                        
+                        logger.info(f"Successfully loaded {mcp_tools_count} MCP tools")
+                        logger.info(f"Total tools available: {len(all_tools)} (Base: {len(self.base_tools)}, MCP: {mcp_tools_count})")
+                        
+                        # Initialize ToolCallingAgent with all tools
+                        agent = ToolCallingAgent(
+                            model=self.routed_model,
+                            tools=all_tools,
+                            max_steps=12,
+                            verbosity_level=2,
+                            planning_interval=4,
+                            name="email_processing_agent_with_mcp",
+                            description=agent_description,
+                            provide_run_summary=True,
+                        )
+                        logger.debug("Initialized ToolCallingAgent with MCP tools")
 
+                        logger.info("Starting agent.run() with MCP tools...")
+                        final_answer_obj = agent.run(task)
+                        logger.info("Agent.run() execution completed.")
+
+                        agent_steps = list(agent.memory.steps)
+                        logger.debug(f"Captured {len(agent_steps)} steps from agent memory.")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to load MCP tools, falling back to base tools only: {e}")
+                    # Fall back to base tools only
+                    agent = ToolCallingAgent(
+                        model=self.routed_model,
+                        tools=all_tools,  # Just base tools at this point
+                        max_steps=12,
+                        verbosity_level=2,
+                        planning_interval=4,
+                        name="email_processing_agent_base_only",
+                        description=agent_description,
+                        provide_run_summary=True,
+                    )
+                    logger.info("Starting agent.run() with base tools only...")
+                    final_answer_obj = agent.run(task)
+                    agent_steps = list(agent.memory.steps)
+            else:
+                # No MCP servers configured, use base tools only
+                logger.info("No MCP servers configured, using base tools only")
+                agent = ToolCallingAgent(
+                    model=self.routed_model,
+                    tools=all_tools,
+                    max_steps=12,
+                    verbosity_level=2,
+                    planning_interval=4,
+                    name="email_processing_agent_base_only",
+                    description=agent_description,
+                    provide_run_summary=True,
+                )
+                logger.info("Starting agent.run() with base tools only...")
+                final_answer_obj = agent.run(task)
+                agent_steps = list(agent.memory.steps)
+
+            # Process the results
             processed_result = self._process_agent_result(final_answer_obj, agent_steps, email_instructions.handle)
 
             if not processed_result.email_content or not processed_result.email_content.text:
@@ -688,19 +746,27 @@ class EmailAgent:
                 processed_result.metadata.errors.append(ProcessingError(message=msg))
                 processed_result.metadata.email_sent.status = "error"
                 processed_result.metadata.email_sent.error = msg
-
                 logger.info(f"Email processed (but no reply text generated) with handle: {email_instructions.handle}")
                 return processed_result
 
             logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
-            return processed_result  # Added return for the successful case
+            return processed_result
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             error_msg = f"Critical error in email processing: {e!s}"
             logger.error(error_msg, exc_info=True)
 
-            # Construct a DetailedEmailProcessingResult for error cases
             now_iso = datetime.now().isoformat()
+            error_email_text = self.report_formatter.format_report(
+                "I encountered a critical error processing your request.",
+                format_type="text",
+                include_signature=True,
+            )
+            error_email_html = self.report_formatter.format_report(
+                "I encountered a critical error processing your request.",
+                format_type="html",
+                include_signature=True,
+            )
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
                     processed_at=now_iso,
@@ -709,17 +775,9 @@ class EmailAgent:
                     email_sent=EmailSentStatus(status="error", error=error_msg, timestamp=now_iso),
                 ),
                 email_content=EmailContentDetails(
-                    text=self.report_formatter.format_report(
-                        "I encountered a critical error processing your request.",
-                        format_type="text",
-                        include_signature=True,
-                    ),
-                    html=self.report_formatter.format_report(
-                        "I encountered a critical error processing your request.",
-                        format_type="html",
-                        include_signature=True,
-                    ),
-                    enhanced={"text": None, "html": None},
+                    text=error_email_text,
+                    html=error_email_html,
+                    enhanced={"text": error_email_text, "html": error_email_html},
                 ),
                 attachments=AttachmentsProcessingResult(processed=[]),
                 calendar_data=None,

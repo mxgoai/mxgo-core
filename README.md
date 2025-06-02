@@ -106,20 +106,25 @@ Copy the `.env.example` file to `.env` and update with your specific configurati
 
 ```env
 LITELLM_CONFIG_PATH=model.config.toml
+# Optional: Path to your MCP server configuration file
+# MCP_CONFIG_PATH=mcp.toml
 
 # Redis configuration
 REDIS_HOST=localhost
 REDIS_PORT=6379
 
-# Optional for research functionality
-JINA_API_KEY=your-jina-api-key
+# JINA API Key
+# JINA_API_KEY=your-jina-api-key # Uncomment and set if using deep research
 
 # For image processing
-AZURE_VISION_ENDPOINT=your-azure-vision-endpoint
-AZURE_VISION_KEY=your-azure-vision-key
+# AZURE_VISION_ENDPOINT=your-azure-vision-endpoint # Uncomment and set if using Azure vision
+# AZURE_VISION_KEY=your-azure-vision-key           # Uncomment and set if using Azure vision
 
 # For web search functionality
-SERPAPI_API_KEY=your-serpapi-api-key
+# SERPAPI_API_KEY=your-serpapi-api-key # Uncomment and set for Google Search via SerpAPI
+# SERPER_API_KEY=your-serper-api-key   # Uncomment and set for Google Search via Serper
+
+SENDER_EMAIL=ai-assistant@mxtoai.com
 ```
 
 This project supports load balancing and routing across multiple models, so you can define as many models as you'd like. Copy `model.config.example.toml` to a toml file and update it with your preferred configuration. Update `.env` with the path your toml relative to root.
@@ -256,6 +261,34 @@ The system now supports:
 - Detailed error tracking and reporting
 - Fallback responses for partial failures
 - Comprehensive error logging
+
+### MCP Server Integration (Optional)
+
+The system supports integration with Model Context Protocol (MCP) servers, allowing the EmailAgent to leverage additional tools and data sources.
+
+**Configuration:**
+
+1.  Create or copy `mcp.toml.example` to `mcp.toml` in the project root.
+2.  Edit `mcp.toml` to define your MCP server configurations. Refer to the comments within `mcp.toml.example` for detailed instructions and examples for both Stdio and SSE based servers.
+3.  Ensure each server configuration you want to use has `enabled = true`.
+4.  You can specify a custom path for this configuration file by setting the `MCP_CONFIG_PATH` environment variable in your `.env` file.
+
+**Example `mcp.toml` entry:**
+```toml
+[mcp_servers.my_filesystem_reader]
+type = "stdio"
+command = "npx"
+args = [
+    "-y",
+    "@modelcontextprotocol/server-filesystem",
+    "/path/to/readable/directory"
+]
+env = { "SOME_VAR" = "some_value" }
+enabled = true
+```
+
+**Security Note:**
+Using MCP servers, especially Stdio-based ones, involves running external commands and code. The system uses `trust_remote_code=True` when loading these tools via `smolagents`, which is often necessary for their functionality but carries inherent security risks. **Only configure and enable MCP servers from sources you explicitly trust.**
 
 ## Load Testing
 
