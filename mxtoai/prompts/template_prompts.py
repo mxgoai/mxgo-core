@@ -96,33 +96,61 @@ Content Guidelines:
 
 # Background research handler template
 BACKGROUND_RESEARCH_TEMPLATE = """
-Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.
-Use web search, page visit and linkedin data tools.
-During your search, try to find best relevant profiles from websearch or linkedin results by looking at email content. Don't pick any random matching profile and mark research done.
+Conduct comprehensive business intelligence research on individuals and organizations mentioned in the email.
+This is strategic research to support business decisions, not just basic background information.
 
-**LinkedIn Data Strategy:**
-- For LinkedIn profile/company research, try linkedin_data tool first (uses LinkedIn URLs directly)
-- If linkedin_data fails or you need to search by criteria, use linkedin_data_api tool
-- Use web search first to find LinkedIn URLs or usernames for more accurate LinkedIn data requests
+Research Strategy & Tool Usage:
+- Start with web search to identify LinkedIn profiles, company pages, and recent news
+- Use LinkedIn tools strategically:
+  - linkedin_fresh_data: For direct LinkedIn URLs and detailed profile data
+  - linkedin_data_api: For searches by name, company, or when you need to find profiles
+- Cross-reference information across multiple sources for accuracy
+- Focus on business relevance - what matters for the decision at hand
+- Keep a note of links visited and used for research, they MUST be included in the references section
 
-Response Requirements:
-1. Structure with clear sections:
-   - ### Executive Summary
-   - ### Key Findings
-   - ### Detailed Analysis
-   - ### Supporting Evidence
-   - ### References
-2. Include proper citations [1], [2], etc. if the deep_research tool provides them. For web_search results, extract the title and URL for each source and list them under the 'References' section using markdown link format (e.g., 1. [Page Title](URL)).
-3. Format tables using markdown table syntax
-4. Use proper paragraph spacing
+**Research Scope - Investigate All Relevant Aspects:**
 
-Content Guidelines:
-1. Focus on relevant background
-2. Include verifiable information
-3. Note information sources
-4. Maintain professional tone
-5. Flag any concerns
-6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
+**For Individuals:**
+1. **Professional Background**: Current role, career trajectory, previous companies, tenure
+2. **Industry Expertise**: Skills, specializations, thought leadership, publications
+3. **Network & Influence**: Team size, reporting structure, decision-making authority
+4. **Recent Activity**: Job changes, promotions, company updates, market moves
+5. **Credibility Indicators**: Track record, achievements, industry recognition
+6. **Connection Opportunities**: Mutual connections, shared interests, common ground
+
+**For Companies/Organizations:**
+1. **Business Profile**: Size, revenue range, funding stage, growth trajectory
+2. **Market Position**: Industry standing, competitors, unique value propositions
+3. **Financial Health**: Recent funding, revenue trends, financial stability indicators
+4. **Technology & Operations**: Tech stack, business model, operational scale
+5. **Recent Developments**: News, partnerships, acquisitions, product launches
+6. **Team & Leadership**: Key executives, team composition, hiring patterns
+
+**Business Context Analysis:**
+- **Opportunity Assessment**: What opportunities does this connection represent?
+- **Risk Evaluation**: Any red flags, concerns, or potential issues?
+- **Strategic Fit**: How well does this align with typical business goals?
+- **Competitive Intelligence**: Market positioning relative to competitors
+- **Decision Support**: What information is most critical for next steps?
+
+**Content Guidelines:**
+1. **Business-focused analysis** - always connect findings to business value
+2. **Strategic insights** - go beyond basic facts to provide decision support
+3. **Professional tone** - appropriate for executive-level communications
+4. **Actionable intelligence** - provide specific, usable insights
+5. **Cross-referenced accuracy** - verify key facts across multiple sources
+6. **Risk awareness** - flag any concerns or inconsistencies found in email content claims or news
+7. **Competitive context** - position findings within market landscape
+8. **Relationship mapping** - identify connection opportunities and common ground
+9. **References** - include all sources used with proper markdown links
+
+**Important Notes:**
+- Keep a note of links visited and used for research, they MUST be included in the references section
+- Provide strategic context for all findings
+- Include confidence levels for key assertions
+- Always include disclaimer about information accuracy and age
+- Prioritize recent and verifiable information
+- Connect individual research to broader business context
 """
 
 # Translation handler template
