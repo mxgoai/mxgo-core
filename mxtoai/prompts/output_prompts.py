@@ -37,7 +37,7 @@ Output Format Guidelines:
 # Ask handler output guidelines
 ASK_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
-1. Begin with acknowledgment of the question
+1. Begin with acknowledgment of the question at the top of the response.
 2. Structure response with clear sections
 3. Use examples to illustrate complex points
 4. Include actionable recommendations when applicable
@@ -47,11 +47,12 @@ Output Format Guidelines:
 # Fact-check handler output guidelines
 FACT_CHECK_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
-1. Present each claim in this format:
+1. Present a short summary of the original email to setup the context.
+2. Present each claim in this format:
    - **Claim**: [Original statement]
    - **Status**: [Verified ✓ / Not verified ❌ / Partially verified ⚠️]
    - **Evidence**: [Supporting information]
-   - **Sources**: [Citations with links]
+   - **Sources**: [Citations with links, make sure the links are valid]
 2. Use consistent status symbols throughout
 """
 

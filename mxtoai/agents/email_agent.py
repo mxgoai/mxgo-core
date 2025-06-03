@@ -44,13 +44,14 @@ from mxtoai.schemas import (
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
+
+# Import the new Brave Search tool
+from mxtoai.tools.brave_search_tool import initialize_brave_search_tool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.schedule_tool import ScheduleTool
 
 # Import the refactored fallback search tool
 from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
-# Import the new Brave Search tool
-from mxtoai.tools.brave_search_tool import initialize_brave_search_tool
 
 # Load environment variables
 load_dotenv(override=True)
@@ -152,6 +153,7 @@ class EmailAgent:
 
         Returns:
             SearchWithFallbackTool: The configured search tool.
+
         """
         ddg_search_tool = WebSearchTool(engine="duckduckgo", max_results=5)
         logger.debug("Initialized WebSearchTool with DuckDuckGo engine.")
@@ -163,13 +165,13 @@ class EmailAgent:
         # No need to log here as _initialize_google_search_tool does it.
 
         primary_search_engines: list[Tool] = []
-        if ddg_search_tool: # ddg_search_tool is always initialized
+        if ddg_search_tool:  # ddg_search_tool is always initialized
             primary_search_engines.append(ddg_search_tool)
-        if brave_search_tool: # brave_search_tool might be None if API key is missing
+        if brave_search_tool:  # brave_search_tool might be None if API key is missing
             primary_search_engines.append(brave_search_tool)
 
         if not primary_search_engines:
-             logger.warning(
+            logger.warning(
                 "No primary search engines (DuckDuckGo, Brave) could be initialized for SearchWithFallbackTool."
             )
 

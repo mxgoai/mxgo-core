@@ -89,7 +89,7 @@ Content Guidelines:
 1. State each claim clearly
 2. Provide verification status
 3. Include supporting evidence
-4. Cite reliable sources
+4. Cite reliable sources with actual links to the source
 5. Note any uncertainties
 6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
 """

@@ -6,7 +6,7 @@ MARKDOWN_STYLE_GUIDE = """
 MARKDOWN FORMATTING REQUIREMENTS:
 - **bold** for emphasis
 - _italics_ for quotes
-- ### for section headers (if needed)
+- Strictly use ### for section headers
 - Proper bullet points and numbered lists
 - Clear paragraph spacing
 """
@@ -18,7 +18,8 @@ GENERAL RESPONSE REQUIREMENTS:
 - Include only relevant information
 - Maintain appropriate tone and style
 - Use proper spacing and formatting
-- ALWAYS Indent each nested level with two spaces
+- Try to maintain visual hierarchy of the response using section headers and lists
+- Do not add numbering in front of section headers
 - DO NOT add any signature - it will be added automatically
 - If web search tools were used, create a 'References' section at the end of your response. List the titles and URLs of the web pages used, formatted as markdown links (e.g., `1. [Page Title](URL)`).
 """
