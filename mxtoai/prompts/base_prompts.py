@@ -6,7 +6,7 @@ MARKDOWN_STYLE_GUIDE = """
 MARKDOWN FORMATTING REQUIREMENTS:
 - **bold** for emphasis
 - _italics_ for quotes
-- Strictly use ### for section headers
+- Strictly use `###` for section headers
 - Proper bullet points and numbered lists
 - Clear paragraph spacing
 """
@@ -19,33 +19,34 @@ GENERAL RESPONSE REQUIREMENTS:
 - Maintain appropriate tone and style
 - Use proper spacing and formatting
 - Try to maintain visual hierarchy of the response using section headers and lists
-- Do not add numbering in front of section headers
+- NEVER add numbers to section headers
 - DO NOT add any signature - it will be added automatically
 - If web search tools were used, create a 'References' section at the end of your response. List the titles and URLs of the web pages used, formatted as markdown links (e.g., `1. [Page Title](URL)`).
 """
 
 # Formatting requirements for HTML conversion
-LIST_FORMATTING_REQUIREMENTS = """
-NESTED LIST OUTPUT FORMAT GUIDELINES (for Markdown to HTML conversion):
+# Not needed anymore, still keeping it for a while just in case
+# LIST_FORMATTING_REQUIREMENTS = """
+# NESTED LIST OUTPUT FORMAT GUIDELINES (for Markdown to HTML conversion):
 
-1. Always begin with a **numbered list** (use `1.`).
-2. **Alternate between numbered and bullet lists** at each level of nesting:
-   - Level 1: `1.`, `2.`, `3.` (numbered)
-     1. Level 2: `-` (bullet)
-       - Level 3: `1.`, `2.`, `3.` (numbered)
-          1. Level 4: `-` (bullet)
-            - And so on...
-3. Use **blank lines** between paragraphs and between different list levels.
+# 1. Always begin with a **numbered list** (use `1.`).
+# 2. **Alternate between numbered and bullet lists** at each level of nesting:
+#    - Level 1: `1.`, `2.`, `3.` (numbered)
+#      1. Level 2: `-` (bullet)
+#        - Level 3: `1.`, `2.`, `3.` (numbered)
+#           1. Level 4: `-` (bullet)
+#             - And so on...
+# 3. Use **blank lines** between paragraphs and between different list levels.
 
-Example:
+# Example:
 
-1. Main point
-  - Sub-point
-    1. Sub-sub-point
-      - Sub-sub-sub-point
+# 1. Main point
+#   - Sub-point
+#     1. Sub-sub-point
+#       - Sub-sub-sub-point
 
-All list sections **must follow this structure exactly**. Improper nesting or use of list styles will break the HTML conversion.
-"""
+# All list sections **must follow this structure exactly**. Improper nesting or use of list styles will break the HTML conversion.
+# """
 
 # Research guidelines
 RESEARCH_GUIDELINES = {

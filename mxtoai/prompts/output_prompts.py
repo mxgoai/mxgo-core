@@ -22,6 +22,7 @@ Output Format Guidelines:
 3. Detailed Analysis: In-depth exploration with subheadings
 4. Supporting Evidence: Data, quotes, statistics
 5. References: Numbered citations with links when available
+6. Have separate sections for each of the above mentioned.
 """
 
 # Simplify handler output guidelines
@@ -37,7 +38,7 @@ Output Format Guidelines:
 # Ask handler output guidelines
 ASK_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
-1. Begin with acknowledgment of the question at the top of the response.
+1. Begin with acknowledgment of the question at the top of the response. Then begin any section.
 2. Structure response with clear sections
 3. Use examples to illustrate complex points
 4. Include actionable recommendations when applicable

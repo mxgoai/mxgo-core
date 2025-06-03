@@ -204,8 +204,11 @@ class ReportFormatter:
             Plain text version
 
         """
+        # Handle tables first - convert markdown tables to plain text format
+        text = self._convert_tables_to_plain_text(markdown)
+
         # Remove heading markers but preserve citations
-        text = re.sub(r"^#+\s+", "", markdown, flags=re.MULTILINE)
+        text = re.sub(r"^#+\s+", "", text, flags=re.MULTILINE)
         # Remove bold markers
         text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
         text = re.sub(r"__(.*?)__", r"\1", text)
@@ -224,6 +227,106 @@ class ReportFormatter:
         # Clean up extra newlines
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
+
+    def _convert_tables_to_plain_text(self, markdown: str) -> str:
+        """
+        Convert markdown tables to readable plain text format.
+
+        Args:
+            markdown: Markdown content with tables
+
+        Returns:
+            Markdown with tables converted to plain text
+
+        """
+        lines = markdown.split("\n")
+        result_lines = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Check if this looks like a table header
+            if "|" in line and i + 1 < len(lines) and "|" in lines[i + 1] and "-" in lines[i + 1]:
+                # Found a table, process it
+                table_lines = [line]
+                i += 1
+
+                # Skip the separator line
+                i += 1
+
+                # Collect table rows
+                while i < len(lines) and "|" in lines[i].strip():
+                    table_lines.append(lines[i].strip())
+                    i += 1
+
+                # Convert table to plain text
+                plain_table = self._format_table_as_plain_text(table_lines)
+                result_lines.extend(plain_table)
+                result_lines.append("")  # Add spacing after table
+
+                continue
+            result_lines.append(lines[i])
+            i += 1
+
+        return "\n".join(result_lines)
+
+    def _format_table_as_plain_text(self, table_lines: list[str]) -> list[str]:
+        """
+        Format a markdown table as readable plain text.
+
+        Args:
+            table_lines: List of table lines (header + rows)
+
+        Returns:
+            List of formatted plain text lines
+
+        """
+        if not table_lines:
+            return []
+
+        # Parse table data
+        rows = []
+        for line in table_lines:
+            # Remove leading/trailing pipes and split
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            rows.append(cells)
+
+        if not rows:
+            return []
+
+        # Calculate column widths
+        max_cols = max(len(row) for row in rows)
+        col_widths = []
+
+        for col in range(max_cols):
+            max_width = 0
+            for row in rows:
+                if col < len(row):
+                    max_width = max(max_width, len(row[col]))
+            col_widths.append(max(max_width, 8))  # Minimum width of 8
+
+        # Format as plain text
+        result = []
+
+        for row_idx, row in enumerate(rows):
+            # Pad cells to column width with center alignment
+            formatted_cells = []
+            for col in range(max_cols):
+                cell_content = row[col] if col < len(row) else ""
+                formatted_cells.append(cell_content.center(col_widths[col]))
+
+            # Join with spacing
+            result.append("  ".join(formatted_cells).rstrip())
+
+            # Add separator after header
+            if row_idx == 0:
+                separator_parts = []
+                for width in col_widths:
+                    separator_parts.append("-" * width)
+                result.append("  ".join(separator_parts))
+
+        return result
 
     def _to_html(self, markdown_content: str, theme: str = "default") -> str:
         """
@@ -283,7 +386,7 @@ class ReportFormatter:
         lines = content.split("\n")
         result_lines = []
 
-        for line in lines:
+        for i, line in enumerate(lines):
             # Check if this line looks like a list item without proper spacing
             if re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line):
                 # Get the indentation, marker, and text
@@ -292,7 +395,7 @@ class ReportFormatter:
                     indent, marker, rest_of_line = match.groups()
 
                     # Check if this is likely a section header vs a real list item
-                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip()):
+                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip(), lines, i):
                         # Convert to a proper markdown header
                         header_text = rest_of_line.strip()
                         line = f"## {header_text}"
@@ -305,25 +408,159 @@ class ReportFormatter:
         content = "\n".join(result_lines)
 
         # Convert letter-based lists to numbers (no markdown parser handles this)
-        return self._convert_letter_lists_to_numbers(content)
+        content = self._convert_letter_lists_to_numbers(content)
 
-    def _is_section_header(self, text: str) -> bool:
+        # Fix mixed list formatting (e.g., "- 1. Item" -> "1. Item")
+        return self._fix_mixed_list_formatting(content)
+
+    def _is_section_header(self, text: str, lines: list[str], current_index: int) -> bool:
         """
-        Simple keyword-based check for section headers.
+        Sophisticated check to determine if text is likely a section header vs a list item.
+        Uses multiple heuristics including length, content analysis, context, and numbering patterns.
+
+        Args:
+            text: The text content to analyze
+            lines: All lines in the document for context
+            current_index: Index of current line being analyzed
+
+        Returns:
+            True if likely a section header, False if likely a list item
+
         """
-        text_lower = text.lower()
-        section_keywords = [
+        if not text.strip():
+            return False
+
+        text_clean = text.strip()
+        text_lower = text_clean.lower()
+
+        # Heuristic 1: Length check - section headers are typically longer
+        if len(text_clean) < 15:
+            return False
+
+        # Heuristic 2: Strong section header keywords
+        strong_section_keywords = [
             "acknowledgment",
             "understanding",
             "summary",
             "response",
-            "detailed",
-            "top 10",
-            "posts",
-            "trending",
-            "with summaries",
+            "detailed analysis",
+            "comprehensive",
+            "breakdown",
+            "overview",
+            "introduction",
+            "background",
+            "methodology",
+            "findings",
+            "conclusion",
+            "recommendations",
+            "executive summary",
+            "key takeaways",
+            "main points",
+            "important notes",
         ]
-        return any(keyword in text_lower for keyword in section_keywords)
+
+        if any(keyword in text_lower for keyword in strong_section_keywords):
+            return True
+
+        # Heuristic 3: Contextual analysis - check surrounding lines
+        context_score = 0
+
+        # Check previous lines for list pattern
+        prev_lines_are_lists = 0
+        for i in range(max(0, current_index - 3), current_index):
+            if i < len(lines):
+                prev_line = lines[i].strip()
+                if re.match(r"^\d+\.\s+", prev_line) or re.match(r"^[*-]\s+", prev_line):
+                    prev_lines_are_lists += 1
+
+        # Check next lines for list pattern
+        next_lines_are_lists = 0
+        for i in range(current_index + 1, min(len(lines), current_index + 4)):
+            if i < len(lines):
+                next_line = lines[i].strip()
+                if re.match(r"^\d+\.\s+", next_line) or re.match(r"^[*-]\s+", next_line):
+                    next_lines_are_lists += 1
+
+        # If surrounded by lists, less likely to be a header
+        if prev_lines_are_lists >= 2 and next_lines_are_lists >= 1:
+            context_score -= 2
+        elif prev_lines_are_lists == 0 and next_lines_are_lists == 0:
+            context_score += 1
+
+        # Heuristic 4: Sequential numbering detection
+        # Extract number from current line's marker
+        current_line = lines[current_index] if current_index < len(lines) else ""
+        current_num_match = re.match(r"^\s*(\d+)\.", current_line)
+        current_num = int(current_num_match.group(1)) if current_num_match else None
+
+        if current_num:
+            # Check if this follows a sequential pattern with previous numbered items
+            sequential_pattern = False
+            for i in range(max(0, current_index - 2), current_index):
+                if i < len(lines):
+                    prev_line = lines[i].strip()
+                    prev_num_match = re.match(r"^(\d+)\.", prev_line)
+                    if prev_num_match:
+                        prev_num = int(prev_num_match.group(1))
+                        if current_num == prev_num + 1:
+                            sequential_pattern = True
+                            break
+
+            # If it's part of a sequential list, less likely to be a header
+            if sequential_pattern:
+                context_score -= 2
+
+        # Heuristic 5: Content analysis patterns
+        content_patterns = {
+            # More likely to be headers
+            "header_indicators": [
+                r"\b(top\s+\d+|best\s+\d+|main\s+\d+)\b",
+                r"\b(analysis|breakdown|summary|overview)\b",
+                r"\b(section|chapter|part)\b",
+                r"\bwith\s+(summaries|details|analysis)\b",
+            ],
+            # More likely to be list items
+            "list_indicators": [
+                r"^\w+\s*:\s*",  # "Item: description"
+                r"\b(click|visit|check|see|read)\b",
+                r"\bhttps?://",  # URLs
+                r"\b(price|cost|usd|\$\d+)\b",  # Pricing info
+            ],
+        }
+
+        # Check header indicators
+        for pattern in content_patterns["header_indicators"]:
+            if re.search(pattern, text_lower):
+                context_score += 1
+
+        # Check list indicators
+        for pattern in content_patterns["list_indicators"]:
+            if re.search(pattern, text_lower):
+                context_score -= 1
+
+        # Heuristic 6: Indentation analysis
+        if current_index < len(lines):
+            current_line_indent = len(lines[current_index]) - len(lines[current_index].lstrip())
+
+            # Headers are typically not deeply indented
+            if current_line_indent > 8:  # More than 2 levels of indentation
+                context_score -= 1
+            elif current_line_indent == 0:  # No indentation
+                context_score += 1
+
+        # Heuristic 7: Capitalization patterns
+        words = text_clean.split()
+        if len(words) >= 2:
+            capitalized_words = sum(1 for word in words if word and word[0].isupper())
+            capitalization_ratio = capitalized_words / len(words)
+
+            # Section headers often have title case
+            if capitalization_ratio > 0.5:
+                context_score += 1
+
+        # Final decision based on accumulated score
+        # Require positive score for section header classification
+        return context_score > 0
 
     def _convert_letter_lists_to_numbers(self, content: str) -> str:
         """
@@ -343,6 +580,34 @@ class ReportFormatter:
                 number = ord(letter) - ord("a") + 1
                 # Replace with number-based marker
                 line = f"{indent}{number}. {text}"
+
+            result_lines.append(line)
+
+        return "\n".join(result_lines)
+
+    def _fix_mixed_list_formatting(self, content: str) -> str:
+        """
+        Fix mixed list formatting where LLM generates both unordered list markers (-) and manual numbering (1., 2., 3.) together.
+
+        Args:
+            content: Raw markdown content
+
+        Returns:
+            Fixed markdown content
+
+        """
+        lines = content.split("\n")
+        result_lines = []
+
+        for _i, line in enumerate(lines):
+            # Check if this line looks like a mixed list item
+            if re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line):
+                # Get the indentation, marker, number, and text
+                match = re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line)
+                if match:
+                    indent, marker, number, text = match.groups()
+                    # Replace with properly formatted list item
+                    line = f"{indent}{number}. {text}"
 
             result_lines.append(line)
 
@@ -443,18 +708,34 @@ class ReportFormatter:
         table {
             border-collapse: collapse;
             width: 100%;
-            margin: 1em 0;
+            margin: 1.5em 0;
+            font-size: 14px;
+            border: 2px solid #333;
+            background-color: #fff;
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
+            border: 1px solid #333;
+            padding: 12px 16px;
+            text-align: center;
+            vertical-align: top;
         }
         th {
-            background-color: #f6f8fa;
+            background-color: #f0f0f0;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 2px solid #333;
         }
-        tr:nth-child(even) {
+        tr:nth-child(even) td {
             background-color: #f9f9f9;
+        }
+        td:first-child {
+            font-weight: 600;
+            background-color: #f6f8fa;
+            width: 30%;
+        }
+        table a {
+            color: #0366d6;
+            text-decoration: underline;
         }
         blockquote {
             border-left: 4px solid #dfe2e5;

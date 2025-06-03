@@ -12,89 +12,89 @@ from smolagents import Tool
 
 logger = logging.getLogger(__name__)
 
+
 class LinkedInFreshDataTool(Tool):
     """Tool for accessing LinkedIn data through Fresh LinkedIn Profile Data API."""
 
     name: str = "linkedin_fresh_data"
-    description: str = "Access LinkedIn profile and company data directly from LinkedIn URLs for research and verification."
+    description: str = (
+        "Access LinkedIn profile and company data directly from LinkedIn URLs for research and verification."
+    )
     output_type: str = "object"
     inputs: dict = {  # noqa: RUF012
         "action": {
             "type": "string",
             "description": "The action to perform: 'get_linkedin_profile' or 'get_company_by_linkedin_url'",
-            "enum": ["get_linkedin_profile", "get_company_by_linkedin_url"]
+            "enum": ["get_linkedin_profile", "get_company_by_linkedin_url"],
         },
-        "linkedin_url": {
-            "type": "string",
-            "description": "The LinkedIn URL (profile or company)"
-        },
+        "linkedin_url": {"type": "string", "description": "The LinkedIn URL (profile or company)"},
         # Optional parameters for get_linkedin_profile action
         "include_skills": {
             "type": "boolean",
             "description": "Include skills section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_certifications": {
             "type": "boolean",
             "description": "Include certifications section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_publications": {
             "type": "boolean",
             "description": "Include publications section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_honors": {
             "type": "boolean",
             "description": "Include honors and awards section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_volunteers": {
             "type": "boolean",
             "description": "Include volunteer experience section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_projects": {
             "type": "boolean",
             "description": "Include projects section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_patents": {
             "type": "boolean",
             "description": "Include patents section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_courses": {
             "type": "boolean",
             "description": "Include courses section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_organizations": {
             "type": "boolean",
             "description": "Include organizations section in response (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_profile_status": {
             "type": "boolean",
             "description": "Include profile status information (default: false)",
             "default": False,
-            "nullable": True
+            "nullable": True,
         },
         "include_company_public_url": {
             "type": "boolean",
             "description": "Include company public URL information (default: false)",
             "default": False,
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
 
     def __init__(self, api_key: str):
@@ -103,31 +103,32 @@ class LinkedInFreshDataTool(Tool):
 
         Args:
             api_key: The RapidAPI key for authentication.
+
         """
         super().__init__()
         if not api_key:
-            raise ValueError("RapidAPI key is required for LinkedIn Fresh Data API.")
+            msg = "RapidAPI key is required for LinkedIn Fresh Data API."
+            raise ValueError(msg)
         self.api_key = api_key
         self.base_url = "https://fresh-linkedin-profile-data.p.rapidapi.com"
-        self.headers = {
-            "x-rapidapi-key": self.api_key,
-            "x-rapidapi-host": "fresh-linkedin-profile-data.p.rapidapi.com"
-        }
+        self.headers = {"x-rapidapi-key": self.api_key, "x-rapidapi-host": "fresh-linkedin-profile-data.p.rapidapi.com"}
 
-    def forward(self,
-                action: str,
-                linkedin_url: str,
-                include_skills: bool = False,
-                include_certifications: bool = False,
-                include_publications: bool = False,
-                include_honors: bool = False,
-                include_volunteers: bool = False,
-                include_projects: bool = False,
-                include_patents: bool = False,
-                include_courses: bool = False,
-                include_organizations: bool = False,
-                include_profile_status: bool = False,
-                include_company_public_url: bool = False) -> dict:
+    def forward(
+        self,
+        action: str,
+        linkedin_url: str,
+        include_skills: bool = False,
+        include_certifications: bool = False,
+        include_publications: bool = False,
+        include_honors: bool = False,
+        include_volunteers: bool = False,
+        include_projects: bool = False,
+        include_patents: bool = False,
+        include_courses: bool = False,
+        include_organizations: bool = False,
+        include_profile_status: bool = False,
+        include_company_public_url: bool = False,
+    ) -> dict:
         """
         Process LinkedIn data requests.
 
@@ -148,14 +149,16 @@ class LinkedInFreshDataTool(Tool):
 
         Returns:
             Dict containing the results
+
         """
         actions = {
             "get_linkedin_profile": self.get_linkedin_profile,
-            "get_company_by_linkedin_url": self.get_company_by_linkedin_url
+            "get_company_by_linkedin_url": self.get_company_by_linkedin_url,
         }
 
         if action not in actions:
-            raise ValueError(f"Unsupported action: {action}")
+            msg = f"Unsupported action: {action}"
+            raise ValueError(msg)
 
         try:
             if action == "get_linkedin_profile":
@@ -171,30 +174,34 @@ class LinkedInFreshDataTool(Tool):
                     include_courses=include_courses,
                     include_organizations=include_organizations,
                     include_profile_status=include_profile_status,
-                    include_company_public_url=include_company_public_url
+                    include_company_public_url=include_company_public_url,
                 )
-            else:  # get_company_by_linkedin_url
-                return actions[action](linkedin_url=linkedin_url)
+            # get_company_by_linkedin_url
+            return actions[action](linkedin_url=linkedin_url)
         except requests.exceptions.RequestException as e:
             logger.error(f"LinkedIn Fresh Data API request failed: {e}")
-            raise Exception(f"LinkedIn Fresh Data API request failed: {e}") from e
+            msg = f"LinkedIn Fresh Data API request failed: {e}"
+            raise Exception(msg) from e
         except Exception as e:
             logger.error(f"Error processing LinkedIn Fresh Data API request: {e}")
-            raise Exception(f"Failed to process LinkedIn Fresh Data API request: {e}") from e
+            msg = f"Failed to process LinkedIn Fresh Data API request: {e}"
+            raise Exception(msg) from e
 
-    def get_linkedin_profile(self,
-                           linkedin_url: str,
-                           include_skills: bool = False,
-                           include_certifications: bool = False,
-                           include_publications: bool = False,
-                           include_honors: bool = False,
-                           include_volunteers: bool = False,
-                           include_projects: bool = False,
-                           include_patents: bool = False,
-                           include_courses: bool = False,
-                           include_organizations: bool = False,
-                           include_profile_status: bool = False,
-                           include_company_public_url: bool = False) -> dict:
+    def get_linkedin_profile(
+        self,
+        linkedin_url: str,
+        include_skills: bool = False,
+        include_certifications: bool = False,
+        include_publications: bool = False,
+        include_honors: bool = False,
+        include_volunteers: bool = False,
+        include_projects: bool = False,
+        include_patents: bool = False,
+        include_courses: bool = False,
+        include_organizations: bool = False,
+        include_profile_status: bool = False,
+        include_company_public_url: bool = False,
+    ) -> dict:
         """
         Get detailed LinkedIn profile information from a LinkedIn profile URL.
 
@@ -214,6 +221,7 @@ class LinkedInFreshDataTool(Tool):
 
         Returns:
             Dict containing detailed profile information
+
         """
         endpoint = "/get-linkedin-profile"
         params = {
@@ -228,14 +236,10 @@ class LinkedInFreshDataTool(Tool):
             "include_courses": str(include_courses).lower(),
             "include_organizations": str(include_organizations).lower(),
             "include_profile_status": str(include_profile_status).lower(),
-            "include_company_public_url": str(include_company_public_url).lower()
+            "include_company_public_url": str(include_company_public_url).lower(),
         }
 
-        response = requests.get(
-            f"{self.base_url}{endpoint}",
-            headers=self.headers,
-            params=params
-        )
+        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params)
         response.raise_for_status()
         return response.json()
 
@@ -248,17 +252,12 @@ class LinkedInFreshDataTool(Tool):
 
         Returns:
             Dict containing company information
+
         """
         endpoint = "/get-company-by-linkedinurl"
-        params = {
-            "linkedin_url": linkedin_url
-        }
+        params = {"linkedin_url": linkedin_url}
 
-        response = requests.get(
-            f"{self.base_url}{endpoint}",
-            headers=self.headers,
-            params=params
-        )
+        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params)
         response.raise_for_status()
         return response.json()
 
@@ -269,6 +268,7 @@ def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
 
     Returns:
         Optional[LinkedInFreshDataTool]: Initialized tool instance or None if initialization fails
+
     """
     api_key = os.getenv("RAPIDAPI_KEY")
     if api_key:
@@ -280,7 +280,5 @@ def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
             logger.warning(f"Failed to initialize LinkedInFreshDataTool: {e}")
             return None
     else:
-        logger.warning(
-            "LinkedInFreshDataTool not initialized. Missing RAPIDAPI_KEY environment variable."
-        )
+        logger.warning("LinkedInFreshDataTool not initialized. Missing RAPIDAPI_KEY environment variable.")
         return None

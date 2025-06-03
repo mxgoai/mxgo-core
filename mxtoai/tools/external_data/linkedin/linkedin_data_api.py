@@ -6,11 +6,12 @@ Provides access to LinkedIn data through the LinkedIn Data API (different from F
 import logging
 import os
 from typing import Optional
-import requests
 
+import requests
 from smolagents import Tool
 
 logger = logging.getLogger(__name__)
+
 
 class LinkedInDataAPITool(Tool):
     """Tool for accessing LinkedIn data through LinkedIn Data API."""
@@ -22,106 +23,105 @@ class LinkedInDataAPITool(Tool):
         "action": {
             "type": "string",
             "description": "The action to perform",
-            "enum": ["get_profile_data", "get_profile_by_url", "search_people", "search_people_by_url", "get_company_details", "search_companies"]
+            "enum": [
+                "get_profile_data",
+                "get_profile_by_url",
+                "search_people",
+                "search_people_by_url",
+                "get_company_details",
+                "search_companies",
+            ],
         },
         # Parameters for get_profile_data and get_company_details
         "username": {
             "type": "string",
             "description": "LinkedIn username (for get_profile_data and get_company_details actions)",
-            "nullable": True
+            "nullable": True,
         },
         # Parameters for get_profile_by_url and search_people_by_url
         "profile_url": {
             "type": "string",
             "description": "LinkedIn profile URL (for get_profile_by_url action)",
-            "nullable": True
+            "nullable": True,
         },
         "search_url": {
             "type": "string",
             "description": "LinkedIn search URL (for search_people_by_url action)",
-            "nullable": True
+            "nullable": True,
         },
         # Parameters for search_people action
-        "keywords": {
-            "type": "string",
-            "description": "Search keywords for people search (optional)",
-            "nullable": True
-        },
+        "keywords": {"type": "string", "description": "Search keywords for people search (optional)", "nullable": True},
         "start": {
             "type": "string",
             "description": "Pagination start position for people search - could be one of: 0, 10, 20, 30, etc. (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "geo": {
             "type": "string",
             "description": "Geographic location codes for people search, comma-separated (e.g., '103644278,101165590') (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "school_id": {
             "type": "string",
             "description": "School identifier for education filter in people search (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "first_name": {
             "type": "string",
             "description": "First name filter for people search (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "last_name": {
             "type": "string",
             "description": "Last name filter for people search (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "keyword_school": {
             "type": "string",
             "description": "School-related keywords for people search (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "keyword_title": {
             "type": "string",
             "description": "Job title keywords for people search (optional)",
-            "nullable": True
+            "nullable": True,
         },
-        "company": {
-            "type": "string",
-            "description": "Company filter for people search (optional)",
-            "nullable": True
-        },
+        "company": {"type": "string", "description": "Company filter for people search (optional)", "nullable": True},
         # Parameters for search_companies action
         "keyword": {
             "type": "string",
             "description": "Search keyword for company name/description in company search (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "locations": {
             "type": "array",
             "items": {"type": "integer"},
             "description": "List of location codes for company search (e.g., [103644278]) (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "company_sizes": {
             "type": "array",
             "items": {"type": "string"},
             "description": "List of company size codes for company search (e.g., ['D', 'E', 'F', 'G']) where D=1001-5000, E=5001-10000, F=10001+, etc. (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "has_jobs": {
             "type": "boolean",
             "description": "Whether the company has active job postings in company search (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "industries": {
             "type": "array",
             "items": {"type": "integer"},
             "description": "List of industry codes for company search (e.g., [96, 4]) (optional)",
-            "nullable": True
+            "nullable": True,
         },
         "page": {
             "type": "integer",
             "description": "Page number for pagination in company search (default: 1)",
             "default": 1,
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
 
     def __init__(self, api_key: str):
@@ -130,38 +130,42 @@ class LinkedInDataAPITool(Tool):
 
         Args:
             api_key: The RapidAPI key for authentication.
+
         """
         super().__init__()
         if not api_key:
-            raise ValueError("RapidAPI key is required for LinkedIn Data API.")
+            msg = "RapidAPI key is required for LinkedIn Data API."
+            raise ValueError(msg)
         self.api_key = api_key
         self.base_url = "https://linkedin-data-api.p.rapidapi.com"
         self.headers = {
             "x-rapidapi-key": self.api_key,
             "x-rapidapi-host": "linkedin-data-api.p.rapidapi.com",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
         }
 
-    def forward(self,
-                action: str,
-                username: Optional[str] = None,
-                profile_url: Optional[str] = None,
-                search_url: Optional[str] = None,
-                keywords: Optional[str] = None,
-                start: Optional[str] = None,
-                geo: Optional[str] = None,
-                school_id: Optional[str] = None,
-                first_name: Optional[str] = None,
-                last_name: Optional[str] = None,
-                keyword_school: Optional[str] = None,
-                keyword_title: Optional[str] = None,
-                company: Optional[str] = None,
-                keyword: Optional[str] = None,
-                locations: Optional[list[int]] = None,
-                company_sizes: Optional[list[str]] = None,
-                has_jobs: Optional[bool] = None,
-                industries: Optional[list[int]] = None,
-                page: int = 1) -> dict:
+    def forward(
+        self,
+        action: str,
+        username: Optional[str] = None,
+        profile_url: Optional[str] = None,
+        search_url: Optional[str] = None,
+        keywords: Optional[str] = None,
+        start: Optional[str] = None,
+        geo: Optional[str] = None,
+        school_id: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        keyword_school: Optional[str] = None,
+        keyword_title: Optional[str] = None,
+        company: Optional[str] = None,
+        keyword: Optional[str] = None,
+        locations: Optional[list[int]] = None,
+        company_sizes: Optional[list[str]] = None,
+        has_jobs: Optional[bool] = None,
+        industries: Optional[list[int]] = None,
+        page: int = 1,
+    ) -> dict:
         """
         Process LinkedIn data requests.
 
@@ -188,6 +192,7 @@ class LinkedInDataAPITool(Tool):
 
         Returns:
             Dict containing the search results
+
         """
         actions = {
             "get_profile_data": self.get_profile_data,
@@ -196,30 +201,35 @@ class LinkedInDataAPITool(Tool):
             "search_people_by_url": self.search_people_by_url,
             "get_company_details": self.get_company_details,
             "get_company_by_id": self.get_company_by_id,
-            "search_companies": self.search_companies
+            "search_companies": self.search_companies,
         }
 
         if action not in actions:
-            raise ValueError(f"Unsupported action: {action}")
+            msg = f"Unsupported action: {action}"
+            raise ValueError(msg)
 
         try:
             if action == "get_profile_data":
                 if not username:
-                    raise ValueError("username is required for get_profile_data action")
+                    msg = "username is required for get_profile_data action"
+                    raise ValueError(msg)
                 return actions[action](username=username)
-            elif action == "get_profile_by_url":
+            if action == "get_profile_by_url":
                 if not profile_url:
-                    raise ValueError("profile_url is required for get_profile_by_url action")
+                    msg = "profile_url is required for get_profile_by_url action"
+                    raise ValueError(msg)
                 return actions[action](profile_url=profile_url)
-            elif action == "search_people_by_url":
+            if action == "search_people_by_url":
                 if not search_url:
-                    raise ValueError("search_url is required for search_people_by_url action")
+                    msg = "search_url is required for search_people_by_url action"
+                    raise ValueError(msg)
                 return actions[action](search_url=search_url)
-            elif action == "get_company_details":
+            if action == "get_company_details":
                 if not username:
-                    raise ValueError("username is required for get_company_details action")
+                    msg = "username is required for get_company_details action"
+                    raise ValueError(msg)
                 return actions[action](username=username)
-            elif action == "search_people":
+            if action == "search_people":
                 return actions[action](
                     keywords=keywords,
                     start=start,
@@ -229,25 +239,27 @@ class LinkedInDataAPITool(Tool):
                     last_name=last_name,
                     keyword_school=keyword_school,
                     keyword_title=keyword_title,
-                    company=company
+                    company=company,
                 )
-            elif action == "search_companies":
+            if action == "search_companies":
                 return actions[action](
                     keyword=keyword,
                     locations=locations,
                     company_sizes=company_sizes,
                     has_jobs=has_jobs,
                     industries=industries,
-                    page=page
+                    page=page,
                 )
-            else:
-                raise ValueError(f"Action '{action}' not implemented in forward method")
+            msg = f"Action '{action}' not implemented in forward method"
+            raise ValueError(msg)
         except requests.exceptions.RequestException as e:
             logger.error(f"LinkedIn Data API request failed: {e}")
-            raise Exception(f"LinkedIn Data API request failed: {e}") from e
+            msg = f"LinkedIn Data API request failed: {e}"
+            raise Exception(msg) from e
         except Exception as e:
             logger.error(f"Error processing LinkedIn Data API request: {e}")
-            raise Exception(f"Failed to process LinkedIn Data API request: {e}") from e
+            msg = f"Failed to process LinkedIn Data API request: {e}"
+            raise Exception(msg) from e
 
     def get_profile_data(self, username: str) -> dict:
         """
@@ -258,16 +270,11 @@ class LinkedInDataAPITool(Tool):
 
         Returns:
             Dict containing profile data
+
         """
         endpoint = "/get-profile-data"
-        params = {
-            "username": username
-        }
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            params=params,
-            headers=self.headers
-        )
+        params = {"username": username}
+        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
@@ -280,30 +287,27 @@ class LinkedInDataAPITool(Tool):
 
         Returns:
             Dict containing profile data
+
         """
         endpoint = "/get-profile-data-by-url"
-        payload = {
-            "url": profile_url
-        }
+        payload = {"url": profile_url}
 
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            json=payload,
-            headers=self.headers
-        )
+        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
-    def search_people(self,
-                     keywords: Optional[str] = None,
-                     start: Optional[str] = None,
-                     geo: Optional[str] = None,
-                     school_id: Optional[str] = None,
-                     first_name: Optional[str] = None,
-                     last_name: Optional[str] = None,
-                     keyword_school: Optional[str] = None,
-                     keyword_title: Optional[str] = None,
-                     company: Optional[str] = None) -> dict:
+    def search_people(
+        self,
+        keywords: Optional[str] = None,
+        start: Optional[str] = None,
+        geo: Optional[str] = None,
+        school_id: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        keyword_school: Optional[str] = None,
+        keyword_title: Optional[str] = None,
+        company: Optional[str] = None,
+    ) -> dict:
         """
         Search for people on LinkedIn.
 
@@ -320,6 +324,7 @@ class LinkedInDataAPITool(Tool):
 
         Returns:
             Dict containing search results
+
         """
         endpoint = "/search-people"
         params = {}
@@ -344,11 +349,7 @@ class LinkedInDataAPITool(Tool):
         if company:
             params["company"] = company
 
-        response = requests.get(
-            f"{self.base_url}{endpoint}",
-            headers=self.headers,
-            params=params
-        )
+        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params)
         response.raise_for_status()
         return response.json()
 
@@ -366,17 +367,12 @@ class LinkedInDataAPITool(Tool):
         {
             "url": "https://www.linkedin.com/search/results/people/?currentCompany=%5B%221035%22%5D&geoUrn=%5B%22103644278%22%5D&keywords=max&origin=FACETED_SEARCH&sid=%3AB5"
         }
+
         """
         endpoint = "/search-people-by-url"
-        payload = {
-            "url": search_url
-        }
+        payload = {"url": search_url}
 
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            json=payload,
-            headers=self.headers
-        )
+        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
@@ -389,27 +385,24 @@ class LinkedInDataAPITool(Tool):
 
         Returns:
             Dict containing company details
+
         """
         endpoint = "/get-company-details"
-        params = {
-            "username": username
-        }
+        params = {"username": username}
 
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            params=params,
-            headers=self.headers
-        )
+        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
-    def search_companies(self,
-                        keyword: Optional[str] = None,
-                        locations: Optional[list[int]] = None,
-                        company_sizes: Optional[list[str]] = None,
-                        has_jobs: Optional[bool] = None,
-                        industries: Optional[list[int]] = None,
-                        page: int = 1) -> dict:
+    def search_companies(
+        self,
+        keyword: Optional[str] = None,
+        locations: Optional[list[int]] = None,
+        company_sizes: Optional[list[str]] = None,
+        has_jobs: Optional[bool] = None,
+        industries: Optional[list[int]] = None,
+        page: int = 1,
+    ) -> dict:
         """
         Search for companies on LinkedIn.
 
@@ -424,12 +417,10 @@ class LinkedInDataAPITool(Tool):
 
         Returns:
             Dict containing search results
+
         """
         endpoint = "/search-companies"
-        payload = {
-            "keyword": keyword or "",
-            "page": page
-        }
+        payload = {"keyword": keyword or "", "page": page}
 
         # Add optional parameters only if provided
         if locations:
@@ -441,11 +432,7 @@ class LinkedInDataAPITool(Tool):
         if industries:
             payload["industries"] = industries
 
-        response = requests.post(
-            f"{self.base_url}{endpoint}",
-            json=payload,
-            headers=self.headers
-        )
+        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
         response.raise_for_status()
         return response.json()
 
@@ -456,6 +443,7 @@ def initialize_linkedin_data_api_tool() -> Optional[LinkedInDataAPITool]:
 
     Returns:
         Optional[LinkedInDataAPITool]: Initialized tool instance or None if initialization fails
+
     """
     api_key = os.getenv("RAPIDAPI_KEY")
     if api_key:
@@ -467,7 +455,5 @@ def initialize_linkedin_data_api_tool() -> Optional[LinkedInDataAPITool]:
             logger.warning(f"Failed to initialize LinkedInDataAPITool: {e}")
             return None
     else:
-        logger.warning(
-            "LinkedInDataAPITool not initialized. Missing RAPIDAPI_KEY environment variable."
-        )
+        logger.warning("LinkedInDataAPITool not initialized. Missing RAPIDAPI_KEY environment variable.")
         return None
