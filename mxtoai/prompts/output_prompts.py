@@ -62,7 +62,7 @@ Output Format Guidelines:
 1. Start with executive summary of key findings
 2. Organize information by entity (person, organization, domain)
 3. Use tables for comparative information
-4. Flag any security concerns prominently
+4. Flag any concerns prominently
 """
 
 # Translation handler output guidelines
