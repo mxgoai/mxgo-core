@@ -1,11 +1,12 @@
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 import requests
 from smolagents import Tool
 
 logger = logging.getLogger(__name__)
+
 
 class BraveSearchTool(Tool):
     """
@@ -31,19 +32,21 @@ class BraveSearchTool(Tool):
         Args:
             api_key: The Brave Search API key (X-Subscription-Token).
             max_results: The maximum number of search results to return.
+
         """
         super().__init__()
         if not api_key:
-            raise ValueError("Brave Search API key (X-Subscription-Token) is required.")
+            msg = "Brave Search API key (X-Subscription-Token) is required."
+            raise ValueError(msg)
         self.api_key = api_key
         self.max_results = max_results
         self.api_url = "https://api.search.brave.com/res/v1/web/search"
 
-    def _parse_results(self, response_json: Dict[str, Any]) -> str:
+    def _parse_results(self, response_json: dict[str, Any]) -> str:
         """
         Parses the JSON response from Brave Search API and formats it into a string.
         """
-        results_parts: List[str] = []
+        results_parts: list[str] = []
 
         # Attempt to extract summary
         summary_content = None
@@ -55,7 +58,7 @@ class BraveSearchTool(Tool):
                     summary_content = summarizer_data[key]
                     break
             if not summary_content and isinstance(summarizer_data.get("results"), list):
-                 # Sometimes results are a list of summary segments
+                # Sometimes results are a list of summary segments
                 summary_texts = [str(item) for item in summarizer_data["results"] if isinstance(item, str)]
                 if summary_texts:
                     summary_content = "\n".join(summary_texts)
@@ -71,17 +74,14 @@ class BraveSearchTool(Tool):
             return "No results found."
 
         results_parts.append("Search Results:")
-        for i, item in enumerate(web_results[:self.max_results]):
+        for i, item in enumerate(web_results[: self.max_results]):
             title = item.get("title", "N/A")
             url = item.get("url", "N/A")
             snippet = item.get("description", item.get("snippet", "N/A"))
 
-            results_parts.append(
-                f"[{i + 1}] Title: {title}\nURL: {url}\nSnippet: {snippet}"
-            )
+            results_parts.append(f"[{i + 1}] Title: {title}\nURL: {url}\nSnippet: {snippet}")
 
         return "\n\n".join(results_parts)
-
 
     def forward(self, query: str) -> str:
         """
@@ -95,6 +95,7 @@ class BraveSearchTool(Tool):
 
         Raises:
             Exception: If the API call fails or returns an error.
+
         """
         headers = {
             "Accept": "application/json",
@@ -103,8 +104,8 @@ class BraveSearchTool(Tool):
         }
         params = {
             "q": query,
-            "count": self.max_results, # Specify number of results
-            "summary": "true",        # Request a summary
+            "count": self.max_results,  # Specify number of results
+            "summary": "true",  # Request a summary
             # "result_filter": "web", # Focus on web results if needed, helps simplify parsing
         }
 
@@ -119,19 +120,24 @@ class BraveSearchTool(Tool):
 
             parsed_output = self._parse_results(response_json)
             if parsed_output == "No results found.":
-                 # This ensures SearchWithFallbackTool treats it as a failure
-                raise Exception("No results found by Brave Search.")
+                # This ensures SearchWithFallbackTool treats it as a failure
+                msg = "No results found by Brave Search."
+                raise Exception(msg)
             return parsed_output
 
         except requests.exceptions.HTTPError as http_err:
             logger.error(f"Brave Search API HTTP error: {http_err} - Response: {response.text}")
-            raise Exception(f"Brave Search API request failed with status {response.status_code}: {response.text}") from http_err
+            msg = f"Brave Search API request failed with status {response.status_code}: {response.text}"
+            raise Exception(msg) from http_err
         except requests.exceptions.RequestException as req_err:
             logger.error(f"Brave Search API request error: {req_err}")
-            raise Exception(f"Brave Search API request failed: {req_err}") from req_err
+            msg = f"Brave Search API request failed: {req_err}"
+            raise Exception(msg) from req_err
         except Exception as e:
             logger.error(f"Error processing Brave Search results: {e}")
-            raise Exception(f"Failed to process Brave Search results: {e!s}") from e
+            msg = f"Failed to process Brave Search results: {e!s}"
+            raise Exception(msg) from e
+
 
 # Helper function for EmailAgent to initialize this tool
 def initialize_brave_search_tool(max_results: int = 5) -> Optional[BraveSearchTool]:
@@ -148,7 +154,5 @@ def initialize_brave_search_tool(max_results: int = 5) -> Optional[BraveSearchTo
             logger.warning(f"Failed to initialize BraveSearchTool: {e}")
             return None
     else:
-        logger.warning(
-            "BraveSearchTool not initialized. Missing BRAVE_SEARCH_API_KEY environment variable."
-        )
+        logger.warning("BraveSearchTool not initialized. Missing BRAVE_SEARCH_API_KEY environment variable.")
         return None

@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
 
+from mxtoai import validators
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
@@ -33,7 +34,6 @@ from mxtoai.validators import (
     validate_email_whitelist,
     validate_rate_limits,
 )
-from mxtoai import validators
 
 # Load environment variables
 load_dotenv()

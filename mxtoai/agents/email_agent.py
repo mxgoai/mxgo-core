@@ -160,6 +160,7 @@ class EmailAgent:
 
         Returns:
             SearchWithFallbackTool: The configured search tool.
+
         """
         ddg_search_tool = WebSearchTool(engine="duckduckgo", max_results=5)
         logger.debug("Initialized WebSearchTool with DuckDuckGo engine.")
@@ -171,13 +172,13 @@ class EmailAgent:
         # No need to log here as _initialize_google_search_tool does it.
 
         primary_search_engines: list[Tool] = []
-        if ddg_search_tool: # ddg_search_tool is always initialized
+        if ddg_search_tool:  # ddg_search_tool is always initialized
             primary_search_engines.append(ddg_search_tool)
-        if brave_search_tool: # brave_search_tool might be None if API key is missing
+        if brave_search_tool:  # brave_search_tool might be None if API key is missing
             primary_search_engines.append(brave_search_tool)
 
         if not primary_search_engines:
-             logger.warning(
+            logger.warning(
                 "No primary search engines (DuckDuckGo, Brave) could be initialized for SearchWithFallbackTool."
             )
 

@@ -3,6 +3,7 @@ import os
 import re
 from typing import Any, Optional
 
+import markdown2
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from mxtoai._logging import get_logger
@@ -36,11 +37,11 @@ class ReportFormatter:
         # Default signature
         self.signature_block = """
 
----
+<hr style="margin: 2em 0; border: none; border-top: 1px solid #ddd;">
 
-**MXtoAI Assistant**
+<p><strong>MXtoAI Assistant</strong></p>
 
-_Feel free to reply to this email to continue our conversation._
+<p><em>Feel free to reply to this email to continue our conversation.</em></p>
 """
 
     def _init_template_env(self):
@@ -226,7 +227,7 @@ _Feel free to reply to this email to continue our conversation._
 
     def _to_html(self, markdown_content: str, theme: str = "default") -> str:
         """
-        Convert markdown to HTML using templates and themes.
+        Convert markdown to HTML using markdown2 for robust AI-generated content handling.
 
         Args:
             markdown_content: Markdown content
@@ -236,55 +237,116 @@ _Feel free to reply to this email to continue our conversation._
             HTML version
 
         """
-        try:
-            import markdown as md_converter
-            from markdown.extensions.attr_list import AttrListExtension
-            from markdown.extensions.fenced_code import FencedCodeExtension
-            from markdown.extensions.nl2br import Nl2BrExtension
-            from markdown.extensions.sane_lists import SaneListExtension
-            from markdown.extensions.tables import TableExtension
-            from markdown.extensions.toc import TocExtension
+        # Pre-process markdown to fix issues not handled by markdown2
+        markdown_content = self._fix_ai_markdown(markdown_content)
 
-            # Pre-process to ensure lists following non-empty lines have a preceding blank line
-            markdown_content = re.sub(r'([^\n])\n(\s*(?:[-*+]|\d+\.)[ \t])', r'\1\n\n\2', markdown_content)
+        # Convert markdown to HTML with markdown2 (robust for AI content)
+        html_content = markdown2.markdown(
+            markdown_content,
+            extras=[
+                "fenced-code-blocks",  # Support for ```code``` blocks
+                "tables",  # Support for tables
+                "strike",  # Support for ~~strikethrough~~
+                "cuddled-lists",  # Better list handling (key for AI content!)
+                "header-ids",  # Add IDs to headers
+                "markdown-in-html",  # Allow markdown inside HTML
+                "breaks",  # Handle line breaks better
+            ],
+        )
 
-            # Configure extensions with specific settings
-            extensions = [
-                TableExtension(),  # Support for tables
-                FencedCodeExtension(),  # Support for fenced code blocks
-                SaneListExtension(),  # Better list handling
-                Nl2BrExtension(),  # Convert newlines to line breaks
-                TocExtension(permalink=False),  # Table of contents support without permalinks
-                AttrListExtension(),  # Support for attributes
-            ]
+        if self.template_env:
+            try:
+                theme_settings = self.themes.get(theme, self.themes["default"])
+                template = self.template_env.get_template("email_template.html")
 
-            # Convert markdown to HTML with configured extensions
-            html_content = md_converter.markdown(
-                markdown_content,
-                extensions=extensions,
-                extension_configs={
-                    # Explicitly disable footnotes if it's a default or separate extension
-                    # 'markdown.extensions.footnotes': {'PLACE_MARKER': '!!!!FOOTNOTES!!!!'}
-                },
-                output_format="html5",  # Use html5 for better compatibility
-            )
+                return template.render(content=html_content, theme=theme_settings)
+            except Exception as e:
+                logger.error(f"Template rendering failed: {e}. Falling back to basic rendering.")
 
-            if self.template_env:
-                try:
-                    theme_settings = self.themes.get(theme, self.themes["default"])
-                    template = self.template_env.get_template("email_template.html")
+        # fallback
+        logger.info("Template environment not available. Using basic HTML rendering.")
+        return self._basic_html_render(html_content)
 
-                    return template.render(content=html_content, theme=theme_settings)
-                except Exception as e:
-                    logger.error(f"Template rendering failed: {e}. Falling back to basic rendering.")
+    def _fix_ai_markdown(self, content: str) -> str:
+        """
+        Fix AI-generated markdown issues that markdown2 doesn't handle.
+        Only includes fixes that are actually necessary with markdown2's cuddled-lists extra.
 
-            # fallback
-            logger.info("Template environment not available. Using basic HTML rendering.")
-            return self._basic_html_render(html_content, theme)
+        Args:
+            content: Raw markdown content
 
-        except ImportError:
-            logger.error("Markdown package not available - this should never happen as it's a required dependency")
-            raise  # We should always have markdown package available
+        Returns:
+            Fixed markdown content
+
+        """
+        # Fix missing spaces after list markers, but convert section headers to proper headers
+        lines = content.split("\n")
+        result_lines = []
+
+        for line in lines:
+            # Check if this line looks like a list item without proper spacing
+            if re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line):
+                # Get the indentation, marker, and text
+                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)(.*)$", line)
+                if match:
+                    indent, marker, rest_of_line = match.groups()
+
+                    # Check if this is likely a section header vs a real list item
+                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip()):
+                        # Convert to a proper markdown header
+                        header_text = rest_of_line.strip()
+                        line = f"## {header_text}"
+                    else:
+                        # This is a real list item, fix the spacing
+                        line = f"{indent}{marker} {rest_of_line.lstrip()}"
+
+            result_lines.append(line)
+
+        content = "\n".join(result_lines)
+
+        # Convert letter-based lists to numbers (no markdown parser handles this)
+        return self._convert_letter_lists_to_numbers(content)
+
+    def _is_section_header(self, text: str) -> bool:
+        """
+        Simple keyword-based check for section headers.
+        """
+        text_lower = text.lower()
+        section_keywords = [
+            "acknowledgment",
+            "understanding",
+            "summary",
+            "response",
+            "detailed",
+            "top 10",
+            "posts",
+            "trending",
+            "with summaries",
+        ]
+        return any(keyword in text_lower for keyword in section_keywords)
+
+    def _convert_letter_lists_to_numbers(self, content: str) -> str:
+        """
+        Convert letter-based list markers (a., b., c.) to numbers (1., 2., 3.)
+        so they can be properly parsed as nested ordered lists.
+        CSS will handle styling them back to letters.
+        """
+        lines = content.split("\n")
+        result_lines = []
+
+        for line in lines:
+            # Match lines that start with letter-based list markers
+            match = re.match(r"^(\s*)([a-z])\.\s+(.*)$", line)
+            if match:
+                indent, letter, text = match.groups()
+                # Convert letter to number (a=1, b=2, c=3, etc.)
+                number = ord(letter) - ord("a") + 1
+                # Replace with number-based marker
+                line = f"{indent}{number}. {text}"
+
+            result_lines.append(line)
+
+        return "\n".join(result_lines)
 
     def _basic_html_render(self, html_content: str) -> str:
         """
