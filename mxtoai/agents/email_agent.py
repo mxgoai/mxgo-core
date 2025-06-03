@@ -21,7 +21,6 @@ from smolagents.default_tools import (
 from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
-    LIST_FORMATTING_REQUIREMENTS,
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
@@ -158,7 +157,11 @@ class EmailAgent:
         # Override agent's console with our loguru-integrated console
         if hasattr(self.agent, "logger") and hasattr(self.agent.logger, "console"):
             self.agent.logger.console = smolagents_console
-        if hasattr(self.agent, "monitor") and hasattr(self.agent.monitor, "logger") and hasattr(self.agent.monitor.logger, "console"):
+        if (
+            hasattr(self.agent, "monitor")
+            and hasattr(self.agent.monitor, "logger")
+            and hasattr(self.agent.monitor.logger, "console")
+        ):
             self.agent.monitor.logger.console = smolagents_console
 
         logger.debug("Agent initialized with routed model configuration and loguru-integrated Rich console")
@@ -399,7 +402,7 @@ class EmailAgent:
             output_template,
             RESPONSE_GUIDELINES,
             MARKDOWN_STYLE_GUIDE,
-            LIST_FORMATTING_REQUIREMENTS,
+            # LIST_FORMATTING_REQUIREMENTS,
         ]
         return "\n\n".join(filter(None, sections))
 

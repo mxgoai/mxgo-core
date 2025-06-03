@@ -101,9 +101,7 @@ class InterceptHandler(logging.Handler):
             message = str(record.msg)
 
         # Log through loguru with proper context
-        logger.opt(depth=depth, exception=record.exc_info).bind(
-            name=logger_name
-        ).log(level, message)
+        logger.opt(depth=depth, exception=record.exc_info).bind(name=logger_name).log(level, message)
 
 
 # Intercept standard library logging and redirect to loguru

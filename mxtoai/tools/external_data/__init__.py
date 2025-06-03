@@ -20,4 +20,4 @@ __all__ = [
 ]
 
 # Version of the external data module
-__version__ = '0.2.0'
+__version__ = "0.2.0"

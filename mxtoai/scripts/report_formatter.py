@@ -204,8 +204,11 @@ class ReportFormatter:
             Plain text version
 
         """
+        # Handle tables first - convert markdown tables to plain text format
+        text = self._convert_tables_to_plain_text(markdown)
+
         # Remove heading markers but preserve citations
-        text = re.sub(r"^#+\s+", "", markdown, flags=re.MULTILINE)
+        text = re.sub(r"^#+\s+", "", text, flags=re.MULTILINE)
         # Remove bold markers
         text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)
         text = re.sub(r"__(.*?)__", r"\1", text)
@@ -224,6 +227,106 @@ class ReportFormatter:
         # Clean up extra newlines
         text = re.sub(r"\n{3,}", "\n\n", text)
         return text.strip()
+
+    def _convert_tables_to_plain_text(self, markdown: str) -> str:
+        """
+        Convert markdown tables to readable plain text format.
+
+        Args:
+            markdown: Markdown content with tables
+
+        Returns:
+            Markdown with tables converted to plain text
+
+        """
+        lines = markdown.split("\n")
+        result_lines = []
+        i = 0
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Check if this looks like a table header
+            if "|" in line and i + 1 < len(lines) and "|" in lines[i + 1] and "-" in lines[i + 1]:
+                # Found a table, process it
+                table_lines = [line]
+                i += 1
+
+                # Skip the separator line
+                i += 1
+
+                # Collect table rows
+                while i < len(lines) and "|" in lines[i].strip():
+                    table_lines.append(lines[i].strip())
+                    i += 1
+
+                # Convert table to plain text
+                plain_table = self._format_table_as_plain_text(table_lines)
+                result_lines.extend(plain_table)
+                result_lines.append("")  # Add spacing after table
+
+                continue
+            result_lines.append(lines[i])
+            i += 1
+
+        return "\n".join(result_lines)
+
+    def _format_table_as_plain_text(self, table_lines: list[str]) -> list[str]:
+        """
+        Format a markdown table as readable plain text.
+
+        Args:
+            table_lines: List of table lines (header + rows)
+
+        Returns:
+            List of formatted plain text lines
+
+        """
+        if not table_lines:
+            return []
+
+        # Parse table data
+        rows = []
+        for line in table_lines:
+            # Remove leading/trailing pipes and split
+            cells = [cell.strip() for cell in line.strip("|").split("|")]
+            rows.append(cells)
+
+        if not rows:
+            return []
+
+        # Calculate column widths
+        max_cols = max(len(row) for row in rows)
+        col_widths = []
+
+        for col in range(max_cols):
+            max_width = 0
+            for row in rows:
+                if col < len(row):
+                    max_width = max(max_width, len(row[col]))
+            col_widths.append(max(max_width, 8))  # Minimum width of 8
+
+        # Format as plain text
+        result = []
+
+        for row_idx, row in enumerate(rows):
+            # Pad cells to column width with center alignment
+            formatted_cells = []
+            for col in range(max_cols):
+                cell_content = row[col] if col < len(row) else ""
+                formatted_cells.append(cell_content.center(col_widths[col]))
+
+            # Join with spacing
+            result.append("  ".join(formatted_cells).rstrip())
+
+            # Add separator after header
+            if row_idx == 0:
+                separator_parts = []
+                for width in col_widths:
+                    separator_parts.append("-" * width)
+                result.append("  ".join(separator_parts))
+
+        return result
 
     def _to_html(self, markdown_content: str, theme: str = "default") -> str:
         """
@@ -305,7 +408,10 @@ class ReportFormatter:
         content = "\n".join(result_lines)
 
         # Convert letter-based lists to numbers (no markdown parser handles this)
-        return self._convert_letter_lists_to_numbers(content)
+        content = self._convert_letter_lists_to_numbers(content)
+
+        # Fix mixed list formatting (e.g., "- 1. Item" -> "1. Item")
+        return self._fix_mixed_list_formatting(content)
 
     def _is_section_header(self, text: str, lines: list[str], current_index: int) -> bool:
         """
@@ -333,11 +439,24 @@ class ReportFormatter:
 
         # Heuristic 2: Strong section header keywords
         strong_section_keywords = [
-            "acknowledgment", "understanding", "summary", "response",
-            "detailed analysis", "comprehensive", "breakdown", "overview",
-            "introduction", "background", "methodology", "findings",
-            "conclusion", "recommendations", "executive summary",
-            "key takeaways", "main points", "important notes"
+            "acknowledgment",
+            "understanding",
+            "summary",
+            "response",
+            "detailed analysis",
+            "comprehensive",
+            "breakdown",
+            "overview",
+            "introduction",
+            "background",
+            "methodology",
+            "findings",
+            "conclusion",
+            "recommendations",
+            "executive summary",
+            "key takeaways",
+            "main points",
+            "important notes",
         ]
 
         if any(keyword in text_lower for keyword in strong_section_keywords):
@@ -406,7 +525,7 @@ class ReportFormatter:
                 r"\b(click|visit|check|see|read)\b",
                 r"\bhttps?://",  # URLs
                 r"\b(price|cost|usd|\$\d+)\b",  # Pricing info
-            ]
+            ],
         }
 
         # Check header indicators
@@ -461,6 +580,34 @@ class ReportFormatter:
                 number = ord(letter) - ord("a") + 1
                 # Replace with number-based marker
                 line = f"{indent}{number}. {text}"
+
+            result_lines.append(line)
+
+        return "\n".join(result_lines)
+
+    def _fix_mixed_list_formatting(self, content: str) -> str:
+        """
+        Fix mixed list formatting where LLM generates both unordered list markers (-) and manual numbering (1., 2., 3.) together.
+
+        Args:
+            content: Raw markdown content
+
+        Returns:
+            Fixed markdown content
+
+        """
+        lines = content.split("\n")
+        result_lines = []
+
+        for _i, line in enumerate(lines):
+            # Check if this line looks like a mixed list item
+            if re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line):
+                # Get the indentation, marker, number, and text
+                match = re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line)
+                if match:
+                    indent, marker, number, text = match.groups()
+                    # Replace with properly formatted list item
+                    line = f"{indent}{number}. {text}"
 
             result_lines.append(line)
 
@@ -569,7 +716,7 @@ class ReportFormatter:
         th, td {
             border: 1px solid #333;
             padding: 12px 16px;
-            text-align: left;
+            text-align: center;
             vertical-align: top;
         }
         th {

@@ -22,6 +22,7 @@ Output Format Guidelines:
 3. Detailed Analysis: In-depth exploration with subheadings
 4. Supporting Evidence: Data, quotes, statistics
 5. References: Numbered citations with links when available
+6. Have separate sections for each of the above mentioned.
 """
 
 # Simplify handler output guidelines
