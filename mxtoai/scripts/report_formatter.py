@@ -561,18 +561,34 @@ class ReportFormatter:
         table {
             border-collapse: collapse;
             width: 100%;
-            margin: 1em 0;
+            margin: 1.5em 0;
+            font-size: 14px;
+            border: 2px solid #333;
+            background-color: #fff;
         }
         th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
+            border: 1px solid #333;
+            padding: 12px 16px;
             text-align: left;
+            vertical-align: top;
         }
         th {
-            background-color: #f6f8fa;
+            background-color: #f0f0f0;
+            font-weight: bold;
+            color: #333;
+            border-bottom: 2px solid #333;
         }
-        tr:nth-child(even) {
+        tr:nth-child(even) td {
             background-color: #f9f9f9;
+        }
+        td:first-child {
+            font-weight: 600;
+            background-color: #f6f8fa;
+            width: 30%;
+        }
+        table a {
+            color: #0366d6;
+            text-decoration: underline;
         }
         blockquote {
             border-left: 4px solid #dfe2e5;
