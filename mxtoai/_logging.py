@@ -1,15 +1,17 @@
+import logging
 import os
 import sys
 from collections.abc import Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any
 
 import logfire
 from dotenv import load_dotenv
 from loguru import logger
+from rich.console import Console
 
-__all__ = ["get_logger", "span"]
+__all__ = ["get_logger", "get_smolagents_console", "span"]
 
 # Load environment variables
 load_dotenv()
@@ -69,9 +71,134 @@ if os.environ.get("LOGFIRE_TOKEN"):
     logger.add(**logfire_handler)
     logfire.configure(console=False)
 
+
+class InterceptHandler(logging.Handler):
+    """
+    Intercept standard library logging and redirect to loguru.
+    This captures logs from third-party libraries like LiteLLM, httpx, etc.
+    """
+
+    def emit(self, record):
+        # Get corresponding Loguru level if it exists
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
+
+        # Find caller from where originated the logged message
+        frame, depth = logging.currentframe(), 2
+        while frame and (frame.f_code.co_filename in (logging.__file__, __file__)):
+            frame = frame.f_back
+            depth += 1
+
+        # Use the logger name from the original record for better identification
+        logger_name = record.name if record.name else "unknown"
+
+        # Get the formatted message
+        try:
+            message = record.getMessage()
+        except Exception:
+            message = str(record.msg)
+
+        # Log through loguru with proper context
+        logger.opt(depth=depth, exception=record.exc_info).bind(
+            name=logger_name
+        ).log(level, message)
+
+
+# Intercept standard library logging and redirect to loguru
+def setup_stdlib_logging_intercept():
+    """Set up interception of standard library logging."""
+    # Create our intercept handler
+    intercept_handler = InterceptHandler()
+
+    # Configure root logger
+    logging.root.handlers = [intercept_handler]
+    logging.root.setLevel(LOG_LEVEL)
+
+    # Also configure specific loggers that might be problematic
+    third_party_loggers = [
+        "litellm",
+        "httpx",
+        "dramatiq",
+        "pika",  # RabbitMQ client
+        "azure",
+        "openai",
+        "smolagents",  # Capture smolagents verbose output
+        "transformers",  # HuggingFace transformers
+        "torch",  # PyTorch logging
+        "requests",  # HTTP requests logging
+        "urllib3",  # HTTP library used by requests
+        "aiohttp",  # Async HTTP client
+    ]
+
+    for logger_name in third_party_loggers:
+        third_party_logger = logging.getLogger(logger_name)
+        third_party_logger.handlers = [intercept_handler]
+        third_party_logger.setLevel(LOG_LEVEL)
+        third_party_logger.propagate = True
+
+
+# Set up the interception
+setup_stdlib_logging_intercept()
+
 # Log a test message to verify logging is working
 logger.info("Logging initialized with level: {}", LOG_LEVEL)
 logger.debug("Debug logging is enabled")
+
+
+class LoguruRichConsole:
+    """
+    Custom Rich console that integrates with loguru.
+    Captures smolagents Rich console output and feeds it into the loguru logging pipeline,
+    which then goes to app.log, debug.log, and logfire for unified observability.
+    """
+
+    def __init__(self):
+        """Initialize the loguru-integrated Rich console."""
+        # Create a standard Rich console for terminal output
+        self.terminal_console = Console()
+        # Get loguru logger for capturing Rich output
+        self.rich_logger = logger.bind(source="smolagents_rich")
+
+    def print(self, *args, **kwargs):
+        """Print to terminal and capture in loguru logging pipeline."""
+        try:
+            # Print to terminal as normal
+            self.terminal_console.print(*args, **kwargs)
+
+            # Capture the content for loguru logging
+            # Convert Rich renderables to plain text for logging
+            content_parts = []
+            for arg in args:
+                if hasattr(arg, "__rich__") or hasattr(arg, "__rich_console__"):
+                    # For Rich renderables, capture their string representation
+                    content_parts.append(str(arg))
+                else:
+                    content_parts.append(str(arg))
+
+            content = " ".join(content_parts)
+
+            # Determine log level based on style or content
+            log_level = "INFO"  # Default level
+            style = kwargs.get("style", "")
+            if "error" in style.lower() or "red" in style.lower():
+                log_level = "ERROR"
+            elif "warning" in style.lower() or "yellow" in style.lower():
+                log_level = "WARNING"
+            elif "debug" in content.lower():
+                log_level = "DEBUG"
+
+            # Log to loguru (which feeds to app.log, debug.log, and logfire)
+            self.rich_logger.log(log_level, "Rich Console: {}", content)
+
+        except Exception as e:
+            # Fallback logging if Rich integration fails
+            error_msg = f"Rich console integration error: {e}"
+            logger.error(error_msg)
+            # Still try to print to terminal
+            with suppress(Exception):
+                self.terminal_console.print(*args, **kwargs)
 
 
 def get_logger(source: str) -> Any:
@@ -107,3 +234,11 @@ def span(
     else:
         # Return a dummy context manager that does nothing
         yield
+
+
+def get_smolagents_console() -> LoguruRichConsole:
+    """
+    Get a Rich console for smolagents that integrates with loguru.
+    This captures Rich console output and feeds it into the unified logging pipeline.
+    """
+    return LoguruRichConsole()

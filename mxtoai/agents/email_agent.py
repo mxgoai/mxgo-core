@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
-from smolagents import Tool, ToolCallingAgent
+from smolagents import ToolCallingAgent
 
 # Add imports for the new default tools
 from smolagents.default_tools import (
@@ -18,7 +18,7 @@ from smolagents.default_tools import (
     WikipediaSearchTool,
 )
 
-from mxtoai._logging import get_logger
+from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
     LIST_FORMATTING_REQUIREMENTS,
@@ -135,23 +135,33 @@ class EmailAgent:
         logger.info("Email agent initialized successfully")
 
     def _init_agent(self):
-        """
-        Initialize the ToolCallingAgent with Azure OpenAI.
-        """
+        """Initialize the smolagents ToolCallingAgent."""
         # Initialize the routed model with the default model group
         self.routed_model = RoutedLiteLLMModel()
 
+        # Create agent
         self.agent = ToolCallingAgent(
             model=self.routed_model,
             tools=self.available_tools,
             max_steps=12,
-            verbosity_level=2,
+            verbosity_level=2,  # Increased back to 2 to capture detailed Rich console output
             planning_interval=4,
             name="email_processing_agent",
             description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities including web search, web browsing, and code execution.",
             provide_run_summary=True,
         )
-        logger.debug("Agent initialized with routed model configuration")
+
+        # Set up integrated Rich console that feeds into loguru/logfire pipeline
+        # This captures smolagents verbose output and integrates it with our unified logging
+        smolagents_console = get_smolagents_console()
+
+        # Override agent's console with our loguru-integrated console
+        if hasattr(self.agent, "logger") and hasattr(self.agent.logger, "console"):
+            self.agent.logger.console = smolagents_console
+        if hasattr(self.agent, "monitor") and hasattr(self.agent.monitor, "logger") and hasattr(self.agent.monitor.logger, "console"):
+            self.agent.monitor.logger.console = smolagents_console
+
+        logger.debug("Agent initialized with routed model configuration and loguru-integrated Rich console")
 
     def _initialize_search_tools(self) -> SearchWithFallbackTool:
         """

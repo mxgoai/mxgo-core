@@ -283,7 +283,7 @@ class ReportFormatter:
         lines = content.split("\n")
         result_lines = []
 
-        for line in lines:
+        for i, line in enumerate(lines):
             # Check if this line looks like a list item without proper spacing
             if re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line):
                 # Get the indentation, marker, and text
@@ -292,7 +292,7 @@ class ReportFormatter:
                     indent, marker, rest_of_line = match.groups()
 
                     # Check if this is likely a section header vs a real list item
-                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip()):
+                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip(), lines, i):
                         # Convert to a proper markdown header
                         header_text = rest_of_line.strip()
                         line = f"## {header_text}"
@@ -307,23 +307,141 @@ class ReportFormatter:
         # Convert letter-based lists to numbers (no markdown parser handles this)
         return self._convert_letter_lists_to_numbers(content)
 
-    def _is_section_header(self, text: str) -> bool:
+    def _is_section_header(self, text: str, lines: list[str], current_index: int) -> bool:
         """
-        Simple keyword-based check for section headers.
+        Sophisticated check to determine if text is likely a section header vs a list item.
+        Uses multiple heuristics including length, content analysis, context, and numbering patterns.
+
+        Args:
+            text: The text content to analyze
+            lines: All lines in the document for context
+            current_index: Index of current line being analyzed
+
+        Returns:
+            True if likely a section header, False if likely a list item
+
         """
-        text_lower = text.lower()
-        section_keywords = [
-            "acknowledgment",
-            "understanding",
-            "summary",
-            "response",
-            "detailed",
-            "top 10",
-            "posts",
-            "trending",
-            "with summaries",
+        if not text.strip():
+            return False
+
+        text_clean = text.strip()
+        text_lower = text_clean.lower()
+
+        # Heuristic 1: Length check - section headers are typically longer
+        if len(text_clean) < 15:
+            return False
+
+        # Heuristic 2: Strong section header keywords
+        strong_section_keywords = [
+            "acknowledgment", "understanding", "summary", "response",
+            "detailed analysis", "comprehensive", "breakdown", "overview",
+            "introduction", "background", "methodology", "findings",
+            "conclusion", "recommendations", "executive summary",
+            "key takeaways", "main points", "important notes"
         ]
-        return any(keyword in text_lower for keyword in section_keywords)
+
+        if any(keyword in text_lower for keyword in strong_section_keywords):
+            return True
+
+        # Heuristic 3: Contextual analysis - check surrounding lines
+        context_score = 0
+
+        # Check previous lines for list pattern
+        prev_lines_are_lists = 0
+        for i in range(max(0, current_index - 3), current_index):
+            if i < len(lines):
+                prev_line = lines[i].strip()
+                if re.match(r"^\d+\.\s+", prev_line) or re.match(r"^[*-]\s+", prev_line):
+                    prev_lines_are_lists += 1
+
+        # Check next lines for list pattern
+        next_lines_are_lists = 0
+        for i in range(current_index + 1, min(len(lines), current_index + 4)):
+            if i < len(lines):
+                next_line = lines[i].strip()
+                if re.match(r"^\d+\.\s+", next_line) or re.match(r"^[*-]\s+", next_line):
+                    next_lines_are_lists += 1
+
+        # If surrounded by lists, less likely to be a header
+        if prev_lines_are_lists >= 2 and next_lines_are_lists >= 1:
+            context_score -= 2
+        elif prev_lines_are_lists == 0 and next_lines_are_lists == 0:
+            context_score += 1
+
+        # Heuristic 4: Sequential numbering detection
+        # Extract number from current line's marker
+        current_line = lines[current_index] if current_index < len(lines) else ""
+        current_num_match = re.match(r"^\s*(\d+)\.", current_line)
+        current_num = int(current_num_match.group(1)) if current_num_match else None
+
+        if current_num:
+            # Check if this follows a sequential pattern with previous numbered items
+            sequential_pattern = False
+            for i in range(max(0, current_index - 2), current_index):
+                if i < len(lines):
+                    prev_line = lines[i].strip()
+                    prev_num_match = re.match(r"^(\d+)\.", prev_line)
+                    if prev_num_match:
+                        prev_num = int(prev_num_match.group(1))
+                        if current_num == prev_num + 1:
+                            sequential_pattern = True
+                            break
+
+            # If it's part of a sequential list, less likely to be a header
+            if sequential_pattern:
+                context_score -= 2
+
+        # Heuristic 5: Content analysis patterns
+        content_patterns = {
+            # More likely to be headers
+            "header_indicators": [
+                r"\b(top\s+\d+|best\s+\d+|main\s+\d+)\b",
+                r"\b(analysis|breakdown|summary|overview)\b",
+                r"\b(section|chapter|part)\b",
+                r"\bwith\s+(summaries|details|analysis)\b",
+            ],
+            # More likely to be list items
+            "list_indicators": [
+                r"^\w+\s*:\s*",  # "Item: description"
+                r"\b(click|visit|check|see|read)\b",
+                r"\bhttps?://",  # URLs
+                r"\b(price|cost|usd|\$\d+)\b",  # Pricing info
+            ]
+        }
+
+        # Check header indicators
+        for pattern in content_patterns["header_indicators"]:
+            if re.search(pattern, text_lower):
+                context_score += 1
+
+        # Check list indicators
+        for pattern in content_patterns["list_indicators"]:
+            if re.search(pattern, text_lower):
+                context_score -= 1
+
+        # Heuristic 6: Indentation analysis
+        if current_index < len(lines):
+            current_line_indent = len(lines[current_index]) - len(lines[current_index].lstrip())
+
+            # Headers are typically not deeply indented
+            if current_line_indent > 8:  # More than 2 levels of indentation
+                context_score -= 1
+            elif current_line_indent == 0:  # No indentation
+                context_score += 1
+
+        # Heuristic 7: Capitalization patterns
+        words = text_clean.split()
+        if len(words) >= 2:
+            capitalized_words = sum(1 for word in words if word and word[0].isupper())
+            capitalization_ratio = capitalized_words / len(words)
+
+            # Section headers often have title case
+            if capitalization_ratio > 0.5:
+                context_score += 1
+
+        # Final decision based on accumulated score
+        # Require positive score for section header classification
+        return context_score > 0
 
     def _convert_letter_lists_to_numbers(self, content: str) -> str:
         """

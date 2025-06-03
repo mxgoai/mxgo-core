@@ -96,8 +96,11 @@ poetry run python run_api.py
 ```
 
 5. Start the workers:
+
+Using only single process and couple of threads for local development:
+
 ```bash
-poetry run dramatiq mxtoai.tasks --watch ./.
+poetry run dramatiq mxtoai.tasks --processes 1 --threads 2 --watch ./.
 ```
 
 ### Environment Variables
