@@ -1,0 +1,286 @@
+"""
+LinkedIn Fresh Data API implementation.
+Provides access to LinkedIn data through the Fresh LinkedIn Profile Data API.
+"""
+
+import logging
+import os
+from typing import Optional
+
+import requests
+from smolagents import Tool
+
+logger = logging.getLogger(__name__)
+
+class LinkedInFreshDataTool(Tool):
+    """Tool for accessing LinkedIn data through Fresh LinkedIn Profile Data API."""
+
+    name: str = "linkedin_fresh_data"
+    description: str = "Access LinkedIn profile and company data directly from LinkedIn URLs for research and verification."
+    output_type: str = "object"
+    inputs: dict = {  # noqa: RUF012
+        "action": {
+            "type": "string",
+            "description": "The action to perform: 'get_linkedin_profile' or 'get_company_by_linkedin_url'",
+            "enum": ["get_linkedin_profile", "get_company_by_linkedin_url"]
+        },
+        "linkedin_url": {
+            "type": "string",
+            "description": "The LinkedIn URL (profile or company)"
+        },
+        # Optional parameters for get_linkedin_profile action
+        "include_skills": {
+            "type": "boolean",
+            "description": "Include skills section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_certifications": {
+            "type": "boolean",
+            "description": "Include certifications section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_publications": {
+            "type": "boolean",
+            "description": "Include publications section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_honors": {
+            "type": "boolean",
+            "description": "Include honors and awards section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_volunteers": {
+            "type": "boolean",
+            "description": "Include volunteer experience section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_projects": {
+            "type": "boolean",
+            "description": "Include projects section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_patents": {
+            "type": "boolean",
+            "description": "Include patents section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_courses": {
+            "type": "boolean",
+            "description": "Include courses section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_organizations": {
+            "type": "boolean",
+            "description": "Include organizations section in response (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_profile_status": {
+            "type": "boolean",
+            "description": "Include profile status information (default: false)",
+            "default": False,
+            "nullable": True
+        },
+        "include_company_public_url": {
+            "type": "boolean",
+            "description": "Include company public URL information (default: false)",
+            "default": False,
+            "nullable": True
+        }
+    }
+
+    def __init__(self, api_key: str):
+        """
+        Initialize the LinkedIn Fresh Data tool.
+
+        Args:
+            api_key: The RapidAPI key for authentication.
+        """
+        super().__init__()
+        if not api_key:
+            raise ValueError("RapidAPI key is required for LinkedIn Fresh Data API.")
+        self.api_key = api_key
+        self.base_url = "https://fresh-linkedin-profile-data.p.rapidapi.com"
+        self.headers = {
+            "x-rapidapi-key": self.api_key,
+            "x-rapidapi-host": "fresh-linkedin-profile-data.p.rapidapi.com"
+        }
+
+    def forward(self,
+                action: str,
+                linkedin_url: str,
+                include_skills: bool = False,
+                include_certifications: bool = False,
+                include_publications: bool = False,
+                include_honors: bool = False,
+                include_volunteers: bool = False,
+                include_projects: bool = False,
+                include_patents: bool = False,
+                include_courses: bool = False,
+                include_organizations: bool = False,
+                include_profile_status: bool = False,
+                include_company_public_url: bool = False) -> dict:
+        """
+        Process LinkedIn data requests.
+
+        Args:
+            action: The type of request to perform ('get_linkedin_profile' or 'get_company_by_linkedin_url')
+            linkedin_url: The LinkedIn URL (profile or company)
+            include_skills: Include skills section in response (default: false)
+            include_certifications: Include certifications section in response (default: false)
+            include_publications: Include publications section in response (default: false)
+            include_honors: Include honors and awards section in response (default: false)
+            include_volunteers: Include volunteer experience section in response (default: false)
+            include_projects: Include projects section in response (default: false)
+            include_patents: Include patents section in response (default: false)
+            include_courses: Include courses section in response (default: false)
+            include_organizations: Include organizations section in response (default: false)
+            include_profile_status: Include profile status information (default: false)
+            include_company_public_url: Include company public URL information (default: false)
+
+        Returns:
+            Dict containing the results
+        """
+        actions = {
+            "get_linkedin_profile": self.get_linkedin_profile,
+            "get_company_by_linkedin_url": self.get_company_by_linkedin_url
+        }
+
+        if action not in actions:
+            raise ValueError(f"Unsupported action: {action}")
+
+        try:
+            if action == "get_linkedin_profile":
+                return actions[action](
+                    linkedin_url=linkedin_url,
+                    include_skills=include_skills,
+                    include_certifications=include_certifications,
+                    include_publications=include_publications,
+                    include_honors=include_honors,
+                    include_volunteers=include_volunteers,
+                    include_projects=include_projects,
+                    include_patents=include_patents,
+                    include_courses=include_courses,
+                    include_organizations=include_organizations,
+                    include_profile_status=include_profile_status,
+                    include_company_public_url=include_company_public_url
+                )
+            else:  # get_company_by_linkedin_url
+                return actions[action](linkedin_url=linkedin_url)
+        except requests.exceptions.RequestException as e:
+            logger.error(f"LinkedIn Fresh Data API request failed: {e}")
+            raise Exception(f"LinkedIn Fresh Data API request failed: {e}") from e
+        except Exception as e:
+            logger.error(f"Error processing LinkedIn Fresh Data API request: {e}")
+            raise Exception(f"Failed to process LinkedIn Fresh Data API request: {e}") from e
+
+    def get_linkedin_profile(self,
+                           linkedin_url: str,
+                           include_skills: bool = False,
+                           include_certifications: bool = False,
+                           include_publications: bool = False,
+                           include_honors: bool = False,
+                           include_volunteers: bool = False,
+                           include_projects: bool = False,
+                           include_patents: bool = False,
+                           include_courses: bool = False,
+                           include_organizations: bool = False,
+                           include_profile_status: bool = False,
+                           include_company_public_url: bool = False) -> dict:
+        """
+        Get detailed LinkedIn profile information from a LinkedIn profile URL.
+
+        Args:
+            linkedin_url: LinkedIn profile URL (e.g., "https://www.linkedin.com/in/username/")
+            include_skills: Include skills section in response
+            include_certifications: Include certifications section in response
+            include_publications: Include publications section in response
+            include_honors: Include honors and awards section in response
+            include_volunteers: Include volunteer experience section in response
+            include_projects: Include projects section in response
+            include_patents: Include patents section in response
+            include_courses: Include courses section in response
+            include_organizations: Include organizations section in response
+            include_profile_status: Include profile status information
+            include_company_public_url: Include company public URL information
+
+        Returns:
+            Dict containing detailed profile information
+        """
+        endpoint = "/get-linkedin-profile"
+        params = {
+            "linkedin_url": linkedin_url,
+            "include_skills": str(include_skills).lower(),
+            "include_certifications": str(include_certifications).lower(),
+            "include_publications": str(include_publications).lower(),
+            "include_honors": str(include_honors).lower(),
+            "include_volunteers": str(include_volunteers).lower(),
+            "include_projects": str(include_projects).lower(),
+            "include_patents": str(include_patents).lower(),
+            "include_courses": str(include_courses).lower(),
+            "include_organizations": str(include_organizations).lower(),
+            "include_profile_status": str(include_profile_status).lower(),
+            "include_company_public_url": str(include_company_public_url).lower()
+        }
+
+        response = requests.get(
+            f"{self.base_url}{endpoint}",
+            headers=self.headers,
+            params=params
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def get_company_by_linkedin_url(self, linkedin_url: str) -> dict:
+        """
+        Get company information from a LinkedIn company URL.
+
+        Args:
+            linkedin_url: LinkedIn company URL (e.g., "https://www.linkedin.com/company/apple/")
+
+        Returns:
+            Dict containing company information
+        """
+        endpoint = "/get-company-by-linkedinurl"
+        params = {
+            "linkedin_url": linkedin_url
+        }
+
+        response = requests.get(
+            f"{self.base_url}{endpoint}",
+            headers=self.headers,
+            params=params
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
+    """
+    Initializes the LinkedInFreshDataTool if the API key is available.
+
+    Returns:
+        Optional[LinkedInFreshDataTool]: Initialized tool instance or None if initialization fails
+    """
+    api_key = os.getenv("RAPIDAPI_KEY")
+    if api_key:
+        try:
+            tool = LinkedInFreshDataTool(api_key=api_key)
+            logger.debug("Initialized LinkedInFreshDataTool.")
+            return tool  # noqa: TRY300
+        except ValueError as e:
+            logger.warning(f"Failed to initialize LinkedInFreshDataTool: {e}")
+            return None
+    else:
+        logger.warning(
+            "LinkedInFreshDataTool not initialized. Missing RAPIDAPI_KEY environment variable."
+        )
+        return None
