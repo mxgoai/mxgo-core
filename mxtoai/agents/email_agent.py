@@ -44,13 +44,13 @@ from mxtoai.schemas import (
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
-from mxtoai.tools.deep_research_tool import DeepResearchTool
-from mxtoai.tools.schedule_tool import ScheduleTool
 
-# Import the refactored fallback search tool
-from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
 # Import the new Brave Search tool
 from mxtoai.tools.brave_search_tool import initialize_brave_search_tool
+from mxtoai.tools.deep_research_tool import DeepResearchTool
+from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
+from mxtoai.tools.schedule_tool import ScheduleTool
+from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
 
 # Load environment variables
 load_dotenv(override=True)
@@ -121,6 +121,14 @@ class EmailAgent:
         ]
         if self.research_tool:
             self.available_tools.append(self.research_tool)
+
+        linkedin_fresh_tool = initialize_linkedin_fresh_tool()
+        if linkedin_fresh_tool:
+            self.available_tools.append(linkedin_fresh_tool)
+
+        linkedin_data_api_tool = initialize_linkedin_data_api_tool()
+        if linkedin_data_api_tool:
+            self.available_tools.append(linkedin_data_api_tool)
 
         logger.info(f"Agent tools initialized: {[tool.name for tool in self.available_tools]}")
         self._init_agent()

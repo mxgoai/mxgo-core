@@ -97,7 +97,13 @@ Content Guidelines:
 # Background research handler template
 BACKGROUND_RESEARCH_TEMPLATE = """
 Research identities mentioned in email including names, email addresses, and domains. Focus on finding background information about the sender and other parties mentioned.
-Do not use deep search directly, use web search and page visit tool, if you're not satisfied with results, then only try deep search.
+Use web search, page visit and linkedin data tools.
+During your search, try to find best relevant profiles from websearch or linkedin results by looking at email content. Don't pick any random matching profile and mark research done.
+
+**LinkedIn Data Strategy:**
+- For LinkedIn profile/company research, try linkedin_data tool first (uses LinkedIn URLs directly)
+- If linkedin_data fails or you need to search by criteria, use linkedin_data_api tool
+- Use web search first to find LinkedIn URLs or usernames for more accurate LinkedIn data requests
 
 Response Requirements:
 1. Structure with clear sections:
