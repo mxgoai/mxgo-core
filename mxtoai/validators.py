@@ -264,6 +264,8 @@ async def validate_email_whitelist(
     """
     Validate if the sender's email is whitelisted and verified.
 
+    Major email providers are temporarily whitelisted and bypass the Supabase whitelist check.
+
     Args:
         from_email: Sender's email address
         to: Recipient's email address
@@ -274,6 +276,14 @@ async def validate_email_whitelist(
         Response if validation fails, None if validation succeeds
 
     """
+    # Extract domain from sender's email
+    email_domain = get_domain_from_email(from_email)
+
+    # Skip whitelist validation for major email providers
+    if email_domain in email_provider_domain_set:
+        logger.info(f"Skipping whitelist validation for major email provider: {from_email} (domain: {email_domain})")
+        return None
+
     exists_in_whitelist, is_verified = await is_email_whitelisted(from_email)
 
     if not exists_in_whitelist:
