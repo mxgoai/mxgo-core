@@ -37,15 +37,14 @@ services:
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
-    # Optional: Uncomment below to disable if not needed
-    # deploy:
-    #   replicas: 0
+    profiles:
+      - ollama
 
   api_server:
     build:
       context: .
       dockerfile: docker/api_server.dockerfile
-    container_name: api_serve
+    container_name: api_server
     env_file:
       - .env
     depends_on:
@@ -59,9 +58,10 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:${REDIS_PORT:-6379}/0
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - OLLAMA_URL=http://ollama:${OLLAMA_PORT:-11434}
+      - LITELLM_CONFIG_PATH=/app/credentials/model.config.toml
     volumes:
-      - .:/app
-    command: ["poetry", "run", "uvicorn", "mxtoai.api:app", "--host", "0.0.0.0", "--port", "9292", "--workers", "4"]
+      - ./credentials/model.config.toml:/app/credentials/model.config.toml
+    command: ["poetry", "run", "uvicorn", "mxtoai.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
 
   worker:
     build:
@@ -79,8 +79,9 @@ services:
       - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:${REDIS_PORT:-6379}/0
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
       - OLLAMA_URL=http://ollama:${OLLAMA_PORT:-11434}
+      - LITELLM_CONFIG_PATH=/app/credentials/model.config.toml
     volumes:
-      - .:/app
+      - ./credentials/model.config.toml:/app/credentials/model.config.toml
     command: ["poetry", "run", "dramatiq", "mxtoai.tasks", "--watch", "./."]
 
 volumes:

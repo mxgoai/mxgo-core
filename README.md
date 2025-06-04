@@ -125,7 +125,7 @@ AZURE_VISION_KEY=your-azure-vision-key
 SERPAPI_API_KEY=your-serpapi-api-key
 ```
 
-This project supports load balancing and routing across multiple models, so you can define as many models as you'd like. Copy `model.config.example.toml` to a toml file and update it with your preferred configuration. Update `.env` with the path your toml relative to root.
+This project supports load balancing and routing across multiple models, so you can define as many models as you'd like. Copy `credentials/model.config.example.toml` to a toml file and update it in the same directory with your preferred configuration. Update `.env` with the path your toml relative to root.
 
 A sample configuration looks like this:
 
