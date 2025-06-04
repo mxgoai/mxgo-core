@@ -8,8 +8,9 @@
 - Works anywhere - Gmail, Outlook, Apple Mail, even your phone
 - Works with attachments - PDFs, images, spreadsheets all processed
 - Works with email threads - understands context from conversation history
+- **PDF Export** - any response can be converted to PDF, or use pdf@ to export content directly
 
-As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minutes a day reading, understanding, or responding to emails, MXtoAI can probably save you time and mental energy. Whether you're dealing with work emails, personal correspondence, or staying informed, there's likely a use case that fits your daily routine. Here are some use-cases you can use it for.
+As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minutes a day reading, understanding, or responding to emails, MXtoAI can probably save you time and mental energy. Whether you're dealing with work emails, personal correspondence, or staying informed, there's likely a use case that fits your daily routine. Plus, any content generated can be exported as a professional PDF for sharing, printing, or archiving. Here are some use-cases you can use it for.
 
 ## 📧 Daily Email Management
 
@@ -28,6 +29,20 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I'm drowning in promotional emails"**
 - Forward deals/offers to ask@mxtoai.com with "Is this actually a good deal?"
 - Get honest comparisons and price checks
+
+## 📄 PDF Export & Document Creation
+
+**"I need to create professional documents from email content"**
+- Forward newsletters to pdf@mxtoai.com - get clean, formatted PDF without email headers
+- Perfect for sharing research, reports, or important communications
+
+**"I want to convert AI responses to shareable documents"**
+- Ask any handle to "generate a report and convert to PDF"
+- Forward to ask@mxtoai.com with "Create a HN newsletter with top AI posts of the week and export as PDF"
+
+**"I need to archive important email content professionally"**
+- Forward contracts, agreements, or important announcements to pdf@mxtoai.com
+- Get clean documents without email clutter - perfect for filing or legal records
 
 ## 🤝 Meeting & Scheduling
 
@@ -69,6 +84,10 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I get RFPs and proposals to review"**
 - Forward to summarize@mxtoai.com - get key requirements and deadlines
 - Forward to ask@mxtoai.com with "What's our competitive advantage here?"
+
+**"I need to document compliance or regulatory communications"**
+- Forward regulatory emails to pdf@mxtoai.com for permanent, clean records
+- Perfect for audit trails and compliance documentation
 
 ## 🔍 Information Verification & Research
 
@@ -127,6 +146,10 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I receive research papers and need quick insights"**
 - Forward to ask@mxtoai.com with "What are the practical applications?"
 - Understand real-world relevance quickly
+
+**"I want to compile research findings into shareable documents"**
+- Forward multiple research emails to ask@mxtoai.com with "Synthesize findings and create PDF report"
+- Perfect for thesis research or professional development
 
 ## 🛍️ Shopping & Consumer Decisions
 
@@ -199,6 +222,7 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **Consultant:**
 - "I forward client emails to background@mxtoai.com before meetings to understand industry challenges"
 - "I forward RFPs to ask@mxtoai.com with 'What's the hidden agenda here?' to win more bids"
+- "I forward research findings to ask@mxtoai.com with 'Create client presentation and export as PDF' for professional deliverables"
 
 **Retiree:**
 - "I forward Medicare emails to simplify@mxtoai.com - healthcare is confusing enough"
