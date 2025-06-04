@@ -9,7 +9,7 @@ Systematically analyze and summarize content from all available sources with cle
 # Summarization Process
 
 ## STEP 1: Content Analysis
-- **Process ALL sources**: Email content, attachments, embedded links, external references
+- **Process ALL sources**: Email content, attachments, embedded links, external references(if asked)
 - **Assess complexity**: Determine appropriate detail level (concise/detailed/executive summary)
 - **Identify priorities**: Key messages, action items, deadlines, stakeholder impact
 
