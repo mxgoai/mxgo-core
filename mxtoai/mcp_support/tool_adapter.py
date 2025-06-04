@@ -5,7 +5,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 import jsonref
-import mcp.types as mcp_types
+from mcp import types as mcp_types
 from smolagents import Tool
 
 from .client import BaseMCPClient, MCPToolExecutionError

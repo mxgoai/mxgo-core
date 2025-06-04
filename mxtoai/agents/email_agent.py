@@ -18,7 +18,7 @@ from smolagents.default_tools import (
 )
 
 from mxtoai._logging import get_logger
-from mxtoai.mcp import load_mcp_tools_from_config
+from mxtoai.mcp_support import load_mcp_tools_from_config
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
     LIST_FORMATTING_REQUIREMENTS,

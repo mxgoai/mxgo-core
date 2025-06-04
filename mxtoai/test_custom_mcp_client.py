@@ -8,7 +8,7 @@ import logging
 from dotenv import load_dotenv
 
 from smolagents import CodeAgent, AzureOpenAIServerModel
-from mxtoai.mcp import load_mcp_tools_from_stdio_params
+from mxtoai.mcp_support import load_mcp_tools_from_stdio_params
 from mcp import StdioServerParameters
 
 # Configure basic logging
@@ -56,8 +56,8 @@ def test_custom_mcp_github_client():
     )
     logger.info(f"Configured MCP server with command: docker and image: ghcr.io/github/github-mcp-server")
 
-    query = "List the repositories of satwikkansal and show the number of issues for the top 3 repositories"
-    logger.info(f"Agent Query: {query}")
+    query = "List the repositories of XLander03 and tell me the number of issues for the top 3 repositories"
+    logger.info(f"Agent Query: {query}") 
 
     try:
         # Use our custom MCP implementation
@@ -69,10 +69,6 @@ def test_custom_mcp_github_client():
                 return
 
             logger.info(f"Successfully loaded {len(mcp_tools)} tools from GitHub MCP server using custom client.")
-            
-            # Log the available tools
-            for tool in mcp_tools:
-                logger.info(f"Available tool: {tool.name} - {tool.description}")
             
             # Initialize the AzureOpenAIServerModel
             model = AzureOpenAIServerModel(
