@@ -1,4 +1,5 @@
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -588,6 +589,61 @@ def test_pdf_export_error_handling():
         os.unlink(result["file_path"])
 
 
+def test_pdf_export_cleanup():
+    """Test that PDF export properly cleans up temporary directories."""
+    from mxtoai.tools.pdf_export_tool import PDFExportTool
+    import tempfile
+
+    # Track temporary directories created
+    original_mkdtemp = tempfile.mkdtemp
+    created_temp_dirs = []
+
+    def tracking_mkdtemp(*args, **kwargs):
+        temp_dir = original_mkdtemp(*args, **kwargs)
+        created_temp_dirs.append(temp_dir)
+        return temp_dir
+
+    # Patch mkdtemp to track directory creation
+    tempfile.mkdtemp = tracking_mkdtemp
+
+    try:
+        tool = PDFExportTool()
+
+        # Verify temp directory was created
+        assert len(created_temp_dirs) == 1, "Expected exactly one temp directory to be created"
+        temp_dir_path = created_temp_dirs[0]
+        assert os.path.exists(temp_dir_path), "Temp directory should exist after tool initialization"
+
+        # Generate a PDF
+        result = tool.forward(
+            content="# Test PDF Cleanup\n\nThis tests that temporary directories are properly cleaned up.",
+            title="Cleanup Test PDF"
+        )
+
+        assert result["success"] is True, f"PDF generation failed: {result.get('error', 'Unknown error')}"
+        pdf_file_path = result["file_path"]
+        assert os.path.exists(pdf_file_path), "PDF file should exist"
+
+        # Verify the PDF is in the temp directory
+        assert pdf_file_path.startswith(temp_dir_path), "PDF should be in the temp directory"
+
+        # Call cleanup explicitly
+        tool.cleanup()
+
+        # Verify temp directory is cleaned up
+        assert not os.path.exists(temp_dir_path), "Temp directory should be cleaned up after explicit cleanup"
+        assert not os.path.exists(pdf_file_path), "PDF file should be cleaned up with the temp directory"
+
+    finally:
+        # Restore original mkdtemp
+        tempfile.mkdtemp = original_mkdtemp
+
+        # Clean up any remaining directories
+        for temp_dir in created_temp_dirs:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 if __name__ == "__main__":
     # Run only PDF tests if executed directly
     pytest.main([__file__ + "::test_pdf_export_tool_direct", "-v"])
@@ -595,3 +651,4 @@ if __name__ == "__main__":
     pytest.main([__file__ + "::test_pdf_export_content_cleaning", "-v"])
     pytest.main([__file__ + "::test_pdf_handle_full_integration", "-v"])
     pytest.main([__file__ + "::test_pdf_export_error_handling", "-v"])
+    pytest.main([__file__ + "::test_pdf_export_cleanup", "-v"])

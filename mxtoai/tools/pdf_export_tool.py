@@ -4,6 +4,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import re
+import shutil
 
 from smolagents import Tool
 from mxtoai._logging import get_logger
@@ -51,6 +52,20 @@ class PDFExportTool(Tool):
         self.temp_dir = Path(tempfile.mkdtemp())
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.report_formatter = ReportFormatter()
+        logger.debug(f"PDFExportTool initialized with temp directory: {self.temp_dir}")
+
+    def __del__(self):
+        """Cleanup temporary directory when object is destroyed."""
+        self.cleanup()
+
+    def cleanup(self):
+        """Explicitly cleanup the temporary directory and all its contents."""
+        try:
+            if hasattr(self, 'temp_dir') and self.temp_dir and self.temp_dir.exists():
+                shutil.rmtree(self.temp_dir, ignore_errors=True)
+                logger.debug(f"Cleaned up PDFExportTool temp directory: {self.temp_dir}")
+        except Exception as e:
+            logger.warning(f"Failed to cleanup PDFExportTool temp directory: {e}")
 
     def forward(
         self,

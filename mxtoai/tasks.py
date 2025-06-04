@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
@@ -206,6 +207,15 @@ def process_email_task(
                     # Clean up the temporary PDF file
                     os.unlink(processing_result.pdf_export.file_path)
                     logger.info(f"Cleaned up temporary PDF file: {processing_result.pdf_export.file_path}")
+
+                    # Clean up the PDF tool's temporary directory
+                    # Extract parent directory from the PDF file path and clean it up
+                    pdf_temp_dir = Path(processing_result.pdf_export.file_path).parent
+                    if pdf_temp_dir.exists() and pdf_temp_dir.name.startswith('tmp'):
+                        # Additional safety check: only delete if it looks like a temp directory
+                        shutil.rmtree(pdf_temp_dir, ignore_errors=True)
+                        logger.info(f"Cleaned up PDF tool temp directory: {pdf_temp_dir}")
+
                 except Exception as pdf_error:
                     logger.error(f"Failed to attach PDF file: {pdf_error}")
                     # Continue without the PDF attachment rather than failing the entire email
