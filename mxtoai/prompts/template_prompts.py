@@ -99,39 +99,184 @@ BACKGROUND_RESEARCH_TEMPLATE = """
 Conduct comprehensive business intelligence research on individuals and organizations mentioned in the email.
 This is strategic research to support business decisions, not just basic background information.
 
-Research Strategy & Tool Usage:
+# Research Methodology - CRITICAL PROCESS
+
+## STEP 1: INFORMATION EXTRACTION & VERIFICATION
+**Extract ALL available identifiers from the email content:**
+- Full names (first, middle, last)
+- Email addresses
+- Company names and variations
+- Job titles or roles
+- Any additional context clues (locations, mutual connections, etc.)
+
+**IMPORTANT**: Before starting any searches, analyze the email content thoroughly to understand:
+- Who exactly you're researching (parse email signatures, headers, context)
+- What the business context is (meeting request, partnership inquiry, etc.)
+- Any specific details that could help distinguish the right person/company
+
+## STEP 2: SYSTEMATIC SEARCH STRATEGY
+**Phase 1 - Targeted Combined Searches:**
+1. **Combined Search First**: Always start with combined queries like "FirstName LastName CompanyName" or "FirstName CompanyName" to find the intersection
+2. **Email-based Search**: If you have an email, search for "FirstName email:domain.com" or "CompanyName email:domain.com"
+3. **Cross-verification**: Use multiple search terms to verify you found the right person
+4. **Typo Resilience**: If exact name searches fail, try common variations:
+   - **Missing/extra letters**: "Maxx Henlay" → try "Max Henley", "Maxx Henlay"
+   - **Common substitutions**: "ph/f", "c/k", "i/y", "ou/u"
+   - **Double letters**: "Connor" → try "Conor", "Connors"
+   - **Similar sounding**: Use phonetic variations if initial search fails
+   - **CRITICAL**: When you find a match with corrected spelling, clearly highlight this in your response
+
+**Phase 2 - LinkedIn Strategic Search:**
+- Use `linkedin_data_api` for SEARCHING and FINDING profiles/companies when you don't have LinkedIn URLs:
+  - **Action: search_people** - Primary tool for finding people by:
+    - `first_name` + `last_name` + `company` (most targeted)
+    - If exact match fails, try spelling variations systematically
+    - `keywords` (combined name and company terms)
+    - `keyword_title` (job title keywords)
+    - Multiple parameters can be combined for precision
+  - **Action: search_companies** - For finding companies by:
+    - `keyword` (company name or description)
+    - Can add location, industry filters if needed
+  - **Action: get_profile_by_url** - If you have a LinkedIn URL from web search
+  - **Action: get_profile_data** - If you have a LinkedIn username (not common)
+
+- Use `linkedin_fresh_data` for getting DETAILED profile data from confirmed LinkedIn URLs:
+  - **Action: get_linkedin_profile** - For detailed individual profile data when you have confirmed LinkedIn URL
+    - Include optional sections: `include_skills=true`, `include_certifications=true` for comprehensive research
+  - **Action: get_company_by_linkedin_url** - For detailed company data when you have confirmed LinkedIn company URL
+  - **CRITICAL**: Only use this tool AFTER you have confirmed LinkedIn URLs from previous searches
+
+**Phase 3 - Validation Searches:**
+- Search for the person/company name + recent news/updates
+- Look for any conflicting information that might indicate wrong identification
+- Cross-reference details across multiple sources
+- **Spelling Verification**: If you used a corrected spelling, verify this is the correct name through multiple sources
+
+## STEP 3: IDENTITY CONFIRMATION PROTOCOL
+**Before proceeding with detailed research, confirm you have the RIGHT person/company:**
+
+<verification_checklist>
+✓ Does the company association match? (email domain, mentioned company, etc.)
+✓ Do the role/title indicators align with context?
+✓ Are there geographical indicators that match?
+✓ Do any mutual connections or context clues align?
+✓ Is there recent activity that supports this identification?
+</verification_checklist>
+
+**If ANY verification point fails or is uncertain:**
+- **STOP the research process**
+- **DO NOT proceed with fabricated or uncertain information**
+- **Request clarification from user** (see Step 5)
+
+## STEP 4: COMPREHENSIVE RESEARCH (Only After Confirmed Identity)
+
+### Research Strategy & Tool Usage:
 - Start with web search to identify LinkedIn profiles, company pages, and recent news
 - Use LinkedIn tools strategically:
-  - linkedin_fresh_data: For direct LinkedIn URLs and detailed profile data
-  - linkedin_data_api: For searches by name, company, or when you need to find profiles
+  - **linkedin_data_api**: For SEARCHING and finding profiles/companies
+    - search_people: Find people by name + company combination
+    - search_companies: Find companies by name/keyword
+    - get_profile_by_url: Get profile data if you have LinkedIn URL
+  - **linkedin_fresh_data**: For DETAILED data extraction from confirmed URLs
+    - get_linkedin_profile: Comprehensive profile data (with skills, certifications, etc.)
+    - get_company_by_linkedin_url: Detailed company information
 - Cross-reference information across multiple sources for accuracy
 - Focus on business relevance - what matters for the decision at hand
-- Keep a note of links visited and used for research, they MUST be included in the references section
+- **MANDATORY**: Keep detailed notes of ALL links visited and sources used for references section
 
-**Research Scope - Investigate All Relevant Aspects:**
+## STEP 5: FALLBACK STRATEGY - REQUEST CLARIFICATION
 
-**For Individuals:**
-1. **Professional Background**: Current role, career trajectory, previous companies, tenure
-2. **Industry Expertise**: Skills, specializations, thought leadership, publications
-3. **Network & Influence**: Team size, reporting structure, decision-making authority
-4. **Recent Activity**: Job changes, promotions, company updates, market moves
-5. **Credibility Indicators**: Track record, achievements, industry recognition
-6. **Connection Opportunities**: Mutual connections, shared interests, common ground
+**When to use the fallback strategy:**
+- Multiple profiles found with same name but unclear which is correct
+- Company association unclear or contradictory
+- Insufficient unique identifiers to confirm identity
+- Any doubt about accuracy of identification
 
-**For Companies/Organizations:**
-1. **Business Profile**: Size, revenue range, funding stage, growth trajectory
-2. **Market Position**: Industry standing, competitors, unique value propositions
-3. **Financial Health**: Recent funding, revenue trends, financial stability indicators
-4. **Technology & Operations**: Tech stack, business model, operational scale
-5. **Recent Developments**: News, partnerships, acquisitions, product launches
-6. **Team & Leadership**: Key executives, team composition, hiring patterns
+**Fallback Response Format:**
+```
+I found multiple potential matches for [name/company] but need clarification to ensure accuracy:
 
-**Business Context Analysis:**
-- **Opportunity Assessment**: What opportunities does this connection represent?
-- **Risk Evaluation**: Any red flags, concerns, or potential issues?
-- **Strategic Fit**: How well does this align with typical business goals?
-- **Competitive Intelligence**: Market positioning relative to competitors
-- **Decision Support**: What information is most critical for next steps?
+**Potential Matches Found:**
+1. [Name] at [Company] - [brief description]
+2. [Name] at [Company] - [brief description]
+
+**To provide accurate research, could you please clarify:**
+- [Specific question about company/role/location]
+- [Any additional identifying information]
+- [Context that would help distinguish the right person]
+
+This will help me provide reliable business intelligence rather than potentially incorrect information.
+```
+
+# SUCCESSFUL RESEARCH EXAMPLE
+
+## Example Query: "Research background on sarah.chen@techstartup.io"
+
+### Step 1: Information Extraction
+- Name: Sarah Chen
+- Email domain: techstartup.io
+- Company: TechStartup (from domain)
+
+### Step 2: Search Strategy
+1. **Combined Search**: "Sarah Chen TechStartup" via Web Search tool
+2. **Email Search**: "Sarah Chen techstartup.io" via Web Search tool
+3. **LinkedIn Search**: Use linkedin_data_api with action "search_people":
+   - first_name: "Sarah"
+   - last_name: "Chen"
+   - company: "TechStartup"
+
+### Step 3: Verification
+✓ Found Sarah Chen, CTO at TechStartup Inc.
+✓ Email domain matches company
+✓ Role aligns with technical email signature
+✓ Location and timeline consistent
+
+## Example with Typo Correction: "Research background on Vetri Vellor at Stych India"
+
+### Step 1: Information Extraction
+- Name: Vetri Vellor (potential typo)
+- Company: Stych India
+
+### Step 2: Search Strategy with Typo Handling
+1. **Initial Search**: "Vetri Vellor Stych India" - No clear matches
+2. **Typo Variations**: Try "Vetri Vellore", "Vetri Veller" with Stych India
+3. **LinkedIn Search**: linkedin_data_api "search_people":
+   - first_name: "Vetri"
+   - last_name: "Vellore" (corrected spelling)
+   - company: "Stych India"
+
+### Step 3: Verification with Correction Note
+✓ Found Vetri Vellore at Stych India
+✓ Company matches exactly
+✓ Profile shows expected role and location
+⚠️ **Note: Corrected spelling from 'Vetri Vellor' to 'Vetri Vellore'**
+
+### Step 4: Comprehensive Research
+**Detailed Profile Data (using linkedin_fresh_data):**
+- Action: get_linkedin_profile with confirmed LinkedIn URL
+- Include comprehensive sections: include_skills=true, include_certifications=true, only if needed
+- Current Role: CTO at TechStartup Inc. (2022-present)
+- Background: 8 years at Google, 3 years at Meta
+- Expertise: ML/AI, cloud infrastructure
+- Education: Stanford CS PhD
+
+**Company Research (using linkedin_fresh_data):**
+- Action: get_company_by_linkedin_url for TechStartup company page
+- TechStartup Inc: Series B, $50M raised
+- Focus: AI-powered analytics tools
+- Team: 120 employees, growing 40% YoY
+- Recent: Partnership with Microsoft announced
+
+**Business Context:**
+- High-value technical leader with strong background
+- Company in growth phase, well-funded
+- Strategic opportunity for technical partnerships
+- Recent Microsoft partnership indicates market validation
+
+### References Used:
+1. [LinkedIn Profile](linkedin-url)
+2. [Company Crunchbase](crunchbase-url)
+3. [Recent Partnership News](news-url)
 
 **Content Guidelines:**
 1. **Business-focused analysis** - always connect findings to business value
@@ -142,15 +287,26 @@ Research Strategy & Tool Usage:
 6. **Risk awareness** - flag any concerns or inconsistencies found in email content claims or news
 7. **Competitive context** - position findings within market landscape
 8. **Relationship mapping** - identify connection opportunities and common ground
-9. **References** - include all sources used with proper markdown links
+9. **Mandatory references** - include ALL sources used with proper markdown links
+10. **Confidence indicators** - clearly state certainty levels for key findings
+11. **Spelling corrections highlight** - clearly note any name/spelling corrections made during research
+
+**CRITICAL REQUIREMENTS:**
+- **NEVER proceed with research if identity verification fails**
+- **ALWAYS include comprehensive references section with actual links**
+- **ALWAYS state confidence levels and any assumptions made**
+- **ALWAYS provide fallback response if uncertain about identity**
+- **ALWAYS connect research findings to business context and value**
+- **ALWAYS highlight spelling corrections with format: "⚠️ Note: Corrected spelling from '[original]' to '[corrected]'"**
 
 **Important Notes:**
-- Keep a note of links visited and used for research, they MUST be included in the references section
+- Keep detailed notes of ALL links visited and used for research
 - Provide strategic context for all findings
 - Include confidence levels for key assertions
 - Always include disclaimer about information accuracy and age
 - Prioritize recent and verifiable information
 - Connect individual research to broader business context
+- **If uncertain about identity, request clarification rather than guessing**
 """
 
 # Translation handler template
@@ -181,50 +337,254 @@ Content Guidelines:
 
 # Scheduling handler template
 SCHEDULE_TEMPLATE = """
-Extract meeting/scheduling related information including participants, timing, and location details to provide scheduling recommendations
+Intelligently extract, research, and schedule meetings with proper validation, research, and clarification protocols.
 
-**STEP 1: Assess Clarity**
-- Determine if the email provides enough specific information to create a calendar event. Key details needed are:
-    - A clear event purpose/title.
-    - A specific date (or range to choose from).
-    - A specific start time (or range).
-    - A timezone (or enough context to infer one, otherwise default to UTC and state assumption).
-    - Optionally: duration/end time, location, attendees.
+# Scheduling Methodology - SYSTEMATIC PROCESS
 
-**STEP 2: Handle Ambiguity**
-- **IF** the details are too vague or missing critical information (like a specific date or time):
-    - **DO NOT** attempt to call the `ScheduleTool`.
-    - Respond to the user explaining which details are unclear or missing.
-    - Ask specific questions to get the needed clarification (e.g., "Could you please specify the date and time for this meeting?", "What timezone should I use?", "What is the main topic or title for this event?").
-    - Your entire response should be this request for clarification.
-    - Attempt to gain clarity to these questions by using tools at your disposal. For example attachment processor or web search
+## STEP 1: INFORMATION EXTRACTION & ANALYSIS
+**Extract ALL available information from the request:**
+- **Participants**: Names, titles, organizations mentioned
+- **Time References**: Specific dates/times, relative references ("next week", "same time")
+- **Location Preferences**: Physical locations, cities, virtual preferences
+- **Meeting Context**: Purpose, urgency, duration hints
+- **User Context**: Timezone indicators, location references
 
-**STEP 3: Extract and Format (If Clear)**
-- **IF** the details are clear enough:
-    - Extract the event title, start time, end time (if specified), description, location, and attendee emails.
-    - Check email thread and generate a title & description based on the context if not explicitly provided
-    - **IMPORTANT DATE/TIME FORMATTING:** Determine the correct timezone and format ALL start/end times as ISO 8601 strings including the offset (e.g., '2024-08-15T10:00:00+01:00', '2024-08-16T09:00:00Z'). State any timezone assumptions made.
+**CRITICAL ANALYSIS:**
+- Identify the meeting organizer (usually the sender)
+- Determine if this is a 1-on-1 meeting, group meeting, or personal reminder
+- Check for missing contact information that needs to be researched
 
-**STEP 4: Use Tool (If Clear)**
-- Call the `ScheduleTool` (`schedule_generator`) with the extracted and formatted details:
-    - `title`: The event title.
-    - `start_time`: The ISO 8601 formatted start time string (with timezone).
-    - `end_time`: The ISO 8601 formatted end time string (with timezone), if available.
-    - `description`: Event description, if available.
-    - `location`: Event location, if available.
-    - `attendees`: List of attendee email strings, if available.
+## STEP 2: PARTICIPANT VALIDATION & RESEARCH
+**Participant Requirements:**
+- **Minimum 2 participants** for meetings (unless explicitly a personal reminder/task)
+- **Research missing contact information** when participants are mentioned without email addresses
+- **Validate participant accessibility** (public figures may need management/assistant contacts)
 
-**STEP 5: Format Response (If Tool Used)**
-- Structure the response based on the `ScheduleTool` output:
-    1.  **Summary of Extracted Details:** Briefly list the key event details identified.
-    2.  **Add to Calendar:** Use the `calendar_links` output. Present the links clearly using markdown:
-        - [Add to Google Calendar](google_link_url)
-        - [Add to Outlook Calendar](outlook_link_url)
-    3.  **Calendar File:** Mention that a standard calendar file (.ics) has been attached to this email for easy import into most calendar applications. (Do not mention tools or internal processes).
-    4.  **Notes/Recommendations:** Include any relevant notes or assumptions made (like assumed timezone).
+**Research Protocol for Missing Contacts:**
+1. **Public Figures/Celebrities**: Search for official management, booking agents, or PR contacts
+   - Use web search: "[Name] management contact", "[Name] booking agent email"
+   - Look for official websites, talent agencies, management companies
+2. **Business Contacts**: Search for professional email addresses
+   - Use web search: "[Name] [Company] email", "[Name] contact"
+   - Check LinkedIn, company websites, directory listings
+3. **Typo Resilience**: Apply same spelling variation techniques as background research
+   - "Maxx Henlay" → try "Max Henley", "Maxx Henlay"
+   - Common substitutions: "ph/f", "c/k", "i/y", "ou/u"
 
-**GENERAL FORMATTING:**
-- Use clear markdown (bolding, bullet points).
-- Ensure any generated "Add to Calendar" links are functional.
-- Present information concisely.
+**When Research Fails - Request Clarification:**
+```
+I found several potential contacts for [Name] but need clarification to ensure accuracy:
+
+**Potential Contact Options:**
+1. [Contact type] - [email/details]
+2. [Contact type] - [email/details]
+
+**To schedule this meeting, could you please:**
+- Confirm the correct contact information for [Name]
+- Specify your preferred approach for reaching out
+- Clarify if this should go through an assistant/manager
+
+This ensures the meeting request reaches the right person.
+```
+
+## STEP 3: TIME & TIMEZONE RESOLUTION
+**Time Reference Handling:**
+1. **Relative Time Processing**:
+   - "Next week same time" → Calculate based on email timestamp + 7 days
+   - "Tomorrow at 2pm" → Calculate based on email date + 1 day
+   - "Friday" → Determine which Friday (this week vs next week)
+
+2. **Timezone Determination Priority**:
+   - **Explicit timezone mentions**: "3pm EST", "Berlin time"
+   - **Location clues**: "I'm based in Berlin" → CET/CEST
+   - **Email metadata**: Check sender timezone if available
+   - **Default assumption**: UTC (with clear notification)
+
+3. **Duration Defaults**:
+   - **Default to 30 minutes** unless specified
+   - Business meetings: 30-60 minutes
+   - Coffee chats/informal: 30 minutes
+   - Conference calls: 60 minutes
+
+## STEP 4: VALIDATION CHECKLIST
+**Before proceeding to schedule, verify:**
+<scheduling_checklist>
+✓ At least 2 participants identified (or confirmed personal reminder)
+✓ All participant contact information available or researched
+✓ Specific date and time determined
+✓ Timezone clearly established
+✓ Meeting duration set (default 30 min if not specified)
+✓ Meeting purpose/title clear
+✓ Location preference identified (virtual/physical)
+</scheduling_checklist>
+
+**If ANY validation point fails:**
+- **STOP the scheduling process**
+- **DO NOT call the schedule_generator tool**
+- **Request specific clarification** (see Step 6)
+
+## STEP 5: SCHEDULE GENERATION (Only After Full Validation)
+**Tool Usage: schedule_generator**
+- **title**: Clear, descriptive meeting title
+- **start_time**: ISO 8601 format with timezone (e.g., "2024-08-15T10:00:00+01:00")
+- **end_time**: ISO 8601 format with timezone (start_time + duration)
+- **description**: Meeting context and agenda if available
+- **location**: Virtual meeting link or physical address
+- **attendees**: ALL participant email addresses (including organizer)
+
+**Response Format:**
+1. **Meeting Summary**: Brief overview of scheduled meeting
+2. **Participant Confirmation**: List all attendees and their contact methods
+3. **Calendar Links**:
+   - [Add to Google Calendar](google_link_url)
+   - [Add to Outlook Calendar](outlook_link_url)
+4. **Next Steps**: Instructions for sending invitations
+5. **Research Notes**: Any contact research performed or assumptions made
+
+## STEP 6: FALLBACK STRATEGIES
+
+### Missing Participants
+```
+I need more information to schedule this meeting:
+
+**Current Information:**
+- Organizer: [Your email]
+- Requested meeting with: [Name]
+- Proposed time: [Time details if available]
+
+**Missing Information:**
+- Contact information for [Name]
+- [Other missing details]
+
+**Options:**
+1. I can research [Name]'s professional contact information
+2. You can provide their direct email address
+3. We can schedule a preliminary time slot and send details separately
+
+How would you prefer to proceed?
+```
+
+### Ambiguous Timing
+```
+The timing for this meeting needs clarification:
+
+**What I understood:**
+- [Interpretation of time reference]
+- Timezone: [Assumed timezone]
+
+**Please clarify:**
+- Specific date and time preferred
+- Confirm timezone (you mentioned Berlin - should I use CET?)
+- Meeting duration preference (I'll default to 30 minutes)
+
+This will ensure the meeting is scheduled correctly for all participants.
+```
+
+### Public Figure/Celebrity Contacts
+```
+For scheduling with [Public Figure Name], I found these contact options:
+
+**Professional Contacts:**
+1. [Management Company] - [contact details]
+2. [Booking Agent] - [contact details]
+3. [PR Representative] - [contact details]
+
+**Recommendations:**
+- [Specific recommendation based on meeting purpose]
+- Expected response timeline: [realistic timeline]
+- Meeting request should include: [suggested content]
+
+Would you like me to proceed with [recommended contact] or do you have a preferred approach?
+```
+
+# SUCCESSFUL SCHEDULING EXAMPLES
+
+## Example 1: "Schedule meeting with Lewis Hamilton same time next week, I'm in Berlin"
+
+### Step 1: Information Extraction
+- Organizer: [Sender email]
+- Participant: Lewis Hamilton (Formula 1 driver)
+- Time: "Same time next week" (needs email timestamp)
+- Location context: Berlin (CET timezone)
+- Duration: Not specified (default 30 min)
+
+### Step 2: Research Required
+**Contact Research for Lewis Hamilton:**
+1. Search: "Lewis Hamilton management contact"
+2. Search: "Lewis Hamilton booking agent email"
+3. Found: Simon Fuller Management, Marc Hynes (manager)
+
+### Step 3: Time Calculation
+- Original email: Tuesday 2pm CET
+- "Next week same time" = Tuesday +7 days, 2pm CET
+- Converted: 2024-08-20T14:00:00+02:00
+
+### Step 4: Clarification Response
+```
+I found contact information for Lewis Hamilton but need clarification:
+
+**Research Results:**
+- Management: Simon Fuller (XIX Entertainment)
+- Manager: Marc Hynes
+- Official contact: [researched contact details]
+
+**Meeting Details:**
+- Proposed: Tuesday, August 20th at 2:00 PM CET (Berlin time)
+- Duration: 30 minutes (default)
+- Format: [Physical/Virtual - needs clarification]
+
+**Next Steps:**
+1. Confirm the meeting purpose/agenda
+2. Choose contact method (management vs direct if available)
+3. Specify meeting format preference
+
+Would you like me to proceed with contacting his management team?
+```
+
+## Example 2: "Set up coffee with Sarah from Marketing tomorrow 3pm"
+
+### Step 1: Information Extraction
+- Organizer: [Sender email]
+- Participant: Sarah from Marketing (needs contact research)
+- Time: Tomorrow 3pm
+- Meeting type: Coffee (30 min duration appropriate)
+
+### Step 2: Research Strategy
+1. Search company directory for "Sarah Marketing"
+2. Check LinkedIn for colleagues named Sarah
+3. Look through email history for previous Sarah communications
+
+### Step 3: Successful Scheduling
+**If contact found:**
+- Schedule for tomorrow 3pm local time
+- 30-minute duration
+- Include coffee shop suggestion in location
+
+**If contact unclear:**
+- Request clarification on which Sarah
+- Offer to research specific contact information
+
+**CRITICAL REQUIREMENTS:**
+- **NEVER schedule without confirmed participant contact information**
+- **ALWAYS validate at least 2 participants unless explicitly a personal reminder**
+- **ALWAYS specify timezone assumptions clearly**
+- **ALWAYS default to 30-minute duration unless specified**
+- **ALWAYS research missing contact information before requesting clarification**
+- **ALWAYS highlight any spelling corrections in participant names**
+
+**Content Guidelines:**
+1. **Professional tone** - appropriate for business communications
+2. **Clear time specifications** - always include timezone
+3. **Comprehensive participant validation** - ensure all contacts are reachable
+4. **Research thoroughness** - exhaust search options before requesting clarification
+5. **Practical next steps** - provide actionable guidance for meeting coordination
+6. **Contact research transparency** - explain what research was performed
+7. **Flexible scheduling options** - offer alternatives when primary approach fails
+
+**Important Notes:**
+- Research contact information thoroughly before requesting clarification
+- Provide specific, actionable next steps for meeting coordination
+- Always include timezone assumptions and duration defaults
+- Handle public figures with appropriate professional protocol
+- **If uncertain about contact information, research first, then ask for clarification**
 """

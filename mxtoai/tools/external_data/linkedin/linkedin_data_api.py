@@ -200,7 +200,6 @@ class LinkedInDataAPITool(Tool):
             "search_people": self.search_people,
             "search_people_by_url": self.search_people_by_url,
             "get_company_details": self.get_company_details,
-            "get_company_by_id": self.get_company_by_id,
             "search_companies": self.search_companies,
         }
 
