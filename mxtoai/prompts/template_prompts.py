@@ -983,3 +983,127 @@ Would you like me to proceed with contacting his management team?
 - Handle public figures with appropriate professional protocol
 - **If uncertain about contact information, research first, then ask for clarification**
 """
+
+# PDF Export handler template
+PDF_EXPORT_TEMPLATE = """
+Intelligently analyze the email content and create a professional PDF document export.
+
+# PDF Export Process
+
+## STEP 1: Content Analysis & Preparation
+**Analyze the content to determine what should be exported:**
+- **Extract meaningful content**: Focus on substantial information, insights, research, or analysis
+- **Remove email metadata**: Strip out From/To/Subject headers and email-specific formatting
+- **Preserve content structure**: Maintain formatting, lists, sections, and logical flow
+- **Assess content significance**: Determine if the content warrants PDF export
+
+**Content Worth Exporting:**
+- Research findings and analysis
+- Detailed reports or summaries
+- Important documents or presentations
+- Substantial meeting notes or agendas
+- Technical documentation or guides
+- Data analysis or insights
+
+**Content NOT Worth Exporting:**
+- Simple greetings or acknowledgments
+- Basic confirmations or "thank you" messages
+- Short scheduling emails
+- Minimal content with just email headers
+
+## STEP 2: Intelligent Content Processing
+**Extract and clean the content:**
+1. **Remove email headers** (From, To, Subject, Date, etc.)
+2. **Preserve meaningful content** exactly as written
+3. **Maintain formatting** (lists, bold, italic, headers)
+4. **Keep research findings** if available
+5. **Include attachment summaries** only if explicitly relevant and requested
+
+**Process attachments conditionally:**
+- **Include attachment content** ONLY if user specifically requests it or if it's essential to understanding
+- **Summarize attachments** when they add substantial value to the export
+- **Skip basic attachments** unless they contain important insights
+
+## STEP 3: PDF Generation
+**Use the pdf_export tool with appropriate parameters:**
+- **content**: The cleaned, meaningful content (no email headers)
+- **title**: Extract or generate an appropriate document title
+- **research_findings**: Include if substantial research was conducted
+- **attachments_summary**: Include only if attachments add value and were requested
+- **include_attachments**: Set to true only if user explicitly wants attachment content
+
+**Example Tool Call:**
+```
+pdf_export(
+    content="[Main content without email headers]",
+    title="[Document title]",
+    research_findings="[Research content if available]",
+    attachments_summary="[Attachment summaries if relevant]",
+    include_attachments=false  # Only true if explicitly requested
+)
+```
+
+## STEP 4: Response Guidelines
+**If PDF export is successful:**
+- Confirm the PDF has been generated and attached
+- Briefly describe what content was included
+- Mention the title and estimated page count
+- Note any content that was excluded and why
+
+**If content is not substantial enough:**
+- Explain why PDF export may not be necessary
+- Suggest alternatives (email client print function)
+- Offer to proceed anyway if user insists
+
+**Response Format:**
+```
+I've analyzed your content and created a professional PDF document:
+
+**PDF Generated:** [title].pdf
+**Content Included:** [brief description of what was exported]
+**Pages:** Approximately [X] pages
+**Format:** Professional document layout with proper formatting
+
+The PDF includes:
+- [Main content description]
+- [Research findings if included]
+- [Attachment summaries if included]
+
+Email headers and metadata have been excluded to focus on the meaningful content.
+
+The PDF is attached to this email for your use.
+```
+
+## CONTENT PROCESSING PRINCIPLES
+
+**DO Export:**
+✓ Substantial research findings or analysis
+✓ Important business documents or reports
+✓ Meeting notes with significant content
+✓ Technical documentation or guides
+✓ Data analysis and insights
+✓ Educational or instructional content
+
+**DON'T Export:**
+✗ Basic email correspondence
+✗ Simple confirmations or acknowledgments
+✗ Short scheduling messages
+✗ Content that's primarily email headers
+✗ Minimal content without substance
+
+**ALWAYS Remember:**
+- Remove email headers (From, To, Subject, Date)
+- Preserve content exactly as written - no modifications
+- Focus on meaningful, substantial content
+- Include research findings when available
+- Process attachments only when explicitly requested or highly relevant
+- Generate appropriate, descriptive titles
+- Provide professional formatting and structure
+
+**Content Guidelines:**
+1. **Preserve original content** - export content as-is without alterations
+2. **Clean formatting** - remove email-specific elements but keep content formatting
+3. **Professional presentation** - ensure the PDF looks polished and readable
+4. **Appropriate inclusion** - only export content that has substantial value
+5. **Clear documentation** - explain what was included and why
+"""

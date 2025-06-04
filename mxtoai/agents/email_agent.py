@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
-from smolagents import ToolCallingAgent
+from smolagents import ToolCallingAgent, Tool
 
 # Add imports for the new default tools
 from smolagents.default_tools import (
@@ -36,6 +36,7 @@ from mxtoai.schemas import (
     EmailContentDetails,
     EmailRequest,
     EmailSentStatus,
+    PDFExportResult,
     ProcessedAttachmentDetail,
     ProcessingError,
     ProcessingMetadata,
@@ -48,6 +49,7 @@ from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.brave_search_tool import initialize_brave_search_tool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
+from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.schedule_tool import ScheduleTool
 from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
 
@@ -104,6 +106,7 @@ class EmailAgent:
         self.visit_webpage_tool = VisitWebpageTool()
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
+        self.pdf_export_tool = PDFExportTool()
 
         # Initialize complex tools using helper methods
         self.search_with_fallback_tool = self._initialize_search_tools()
@@ -116,6 +119,7 @@ class EmailAgent:
             self.search_with_fallback_tool,
             self.python_tool,
             self.wikipedia_search_tool,
+            self.pdf_export_tool,
             azure_visualizer,
         ]
         if self.research_tool:
@@ -423,6 +427,8 @@ class EmailAgent:
         research_output_findings: Union[str, None] = None
         research_output_metadata: Union[AgentResearchMetadata, None] = None
 
+        pdf_export_result: Union[PDFExportResult, None] = None
+
         final_answer_from_llm: Union[str, None] = None
         email_text_content: Union[str, None] = None
         email_html_content: Union[str, None] = None
@@ -449,7 +455,7 @@ class EmailAgent:
                     tool_output = action_out if action_out is not None else obs_out
 
                 if tool_name and tool_output is not None:
-                    needs_parsing = tool_name in ["schedule_generator", "attachment_processor", "deep_research"]
+                    needs_parsing = tool_name in ["schedule_generator", "attachment_processor", "deep_research", "pdf_export"]
                     if isinstance(tool_output, str) and needs_parsing:
                         try:
                             tool_output = ast.literal_eval(tool_output)
@@ -515,6 +521,24 @@ class EmailAgent:
                         else:
                             error_msg = tool_output.get("message", "Schedule generator failed or missing ICS content.")
                             errors_list.append(ProcessingError(message="Schedule Tool Error", details=error_msg))
+
+                    elif tool_name == "pdf_export" and isinstance(tool_output, dict):
+                        if tool_output.get("success"):
+                            pdf_export_result = PDFExportResult(
+                                filename=tool_output.get("filename", "document.pdf"),
+                                file_path=tool_output.get("file_path", ""),
+                                file_size=tool_output.get("file_size", 0),
+                                title=tool_output.get("title", "Document"),
+                                pages_estimated=tool_output.get("pages_estimated", 1),
+                                mimetype=tool_output.get("mimetype", "application/pdf")
+                            )
+                            logger.info(f"PDF export successful: {pdf_export_result.filename}")
+                        else:
+                            error_msg = tool_output.get("error", "PDF export failed")
+                            details = tool_output.get("details", "")
+                            errors_list.append(ProcessingError(message="PDF Export Error", details=f"{error_msg}. {details}"))
+                            logger.error(f"PDF export failed: {error_msg}")
+
                     else:
                         logger.debug(
                             f"[Memory Step {i + 1}] Tool '{tool_name}' output processed (no specific handler). Output: {str(tool_output)[:200]}..."
@@ -616,6 +640,7 @@ class EmailAgent:
                 )
                 if research_output_findings or research_output_metadata
                 else None,
+                pdf_export=pdf_export_result,
             )
 
         except Exception as e:
@@ -673,6 +698,7 @@ class EmailAgent:
                 )
                 if research_output_findings or research_output_metadata
                 else None,
+                pdf_export=pdf_export_result,
             )
 
     def process_email(
@@ -746,4 +772,5 @@ class EmailAgent:
                 attachments=AttachmentsProcessingResult(processed=[]),
                 calendar_data=None,
                 research=None,
+                pdf_export=None,
             )

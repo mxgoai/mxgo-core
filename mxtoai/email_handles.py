@@ -77,4 +77,13 @@ DEFAULT_EMAIL_HANDLES = [
         task_template=template_prompts.SCHEDULE_TEMPLATE,
         output_template=output_prompts.SCHEDULE_OUTPUT_GUIDELINES,
     ),
+    ProcessingInstructions(
+        handle="pdf",
+        aliases=["export", "convert", "document", "export-pdf"],
+        process_attachments=True,
+        deep_research_mandatory=False,
+        target_model="gpt-4",
+        task_template=template_prompts.PDF_EXPORT_TEMPLATE,
+        output_template=output_prompts.PDF_EXPORT_OUTPUT_GUIDELINES,
+    ),
 ]

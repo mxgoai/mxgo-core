@@ -46,6 +46,8 @@ dependencies = [
     "toml (>=0.10.2,<0.11.0)",
     "wikipedia-api (>=0.8.1,<0.9.0)",
     "markdown2 (>=2.5.3,<3.0.0)",
+    "weasyprint (>=65.1,<66.0)",
+    "reportlab (>=4.4.1,<5.0.0)",
 ]
 
 [tool.ruff]
