@@ -1,0 +1,89 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - ${REDIS_PORT:-6379}:${REDIS_PORT:-6379}
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-changeme}"]
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - ${RABBITMQ_PORT:-5672}:${RABBITMQ_PORT:-5672}
+      - ${RABBITMQ_MANAGEMENT_PORT:-15672}:${RABBITMQ_MANAGEMENT_PORT:-15672}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - ${OLLAMA_PORT:-11434}:${OLLAMA_PORT:-11434}
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    # Optional: Uncomment below to disable if not needed
+    # deploy:
+    #   replicas: 0
+
+  api_server:
+    build:
+      context: .
+      dockerfile: docker/api_server.dockerfile
+    container_name: api_serve
+    env_file:
+      - .env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:${REDIS_PORT:-6379}/0
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - OLLAMA_URL=http://ollama:${OLLAMA_PORT:-11434}
+    volumes:
+      - .:/app
+    command: ["poetry", "run", "uvicorn", "mxtoai.api:app", "--host", "0.0.0.0", "--port", "9292", "--workers", "4"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/worker.dockerfile
+    container_name: worker
+    env_file:
+      - .env
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      - REDIS_URL=redis://:${REDIS_PASSWORD:-changeme}@redis:${REDIS_PORT:-6379}/0
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:${RABBITMQ_PORT:-5672}/
+      - OLLAMA_URL=http://ollama:${OLLAMA_PORT:-11434}
+    volumes:
+      - .:/app
+    command: ["poetry", "run", "dramatiq", "mxtoai.tasks", "--watch", "./."]
+
+volumes:
+  rabbitmq_data:
+  ollama_data:
+  redis_data:
