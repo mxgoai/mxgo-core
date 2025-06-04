@@ -387,6 +387,11 @@ class ReportFormatter:
         result_lines = []
 
         for i, line in enumerate(lines):
+            # Skip lines that start with bold markers (avoid treating **text**: as lists)
+            if line.strip().startswith("**") and ("**:" in line or line.strip().endswith("**")):
+                result_lines.append(line)
+                continue
+
             # Check if this line looks like a list item without proper spacing
             if re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line):
                 # Get the indentation, marker, and text
