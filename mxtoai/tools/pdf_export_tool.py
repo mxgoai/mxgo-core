@@ -288,8 +288,16 @@ class PDFExportTool(Tool):
             markdown_parts.append("## Attachments Summary\n")
             markdown_parts.append(attachments_summary)
 
-        # Add watermark as markdown comment (will be styled in CSS)
-        markdown_parts.append("\n\n---\n*Generated via pdf@mxtoai.com*")
+        # Add professional watermark with link
+        markdown_parts.append('\n\n<div class="watermark">')
+        markdown_parts.append('<hr class="watermark-divider">')
+        markdown_parts.append('<div class="watermark-content">')
+        markdown_parts.append('<span class="watermark-text">📄 Document generated via </span>')
+        markdown_parts.append('<a href="https://mxtoai.com" class="watermark-link">mxtoai.com</a>')
+        markdown_parts.append('<span class="watermark-email"> • Email: </span>')
+        markdown_parts.append('<a href="mailto:pdf@mxtoai.com" class="watermark-link">pdf@mxtoai.com</a>')
+        markdown_parts.append('</div>')
+        markdown_parts.append('</div>')
 
         return "\n".join(markdown_parts)
 
@@ -509,6 +517,57 @@ class PDFExportTool(Tool):
             page-break-after: avoid;
         }
 
+        /* Watermark styling */
+        .watermark {
+            margin-top: 40px;
+            padding: 20px 0;
+            page-break-inside: avoid;
+        }
+
+        .watermark-divider {
+            border: none;
+            border-top: 2px solid #e5e7eb;
+            margin: 20px 0 15px 0;
+        }
+
+        .watermark-content {
+            text-align: center;
+            font-size: 10pt;
+            color: #6b7280;
+            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px 20px;
+            margin: 0 auto;
+            max-width: 500px;
+        }
+
+        .watermark-text {
+            font-weight: normal;
+            color: #4b5563;
+        }
+
+        .watermark-email {
+            color: #6b7280;
+            font-weight: normal;
+        }
+
+        .watermark-link {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.2s ease;
+        }
+
+        .watermark-link:hover {
+            color: #1d4ed8;
+            text-decoration: underline;
+        }
+
+        .watermark-link:visited {
+            color: #2563eb;
+        }
+
         /* Print-friendly styles */
         @media print {
             body {
@@ -521,6 +580,10 @@ class PDFExportTool(Tool):
 
             h2 {
                 font-size: 16pt;
+            }
+
+            .watermark-content {
+                background: #f9fafb;
             }
         }
         """
