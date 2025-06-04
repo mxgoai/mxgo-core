@@ -59,7 +59,6 @@ RESEARCH REQUIREMENTS:
 """,
     "optional": """
 RESEARCH GUIDELINES:
-- Deep research is NOT allowed for this handle
 - Only use basic tools and provided information
 - Focus on addressing the direct content of the email
 """,
