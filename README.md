@@ -103,6 +103,51 @@ Using only single process and couple of threads for local development:
 poetry run dramatiq mxtoai.tasks --processes 1 --threads 2 --watch ./.
 ```
 
+### Docker Setup (Alternative Installation)
+
+The project can also be run using Docker Compose, which provides an isolated environment with all required services.
+
+1. Ensure you have Docker and Docker Compose installed on your system.
+
+2. Build and start all services:
+```bash
+docker compose up -d
+```
+
+3. Access the services:
+- API Server: http://localhost:8000
+- RabbitMQ Management: http://localhost:15672 (credentials: guest/guest)
+- Redis: localhost:6379
+- Ollama: localhost:11434 (optional)
+
+#### Service Details
+- **API Server**: FastAPI application running on port 8000
+- **Worker**: Background task processor using Dramatiq
+- **Redis**: Used for caching and session management
+- **RabbitMQ**: Message broker for task queue
+- **Ollama**: Optional LLM service (disabled by default)
+
+#### Running with Ollama
+To include the Ollama service (required for local LLM processing):
+```bash
+docker compose --profile ollama up -d
+```
+
+#### Stopping Services
+```bash
+# Stop all services
+docker compose down
+
+# Stop and remove all data volumes (this will delete all data)
+docker compose down -v
+```
+
+#### Important Notes
+- The Docker setup includes all required services (Redis, RabbitMQ) automatically
+- Model configuration file (`model.config.toml`) should be placed in the `credentials/` directory
+- All services are configured to restart automatically unless stopped manually
+- Data persistence is enabled for Redis, RabbitMQ, and Ollama through Docker volumes
+
 ### Environment Variables
 
 Copy the `.env.example` file to `.env` and update with your specific configuration:
@@ -113,6 +158,46 @@ LITELLM_CONFIG_PATH=model.config.toml
 # Redis configuration
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_DB=0
+REDIS_PASSWORD=
+
+# rabbitmq config
+RABBITMQ_HOST=localhost
+RABBITMQ_PORT=5672
+RABBITMQ_USER=guest
+RABBITMQ_PASSWORD=guest
+RABBITMQ_VHOST=/
+RABBITMQ_HEARTBEAT=60 # Default heartbeat interval in seconds
+
+# server config
+PORT=8000
+HOST=0.0.0.0
+LOG_LEVEL=INFO
+IS_PROD=false
+X_API_KEY=your_api_key
+
+# supabase
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+WHITELIST_SIGNUP_URL=your_whitelist_signup_url # e.g., https://yourdomain.com/
+
+# open ai api key
+AZURE_OPENAI_API_KEY=your_api_key_here
+
+# Hugging Face Token
+HF_TOKEN=your_huggingface_token
+
+# AWS SES Configuration
+AWS_REGION=your_aws_region # e.g., ap-south-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+SENDER_EMAIL=your_sender_email@domain.com
+
+# External services
+JINA_API_KEY="YOUR_JINA_API_KEY" # Leave blank if not using deep research
+BRAVE_SEARCH_API_KEY=""
+RAPIDAPI_KEY=""
 
 # Optional for research functionality
 JINA_API_KEY=your-jina-api-key
