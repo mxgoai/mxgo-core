@@ -18,12 +18,6 @@ Systematically analyze and summarize content from all available sources with cle
 ## Executive Summary
 [2-3 sentences capturing core message and significance]
 
-## Key Information
-- **From**: [Sender and context]
-- **Topic**: [Main subject/purpose]
-- **Urgency**: [Timeline/priority level]
-- **Stakeholders**: [Who needs to know/act]
-
 ## Main Points
 [Organized breakdown of key information from all sources]
 
@@ -114,7 +108,7 @@ Transform complex content into clear, accessible explanations using simple langu
 
 ## STEP 2: Simplification Strategy
 **Language Techniques:**
-- Replace technical terms with everyday language
+- Replace technical terms with everyday language(if replacement is not possible add dictionary at the end)
 - Break complex sentences into shorter, clearer ones
 - Use active voice and concrete examples
 - Add helpful analogies from familiar experiences
@@ -146,24 +140,6 @@ Transform complex content into clear, accessible explanations using simple langu
 - Do analogies help rather than confuse?
 - Is the essential message preserved?
 
-**Example:**
-```
-## The Simple Version
-Blockchain is like a permanent record book that many people keep copies of, making it almost impossible to cheat.
-
-## What This Means
-Instead of one person keeping important records, thousands of computers around the world each keep identical copies. When something new happens, all computers must agree before it gets written down permanently.
-
-## Think of It Like This
-Imagine if everyone in your class had a copy of the attendance record. If someone tried to fake their attendance, everyone else would notice because their copies wouldn't match.
-
-## Why This Matters
-This makes it very hard to fake records or steal things, because you'd have to fool thousands of computers at the same time.
-
-## The Bottom Line
-Many computers protecting the same records together = super secure information.
-```
-
 **Requirements:**
 - Use simple, everyday language
 - Include helpful analogies and examples
@@ -188,7 +164,7 @@ Execute custom tasks and workflows systematically with research, analysis, and p
 **Research & Data Gathering:**
 - Use web search for current information and trends
 - Visit relevant websites and sources
-- Process any attachments or provided materials
+- Process any attachments or provided materials(if needed)
 - Gather comprehensive data before analysis
 
 **Analysis & Curation:**
@@ -685,7 +661,7 @@ Provide accurate translations with cultural context preservation and clear expla
 **Content Type**: [Document type classification]
 
 ## Translation
-**Target Language**: [Target language]
+**Target Language**: [Target language, default is english]
 **Approach**: [Literal/Cultural/Functional]
 
 ### Original Text
