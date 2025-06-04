@@ -4,19 +4,77 @@ Template prompts for different email processing handlers.
 
 # Summarize email handler template
 SUMMARIZE_TEMPLATE = """
-Provide a concise, direct summary of the key points from the email and attachments.
+Systematically analyze and summarize content from all available sources with clear structure and action focus.
 
-Content Guidelines:
-1. Get straight to the key points
-2. No redundant introductions
-3. Include only relevant information
-4. Keep it concise but complete
-5. Use a natural, conversational tone
+# Summarization Process
 
-Remember:
-- If the user has specific intent, then focus on what the user asked about
-- Skip unnecessary formality
-- Ensure proper markdown formatting
+## STEP 1: Content Analysis
+- **Process ALL sources**: Email content, attachments, embedded links, external references
+- **Assess complexity**: Determine appropriate detail level (concise/detailed/executive summary)
+- **Identify priorities**: Key messages, action items, deadlines, stakeholder impact
+
+## STEP 2: Structured Summary Format
+```
+## Executive Summary
+[2-3 sentences capturing core message and significance]
+
+## Key Information
+- **From**: [Sender and context]
+- **Topic**: [Main subject/purpose]
+- **Urgency**: [Timeline/priority level]
+- **Stakeholders**: [Who needs to know/act]
+
+## Main Points
+[Organized breakdown of key information from all sources]
+
+## Action Items
+- [Specific actions required with deadlines]
+- [Responsible parties if mentioned]
+
+## Additional Context
+[Important background, implications, supporting details]
+```
+
+## STEP 3: Quality Standards
+- **Process all content sources** before summarizing
+- **Highlight action items** clearly
+- **Note any inaccessible content** transparently
+- **Match detail level** to content complexity
+- **Maintain context** while being concise
+
+**Example Output:**
+```
+## Executive Summary
+Q3 sales report shows 12% revenue growth with West region leading performance, requiring strategy review meeting.
+
+## Key Information
+- **From**: Sales Director Sarah Chen
+- **Topic**: Q3 2024 Sales Performance Review
+- **Urgency**: Standard quarterly review
+- **Stakeholders**: Management team, regional leads
+
+## Main Points
+**Sales Performance (from Excel attachment):**
+- Total revenue: $4.2M (12% increase from Q2)
+- West region: 23% growth, exceeding targets
+- Product line A: 18% growth, strongest performer
+- Customer acquisition: 156 new accounts
+
+## Action Items
+- Review West region strategies for replication
+- Address East region performance decline
+- Quarterly review meeting: Next Friday
+
+## Additional Context
+Strong Q3 performance driven by West region success and Product A growth. East region needs attention.
+```
+
+**Critical Requirements:**
+- Process ALL available content sources (email, attachments, links)
+- Structure information for easy scanning
+- Clearly identify action items and deadlines
+- Note any content processing limitations
+- Adapt detail level to content complexity
 """
 
 # Research handler template
@@ -45,53 +103,347 @@ Content Guidelines:
 
 # Simplify handler template
 SIMPLIFY_TEMPLATE = """
-Explain the content in simple, easy-to-understand terms without technical jargon, like you're explaining to a 5-year-old.
+Transform complex content into clear, accessible explanations using simple language and relatable examples.
 
-Content Guidelines:
-1. Use simple language
-2. Avoid technical terms
-3. Give everyday examples
-4. Keep explanations short
-5. Use bullet points for clarity
+# Simplification Process
+
+## STEP 1: Complexity Assessment
+- **Identify complexity sources**: Technical jargon, abstract concepts, complex processes, dense information
+- **Determine target level**: General public understanding (assume no specialized knowledge)
+- **Preserve core truth**: Maintain essential accuracy while removing complexity
+
+## STEP 2: Simplification Strategy
+**Language Techniques:**
+- Replace technical terms with everyday language
+- Break complex sentences into shorter, clearer ones
+- Use active voice and concrete examples
+- Add helpful analogies from familiar experiences
+
+**Structure Format:**
+```
+## The Simple Version
+[One clear sentence explaining the core concept]
+
+## What This Means
+[2-3 sentences expanding on the main idea]
+
+## Here's How It Works
+[Step-by-step breakdown in simple terms]
+
+## Think of It Like This
+[Relatable analogy or real-world example]
+
+## Why This Matters
+[Practical significance in everyday terms]
+
+## The Bottom Line
+[Key takeaway anyone can remember]
+```
+
+## STEP 3: Quality Check
+- Could a 12-year-old understand the main point?
+- Are technical terms explained or replaced?
+- Do analogies help rather than confuse?
+- Is the essential message preserved?
+
+**Example:**
+```
+## The Simple Version
+Blockchain is like a permanent record book that many people keep copies of, making it almost impossible to cheat.
+
+## What This Means
+Instead of one person keeping important records, thousands of computers around the world each keep identical copies. When something new happens, all computers must agree before it gets written down permanently.
+
+## Think of It Like This
+Imagine if everyone in your class had a copy of the attendance record. If someone tried to fake their attendance, everyone else would notice because their copies wouldn't match.
+
+## Why This Matters
+This makes it very hard to fake records or steal things, because you'd have to fool thousands of computers at the same time.
+
+## The Bottom Line
+Many computers protecting the same records together = super secure information.
+```
+
+**Requirements:**
+- Use simple, everyday language
+- Include helpful analogies and examples
+- Preserve accuracy while removing jargon
+- Make content accessible to general audiences
+- Maintain respectful tone (not condescending)
 """
 
 # Ask handler template
 ASK_TEMPLATE = """
-Provide a complete response addressing all aspects of the query.
+Execute custom tasks and workflows systematically with research, analysis, and professional presentation.
 
-Content Guidelines:
-1. Brief summary of understanding
-2. Detailed response
-3. Additional insights if relevant
-4. Next steps or recommendations
+# General Task Execution Process
+
+## STEP 1: Task Analysis & Planning
+- **Understand the request**: Break down what the user wants accomplished
+- **Identify components**: Research needs, data gathering, analysis, formatting requirements
+- **Determine approach**: What tools and steps are needed to complete this task
+- **Set quality standards**: How should the final output be structured and presented
+
+## STEP 2: Systematic Execution
+**Research & Data Gathering:**
+- Use web search for current information and trends
+- Visit relevant websites and sources
+- Process any attachments or provided materials
+- Gather comprehensive data before analysis
+
+**Analysis & Curation:**
+- Filter and prioritize information based on relevance and quality
+- Identify key insights, patterns, or important details
+- Apply criteria for selection (trending, popularity, importance)
+- Add context and explanatory information
+
+**Content Creation:**
+- Structure information logically and professionally
+- Create engaging and informative content
+- Include proper citations and links
+- Format for easy reading and comprehension
+
+## STEP 3: Professional Presentation
+**Standard Output Structure:**
+```
+## [Task Title/Summary]
+[Brief overview of what was accomplished]
+
+## [Main Content Sections]
+[Organized, formatted content with clear headers]
+
+### [Subsections as needed]
+- [Bullet points, lists, or structured information]
+- [Include links, sources, and references]
+
+## Key Insights/Summary
+[Important takeaways or conclusions]
+
+## Sources & References
+[All sources used with proper attribution]
+```
+
+## STEP 4: Quality Standards
+- **Comprehensive research** using available tools
+- **Professional formatting** with clear structure
+- **Accurate information** with proper source attribution
+- **Engaging presentation** that's easy to read and understand
+- **Complete execution** of all requested components
+
+**Example Task: "Prepare a newsletter with top 10 trending HN posts"**
+
+```
+## Hacker News Top 10 Trending Posts Newsletter
+Daily digest of the most engaging discussions and innovations from the HN community.
+
+## Today's Top Trending Posts
+
+### 1. [Post Title](HN-link)
+**Summary**: Brief description of the post content and significance
+**Why It's Trending**: Key reasons for community engagement
+**Discussion Highlights**: Notable comments or insights from HN users
+**Relevance**: Why this matters to the tech community
+
+### 2. [Next Post Title](HN-link)
+[Same format structure]
+
+[Continue for all 10 posts]
+
+## Key Themes Today
+- [Pattern 1]: Multiple posts about [topic]
+- [Pattern 2]: Community interest in [area]
+- [Pattern 3]: Emerging trends in [field]
+
+## Community Insights
+Notable discussions, debates, or expert opinions from today's conversations.
+
+## Sources
+- Hacker News front page and trending algorithms
+- Individual post discussions and comment threads
+- Community engagement metrics and voting patterns
+```
+
+**Requirements:**
+- Execute any custom task or workflow systematically
+- Use all available tools for research and analysis
+- Present results professionally with proper structure
+- Include comprehensive sources and attribution
+- Adapt format and approach to specific task requirements
 """
 
 # Fact-check handler template
 FACT_TEMPLATE = """
-Validate and fact-check the content thoroughly. Use web search tool to find reliable sources alongside deep search tool.
-Do not use deep search directly, use web search and page visit tool, if you're not satisfied with results, then only try deep search.
+Systematically verify claims and statements with comprehensive source validation and transparent uncertainty handling.
 
-Response Requirements:
-1. Use proper markdown formatting:
-   - **Claim**: for stating each claim
-   - _Source_: for source citations (when provided by deep_research tool)
-   - ✓ or ❌ for verification status
-   - Bullet points for supporting evidence
-   - [text](url) for reference links in the 'References' section
-2. Structure each fact-check:
-   - Original claim
-   - Verification status
-   - Supporting evidence
-3. Create a 'References' section at the end. For each web search result used, list its title and URL using markdown link format (e.g., 1. [Page Title](URL)).
-4. Use clear paragraph breaks between checks
+# Fact-Checking Methodology - SYSTEMATIC VERIFICATION PROCESS
 
-Content Guidelines:
-1. State each claim clearly
-2. Provide verification status
-3. Include supporting evidence
-4. Cite reliable sources with actual links to the source
-5. Note any uncertainties
-6. Always give a disclaimer that sometimes links may be outdated or incorrect depending on age of the source
+## STEP 1: CLAIM EXTRACTION & CATEGORIZATION
+**Extract ALL verifiable claims from the content:**
+- **Factual Claims**: Statistics, dates, events, scientific facts
+- **Attribution Claims**: Quotes, statements attributed to people/organizations
+- **Causal Claims**: "X causes Y", "Due to X, Y happened"
+- **Comparative Claims**: Rankings, comparisons, "better/worse than"
+- **Current Status Claims**: Current prices, status, availability
+
+**Claim Prioritization:**
+- **High Priority**: Core claims central to the message
+- **Medium Priority**: Supporting details and context
+- **Low Priority**: Tangential or well-established facts
+
+## STEP 2: SYSTEMATIC VERIFICATION STRATEGY
+**Verification Hierarchy:**
+1. **Primary Sources**: Official websites, government data, organization statements
+2. **Academic Sources**: Peer-reviewed research, institutional studies, wikipedia
+3. **Established News Sources**: Reuters, AP, BBC, established newspapers
+4. **Industry Sources**: Trade publications, industry reports
+5. **Secondary Analysis**: Expert commentary, analysis pieces
+
+**Search Strategy:**
+1. **Direct Claim Search**: Search exact claim or paraphrased version
+2. **Source Verification**: Search for original source of claimed information
+3. **Counter-Evidence Search**: Actively search for contradicting information
+4. **Recent Updates**: Check for more recent information that might contradict
+5. **Context Search**: Understand broader context around the claim
+
+## STEP 3: SOURCE QUALITY ASSESSMENT
+**Evaluate each source on:**
+<source_quality_checklist>
+✓ Authority: Is the source authoritative on this topic?
+✓ Recency: How current is the information?
+✓ Bias Assessment: Any obvious political, commercial, or ideological bias?
+✓ Corroboration: Do multiple independent sources agree?
+✓ Original vs. Secondary: Is this the original source or reporting on it?
+✓ Methodology: For studies/surveys, is methodology sound?
+</source_quality_checklist>
+
+## STEP 4: VERIFICATION STATUS DETERMINATION
+**Classification System:**
+- ✅ **VERIFIED**: Multiple reliable sources confirm
+- ⚠️ **PARTIALLY VERIFIED**: Some aspects confirmed, others unclear
+- ❌ **FALSE**: Reliable sources contradict the claim
+- 🔍 **UNVERIFIABLE**: Insufficient reliable sources available
+- 📅 **OUTDATED**: Was true but circumstances have changed
+- 🤔 **DISPUTED**: Reliable sources disagree
+
+## STEP 5: UNCERTAINTY & LIMITATION HANDLING
+**When verification is unclear:**
+- **Multiple conflicting sources**: Present different perspectives with source quality
+- **Insufficient information**: Clearly state limitations and what's unknown
+- **Rapidly changing situations**: Note information currency and change potential
+- **Complex claims**: Break down into verifiable components
+
+**Fallback Strategy:**
+```
+Unable to fully verify this claim due to:
+
+**Verification Challenges:**
+- [Specific challenge, e.g., "Limited reliable sources available"]
+- [Another challenge, e.g., "Conflicting expert opinions"]
+
+**What We Found:**
+- [Partial information available]
+- [Related verified information]
+
+**Recommendation:**
+- [Suggested approach for the user]
+- [When to check for updates]
+```
+
+## STEP 6: COMPREHENSIVE REPORTING FORMAT
+
+**For Each Claim:**
+```
+**Claim**: [Original statement]
+**Status**: [Verification symbol + status]
+**Evidence**:
+- [Supporting evidence with source quality]
+- [Contradicting evidence if any]
+**Source Quality**: [Assessment of primary sources used]
+**Last Updated**: [When information was verified]
+**Notes**: [Important context, limitations, or nuances]
+```
+
+# FACT-CHECKING EXAMPLES
+
+## Example 1: Statistical Claim
+**Original**: "Carbon emissions increased by 15% in 2023 globally"
+
+### Verification Process:
+1. **Search Strategy**: "global carbon emissions 2023 statistics"
+2. **Sources Found**: IEA Global Energy Review, UN Environment Programme
+3. **Cross-verification**: Check multiple climate monitoring organizations
+
+### Result:
+**Claim**: Carbon emissions increased by 15% in 2023 globally
+**Status**: ❌ **FALSE**
+**Evidence**:
+- IEA data shows 1.1% increase in 2023, not 15%
+- Multiple climate organizations report similar ~1% increase
+**Source Quality**: High (authoritative international organizations)
+**Last Updated**: Based on 2023 year-end data
+**Notes**: The 15% figure appears to be confused with a different metric or time period
+
+## Example 2: Attribution Claim with Uncertainty
+**Original**: "Elon Musk said Tesla will achieve full self-driving by end of 2024"
+
+### Verification Process:
+1. **Quote Search**: Search for exact or similar statements
+2. **Timeline Search**: Check recent Musk statements on FSD timeline
+3. **Context Search**: Understand history of similar predictions
+
+### Result:
+**Claim**: Elon Musk said Tesla will achieve full self-driving by end of 2024
+**Status**: 🔍 **UNVERIFIABLE** (specific quote)
+**Evidence**:
+- Musk has made multiple FSD timeline predictions
+- No exact quote found for "end of 2024"
+- Pattern of similar predictions that were later revised
+**Source Quality**: Mixed (social media posts, interviews, earnings calls)
+**Last Updated**: [Current date]
+**Notes**: Musk frequently revises FSD timelines; recommend checking recent official Tesla communications
+
+## Example 3: Complex Multi-Part Claim
+**Original**: "The new AI regulation will cost businesses $50B annually and reduce innovation by 30%"
+
+### Verification Breakdown:
+1. **Cost Component**: Search for economic impact studies
+2. **Innovation Component**: Look for innovation metrics and projections
+3. **Regulation Specificity**: Identify which specific regulation
+
+### Result:
+**Claim**: The new AI regulation will cost businesses $50B annually and reduce innovation by 30%
+**Status**: ⚠️ **PARTIALLY VERIFIED**
+**Evidence**:
+- Cost estimates vary widely ($20B-$80B across different studies)
+- No specific studies found supporting 30% innovation reduction
+- Impact highly dependent on implementation details
+**Source Quality**: Medium (industry estimates, some academic analysis)
+**Last Updated**: [Current date]
+**Notes**: Economic projections for new regulations are inherently uncertain; multiple scenarios exist
+
+**SYSTEMATIC REQUIREMENTS:**
+- **ALWAYS search for counter-evidence** to avoid confirmation bias
+- **ALWAYS assess source quality** and note limitations
+- **ALWAYS distinguish between** "not verified" and "false"
+- **ALWAYS provide context** for complex or nuanced claims
+- **ALWAYS note information currency** and potential for updates
+- **ALWAYS break down complex claims** into verifiable components
+
+**Content Guidelines:**
+1. **Transparent methodology** - explain verification approach
+2. **Source transparency** - clearly cite sources and assess quality
+3. **Uncertainty acknowledgment** - be honest about limitations
+4. **Actionable results** - provide clear verification status
+5. **Context preservation** - maintain nuance and complexity
+6. **Update recommendations** - suggest when to re-verify
+7. **Bias awareness** - acknowledge potential verification biases
+
+**Critical Verification Standards:**
+- Multiple independent sources for verification
+- Active search for contradictory evidence
+- Clear distinction between correlation and causation
+- Recognition of context-dependent claims
+- Transparent limitations and uncertainty acknowledgment
 """
 
 # Background research handler template
@@ -311,28 +663,95 @@ This will help me provide reliable business intelligence rather than potentially
 
 # Translation handler template
 TRANSLATE_TEMPLATE = """
-Provide accurate translation with proper formatting.
-Detect language if not specified. If non-English, translate to English. If English, look for requested target language or ask user.
+Provide accurate translations with cultural context preservation and clear explanation of translation decisions.
 
-Response Requirements:
-1. Use proper markdown formatting:
-   - **Original**: for source text
-   - **Translation**: for translated text
-   - _Notes_: for translation notes
-   - > for quoted text blocks
-   - Proper paragraph breaks
-2. Structure the response:
-   - Language detection result
-   - Original text block
-   - Translation block
-   - Any relevant notes
-3. Preserve original formatting
+# Translation Process
 
-Content Guidelines:
-1. Maintain original meaning
-2. Note any ambiguities
-3. Preserve cultural context
-4. Include helpful notes
+## STEP 1: Language Analysis
+- **Detect source language** including dialect and formality level
+- **Identify content type**: Technical, formal, casual, creative, or cultural content
+- **Note complexity factors**: Idioms, cultural references, technical terms, humor
+
+## STEP 2: Translation Strategy
+**Choose appropriate approach:**
+- **Literal**: For technical/legal content requiring precision
+- **Cultural**: For marketing, creative, or culturally-specific content
+- **Functional**: For instructions and informational content
+
+## STEP 3: Translation Output Format
+```
+## Language Detection
+**Source Language**: [Language with confidence level]
+**Content Type**: [Document type classification]
+
+## Translation
+**Target Language**: [Target language]
+**Approach**: [Literal/Cultural/Functional]
+
+### Original Text
+[Source text clearly presented]
+
+### Translation
+[Accurate translation in target language]
+
+## Translation Notes
+### Cultural Adaptations
+- [Idioms or cultural references adapted]
+- [Explanations for cultural adjustments]
+
+### Technical Decisions
+- [Specialized terminology choices]
+- [Alternative translations if applicable]
+
+## Quality Verification
+**Accuracy**: [High/Medium with any challenging areas noted]
+**Cultural Appropriateness**: [Verified for target audience]
+```
+
+## STEP 4: Quality Standards
+- **Preserve intent and tone** of original content
+- **Adapt cultural elements** appropriately (idioms, references, humor)
+- **Maintain natural expression** in target language
+- **Note translation challenges** and decisions made
+- **Provide alternatives** when multiple interpretations possible
+
+**Example Output:**
+```
+## Language Detection
+**Source Language**: Spanish (Standard)
+**Content Type**: Idiomatic expression
+
+## Translation
+**Target Language**: English
+**Approach**: Cultural adaptation
+
+### Original Text
+"No hay mal que por bien no venga"
+
+### Translation
+"Every cloud has a silver lining"
+
+## Translation Notes
+### Cultural Adaptations
+- Used equivalent English idiom rather than literal translation
+- Preserves consolatory and optimistic meaning
+- Maintains proverbial nature of expression
+
+### Alternative Options
+- Literal: "There is no bad that doesn't come for good"
+- Explanatory: "Something good comes from every bad situation"
+
+## Quality Verification
+**Accuracy**: High (meaning fully preserved)
+**Cultural Appropriateness**: Verified for consolatory context
+```
+
+**Requirements:**
+- Accurately detect and identify source language
+- Preserve cultural context and intent
+- Use natural expression in target language
+- Explain translation decisions clearly
+- Note any limitations or professional recommendations needed
 """
 
 # Scheduling handler template
