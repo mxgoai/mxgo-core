@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Union
@@ -123,6 +124,7 @@ def process_email_task(
                 attachments=AttachmentsProcessingResult(processed=[]),
                 calendar_data=None,
                 research=None,
+                pdf_export=None,
             )
     except exceptions.UnspportedHandleException as e:  # Catch specific exception
         logger.error(f"Unsupported email handle: {handle}. Error: {e!s}")
@@ -139,6 +141,7 @@ def process_email_task(
             attachments=AttachmentsProcessingResult(processed=[]),
             calendar_data=None,
             research=None,
+            pdf_export=None,
         )
     # Removed the early return for `if not email_instructions` as the try-except handles it.
 
@@ -184,6 +187,43 @@ def process_email_task(
                     }
                 )
                 logger.info("Prepared invite.ics for attachment in task.")
+
+            # Add PDF export attachment if available
+            if processing_result.pdf_export and processing_result.pdf_export.file_path:
+                try:
+                    # Read the PDF file content
+                    with open(processing_result.pdf_export.file_path, "rb") as pdf_file:
+                        pdf_content = pdf_file.read()
+
+                    attachments_to_send.append(
+                        {
+                            "filename": processing_result.pdf_export.filename,
+                            "content": pdf_content,
+                            "mimetype": processing_result.pdf_export.mimetype,
+                        }
+                    )
+                    logger.info(f"Prepared {processing_result.pdf_export.filename} for attachment in task.")
+
+                    # Clean up the temporary PDF file
+                    os.unlink(processing_result.pdf_export.file_path)
+                    logger.info(f"Cleaned up temporary PDF file: {processing_result.pdf_export.file_path}")
+
+                    # Clean up the PDF tool's temporary directory using tracked temp_dir
+                    if processing_result.pdf_export.temp_dir:
+                        pdf_temp_dir = processing_result.pdf_export.temp_dir
+                        if pdf_temp_dir and os.path.exists(pdf_temp_dir):
+                            shutil.rmtree(pdf_temp_dir, ignore_errors=True)
+                            logger.info(f"Cleaned up PDF tool temp directory: {pdf_temp_dir}")
+                    else:
+                        # Fallback: extract parent directory from the PDF file path
+                        pdf_temp_dir = Path(processing_result.pdf_export.file_path).parent
+                        if pdf_temp_dir.exists():
+                            shutil.rmtree(pdf_temp_dir, ignore_errors=True)
+                            logger.info(f"Cleaned up PDF tool temp directory (fallback): {pdf_temp_dir}")
+
+                except Exception as pdf_error:
+                    logger.error(f"Failed to attach PDF file: {pdf_error}")
+                    # Continue without the PDF attachment rather than failing the entire email
 
             original_email_details = {
                 "from": email_request.from_email,

@@ -158,12 +158,24 @@ class AgentResearchOutput(BaseModel):
     metadata: Optional[AgentResearchMetadata] = None
 
 
+class PDFExportResult(BaseModel):
+    """Model for PDF export results."""
+    filename: str
+    file_path: str
+    file_size: int
+    title: str
+    pages_estimated: int
+    mimetype: str = "application/pdf"
+    temp_dir: Optional[str] = None  # Path to temp directory for cleanup
+
+
 class DetailedEmailProcessingResult(BaseModel):
     metadata: ProcessingMetadata
     email_content: EmailContentDetails
     attachments: AttachmentsProcessingResult
     calendar_data: Optional[CalendarResult] = None
     research: Optional[AgentResearchOutput] = None
+    pdf_export: Optional[PDFExportResult] = None
     # Add other top-level keys from the agent's result dict if any (e.g. 'summary', 'handle' but they seem to be in error dicts)
 
     # Ensure Pydantic can populate by name and validate defaults

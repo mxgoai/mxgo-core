@@ -86,3 +86,20 @@ Output Format Guidelines:
    - **Notes**: Any assumptions or clarifications
 2. Format times consistently with timezone
 """
+
+# PDF Export handler output guidelines
+PDF_EXPORT_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Begin with a brief confirmation of PDF generation
+2. Include document details:
+   - **PDF Title**: Clear, descriptive document name
+   - **Content Summary**: What was included in the export
+   - **File Size/Pages**: Approximate document metrics
+   - **Attachment Notice**: Confirmation that PDF is attached
+3. Content processing notes:
+   - What content was included/excluded and why
+   - Any assumptions made during processing
+   - Quality of source material for export
+4. Professional tone acknowledging the export request
+5. Keep response concise - let the PDF be the main deliverable
+"""

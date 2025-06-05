@@ -1,4 +1,5 @@
 import os
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
@@ -279,6 +280,20 @@ def test_process_email_task_for_handle(
                     "ICS attachment was not prepared for sending by the schedule handle."
                 )
                 assert any(att["mimetype"] == "text/calendar" for att in sent_attachments)
+
+            # Check for PDF attachment if it's the PDF handle
+            if handle_instructions.handle == "pdf":
+                sent_attachments = kwargs.get("attachments", [])
+                assert len(sent_attachments) > 0, "PDF handle should have attachments"
+                pdf_attachment = None
+                for att in sent_attachments:
+                    if att["filename"].endswith(".pdf"):
+                        pdf_attachment = att
+                        break
+                assert pdf_attachment is not None, "PDF attachment was not prepared for sending by the PDF handle"
+                assert pdf_attachment["mimetype"] == "application/pdf", "PDF attachment should have correct mimetype"
+                assert len(pdf_attachment["content"]) > 0, "PDF attachment should have content"
+
             return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}
 
         mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
@@ -303,6 +318,15 @@ def test_process_email_task_for_handle(
                     returned_result.calendar_data.ics_content is not None
                     and len(returned_result.calendar_data.ics_content) > 0
                 ), "ICS content is missing or empty for schedule handle"
+
+            # Specific assertions for PDF handle
+            if handle_instructions.handle == "pdf":
+                assert returned_result.pdf_export is not None, "PDF export result should be present for PDF handle"
+                assert returned_result.pdf_export.filename.endswith(".pdf"), "PDF export should have .pdf filename"
+                assert returned_result.pdf_export.file_size > 0, "PDF export should have non-zero file size"
+                assert returned_result.pdf_export.mimetype == "application/pdf", "PDF export should have correct mimetype"
+                assert returned_result.pdf_export.title is not None, "PDF export should have a title"
+                assert returned_result.pdf_export.pages_estimated >= 1, "PDF export should have at least 1 page estimated"
         else:
             # If not expecting a sent reply (e.g. if we were to use SKIP_EMAIL_DELIVERY for some handles)
             mock_sender_instance.send_reply.assert_not_called()
@@ -317,3 +341,315 @@ def test_process_email_task_for_handle(
         # Ensure deep_research_mandatory flag was respected (qualitative check via EmailAgent logs if verbose, hard to assert directly without deeper mocks)
         # We trust EmailAgent tests for this part.
         # Here, we are testing the task's integration with the agent for each handle.
+
+
+# --- PDF Export Specific Tests ---
+
+
+def test_pdf_export_tool_direct():
+    """Test the PDFExportTool directly to ensure it generates valid PDFs."""
+    from mxtoai.tools.pdf_export_tool import PDFExportTool
+
+    tool = PDFExportTool()
+
+    # Test basic content export
+    result = tool.forward(
+        content="# Test Document\n\nThis is a test document with some content.\n\n- Item 1\n- Item 2\n- Item 3",
+        title="Test PDF Document"
+    )
+
+    assert result["success"] is True, f"PDF export failed: {result.get('error', 'Unknown error')}"
+    assert result["filename"] == "Test_PDF_Document.pdf"
+    assert result["file_size"] > 0
+    assert result["mimetype"] == "application/pdf"
+    assert result["title"] == "Test PDF Document"
+    assert result["pages_estimated"] >= 1
+
+    # Verify the file actually exists and has content
+    pdf_path = result["file_path"]
+    assert os.path.exists(pdf_path), "PDF file should exist"
+
+    # Read and verify PDF content
+    with open(pdf_path, "rb") as f:
+        pdf_content = f.read()
+    assert len(pdf_content) > 100, "PDF should have substantial content"
+    assert pdf_content[:4] == b"%PDF", "File should start with PDF magic bytes"
+
+    # Clean up
+    os.unlink(pdf_path)
+
+
+def test_pdf_export_tool_with_research_findings():
+    """Test PDF export with research findings and attachments summary."""
+    from mxtoai.tools.pdf_export_tool import PDFExportTool
+
+    tool = PDFExportTool()
+
+    result = tool.forward(
+        content="# Email Newsletter Summary\n\nThis is the main content of the email.",
+        title="Weekly Newsletter Export",
+        research_findings="## Research Results\n\n1. Finding one\n2. Finding two\n3. Finding three",
+        attachments_summary="## Attachments Processed\n\n- attachment1.pdf\n- attachment2.docx",
+        include_attachments=True
+    )
+
+    assert result["success"] is True
+    assert result["filename"] == "Weekly_Newsletter_Export.pdf"
+    assert result["file_size"] > 0
+
+    # Verify the file exists
+    pdf_path = result["file_path"]
+    assert os.path.exists(pdf_path), "PDF file should exist"
+
+    # Clean up
+    os.unlink(pdf_path)
+
+
+def test_pdf_export_content_cleaning():
+    """Test that PDF export properly cleans email headers and formats content."""
+    from mxtoai.tools.pdf_export_tool import PDFExportTool
+
+    tool = PDFExportTool()
+
+    # Content with email headers that should be removed
+    email_content = """From: sender@example.com
+To: recipient@example.com
+Subject: Test Email
+Date: Mon, 01 Jan 2024 12:00:00 +0000
+
+# Important Newsletter
+
+This is the actual content that should be preserved.
+
+## Section 1
+- Important point 1
+- Important point 2
+
+## Section 2
+More important content here.
+"""
+
+    result = tool.forward(content=email_content)
+
+    assert result["success"] is True
+    assert result["file_size"] > 0
+
+    # The cleaned content should not contain email headers
+    # We can't easily verify the internal content without parsing the PDF,
+    # but we can verify the tool runs successfully
+
+    # Clean up
+    os.unlink(result["file_path"])
+
+
+def test_pdf_handle_full_integration():
+    """Test the full PDF handle integration with a more comprehensive email."""
+    from mxtoai.tasks import process_email_task
+    from unittest.mock import patch, MagicMock
+    import tempfile
+    import shutil
+
+    # Create comprehensive test email content
+    email_data = {
+        "to": "pdf@mxtoai.com",
+        "from_email": "test@example.com",
+        "subject": "Weekly AI Newsletter - Export to PDF",
+        "textContent": """# Weekly AI Newsletter
+
+## Top Stories This Week
+
+1. **Breaking**: New AI model achieves breakthrough in natural language understanding
+   - Improved accuracy by 15% over previous models
+   - Reduced computational requirements
+   - Available for public research
+
+2. **Industry News**: Major tech companies announce AI partnerships
+   - Focus on ethical AI development
+   - Shared research initiatives
+   - Open source commitments
+
+3. **Research Highlights**: Recent papers in machine learning
+   - Novel architectures for transformer models
+   - Advances in computer vision
+   - Multimodal learning approaches
+
+## Tools and Resources
+
+- New dataset for training language models
+- Updated frameworks and libraries
+- Community challenges and competitions
+
+## Upcoming Events
+
+- AI Conference 2024 (March 15-17)
+- Workshop on Ethical AI (April 2)
+- Research symposium (April 20)
+
+This newsletter provides a comprehensive overview of recent developments in AI research and industry trends.
+""",
+        "messageId": "<test-pdf-message-id>",
+        "date": "2024-01-01T12:00:00Z",
+        "recipients": ["pdf@mxtoai.com"],
+        "cc": None,
+        "bcc": None,
+        "references": None,
+        "attachments": []
+    }
+
+    # Create temporary directory for attachments
+    temp_dir = tempfile.mkdtemp()
+
+    try:
+        with (
+            patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        ):
+            mock_sender_instance = MockEmailSender.return_value
+
+            # Track the PDF attachment that gets sent
+            captured_pdf_attachment = None
+
+            async def mock_async_send_reply(*args, **kwargs):
+                nonlocal captured_pdf_attachment
+                sent_attachments = kwargs.get("attachments", [])
+
+                # Find the PDF attachment
+                for att in sent_attachments:
+                    if att["filename"].endswith(".pdf"):
+                        captured_pdf_attachment = att
+                        break
+
+                return {"MessageId": "test-pdf-message-id", "status": "sent"}
+
+            mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
+
+            # Run the task
+            result = process_email_task.fn(
+                email_data=email_data,
+                email_attachments_dir=temp_dir,
+                attachment_info=[]
+            )
+
+            # Verify successful processing
+            assert isinstance(result, DetailedEmailProcessingResult)
+            # Note: email status will be 'skipped' because test@example.com is in SKIP_EMAIL_DELIVERY
+            assert result.metadata.email_sent.status == "skipped"
+            assert len(result.metadata.errors) == 0, f"Processing errors: {result.metadata.errors}"
+
+            # Verify PDF export result
+            assert result.pdf_export is not None, "PDF export result should be present"
+            assert result.pdf_export.filename.endswith(".pdf")
+            assert result.pdf_export.file_size > 1000, "PDF should be reasonably sized for the content"
+            assert result.pdf_export.mimetype == "application/pdf"
+            assert "Weekly AI Newsletter" in result.pdf_export.title or "AI Newsletter" in result.pdf_export.title
+            assert result.pdf_export.pages_estimated >= 1
+
+            # Email should not be attempted to be sent due to SKIP_EMAIL_DELIVERY
+            mock_sender_instance.send_reply.assert_not_called()
+
+            # The PDF was generated but not attached due to skipped email delivery
+            # In this test case, we're focusing on verifying that PDF export works
+            # and that the result contains the expected PDF data
+
+            # Verify email response content
+            assert result.email_content is not None
+            assert result.email_content.text is not None
+            assert len(result.email_content.text) > 0
+            assert result.email_content.html is not None
+            assert len(result.email_content.html) > 0
+
+    finally:
+        # Clean up temporary directory
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+def test_pdf_export_error_handling():
+    """Test PDF export tool error handling for invalid inputs."""
+    from mxtoai.tools.pdf_export_tool import PDFExportTool, MAX_FILENAME_LENGTH
+
+    tool = PDFExportTool()
+
+    # Test with empty content
+    result = tool.forward(content="")
+    assert result["success"] is True  # Should still work with empty content
+    assert result["title"] == "Document"  # Should use default title
+
+    # Clean up if file was created
+    if "file_path" in result and os.path.exists(result["file_path"]):
+        os.unlink(result["file_path"])
+
+    # Test with very long title
+    long_title = "A" * 200  # Very long title
+    result = tool.forward(content="Test content", title=long_title)
+    assert result["success"] is True
+    # Filename should be truncated - use constant instead of magic number
+    max_filename_length = MAX_FILENAME_LENGTH + len(".pdf")  # Reflects truncation logic
+    assert len(result["filename"]) <= max_filename_length
+
+    # Clean up
+    if "file_path" in result and os.path.exists(result["file_path"]):
+        os.unlink(result["file_path"])
+
+
+def test_pdf_export_cleanup():
+    """Test that PDF export properly cleans up temporary directories."""
+    from mxtoai.tools.pdf_export_tool import PDFExportTool
+    import tempfile
+
+    # Track temporary directories created
+    original_mkdtemp = tempfile.mkdtemp
+    created_temp_dirs = []
+
+    def tracking_mkdtemp(*args, **kwargs):
+        temp_dir = original_mkdtemp(*args, **kwargs)
+        created_temp_dirs.append(temp_dir)
+        return temp_dir
+
+    # Patch mkdtemp to track directory creation
+    tempfile.mkdtemp = tracking_mkdtemp
+
+    try:
+        tool = PDFExportTool()
+
+        # Verify temp directory was created
+        assert len(created_temp_dirs) == 1, "Expected exactly one temp directory to be created"
+        temp_dir_path = created_temp_dirs[0]
+        assert os.path.exists(temp_dir_path), "Temp directory should exist after tool initialization"
+
+        # Generate a PDF
+        result = tool.forward(
+            content="# Test PDF Cleanup\n\nThis tests that temporary directories are properly cleaned up.",
+            title="Cleanup Test PDF"
+        )
+
+        assert result["success"] is True, f"PDF generation failed: {result.get('error', 'Unknown error')}"
+        pdf_file_path = result["file_path"]
+        assert os.path.exists(pdf_file_path), "PDF file should exist"
+
+        # Verify the PDF is in the temp directory
+        assert pdf_file_path.startswith(temp_dir_path), "PDF should be in the temp directory"
+
+        # Call cleanup explicitly
+        tool.cleanup()
+
+        # Verify temp directory is cleaned up
+        assert not os.path.exists(temp_dir_path), "Temp directory should be cleaned up after explicit cleanup"
+        assert not os.path.exists(pdf_file_path), "PDF file should be cleaned up with the temp directory"
+
+    finally:
+        # Restore original mkdtemp
+        tempfile.mkdtemp = original_mkdtemp
+
+        # Clean up any remaining directories
+        for temp_dir in created_temp_dirs:
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+
+if __name__ == "__main__":
+    # Run only PDF tests if executed directly
+    pytest.main([__file__ + "::test_pdf_export_tool_direct", "-v"])
+    pytest.main([__file__ + "::test_pdf_export_tool_with_research_findings", "-v"])
+    pytest.main([__file__ + "::test_pdf_export_content_cleaning", "-v"])
+    pytest.main([__file__ + "::test_pdf_handle_full_integration", "-v"])
+    pytest.main([__file__ + "::test_pdf_export_error_handling", "-v"])
+    pytest.main([__file__ + "::test_pdf_export_cleanup", "-v"])
