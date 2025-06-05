@@ -166,6 +166,7 @@ class PDFExportResult(BaseModel):
     title: str
     pages_estimated: int
     mimetype: str = "application/pdf"
+    temp_dir: Optional[str] = None  # Path to temp directory for cleanup
 
 
 class DetailedEmailProcessingResult(BaseModel):

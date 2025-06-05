@@ -30,20 +30,6 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 - Forward deals/offers to ask@mxtoai.com with "Is this actually a good deal?"
 - Get honest comparisons and price checks
 
-## 📄 PDF Export & Document Creation
-
-**"I need to create professional documents from email content"**
-- Forward newsletters to pdf@mxtoai.com - get clean, formatted PDF without email headers
-- Perfect for sharing research, reports, or important communications
-
-**"I want to convert AI responses to shareable documents"**
-- Ask any handle to "generate a report and convert to PDF"
-- Forward to ask@mxtoai.com with "Create a HN newsletter with top AI posts of the week and export as PDF"
-
-**"I need to archive important email content professionally"**
-- Forward contracts, agreements, or important announcements to pdf@mxtoai.com
-- Get clean documents without email clutter - perfect for filing or legal records
-
 ## 🤝 Meeting & Scheduling
 
 **"Coordinating meetings is a nightmare"**
@@ -106,6 +92,20 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I need to check competitor information"**
 - Forward competitor emails to background@mxtoai.com
 - Get market position, recent moves, customer feedback
+
+## 📄 PDF Export & Document Creation
+
+**"I need to create professional documents from email content"**
+- Forward newsletters to pdf@mxtoai.com - get clean, formatted PDF without email headers
+- Perfect for sharing research, reports, or important communications
+
+**"I want to convert AI responses to shareable documents"**
+- Ask any handle to "generate a report and convert to PDF"
+- Forward to ask@mxtoai.com with "Create a HN newsletter with top AI posts of the week and export as PDF"
+
+**"I need to archive important email content professionally"**
+- Forward contracts, agreements, or important announcements to pdf@mxtoai.com
+- Get clean documents without email clutter - perfect for filing or legal records
 
 ## 🏠 Personal Life
 

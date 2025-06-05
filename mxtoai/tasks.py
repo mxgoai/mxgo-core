@@ -208,12 +208,18 @@ def process_email_task(
                     os.unlink(processing_result.pdf_export.file_path)
                     logger.info(f"Cleaned up temporary PDF file: {processing_result.pdf_export.file_path}")
 
-                    # Clean up the PDF tool's temporary directory
-                    # Extract parent directory from the PDF file path and clean it up
-                    pdf_temp_dir = processing_result.pdf_export.temp_dir
-                    if pdf_temp_dir and pdf_temp_dir.exists():
-                        shutil.rmtree(pdf_temp_dir, ignore_errors=True)
-                        logger.info(f"Cleaned up PDF tool temp directory: {pdf_temp_dir}")
+                    # Clean up the PDF tool's temporary directory using tracked temp_dir
+                    if processing_result.pdf_export.temp_dir:
+                        pdf_temp_dir = processing_result.pdf_export.temp_dir
+                        if pdf_temp_dir and os.path.exists(pdf_temp_dir):
+                            shutil.rmtree(pdf_temp_dir, ignore_errors=True)
+                            logger.info(f"Cleaned up PDF tool temp directory: {pdf_temp_dir}")
+                    else:
+                        # Fallback: extract parent directory from the PDF file path
+                        pdf_temp_dir = Path(processing_result.pdf_export.file_path).parent
+                        if pdf_temp_dir.exists():
+                            shutil.rmtree(pdf_temp_dir, ignore_errors=True)
+                            logger.info(f"Cleaned up PDF tool temp directory (fallback): {pdf_temp_dir}")
 
                 except Exception as pdf_error:
                     logger.error(f"Failed to attach PDF file: {pdf_error}")

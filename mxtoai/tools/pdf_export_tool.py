@@ -12,6 +12,9 @@ from mxtoai.scripts.report_formatter import ReportFormatter
 
 logger = get_logger("pdf_export_tool")
 
+# Constants for filename handling
+MAX_FILENAME_LENGTH = 50  # Maximum length for filename before ".pdf" extension
+
 class PDFExportTool(Tool):
     """Tool for exporting email content and research findings to PDF format."""
 
@@ -53,6 +56,11 @@ class PDFExportTool(Tool):
         self.temp_dir.mkdir(parents=True, exist_ok=True)
         self.report_formatter = ReportFormatter()
         logger.debug(f"PDFExportTool initialized with temp directory: {self.temp_dir}")
+
+    @property
+    def temp_directory(self) -> Path:
+        """Get the temporary directory path for external cleanup."""
+        return self.temp_dir
 
     def __del__(self):
         """Cleanup temporary directory when object is destroyed."""
@@ -135,7 +143,8 @@ class PDFExportTool(Tool):
                 "file_size": file_size,
                 "mimetype": "application/pdf",
                 "title": doc_title,
-                "pages_estimated": max(1, len(cleaned_content) // 2000)  # Rough estimate
+                "pages_estimated": max(1, len(cleaned_content) // 2000),  # Rough estimate
+                "temp_dir": str(self.temp_dir)  # Include temp directory for cleanup
             }
 
         except Exception as e:
@@ -244,7 +253,7 @@ class PDFExportTool(Tool):
         # Remove or replace invalid characters
         filename = re.sub(r'[<>:"/\\|?*]', '', filename)
         filename = re.sub(r'\s+', '_', filename)
-        filename = filename[:50]  # Limit length
+        filename = filename[:MAX_FILENAME_LENGTH]  # Limit length using constant
         return filename if filename else "document"
 
     def _build_markdown_document(

@@ -564,7 +564,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 
 def test_pdf_export_error_handling():
     """Test PDF export tool error handling for invalid inputs."""
-    from mxtoai.tools.pdf_export_tool import PDFExportTool
+    from mxtoai.tools.pdf_export_tool import PDFExportTool, MAX_FILENAME_LENGTH
 
     tool = PDFExportTool()
 
@@ -581,8 +581,9 @@ def test_pdf_export_error_handling():
     long_title = "A" * 200  # Very long title
     result = tool.forward(content="Test content", title=long_title)
     assert result["success"] is True
-    # Filename should be truncated
-    assert len(result["filename"]) <= 55  # 50 chars + ".pdf"
+    # Filename should be truncated - use constant instead of magic number
+    max_filename_length = MAX_FILENAME_LENGTH + len(".pdf")  # Reflects truncation logic
+    assert len(result["filename"]) <= max_filename_length
 
     # Clean up
     if "file_path" in result and os.path.exists(result["file_path"]):

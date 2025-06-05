@@ -530,7 +530,8 @@ class EmailAgent:
                                 file_size=tool_output.get("file_size", 0),
                                 title=tool_output.get("title", "Document"),
                                 pages_estimated=tool_output.get("pages_estimated", 1),
-                                mimetype=tool_output.get("mimetype", "application/pdf")
+                                mimetype=tool_output.get("mimetype", "application/pdf"),
+                                temp_dir=tool_output.get("temp_dir")
                             )
                             logger.info(f"PDF export successful: {pdf_export_result.filename}")
                         else:
