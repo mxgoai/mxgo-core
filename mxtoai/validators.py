@@ -157,10 +157,10 @@ async def send_rate_limit_rejection_email(
 Please try again after some time.
 
 Best,
-MX to AI Team"""
+MXtoAI Team"""
     html_rejection_text = f"""<p>Your email could not be processed because the usage limit has been exceeded ({limit_type}).</p>
 <p>Please try again after some time.</p>
-<p>Best regards,<br>MX to AI Team</p>"""
+<p>Best regards,<br>MXtoAI Team</p>"""
 
     email_dict = {
         "from": from_email,
@@ -270,7 +270,7 @@ async def validate_email_whitelist(
     """
     Validate if the sender's email is whitelisted and verified.
 
-    Major email providers are temporarily whitelisted and bypass the Supabase whitelist check.
+    Major email providers are allowed, OR emails that exist and are verified in the Supabase whitelist.
 
     Args:
         from_email: Sender's email address
@@ -285,51 +285,62 @@ async def validate_email_whitelist(
     # Extract domain from sender's email
     email_domain = get_domain_from_email(from_email)
 
-    # Skip whitelist validation for major email providers
-    if email_domain in email_provider_domain_set:
-        logger.info(f"Skipping whitelist validation for major email provider: {from_email} (domain: {email_domain})")
-        return None
+    # Check if email is from major email provider
+    is_major_provider = email_domain in email_provider_domain_set
 
+    # Check Supabase whitelist for all emails
     exists_in_whitelist, is_verified = await is_email_whitelisted(from_email)
 
+    # Allow if email is from major provider OR exists and is verified in whitelist
+    if is_major_provider:
+        logger.info(f"Email allowed from major email provider: {from_email} (domain: {email_domain})")
+        return None
+    elif exists_in_whitelist and is_verified:
+        logger.info(f"Email allowed from Supabase whitelist: {from_email} (verified)")
+        return None
+
+    # Email is rejected - determine reason for rejection message
     if not exists_in_whitelist:
         # Case 1: Email not in whitelist at all
         signup_url = get_whitelist_signup_url()
-        rejection_msg = f"""Your email address is not whitelisted in our system.
+        rejection_msg = f"""Your email could not be processed because your domain is not automatically whitelisted.
 
-To use our email processing service, please visit {signup_url} to request access.
+Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but custom domains require manual approval.
+
+To use our email processing service with your domain, please visit {signup_url} to request access.
 
 Once your email is added to the whitelist and verified, you can resend your email for processing.
 
 Best,
-MX to AI Team"""
+MXtoAI Team"""
 
-        html_rejection = f"""<p>Your email address is not whitelisted in our system.</p>
-<p>To use our email processing service, please visit <a href="{signup_url}">{signup_url}</a> to request access.</p>
+        html_rejection = f"""<p>Your email could not be processed because your domain is not automatically whitelisted.</p>
+<p>Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but custom domains require manual approval.</p>
+<p>To use our email processing service with your domain, please visit <a href="{signup_url}">{signup_url}</a> to request access.</p>
 <p>Once your email is added to the whitelist and verified, you can resend your email for processing.</p>
-<p>Best regards,<br>MX to AI Team</p>"""
+<p>Best regards,<br>MXtoAI Team</p>"""
 
-    elif not is_verified:
+    else:
         # Case 2: Email in whitelist but not verified
         signup_url = get_whitelist_signup_url()
-        rejection_msg = f"""Your email is registered but not yet verified.
+        rejection_msg = f"""Your email is registered in our system but not yet verified.
+
+Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but your custom domain requires verification.
 
 Please check your email for a verification link we sent when you registered. If you can't find it, you can request a new verification link at {signup_url}.
 
 Once verified, you can resend your email for processing.
 
 Best,
-MX to AI Team"""
+MXtoAI Team"""
 
-        html_rejection = f"""<p>Your email is registered but not yet verified.</p>
+        html_rejection = f"""<p>Your email is registered in our system but not yet verified.</p>
+<p>Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but your custom domain requires verification.</p>
 <p>Please check your email for a verification link we sent when you registered. If you can't find it, you can request a new verification link at <a href="{signup_url}">{signup_url}</a>.</p>
 <p>Once verified, you can resend your email for processing.</p>
-<p>Best regards,<br>MX to AI Team</p>"""
-    else:
-        # Email exists and is verified
-        return None
+<p>Best regards,<br>MXtoAI Team</p>"""
 
-    # Send rejection email for both unverified and non-existent cases
+    # Send rejection email
     email_dict = {
         "from": from_email,  # Original sender becomes recipient
         "to": to,  # Original recipient becomes sender
@@ -441,13 +452,13 @@ Number of attachments in your email: {len(attachments)}
 Please reduce the number of attachments and try again.
 
 Best,
-MX to AI Team"""
+MXtoAI Team"""
 
         html_rejection = f"""<p>Your email could not be processed due to too many attachments.</p>
 <p>Maximum allowed attachments: {MAX_ATTACHMENTS_COUNT}<br>
 Number of attachments in your email: {len(attachments)}</p>
 <p>Please reduce the number of attachments and try again.</p>
-<p>Best regards,<br>MX to AI Team</p>"""
+<p>Best regards,<br>MXtoAI Team</p>"""
 
         email_dict = {
             "from": from_email,
@@ -491,13 +502,13 @@ Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB
 Please reduce the file size and try again.
 
 Best,
-MX to AI Team"""
+MXtoAI Team"""
 
             html_rejection = f"""<p>Your email could not be processed due to an oversized attachment.</p>
 <p>Maximum allowed size per attachment: {MAX_ATTACHMENT_SIZE_MB}MB<br>
 Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p>
 <p>Please reduce the file size and try again.</p>
-<p>Best regards,<br>MX to AI Team</p>"""
+<p>Best regards,<br>MXtoAI Team</p>"""
 
             email_dict = {
                 "from": from_email,
@@ -538,13 +549,13 @@ Total size of your attachments: {total_size_mb:.1f}MB
 Please reduce the total size of attachments and try again.
 
 Best,
-MX to AI Team"""
+MXtoAI Team"""
 
         html_rejection = f"""<p>Your email could not be processed due to total attachment size exceeding the limit.</p>
 <p>Maximum allowed total size: {MAX_TOTAL_ATTACHMENTS_SIZE_MB}MB<br>
 Total size of your attachments: {total_size_mb:.1f}MB</p>
 <p>Please reduce the total size of attachments and try again.</p>
-<p>Best regards,<br>MX to AI Team</p>"""
+<p>Best regards,<br>MXtoAI Team</p>"""
 
         email_dict = {
             "from": from_email,
