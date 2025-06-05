@@ -732,256 +732,256 @@ Provide accurate translations with cultural context preservation and clear expla
 
 # Scheduling handler template
 SCHEDULE_TEMPLATE = """
-Intelligently extract, research, and schedule meetings with proper validation, research, and clarification protocols.
+Intelligently extract, research, and schedule meetings or appointments with proper validation, research, and clarification protocols.
 
 # Scheduling Methodology - SYSTEMATIC PROCESS
 
 ## STEP 1: INFORMATION EXTRACTION & ANALYSIS
 **Extract ALL available information from the request:**
-- **Participants**: Names, titles, organizations mentioned
-- **Time References**: Specific dates/times, relative references ("next week", "same time")
-- **Location Preferences**: Physical locations, cities, virtual preferences
-- **Meeting Context**: Purpose, urgency, duration hints
-- **User Context**: Timezone indicators, location references
+- **Participants/Service Providers**: Names, titles, organizations, type of service needed (e.g., therapist).
+- **Contact Information**: Emails if provided.
+- **Research Criteria**: Location, specialization, ratings, insurance, keywords for the service.
+- **Time References**: Specific dates/times, relative ("next week", "available evenings").
+- **Location Preferences**: Physical locations, cities, virtual.
+- **Meeting/Appointment Context**: Purpose, urgency, duration.
+- **User Context**: Timezone, location, insurance.
 
 **CRITICAL ANALYSIS:**
-- Identify the meeting organizer (usually the sender)
-- Determine if this is a 1-on-1 meeting, group meeting, or personal reminder
-- Check for missing contact information that needs to be researched
+- Identify organizer/requester (usually sender).
+- Determine if: scheduling with known contacts, finding new service/professional, or personal reminder.
+- Pinpoint info needed for research if finding new service/professional.
+- Check for missing contact info for known participants.
 
-## STEP 2: PARTICIPANT VALIDATION & RESEARCH
-**Participant Requirements:**
-- **Minimum 2 participants** for meetings (unless explicitly a personal reminder/task)
-- **Research missing contact information** when participants are mentioned without email addresses
-- **Validate participant accessibility** (public figures may need management/assistant contacts)
+## STEP 2: PARTICIPANT/SERVICE PROVIDER VALIDATION & RESEARCH
+**Prioritization:**
+- If participant contact info (emails for named individuals) is provided, proceed to STEP 3 & 4. Targeted research in this step is ONLY for *critical missing contact info for explicitly named participants*.
+- If finding a service type (e.g., "a therapist"), an unnamed professional, or needing extensive details on a named one, use broader research protocols below.
 
-**Research Protocol for Missing Contacts:**
-1. **Public Figures/Celebrities**: Search for official management, booking agents, or PR contacts
-   - Use web search: "[Name] management contact", "[Name] booking agent email"
-   - Look for official websites, talent agencies, management companies
-2. **Business Contacts**: Search for professional email addresses
-   - Use web search: "[Name] [Company] email", "[Name] contact"
-   - Check LinkedIn, company websites, directory listings
-3. **Typo Resilience**: Apply same spelling variation techniques as background research
-   - "Maxx Henlay" → try "Max Henley", "Maxx Henlay"
-   - Common substitutions: "ph/f", "c/k", "i/y", "ou/u"
+**Requirements:**
+- **Direct scheduling**: Min. 2 participants with contact info (unless personal reminder).
+- **Service/professional search**: Clear research criteria.
+- Research missing contacts for known participants or find services/professionals based on user criteria.
 
-**When Research Fails - Request Clarification:**
+**Research Protocol for Missing Contacts or Finding Services/Professionals:**
+1.  **Known Individuals (Missing Contact Info)**:
+    *   Web search: "[Name] [Company] email", "[Name] contact".
+    *   Check LinkedIn, company sites, directories.
+2.  **Services/Professionals (e.g., Therapists, Plumbers)**:
+    *   Web search: "[Service] [Location]", "[Specialization] [Service] [City] [Rating] [Insurance]".
+    *   Use professional directories (Psychology Today, Zocdoc), review sites (Yelp).
+    *   Extract: Names, contact details, websites, specializations, ratings, hours, insurance.
+3.  **Typo Resilience**: Systematically try spelling variations.
+
+**Presenting Research & Requesting Clarification:**
+- **Always present research findings clearly before asking for clarification or scheduling.**
+- Include names, contact details, specializations, ratings, links.
+- If multiple options, present them and ask user to choose or add filters.
+- If info is incomplete, show what was found and ask for guidance.
 ```
-I found several potential contacts for [Name] but need clarification to ensure accuracy:
+I've researched based on your request. Here's a summary:
 
-**Potential Contact Options:**
-1. [Contact type] - [email/details]
-2. [Contact type] - [email/details]
+**[Option 1: Name of Professional/Service]**
+- Specialization: [Details]
+- Location: [Address/Area]
+- Contact: [Phone/Email/Website Link]
+- Ratings/Reviews: [Summary or Link]
+- Insurance: [Accepted/Not Found/NA]
+- Notes: [e.g., "Offers virtual sessions"]
 
-**To schedule this meeting, could you please:**
-- Confirm the correct contact information for [Name]
-- Specify your preferred approach for reaching out
-- Clarify if this should go through an assistant/manager
+(Repeat for Option 2, etc.)
 
-This ensures the meeting request reaches the right person.
+**To proceed, please clarify:**
+- Which option(s) do you prefer?
+- Additional filtering criteria?
+- Confirm if I should [specific next action, e.g., "find consultation availability"]?
+- If contact info is missing for a chosen option, how to proceed (e.g., "search website contact form")?
 ```
 
 ## STEP 3: TIME & TIMEZONE RESOLUTION
 **Time Reference Handling:**
-1. **Relative Time Processing**:
-   - "Next week same time" → Calculate based on email timestamp + 7 days
-   - "Tomorrow at 2pm" → Calculate based on email date + 1 day
-   - "Friday" → Determine which Friday (this week vs next week)
-
-2. **Timezone Determination Priority**:
-   - **Explicit timezone mentions**: "3pm EST", "Berlin time"
-   - **Location clues**: "I'm based in Berlin" → CET/CEST
-   - **Email metadata**: Check sender timezone if available
-   - **Default assumption**: UTC (with clear notification)
-
-3. **Duration Defaults**:
-   - **Default to 30 minutes** unless specified
-   - Business meetings: 30-60 minutes
-   - Coffee chats/informal: 30 minutes
-   - Conference calls: 60 minutes
+1.  **Relative Time**: "Next week same time" (email timestamp + 7 days), "Tomorrow 2pm" (email date + 1 day), "Weekday evenings after 6 PM".
+2.  **Timezone Priority**: Explicit mentions ("3pm EST"), location clues ("Beverly Hills, LA" -> PST/PDT), email metadata, then default to UTC (notify user).
+3.  **Duration Defaults**: Meetings 30 min, therapy 50-60 min, initial consults 15-30 min (unless specified).
 
 ## STEP 4: VALIDATION CHECKLIST
-**Before proceeding to schedule, verify:**
+**Before scheduling or finalizing recommendations, verify:**
 <scheduling_checklist>
-✓ At least 2 participants identified (or confirmed personal reminder)
-✓ All participant contact information available or researched
-✓ Specific date and time determined
-✓ Timezone clearly established
-✓ Meeting duration set (default 30 min if not specified)
-✓ Meeting purpose/title clear
-✓ Location preference identified (virtual/physical)
+✓ Research done & findings presented (if service search).
+✓ User clarification obtained if research yielded multiple/incomplete options.
+✓ Participants/service provider identified for contact.
+✓ Contact info available/researched for chosen entity.
+✓ Date/time (or preferred range) determined.
+✓ Timezone established.
+✓ Duration set.
+✓ Purpose/title clear.
+✓ Location (virtual/physical) identified.
 </scheduling_checklist>
 
-**If ANY validation point fails:**
-- **STOP the scheduling process**
-- **DO NOT call the schedule_generator tool**
-- **Request specific clarification** (see Step 6)
+**If ANY validation point fails (user input needed):**
+- **STOP scheduling.** Do NOT call `schedule_generator` if critical info is missing.
+- Present research & request specific clarification (See Step 2 & 6).
 
-## STEP 5: SCHEDULE GENERATION (Only After Full Validation)
+## STEP 5: SCHEDULE GENERATION / FINALIZING RECOMMENDATION
+**If direct scheduling possible (`schedule_generator` details confirmed):**
 **Tool Usage: schedule_generator**
-- **title**: Clear, descriptive meeting title
-- **start_time**: ISO 8601 format with timezone (e.g., "2024-08-15T10:00:00+01:00")
-- **end_time**: ISO 8601 format with timezone (start_time + duration)
-- **description**: Meeting context and agenda if available
-- **location**: Virtual meeting link or physical address
-- **attendees**: ALL participant email addresses (including organizer)
+- title: Clear meeting/appointment title.
+- start_time: ISO 8601 with timezone (e.g., "2024-08-15T10:00:00-07:00").
+- end_time: ISO 8601 (start_time + duration).
+- description: Context/agenda.
+- location: Virtual link or physical address.
+- attendees: ALL emails (user, professional if applicable & known).
 
-**Response Format:**
-1. **Meeting Summary**: Brief overview of scheduled meeting
-2. **Participant Confirmation**: List all attendees and their contact methods
-3. **Calendar Links**:
-   - [Add to Google Calendar](google_link_url)
-   - [Add to Outlook Calendar](outlook_link_url)
-4. **Next Steps**: Instructions for sending invitations
-5. **Research Notes**: Any contact research performed or assumptions made
+**Response (Successful Scheduling):**
+1.  Summary: Overview of event.
+2.  Participants: List attendees, contact methods.
+3.  Calendar Links: Google, Outlook.
+4.  Next Steps: Invitation instructions.
+5.  Research Notes: Assumptions made.
+
+**Response (Providing options/needing clarification pre-scheduling):**
+- Use Step 2 clarification format. Outline next steps once user clarifies (e.g., "Once you select a therapist, I can find their availability.").
 
 ## STEP 6: FALLBACK STRATEGIES
 
-### Missing Participants
+### Missing or Ambiguous Information (General)
 ```
-I need more information to schedule this meeting:
+I need more information/clarification:
 
-**Current Information:**
-- Organizer: [Your email]
-- Requested meeting with: [Name]
-- Proposed time: [Time details if available]
+**Current Understanding:**
+- Goal: [e.g., Schedule with X, Find therapist]
+- Key details: [List info you have]
+- Research (if any): [Summary & sticking points]
 
-**Missing Information:**
-- Contact information for [Name]
-- [Other missing details]
+**Clarification Needed:**
+- [Specific question 1, e.g., "Email for John Doe?"]
+- [Specific question 2, e.g., "Preferred therapist from list?"]
+- [Specific question 3, e.g., "For 'next week', specify day/date range?"]
 
-**Options:**
-1. I can research [Name]'s professional contact information
-2. You can provide their direct email address
-3. We can schedule a preliminary time slot and send details separately
+With these details, I can [next action, e.g., "schedule meeting", "contact therapist for availability"].
+```
 
-How would you prefer to proceed?
+### Clarification on Researched Options (e.g., Multiple Therapists)
+(Covered by Step 2 "Presenting Research" template)
+```
+Based on research, I found:
+
+**[Option 1 Name]**
+- Details: [Specialization, Location, Contact, Ratings, Website]
+- Notes: [e.g., Accepts Cigna, Virtual sessions]
+
+(Repeat for other options)
+
+**Please let me know:**
+- Which option to explore further?
+- Find consultation availability for preferred option(s) (e.g., "weekday evenings after 6 PM")?
+- Other criteria to narrow search?
 ```
 
 ### Ambiguous Timing
 ```
-The timing for this meeting needs clarification:
+Timing needs clarification:
 
-**What I understood:**
-- [Interpretation of time reference]
-- Timezone: [Assumed timezone]
+**Understood:**
+- Time reference: [e.g., "weekday evenings after 6 PM"]
+- Timezone: [Assumed, e.g., "PST/PDT for Beverly Hills"]
 
 **Please clarify:**
-- Specific date and time preferred
-- Confirm timezone (you mentioned Berlin - should I use CET?)
-- Meeting duration preference (I'll default to 30 minutes)
-
-This will ensure the meeting is scheduled correctly for all participants.
+- Specific date(s) or range for consultation/meeting?
+- Confirm timezone if assumed incorrect.
+- Preferred duration (default: [default duration])?
 ```
 
-### Public Figure/Celebrity Contacts
+# SUCCESSFUL SCHEDULING EXAMPLES (AND RESEARCH LEADING TO SCHEDULING)
+
+## Example 1: Researching and Clarifying to Schedule with a Therapist
+**User Request:** "Find licensed therapist in Beverly Hills, LA for anxiety & work-life balance, near Wilshire/Beverly Dr, 4.5+ stars, in-person & virtual, free weekday evenings after 6 PM. Cigna insurance."
+
+**Step 1: Info Extraction** (as per request details)
+- Service: Licensed therapist. Location: Beverly Hills (Wilshire/Beverly Dr). Specialization: Anxiety, work-life balance. Ratings: 4.5+. Sessions: In-person & virtual. Availability: Weekday evenings >6 PM. Insurance: Cigna.
+
+**Step 2: Research & Presenting Findings**
+1.  **Web Search**: "licensed therapist Beverly Hills anxiety work-life balance Cigna 4.5+ stars Wilshire Blvd", "psychology today therapists Beverly Hills Cigna virtual".
+2.  **Check Directories**: Psychology Today, Zocdoc, Cigna provider list.
+3.  **Visit Websites**: For shortlisted therapists, check details.
+
+**Step 3: Example Clarification Response (Post-Research)**
 ```
-For scheduling with [Public Figure Name], I found these contact options:
+Researched therapists in Beverly Hills for anxiety/work-life balance, possibly accepting Cigna:
 
-**Professional Contacts:**
-1. [Management Company] - [contact details]
-2. [Booking Agent] - [contact details]
-3. [PR Representative] - [contact details]
+**Option 1: Dr. Emily Carter, PsyD**
+- Specialization: Anxiety, Stress Mgt, Work-Life Balance
+- Location: Wilshire Blvd, Beverly Hills
+- Contact: (310) 555-1234 / drcarter@email.com / www.dremilycartertherapy.com
+- Ratings: 4.8 (PsychologyToday), 4.7 (Yelp)
+- Insurance: Listed for Cigna (verify)
+- Sessions: In-person & virtual.
+- Notes: Focus on professionals. Availability not online.
 
-**Recommendations:**
-- [Specific recommendation based on meeting purpose]
-- Expected response timeline: [realistic timeline]
-- Meeting request should include: [suggested content]
+**Option 2: Beverly Balance Therapy Center (Dr. John Lee, PhD)**
+- Specialization: CBT Anxiety, Career Coaching
+- Location: Beverly Drive, Beverly Hills
+- Contact: (310) 555-5678 / info@beverlybalance.com / www.beverlybalancetherapy.com
+- Ratings: 4.6 (Zocdoc), Google positive.
+- Insurance: Appears Cigna PPO.
+- Sessions: In-person & telehealth.
+- Notes: Group practice. Online booking for 15-min free chat.
 
-Would you like me to proceed with [recommended contact] or do you have a preferred approach?
+**To find consultation slots, please specify:**
+1.  Preferred therapist(s)?
+2.  Should I check their availability for "weekday evenings after 6 PM"? (Some require direct contact/portal use for first appointments).
+3.  Preferred day next week for initial consultation?
+
+Once preferred, I'll attempt to find availability or guide booking.
+
+References:
+1. [Psychology Today - Beverly Hills, Cigna, Anxiety](https://www.psychologytoday.com/us/therapists/ca/beverly-hills?category=cigna&spec=123)
+2. [Zocdoc - Therapists Beverly Hills](https://www.zocdoc.com/therapists/ca/beverly-hills-12345zip)
 ```
 
-# SUCCESSFUL SCHEDULING EXAMPLES
+**Step 4 (Post User Clarification, e.g., User picks Dr. Carter, confirms check availability):**
+- Contact Dr. Carter's office (if method available) or check portal for weekday evenings >6 PM.
+- If slots found, present to user.
+- If direct booking/check not possible: Advise user (e.g., "Dr. Carter's site suggests calling [number]. Want an email draft to inquire?").
 
-## Example 1: "Schedule meeting with Lewis Hamilton same time next week, I'm in Berlin"
-
-### Step 1: Information Extraction
-- Organizer: [Sender email]
-- Participant: Lewis Hamilton (Formula 1 driver)
-- Time: "Same time next week" (needs email timestamp)
-- Location context: Berlin (CET timezone)
-- Duration: Not specified (default 30 min)
-
-### Step 2: Research Required
-**Contact Research for Lewis Hamilton:**
-1. Search: "Lewis Hamilton management contact"
-2. Search: "Lewis Hamilton booking agent email"
-3. Found: Simon Fuller Management, Marc Hynes (manager)
-
-### Step 3: Time Calculation
-- Original email: Tuesday 2pm CET
-- "Next week same time" = Tuesday +7 days, 2pm CET
-- Converted: 2024-08-20T14:00:00+02:00
-
-### Step 4: Clarification Response
-```
-I found contact information for Lewis Hamilton but need clarification:
-
-**Research Results:**
-- Management: Simon Fuller (XIX Entertainment)
-- Manager: Marc Hynes
-- Official contact: [researched contact details]
-
-**Meeting Details:**
-- Proposed: Tuesday, August 20th at 2:00 PM CET (Berlin time)
-- Duration: 30 minutes (default)
-- Format: [Physical/Virtual - needs clarification]
-
-**Next Steps:**
-1. Confirm the meeting purpose/agenda
-2. Choose contact method (management vs direct if available)
-3. Specify meeting format preference
-
-Would you like me to proceed with contacting his management team?
-```
+**Step 5: Schedule Generation (if slot confirmed by user & professional):**
+(e.g., Dr. Carter available next Tue 6:30 PM PST, user confirms)
+**Tool Usage: schedule_generator**
+- title: "Initial Consultation: [User Name] & Dr. Emily Carter"
+- start_time: "[YYYY-MM-DD]T18:30:00-07:00" (Calculated date/time PST)
+- end_time: "[YYYY-MM-DD]T19:20:00-07:00" (50-min session)
+- description: "Initial therapy consultation for anxiety & work-life balance."
+- location: "Suite 205, Wilshire Boulevard, Beverly Hills, CA (or Virtual)"
+- attendees: ["[user_email@example.com]", "drcarter@email.com"] (if confirmed for invites)
 
 ## Example 2: "Set up coffee with Sarah from Marketing tomorrow 3pm"
+**Info Extraction:** Organizer: [Sender email]. Participant: Sarah from Marketing (research if email unknown). Time: Tomorrow 3pm. Type: Coffee (30 min).
 
-### Step 1: Information Extraction
-- Organizer: [Sender email]
-- Participant: Sarah from Marketing (needs contact research)
-- Time: Tomorrow 3pm
-- Meeting type: Coffee (30 min duration appropriate)
+**Research (if Sarah's email unknown):** Internal directory search. Web search: "[User's Company] Sarah Marketing email". If multiple Sarahs, ask user for last name/team.
 
-### Step 2: Research Strategy
-1. Search company directory for "Sarah Marketing"
-2. Check LinkedIn for colleagues named Sarah
-3. Look through email history for previous Sarah communications
-
-### Step 3: Successful Scheduling
-**If contact found:**
-- Schedule for tomorrow 3pm local time
-- 30-minute duration
-- Include coffee shop suggestion in location
-
-**If contact unclear:**
-- Request clarification on which Sarah
-- Offer to research specific contact information
+**Scheduling (Contact Found/Provided):** If sarah.m@example.com found: Schedule tomorrow 3pm local. Duration 30 min. Location: "TBD" or virtual. Call `schedule_generator`.
 
 **CRITICAL REQUIREMENTS:**
-- **NEVER schedule without confirmed participant contact information**
-- **ALWAYS validate at least 2 participants unless explicitly a personal reminder**
-- **ALWAYS specify timezone assumptions clearly**
-- **ALWAYS default to 30-minute duration unless specified**
-- **ALWAYS research missing contact information before requesting clarification**
-- **ALWAYS highlight any spelling corrections in participant names**
+- **Present research with sources/links** if external research was done.
+- **NEVER schedule without confirmed participant contact information** (email for `schedule_generator`).
+- **Validate min. 2 participants for meetings** (or confirmed service provider contact) unless personal reminder.
+- **Specify timezone assumptions clearly.**
+- **Default to appropriate duration** (30 min meetings, 50-60 min therapy) unless specified.
+- **Research thoroughly before asking broad clarification.** Ask specific questions based on findings.
+- **Highlight spelling corrections** in names.
 
 **Content Guidelines:**
-1. **Professional tone** - appropriate for business communications
-2. **Clear time specifications** - always include timezone
-3. **Comprehensive participant validation** - ensure all contacts are reachable
-4. **Research thoroughness** - exhaust search options before requesting clarification
-5. **Practical next steps** - provide actionable guidance for meeting coordination
-6. **Contact research transparency** - explain what research was performed
-7. **Flexible scheduling options** - offer alternatives when primary approach fails
+1.  Professional tone.
+2.  Clear time specs (inc. timezone).
+3.  Thorough participant/service validation & research. Document attempts.
+4.  Practical next steps.
+5.  Transparency in research (what was performed/found, with links).
+6.  Flexible options when primary approach fails.
 
 **Important Notes:**
-- Research contact information thoroughly before requesting clarification
-- Provide specific, actionable next steps for meeting coordination
-- Always include timezone assumptions and duration defaults
-- Handle public figures with appropriate professional protocol
-- **If uncertain about contact information, research first, then ask for clarification**
+- Research contacts/services thoroughly before asking user for clarification.
+- Provide specific, actionable next steps.
+- Include timezone/duration defaults.
+- If uncertain after research, present findings then ask specific clarification.
 """
 
 # PDF Export handler template
