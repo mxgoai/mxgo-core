@@ -14,7 +14,7 @@ from mxtoai._logging import get_logger
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import send_email_reply
 from mxtoai.schemas import RateLimitPlan
-from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted
+from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted, trigger_automatic_verification
 
 logger = get_logger(__name__)
 
@@ -271,6 +271,7 @@ async def validate_email_whitelist(
     Validate if the sender's email is whitelisted and verified.
 
     Major email providers are allowed, OR emails that exist and are verified in the Supabase whitelist.
+    For non-whitelisted emails, automatic verification is triggered and email processing is stopped.
 
     Args:
         from_email: Sender's email address
@@ -299,45 +300,83 @@ async def validate_email_whitelist(
         logger.info(f"Email allowed from Supabase whitelist: {from_email} (verified)")
         return None
 
-    # Email is rejected - determine reason for rejection message
-    if not exists_in_whitelist:
-        # Case 1: Email not in whitelist at all
+    # For non-major providers that are not verified, trigger automatic verification
+    # and STOP email processing until they verify
+    logger.info(f"Triggering automatic verification for {from_email} (exists={exists_in_whitelist}, verified={is_verified})")
+
+    # Trigger automatic verification in the background
+    verification_triggered = False
+    try:
+        verification_triggered = await trigger_automatic_verification(from_email)
+        if verification_triggered:
+            logger.info(f"Successfully triggered automatic verification for {from_email}")
+        else:
+            logger.warning(f"Failed to trigger automatic verification for {from_email}")
+    except Exception as e:
+        logger.error(f"Error triggering automatic verification for {from_email}: {e}")
+
+    # Determine rejection message based on verification status and outcome
+    if verification_triggered:
+        # Verification email was sent successfully
+        rejection_msg = f"""Your email could not be processed because your domain is not automatically whitelisted.
+
+Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but custom domains require verification.
+
+🚀 GOOD NEWS: We've automatically started the verification process for you!
+
+📧 CHECK YOUR EMAIL: You should receive a verification email at {from_email} within the next few minutes.
+
+✅ NEXT STEPS:
+1. Click the verification link in the email we just sent
+2. Once verified, simply resend your original email to this address
+3. Your email will then be processed normally
+
+⚠️ IMPORTANT: You must verify your email first, then resend your request for it to be processed.
+
+Best,
+MXtoAI Team"""
+
+        html_rejection = f"""<p>Your email could not be processed because your domain is not automatically whitelisted.</p>
+<p>Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but custom domains require verification.</p>
+
+<div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <strong>🚀 GOOD NEWS:</strong> We've automatically started the verification process for you!
+</div>
+
+<div style="background: #e2e3e5; border: 1px solid #d6d8db; color: #383d41; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <strong>📧 CHECK YOUR EMAIL:</strong> You should receive a verification email at <strong>{from_email}</strong> within the next few minutes.
+</div>
+
+<p><strong>✅ NEXT STEPS:</strong></p>
+<ol>
+    <li>Click the verification link in the email we just sent</li>
+    <li>Once verified, simply resend your original email to this address</li>
+    <li>Your email will then be processed normally</li>
+</ol>
+
+<div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <strong>⚠️ IMPORTANT:</strong> You must verify your email first, then resend your request for it to be processed.
+</div>
+
+<p>Best regards,<br>MXtoAI Team</p>"""
+    else:
+        # Verification email failed to send - fallback to manual signup
         signup_url = get_whitelist_signup_url()
         rejection_msg = f"""Your email could not be processed because your domain is not automatically whitelisted.
 
 Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but custom domains require manual approval.
 
-To use our email processing service with your domain, please visit {signup_url} to request access.
+We attempted to automatically send you a verification email, but it failed. Please visit {signup_url} to manually request access.
 
-Once your email is added to the whitelist and verified, you can resend your email for processing.
+Once your email is verified, you can resend your email for processing.
 
 Best,
 MXtoAI Team"""
 
         html_rejection = f"""<p>Your email could not be processed because your domain is not automatically whitelisted.</p>
 <p>Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but custom domains require manual approval.</p>
-<p>To use our email processing service with your domain, please visit <a href="{signup_url}">{signup_url}</a> to request access.</p>
-<p>Once your email is added to the whitelist and verified, you can resend your email for processing.</p>
-<p>Best regards,<br>MXtoAI Team</p>"""
-
-    else:
-        # Case 2: Email in whitelist but not verified
-        signup_url = get_whitelist_signup_url()
-        rejection_msg = f"""Your email is registered in our system but not yet verified.
-
-Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but your custom domain requires verification.
-
-Please check your email for a verification link we sent when you registered. If you can't find it, you can request a new verification link at {signup_url}.
-
-Once verified, you can resend your email for processing.
-
-Best,
-MXtoAI Team"""
-
-        html_rejection = f"""<p>Your email is registered in our system but not yet verified.</p>
-<p>Major email providers (Gmail, Outlook, Yahoo, etc.) are automatically whitelisted, but your custom domain requires verification.</p>
-<p>Please check your email for a verification link we sent when you registered. If you can't find it, you can request a new verification link at <a href="{signup_url}">{signup_url}</a>.</p>
-<p>Once verified, you can resend your email for processing.</p>
+<p>We attempted to automatically send you a verification email, but it failed. Please visit <a href="{signup_url}">{signup_url}</a> to manually request access.</p>
+<p>Once your email is verified, you can resend your email for processing.</p>
 <p>Best regards,<br>MXtoAI Team</p>"""
 
     # Send rejection email
@@ -354,21 +393,21 @@ MXtoAI Team"""
     try:
         await send_email_reply(email_dict, rejection_msg, html_rejection)
         logger.info(
-            f"Sent whitelist rejection email to {from_email} (exists={exists_in_whitelist}, verified={is_verified})"
+            f"Sent verification instruction email to {from_email} (verification_triggered={verification_triggered})"
         )
     except Exception as e:
-        logger.error(f"Failed to send whitelist rejection email: {e}")
+        logger.error(f"Failed to send verification instruction email: {e}")
 
-    # Return appropriate error response
-    status_message = "Email not whitelisted" if not exists_in_whitelist else "Email not verified"
+    # Return error response to stop email processing
     return Response(
         content=json.dumps(
             {
-                "message": f"Email rejected - {status_message}",
+                "message": "Email verification required - check your email for verification instructions",
                 "email": from_email,
+                "verification_triggered": verification_triggered,
                 "exists_in_whitelist": exists_in_whitelist,
                 "is_verified": is_verified,
-                "rejection_sent": True,
+                "next_action": "verify_email_then_resend",
             }
         ),
         status_code=status.HTTP_403_FORBIDDEN,
