@@ -210,9 +210,8 @@ def process_email_task(
 
                     # Clean up the PDF tool's temporary directory
                     # Extract parent directory from the PDF file path and clean it up
-                    pdf_temp_dir = Path(processing_result.pdf_export.file_path).parent
-                    if pdf_temp_dir.exists() and pdf_temp_dir.name.startswith('tmp'):
-                        # Additional safety check: only delete if it looks like a temp directory
+                    pdf_temp_dir = processing_result.pdf_export.temp_dir
+                    if pdf_temp_dir and pdf_temp_dir.exists():
                         shutil.rmtree(pdf_temp_dir, ignore_errors=True)
                         logger.info(f"Cleaned up PDF tool temp directory: {pdf_temp_dir}")
 
