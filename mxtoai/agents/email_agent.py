@@ -7,7 +7,7 @@ from typing import Any, Optional, Union
 from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
-from smolagents import ToolCallingAgent, Tool
+from smolagents import Tool, ToolCallingAgent
 
 # Add imports for the new default tools
 from smolagents.default_tools import (

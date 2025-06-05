@@ -373,7 +373,7 @@ class ReportFormatter:
     def _fix_ai_markdown(self, content: str) -> str:
         """
         Fix AI-generated markdown issues that markdown2 doesn't handle.
-        Only includes fixes that are actually necessary with markdown2's cuddled-lists extra.
+        This function performs several cleaning steps in a single pass over the lines.
 
         Args:
             content: Raw markdown content
@@ -382,41 +382,49 @@ class ReportFormatter:
             Fixed markdown content
 
         """
-        # Fix missing spaces after list markers, but convert section headers to proper headers
         lines = content.split("\n")
         result_lines = []
 
         for i, line in enumerate(lines):
-            # Skip lines that start with bold markers (avoid treating **text**: as lists)
-            if line.strip().startswith("**") and ("**:" in line or line.strip().endswith("**")):
-                result_lines.append(line)
-                continue
+            # --- FIX 1: Ensure headers are separated by a blank line ---
+            if line.strip().startswith("#") and i > 0 and result_lines and result_lines[-1].strip() != "":
+                # Insert blank line before header
+                result_lines.append("")
 
-            # Check if this line looks like a list item without proper spacing
-            if re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line):
-                # Get the indentation, marker, and text
-                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)(.*)$", line)
+            # --- FIX 2: Manually parse and fix bolded links in list items ---
+            if line.strip().startswith(("*", "-")) and "**[" in line and "](" in line and ")**" in line:
+                # This is a very specific pattern, so we can be confident in this replacement
+                line = line.replace("**[", "[**").replace(")**", "**)")
+
+
+            # --- FIX 3: Convert letter-based lists to numbers ---
+            # e.g., a. Item -> 1. Item
+            match = re.match(r"^(\s*)([a-z])\.\s+(.*)$", line)
+            if match:
+                indent, letter, text = match.groups()
+                number = ord(letter) - ord("a") + 1
+                line = f"{indent}{number}. {text}"
+
+            # --- FIX 4: Fix mixed list formatting ---
+            # e.g., - 1. Item -> 1. Item
+            line = re.sub(r"^(\s*)[*-]\s+(\d+\.\s+.*)", r"\1\2", line)
+
+            # --- FIX 5: Fix missing spaces after list markers or convert numbered headers ---
+            # Skip lines that start with bold markers like "**Summary:**"
+            if not (line.strip().startswith("**") and line.strip().endswith(":")):
+                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line)
                 if match:
                     indent, marker, rest_of_line = match.groups()
-
-                    # Check if this is likely a section header vs a real list item
+                    # Check if this is a numbered line that's actually a header
                     if marker.endswith(".") and self._is_section_header(rest_of_line.strip(), lines, i):
-                        # Convert to a proper markdown header
-                        header_text = rest_of_line.strip()
-                        line = f"## {header_text}"
+                        line = f"## {rest_of_line.strip()}"
                     else:
-                        # This is a real list item, fix the spacing
+                        # It's a real list item, just missing a space
                         line = f"{indent}{marker} {rest_of_line.lstrip()}"
 
             result_lines.append(line)
 
-        content = "\n".join(result_lines)
-
-        # Convert letter-based lists to numbers (no markdown parser handles this)
-        content = self._convert_letter_lists_to_numbers(content)
-
-        # Fix mixed list formatting (e.g., "- 1. Item" -> "1. Item")
-        return self._fix_mixed_list_formatting(content)
+        return "\n".join(result_lines)
 
     def _is_section_header(self, text: str, lines: list[str], current_index: int) -> bool:
         """
@@ -566,57 +574,6 @@ class ReportFormatter:
         # Final decision based on accumulated score
         # Require positive score for section header classification
         return context_score > 0
-
-    def _convert_letter_lists_to_numbers(self, content: str) -> str:
-        """
-        Convert letter-based list markers (a., b., c.) to numbers (1., 2., 3.)
-        so they can be properly parsed as nested ordered lists.
-        CSS will handle styling them back to letters.
-        """
-        lines = content.split("\n")
-        result_lines = []
-
-        for line in lines:
-            # Match lines that start with letter-based list markers
-            match = re.match(r"^(\s*)([a-z])\.\s+(.*)$", line)
-            if match:
-                indent, letter, text = match.groups()
-                # Convert letter to number (a=1, b=2, c=3, etc.)
-                number = ord(letter) - ord("a") + 1
-                # Replace with number-based marker
-                line = f"{indent}{number}. {text}"
-
-            result_lines.append(line)
-
-        return "\n".join(result_lines)
-
-    def _fix_mixed_list_formatting(self, content: str) -> str:
-        """
-        Fix mixed list formatting where LLM generates both unordered list markers (-) and manual numbering (1., 2., 3.) together.
-
-        Args:
-            content: Raw markdown content
-
-        Returns:
-            Fixed markdown content
-
-        """
-        lines = content.split("\n")
-        result_lines = []
-
-        for _i, line in enumerate(lines):
-            # Check if this line looks like a mixed list item
-            if re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line):
-                # Get the indentation, marker, number, and text
-                match = re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line)
-                if match:
-                    indent, marker, number, text = match.groups()
-                    # Replace with properly formatted list item
-                    line = f"{indent}{number}. {text}"
-
-            result_lines.append(line)
-
-        return "\n".join(result_lines)
 
     def _basic_html_render(self, html_content: str) -> str:
         """
