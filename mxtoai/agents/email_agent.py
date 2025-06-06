@@ -7,14 +7,12 @@ from typing import Any, Optional, Union
 from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
-from smolagents import ToolCallingAgent, Tool
+from smolagents import Tool, ToolCallingAgent
 
 # Add imports for the new default tools
 from smolagents.default_tools import (
-    GoogleSearchTool,
     PythonInterpreterTool,
     VisitWebpageTool,
-    WebSearchTool,
     WikipediaSearchTool,
 )
 
@@ -44,14 +42,13 @@ from mxtoai.schemas import (
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
-
-# Import the new Brave Search tool
-from mxtoai.tools.brave_search_tool import initialize_brave_search_tool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.schedule_tool import ScheduleTool
-from mxtoai.tools.search_with_fallback_tool import SearchWithFallbackTool
+
+# Import the web search tools
+from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 # Load environment variables
 load_dotenv(override=True)
@@ -108,20 +105,23 @@ class EmailAgent:
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
 
-        # Initialize complex tools using helper methods
-        self.search_with_fallback_tool = self._initialize_search_tools()
+        # Initialize independent search tools
+        self.search_tools = self._initialize_independent_search_tools()
         self.research_tool = self._initialize_deep_research_tool(enable_deep_research)
 
         self.available_tools: list[Tool] = [
             self.attachment_tool,
             self.schedule_tool,
             self.visit_webpage_tool,
-            self.search_with_fallback_tool,
             self.python_tool,
             self.wikipedia_search_tool,
             self.pdf_export_tool,
             azure_visualizer,
         ]
+
+        # Add all available search tools
+        self.available_tools.extend(self.search_tools)
+
         if self.research_tool:
             self.available_tools.append(self.research_tool)
 
@@ -170,43 +170,39 @@ class EmailAgent:
 
         logger.debug("Agent initialized with routed model configuration and loguru-integrated Rich console")
 
-    def _initialize_search_tools(self) -> SearchWithFallbackTool:
+    def _initialize_independent_search_tools(self) -> list[Tool]:
         """
-        Initializes and configures the search tools, returning the SearchWithFallbackTool.
-        The order of preference is DuckDuckGo, then Brave Search, then Google Search as fallback.
+        Initialize independent search tools for DDG, Brave, and Google.
+        The agent will be able to choose which search engine to use based on cost and quality needs.
 
         Returns:
-            SearchWithFallbackTool: The configured search tool.
-
+            list[Tool]: List of available search tools.
         """
-        ddg_search_tool = WebSearchTool(engine="duckduckgo", max_results=5)
-        logger.debug("Initialized WebSearchTool with DuckDuckGo engine.")
+        search_tools = []
 
-        brave_search_tool = initialize_brave_search_tool(max_results=5)
-        # No need to log here as initialize_brave_search_tool does it.
+        # DDG Search - Always available (free)
+        ddg_tool = DDGSearchTool(max_results=10)
+        search_tools.append(ddg_tool)
+        logger.debug("Initialized DDG search tool (free, first choice)")
 
-        google_search_fallback_tool = self._initialize_google_search_tool()
-        # No need to log here as _initialize_google_search_tool does it.
+        # Brave Search - Available if API key is configured
+        if os.getenv("BRAVE_SEARCH_API_KEY"):
+            brave_tool = BraveSearchTool(max_results=5)
+            search_tools.append(brave_tool)
+            logger.debug("Initialized Brave search tool (moderate cost, better quality)")
+        else:
+            logger.warning("BRAVE_SEARCH_API_KEY not found. Brave search tool not initialized.")
 
-        primary_search_engines: list[Tool] = []
-        if ddg_search_tool:  # ddg_search_tool is always initialized
-            primary_search_engines.append(ddg_search_tool)
-        if brave_search_tool:  # brave_search_tool might be None if API key is missing
-            primary_search_engines.append(brave_search_tool)
+        # Google Search - Available if API keys are configured
+        if os.getenv("SERPAPI_API_KEY") or os.getenv("SERPER_API_KEY"):
+            google_tool = GoogleSearchTool()
+            search_tools.append(google_tool)
+            logger.debug("Initialized Google search tool (premium cost, highest quality)")
+        else:
+            logger.warning("No Google Search API keys found. Google search tool not initialized.")
 
-        if not primary_search_engines:
-            logger.warning(
-                "No primary search engines (DuckDuckGo, Brave) could be initialized for SearchWithFallbackTool."
-            )
-
-        search_tool = SearchWithFallbackTool(
-            primary_search_tools=primary_search_engines, fallback_search_tool=google_search_fallback_tool
-        )
-
-        primary_names = [getattr(p, "name", "UnknownTool") for p in primary_search_engines]
-        fallback_name = getattr(google_search_fallback_tool, "name", "None") if google_search_fallback_tool else "None"
-        logger.info(f"Initialized SearchWithFallbackTool. Primary engines: {primary_names}, Fallback: {fallback_name}")
-        return search_tool
+        logger.info(f"Initialized {len(search_tools)} independent search tools: {[tool.name for tool in search_tools]}")
+        return search_tools
 
     def _get_required_actions(self, mode: str) -> list[str]:
         """
@@ -227,35 +223,6 @@ class EmailAgent:
         if mode in ["research", "full"]:
             actions.append("Conduct research")
         return actions
-
-    def _initialize_google_search_tool(self) -> Optional[GoogleSearchTool]:
-        """
-        Initialize Google search tool with either SerpAPI or Serper provider.
-
-        Returns:
-            Optional[GoogleSearchTool]: Initialized GoogleSearchTool instance or None if initialization fails
-
-        """
-        if os.getenv("SERPAPI_API_KEY"):
-            try:
-                tool = GoogleSearchTool(provider="serpapi")
-                logger.debug("Initialized GoogleSearchTool with SerpAPI for fallback.")
-                return tool
-            except ValueError as e:
-                logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI for fallback: {e}")
-        elif os.getenv("SERPER_API_KEY"):
-            try:
-                tool = GoogleSearchTool(provider="serper")
-                logger.debug("Initialized GoogleSearchTool with Serper for fallback.")
-                return tool
-            except ValueError as e:
-                logger.warning(f"Failed to initialize GoogleSearchTool with Serper for fallback: {e}")
-        else:
-            logger.warning(
-                "GoogleSearchTool (for fallback) not initialized. Missing SERPAPI_API_KEY or SERPER_API_KEY."
-            )
-
-        return None
 
     def _initialize_deep_research_tool(self, enable_deep_research: bool) -> Optional[DeepResearchTool]:
         """
