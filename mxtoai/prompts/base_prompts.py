@@ -22,6 +22,13 @@ GENERAL RESPONSE REQUIREMENTS:
 - NEVER add numbers to section headers
 - DO NOT add any signature - it will be added automatically
 - If web search tools were used, create a 'References' section at the end of your response. List the titles and URLs of the web pages used, formatted as markdown links (e.g., `1. [Page Title](URL)`).
+
+SEARCH TOOL SELECTION GUIDELINES:
+- **ddg_search**: Use first for most queries (free, fast, but limited results)
+- **brave_search**: Use when DDG results are insufficient or you need better quality/more comprehensive information (moderate API cost)
+- **google_search**: Use only when DDG and Brave are insufficient (premium API cost, highest quality)
+- Choose search tools based on the importance, complexity and quality of search results received
+- Whenever you use a search tool, keep a track of links you visited in memory and later add them as references.
 """
 
 # Formatting requirements for HTML conversion
@@ -56,10 +63,13 @@ RESEARCH REQUIREMENTS:
 - Ensure comprehensive research before responding
 - Include citations and sources in your response
 - Synthesize findings with the email content
+- Use appropriate search tools based on cost/quality needs (ddg_search > brave_search > google_search)
 """,
     "optional": """
 RESEARCH GUIDELINES:
 - Only use basic tools and provided information
 - Focus on addressing the direct content of the email
+- If web search is needed, start with ddg_search for cost-effectiveness
+- Escalate to brave_search or google_search only if better results are needed
 """,
 }
