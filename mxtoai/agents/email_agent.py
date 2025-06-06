@@ -181,7 +181,7 @@ class EmailAgent:
         search_tools = []
 
         # DDG Search - Always available (free)
-        ddg_tool = DDGSearchTool(max_results=5)
+        ddg_tool = DDGSearchTool(max_results=10)
         search_tools.append(ddg_tool)
         logger.debug("Initialized DDG search tool (free, first choice)")
 

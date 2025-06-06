@@ -4,6 +4,7 @@ Brave search tool - Better quality results with moderate API cost.
 
 import logging
 import os
+from typing import Optional
 from smolagents import Tool
 
 logger = logging.getLogger(__name__)
@@ -22,7 +23,13 @@ class BraveSearchTool(Tool):
         "or when you need more detailed, current, or specialized information. Good for research and detailed queries."
     )
     inputs = {
-        "query": {"type": "string", "description": "The search query to perform."},
+        "query": {"type": "string", "description": "The user's search query term. Max 400 chars, 50 words."},
+        "country": {"type": "string", "description": "2-char country code for results (e.g., 'US', 'DE'). Default: 'US'.", "nullable": True},
+        "search_lang": {"type": "string", "description": "Language code for search results (e.g., 'en', 'es'). Default: 'en'.", "nullable": True},
+        "ui_lang": {"type": "string", "description": "UI language for response (e.g., 'en-US'). Default: 'en-US'.", "nullable": True},
+        "safesearch": {"type": "string", "description": "Filter adult content: 'off', 'moderate', 'strict'. Default: 'moderate'.", "nullable": True},
+        "freshness": {"type": "string", "description": "Filter by discovery date: 'pd' (day), 'pw' (week), 'pm' (month), 'py' (year), or 'YYYY-MM-DDtoYYYY-MM-DD'. Default: None.", "nullable": True},
+        "result_filter": {"type": "string", "description": "Comma-separated result types (e.g., 'web,news'). Default: 'web'.", "nullable": True},
     }
     output_type = "string"
 
@@ -42,13 +49,31 @@ class BraveSearchTool(Tool):
         else:
             logger.debug(f"BraveSearchTool initialized with max_results={max_results}")
 
-    def forward(self, query: str) -> str:
+    def forward(
+        self,
+        query: str,
+        country: str = "US",
+        search_lang: str = "en",
+        ui_lang: str = "en-US",
+        safesearch: str = "moderate",
+        freshness: Optional[str] = None,
+        result_filter: str = "web",
+    ) -> str:
         """Execute Brave search."""
         if not self.api_key:
             raise ValueError("Brave Search API key not configured. Cannot perform search.")
 
         try:
-            logger.info(f"Performing Brave search for: {query}")
+            log_params = {
+                "query": query,
+                "country": country,
+                "search_lang": search_lang,
+                "ui_lang": ui_lang,
+                "safesearch": safesearch,
+                "freshness": freshness,
+                "result_filter": result_filter,
+            }
+            logger.info(f"Performing Brave search with params: {log_params}")
 
             import requests
 
@@ -61,13 +86,16 @@ class BraveSearchTool(Tool):
             params = {
                 "q": query,
                 "count": self.max_results,
-                "offset": 0,
-                "mkt": "en-US",
-                "safesearch": "moderate",
-                "freshness": "pd",  # Past day for freshness
+                "country": country,
+                "search_lang": search_lang,
+                "ui_lang": ui_lang,
+                "safesearch": safesearch,
+                "result_filter": result_filter,
                 "text_decorations": False,
                 "spellcheck": True,
             }
+            if freshness:
+                params["freshness"] = freshness
 
             response = requests.get(
                 "https://api.search.brave.com/res/v1/web/search",
