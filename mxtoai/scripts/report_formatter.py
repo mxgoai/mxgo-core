@@ -409,66 +409,21 @@ class ReportFormatter:
             # e.g., - 1. Item -> 1. Item
             line = re.sub(r"^(\s*)[*-]\s+(\d+\.\s+.*)", r"\1\2", line)
 
-            # --- FIX 5: Fix missing spaces after list markers or convert numbered headers ---
+            # --- FIX 5: Fix missing spaces after list markers ---
             # Skip lines that start with bold markers like "**Summary:**"
             if not (line.strip().startswith("**") and ("**:" in line or line.strip().endswith("**"))):
                 # Check for missing spaces after list markers
                 match = re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s].*)", line)
                 if match:
                     indent, marker, rest_of_line = match.groups()
-                    # Check if this is a numbered line that's actually a header
-                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip(), lines, i):
-                        line = f"## {rest_of_line.strip()}"
-                    else:
-                        # It's a real list item, just missing a space
-                        line = f"{indent}{marker} {rest_of_line.lstrip()}"
-                else:
-                    # Check for properly spaced numbered lines that might be section headers
-                    match = re.match(r"^(\s*)(\d+)\.\s+(.+)", line)
-                    if match:
-                        indent, number, text = match.groups()
-                        if self._is_section_header(text.strip(), lines, i):
-                            line = f"## {text.strip()}"
+                    # It's a real list item, just missing a space
+                    line = f"{indent}{marker} {rest_of_line.lstrip()}"
 
             result_lines.append(line)
 
         return "\n".join(result_lines)
 
-    def _is_section_header(self, text: str, lines: list[str], current_index: int) -> bool:
-        """
-        Simple, conservative check for obvious section headers.
-        Only converts numbered items that clearly contain section header keywords.
 
-        Args:
-            text: The text content to analyze
-            lines: All lines in the document for context
-            current_index: Index of current line being analyzed
-
-        Returns:
-            True if likely a section header, False if likely a list item
-
-        """
-        if not text.strip():
-            return False
-
-        text_lower = text.strip().lower()
-
-        # Only convert very obvious section headers with strong keywords
-        strong_section_keywords = [
-            "executive summary",
-            "acknowledgment",
-            "detailed analysis",
-            "analysis",
-            "summary",
-            "background",
-            "methodology",
-            "findings",
-            "conclusion",
-            "recommendations",
-        ]
-
-        # Only convert if it contains strong section keywords
-        return any(keyword in text_lower for keyword in strong_section_keywords)
 
     def _basic_html_render(self, html_content: str) -> str:
         """

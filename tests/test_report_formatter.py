@@ -102,8 +102,8 @@ c. Third step"""
         assert "* Another item" in fixed_markdown
         assert "1. Short item" in fixed_markdown
 
-    def test_section_header_detection(self, formatter):
-        """Test that numbered lines that are actually section headers are converted properly."""
+    def test_no_section_header_conversion(self, formatter):
+        """Test that numbered lines stay as list items (no automatic header conversion)."""
         markdown_content = """1. Executive Summary and Key Findings
 This is the summary content.
 
@@ -112,10 +112,11 @@ This is the analysis content."""
 
         fixed_markdown = formatter._fix_ai_markdown(markdown_content)
 
-        # Should convert section headers to proper markdown headers
-        assert "## Executive Summary and Key Findings" in fixed_markdown
-        assert "## Detailed Analysis of Market Trends" in fixed_markdown
-        assert "1. Executive Summary" not in fixed_markdown
+        # Should NOT convert to headers - numbered items stay as list items
+        assert "## Executive Summary and Key Findings" not in fixed_markdown
+        assert "## Detailed Analysis of Market Trends" not in fixed_markdown
+        assert "1. Executive Summary and Key Findings" in fixed_markdown
+        assert "2. Detailed Analysis of Market Trends" in fixed_markdown
 
     def test_nested_lists(self, formatter):
         """Test that nested lists render correctly."""
@@ -159,8 +160,8 @@ b. Second action item"""
         )
         assert google_link_ok, "Google Calendar link should be bold"
 
-        # Section headers should be converted
-        assert "Acknowledgment of Meeting Details" in html_output
+        # Numbered items should stay as list items (no conversion to headers)
+        assert "1. Acknowledgment of Meeting Details" in fixed_markdown
         # Letter lists should be converted
         assert "1. First action item" in fixed_markdown
         assert "2. Second action item" in fixed_markdown
@@ -246,8 +247,8 @@ b. Another action"""
         # Test markdown format (should include fixes)
         markdown_result = formatter.format_report(content, format_type="markdown")
 
-        # This should be converted to a header because it contains "Executive Summary"
-        assert "## Executive Summary and Key Points" in markdown_result
+        # Numbered items should stay as list items (no conversion to headers)
+        assert "1. Executive Summary and Key Points" in markdown_result
         assert "1. Action item" in markdown_result
         assert "2. Another action" in markdown_result
 
