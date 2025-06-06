@@ -82,6 +82,7 @@ async def trigger_automatic_verification(email: str) -> bool:
 
     Returns:
         bool: True if verification process was successfully triggered, False otherwise
+
     """
     try:
         if not supabase:
@@ -129,9 +130,8 @@ async def trigger_automatic_verification(email: str) -> bool:
         if verification_sent:
             logger.info(f"Successfully triggered automatic verification for {email}")
             return True
-        else:
-            logger.error(f"Failed to send verification email to {email}")
-            return False
+        logger.error(f"Failed to send verification email to {email}")
+        return False
 
     except Exception as e:
         logger.error(f"Error triggering automatic verification for {email}: {e}")
@@ -148,6 +148,7 @@ async def send_verification_email(email: str, verification_token: str) -> bool:
 
     Returns:
         bool: True if email was sent successfully, False otherwise
+
     """
     try:
         # Import here to avoid circular imports

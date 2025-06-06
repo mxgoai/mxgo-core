@@ -296,7 +296,7 @@ async def validate_email_whitelist(
     if is_major_provider:
         logger.info(f"Email allowed from major email provider: {from_email} (domain: {email_domain})")
         return None
-    elif exists_in_whitelist and is_verified:
+    if exists_in_whitelist and is_verified:
         logger.info(f"Email allowed from Supabase whitelist: {from_email} (verified)")
         return None
 

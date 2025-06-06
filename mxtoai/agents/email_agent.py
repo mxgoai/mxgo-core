@@ -422,7 +422,12 @@ class EmailAgent:
                     tool_output = action_out if action_out is not None else obs_out
 
                 if tool_name and tool_output is not None:
-                    needs_parsing = tool_name in ["schedule_generator", "attachment_processor", "deep_research", "pdf_export"]
+                    needs_parsing = tool_name in [
+                        "schedule_generator",
+                        "attachment_processor",
+                        "deep_research",
+                        "pdf_export",
+                    ]
                     if isinstance(tool_output, str) and needs_parsing:
                         try:
                             tool_output = ast.literal_eval(tool_output)
@@ -498,13 +503,15 @@ class EmailAgent:
                                 title=tool_output.get("title", "Document"),
                                 pages_estimated=tool_output.get("pages_estimated", 1),
                                 mimetype=tool_output.get("mimetype", "application/pdf"),
-                                temp_dir=tool_output.get("temp_dir")
+                                temp_dir=tool_output.get("temp_dir"),
                             )
                             logger.info(f"PDF export successful: {pdf_export_result.filename}")
                         else:
                             error_msg = tool_output.get("error", "PDF export failed")
                             details = tool_output.get("details", "")
-                            errors_list.append(ProcessingError(message="PDF Export Error", details=f"{error_msg}. {details}"))
+                            errors_list.append(
+                                ProcessingError(message="PDF Export Error", details=f"{error_msg}. {details}")
+                            )
                             logger.error(f"PDF export failed: {error_msg}")
 
                     else:

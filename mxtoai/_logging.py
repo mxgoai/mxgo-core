@@ -119,7 +119,7 @@ def setup_stdlib_logging_intercept():
         "litellm",
         "httpx",
         "dramatiq",
-        "pika",  # RabbitMQ client
+        # "pika",  # RabbitMQ client
         "azure",
         "openai",
         "smolagents",  # Capture smolagents verbose output

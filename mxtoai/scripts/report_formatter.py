@@ -93,6 +93,9 @@ class ReportFormatter:
         # Remove any existing signatures
         content = self._remove_existing_signatures(content)
 
+        # Apply markdown fixes for all formats
+        content = self._fix_ai_markdown(content)
+
         # Process citations and references before converting format
         # DISABLED: _process_citations was causing issues with already formatted markdown.
         # The DeepResearchTool now handles citation/reference formatting directly.
@@ -333,16 +336,13 @@ class ReportFormatter:
         Convert markdown to HTML using markdown2 for robust AI-generated content handling.
 
         Args:
-            markdown_content: Markdown content
+            markdown_content: Markdown content (already processed by _fix_ai_markdown)
             theme: Theme name to use
 
         Returns:
             HTML version
 
         """
-        # Pre-process markdown to fix issues not handled by markdown2
-        markdown_content = self._fix_ai_markdown(markdown_content)
-
         # Convert markdown to HTML with markdown2 (robust for AI content)
         html_content = markdown2.markdown(
             markdown_content,
@@ -373,7 +373,7 @@ class ReportFormatter:
     def _fix_ai_markdown(self, content: str) -> str:
         """
         Fix AI-generated markdown issues that markdown2 doesn't handle.
-        Only includes fixes that are actually necessary with markdown2's cuddled-lists extra.
+        This function performs several cleaning steps in a single pass over the lines.
 
         Args:
             content: Raw markdown content
@@ -382,241 +382,48 @@ class ReportFormatter:
             Fixed markdown content
 
         """
-        # Fix missing spaces after list markers, but convert section headers to proper headers
         lines = content.split("\n")
         result_lines = []
 
         for i, line in enumerate(lines):
-            # Skip lines that start with bold markers (avoid treating **text**: as lists)
-            if line.strip().startswith("**") and ("**:" in line or line.strip().endswith("**")):
-                result_lines.append(line)
-                continue
+            # --- FIX 1: Ensure headers are separated by a blank line ---
+            if line.strip().startswith("#") and i > 0 and result_lines and result_lines[-1].strip() != "":
+                # Insert blank line before header
+                result_lines.append("")
 
-            # Check if this line looks like a list item without proper spacing
-            if re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s])", line):
-                # Get the indentation, marker, and text
-                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)(.*)$", line)
-                if match:
-                    indent, marker, rest_of_line = match.groups()
+            # --- FIX 2: Manually parse and fix bolded links in list items ---
+            if line.strip().startswith(("*", "-")) and "**[" in line and "](" in line and ")**" in line:
+                # This is a very specific pattern, so we can be confident in this replacement
+                # Replace **[text](url)** with [**text**](url)
+                line = re.sub(r"\*\*\[(.*?)\]\((.*?)\)\*\*", r"[**\1**](\2)", line)
 
-                    # Check if this is likely a section header vs a real list item
-                    if marker.endswith(".") and self._is_section_header(rest_of_line.strip(), lines, i):
-                        # Convert to a proper markdown header
-                        header_text = rest_of_line.strip()
-                        line = f"## {header_text}"
-                    else:
-                        # This is a real list item, fix the spacing
-                        line = f"{indent}{marker} {rest_of_line.lstrip()}"
-
-            result_lines.append(line)
-
-        content = "\n".join(result_lines)
-
-        # Convert letter-based lists to numbers (no markdown parser handles this)
-        content = self._convert_letter_lists_to_numbers(content)
-
-        # Fix mixed list formatting (e.g., "- 1. Item" -> "1. Item")
-        return self._fix_mixed_list_formatting(content)
-
-    def _is_section_header(self, text: str, lines: list[str], current_index: int) -> bool:
-        """
-        Sophisticated check to determine if text is likely a section header vs a list item.
-        Uses multiple heuristics including length, content analysis, context, and numbering patterns.
-
-        Args:
-            text: The text content to analyze
-            lines: All lines in the document for context
-            current_index: Index of current line being analyzed
-
-        Returns:
-            True if likely a section header, False if likely a list item
-
-        """
-        if not text.strip():
-            return False
-
-        text_clean = text.strip()
-        text_lower = text_clean.lower()
-
-        # Heuristic 1: Length check - section headers are typically longer
-        if len(text_clean) < 15:
-            return False
-
-        # Heuristic 2: Strong section header keywords
-        strong_section_keywords = [
-            "acknowledgment",
-            "understanding",
-            "summary",
-            "response",
-            "detailed analysis",
-            "comprehensive",
-            "breakdown",
-            "overview",
-            "introduction",
-            "background",
-            "methodology",
-            "findings",
-            "conclusion",
-            "recommendations",
-            "executive summary",
-            "key takeaways",
-            "main points",
-            "important notes",
-        ]
-
-        if any(keyword in text_lower for keyword in strong_section_keywords):
-            return True
-
-        # Heuristic 3: Contextual analysis - check surrounding lines
-        context_score = 0
-
-        # Check previous lines for list pattern
-        prev_lines_are_lists = 0
-        for i in range(max(0, current_index - 3), current_index):
-            if i < len(lines):
-                prev_line = lines[i].strip()
-                if re.match(r"^\d+\.\s+", prev_line) or re.match(r"^[*-]\s+", prev_line):
-                    prev_lines_are_lists += 1
-
-        # Check next lines for list pattern
-        next_lines_are_lists = 0
-        for i in range(current_index + 1, min(len(lines), current_index + 4)):
-            if i < len(lines):
-                next_line = lines[i].strip()
-                if re.match(r"^\d+\.\s+", next_line) or re.match(r"^[*-]\s+", next_line):
-                    next_lines_are_lists += 1
-
-        # If surrounded by lists, less likely to be a header
-        if prev_lines_are_lists >= 2 and next_lines_are_lists >= 1:
-            context_score -= 2
-        elif prev_lines_are_lists == 0 and next_lines_are_lists == 0:
-            context_score += 1
-
-        # Heuristic 4: Sequential numbering detection
-        # Extract number from current line's marker
-        current_line = lines[current_index] if current_index < len(lines) else ""
-        current_num_match = re.match(r"^\s*(\d+)\.", current_line)
-        current_num = int(current_num_match.group(1)) if current_num_match else None
-
-        if current_num:
-            # Check if this follows a sequential pattern with previous numbered items
-            sequential_pattern = False
-            for i in range(max(0, current_index - 2), current_index):
-                if i < len(lines):
-                    prev_line = lines[i].strip()
-                    prev_num_match = re.match(r"^(\d+)\.", prev_line)
-                    if prev_num_match:
-                        prev_num = int(prev_num_match.group(1))
-                        if current_num == prev_num + 1:
-                            sequential_pattern = True
-                            break
-
-            # If it's part of a sequential list, less likely to be a header
-            if sequential_pattern:
-                context_score -= 2
-
-        # Heuristic 5: Content analysis patterns
-        content_patterns = {
-            # More likely to be headers
-            "header_indicators": [
-                r"\b(top\s+\d+|best\s+\d+|main\s+\d+)\b",
-                r"\b(analysis|breakdown|summary|overview)\b",
-                r"\b(section|chapter|part)\b",
-                r"\bwith\s+(summaries|details|analysis)\b",
-            ],
-            # More likely to be list items
-            "list_indicators": [
-                r"^\w+\s*:\s*",  # "Item: description"
-                r"\b(click|visit|check|see|read)\b",
-                r"\bhttps?://",  # URLs
-                r"\b(price|cost|usd|\$\d+)\b",  # Pricing info
-            ],
-        }
-
-        # Check header indicators
-        for pattern in content_patterns["header_indicators"]:
-            if re.search(pattern, text_lower):
-                context_score += 1
-
-        # Check list indicators
-        for pattern in content_patterns["list_indicators"]:
-            if re.search(pattern, text_lower):
-                context_score -= 1
-
-        # Heuristic 6: Indentation analysis
-        if current_index < len(lines):
-            current_line_indent = len(lines[current_index]) - len(lines[current_index].lstrip())
-
-            # Headers are typically not deeply indented
-            if current_line_indent > 8:  # More than 2 levels of indentation
-                context_score -= 1
-            elif current_line_indent == 0:  # No indentation
-                context_score += 1
-
-        # Heuristic 7: Capitalization patterns
-        words = text_clean.split()
-        if len(words) >= 2:
-            capitalized_words = sum(1 for word in words if word and word[0].isupper())
-            capitalization_ratio = capitalized_words / len(words)
-
-            # Section headers often have title case
-            if capitalization_ratio > 0.5:
-                context_score += 1
-
-        # Final decision based on accumulated score
-        # Require positive score for section header classification
-        return context_score > 0
-
-    def _convert_letter_lists_to_numbers(self, content: str) -> str:
-        """
-        Convert letter-based list markers (a., b., c.) to numbers (1., 2., 3.)
-        so they can be properly parsed as nested ordered lists.
-        CSS will handle styling them back to letters.
-        """
-        lines = content.split("\n")
-        result_lines = []
-
-        for line in lines:
-            # Match lines that start with letter-based list markers
+            # --- FIX 3: Convert letter-based lists to numbers ---
+            # e.g., a. Item -> 1. Item
             match = re.match(r"^(\s*)([a-z])\.\s+(.*)$", line)
             if match:
                 indent, letter, text = match.groups()
-                # Convert letter to number (a=1, b=2, c=3, etc.)
                 number = ord(letter) - ord("a") + 1
-                # Replace with number-based marker
                 line = f"{indent}{number}. {text}"
 
-            result_lines.append(line)
+            # --- FIX 4: Fix mixed list formatting ---
+            # e.g., - 1. Item -> 1. Item
+            line = re.sub(r"^(\s*)[*-]\s+(\d+\.\s+.*)", r"\1\2", line)
 
-        return "\n".join(result_lines)
-
-    def _fix_mixed_list_formatting(self, content: str) -> str:
-        """
-        Fix mixed list formatting where LLM generates both unordered list markers (-) and manual numbering (1., 2., 3.) together.
-
-        Args:
-            content: Raw markdown content
-
-        Returns:
-            Fixed markdown content
-
-        """
-        lines = content.split("\n")
-        result_lines = []
-
-        for _i, line in enumerate(lines):
-            # Check if this line looks like a mixed list item
-            if re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line):
-                # Get the indentation, marker, number, and text
-                match = re.match(r"^(\s*)([*-])\s+(\d+)\.\s+(.*)$", line)
+            # --- FIX 5: Fix missing spaces after list markers ---
+            # Skip lines that start with bold markers like "**Summary:**"
+            if not (line.strip().startswith("**") and ("**:" in line or line.strip().endswith("**"))):
+                # Check for missing spaces after list markers
+                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s].*)", line)
                 if match:
-                    indent, marker, number, text = match.groups()
-                    # Replace with properly formatted list item
-                    line = f"{indent}{number}. {text}"
+                    indent, marker, rest_of_line = match.groups()
+                    # It's a real list item, just missing a space
+                    line = f"{indent}{marker} {rest_of_line.lstrip()}"
 
             result_lines.append(line)
 
         return "\n".join(result_lines)
+
+
 
     def _basic_html_render(self, html_content: str) -> str:
         """

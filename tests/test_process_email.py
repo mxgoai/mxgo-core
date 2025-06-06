@@ -444,10 +444,11 @@ More important content here.
 
 def test_pdf_handle_full_integration():
     """Test the full PDF handle integration with a more comprehensive email."""
-    from mxtoai.tasks import process_email_task
-    from unittest.mock import patch, MagicMock
-    import tempfile
     import shutil
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
+    from mxtoai.tasks import process_email_task
 
     # Create comprehensive test email content
     email_data = {
@@ -564,7 +565,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 
 def test_pdf_export_error_handling():
     """Test PDF export tool error handling for invalid inputs."""
-    from mxtoai.tools.pdf_export_tool import PDFExportTool, MAX_FILENAME_LENGTH
+    from mxtoai.tools.pdf_export_tool import MAX_FILENAME_LENGTH, PDFExportTool
 
     tool = PDFExportTool()
 
@@ -592,8 +593,9 @@ def test_pdf_export_error_handling():
 
 def test_pdf_export_cleanup():
     """Test that PDF export properly cleans up temporary directories."""
-    from mxtoai.tools.pdf_export_tool import PDFExportTool
     import tempfile
+
+    from mxtoai.tools.pdf_export_tool import PDFExportTool
 
     # Track temporary directories created
     original_mkdtemp = tempfile.mkdtemp

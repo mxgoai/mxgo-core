@@ -160,6 +160,7 @@ class AgentResearchOutput(BaseModel):
 
 class PDFExportResult(BaseModel):
     """Model for PDF export results."""
+
     filename: str
     file_path: str
     file_size: int

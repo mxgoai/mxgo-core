@@ -1,12 +1,12 @@
-import tempfile
-import os
-from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
 import re
 import shutil
+import tempfile
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
 
 from smolagents import Tool
+
 from mxtoai._logging import get_logger
 from mxtoai.scripts.report_formatter import ReportFormatter
 
@@ -69,7 +69,7 @@ class PDFExportTool(Tool):
     def cleanup(self):
         """Explicitly cleanup the temporary directory and all its contents."""
         try:
-            if hasattr(self, 'temp_dir') and self.temp_dir and self.temp_dir.exists():
+            if hasattr(self, "temp_dir") and self.temp_dir and self.temp_dir.exists():
                 shutil.rmtree(self.temp_dir, ignore_errors=True)
                 logger.debug(f"Cleaned up PDFExportTool temp directory: {self.temp_dir}")
         except Exception as e:
@@ -82,7 +82,7 @@ class PDFExportTool(Tool):
         research_findings: Optional[str] = None,
         attachments_summary: Optional[str] = None,
         include_attachments: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Export content to PDF format.
 
@@ -95,10 +95,11 @@ class PDFExportTool(Tool):
 
         Returns:
             Dict containing export results
+
         """
         try:
             # Import WeasyPrint here to avoid import errors if not installed
-            from weasyprint import HTML, CSS
+            from weasyprint import CSS, HTML
         except ImportError as e:
             logger.error(f"WeasyPrint not available: {e}")
             return {
@@ -150,7 +151,7 @@ class PDFExportTool(Tool):
         except Exception as e:
             logger.error(f"PDF export failed: {e}")
             return {
-                "error": f"PDF export failed: {str(e)}",
+                "error": f"PDF export failed: {e!s}",
                 "details": "Please check the content format and try again"
             }
 
@@ -163,27 +164,28 @@ class PDFExportTool(Tool):
 
         Returns:
             Cleaned content suitable for PDF export
+
         """
         if not content:
             return ""
 
         # Remove common email headers patterns
         email_header_patterns = [
-            r'^From:.*$',
-            r'^To:.*$',
-            r'^Subject:.*$',
-            r'^Date:.*$',
-            r'^CC:.*$',
-            r'^BCC:.*$',
-            r'^Reply-To:.*$',
-            r'^Message-ID:.*$',
-            r'^In-Reply-To:.*$',
-            r'^References:.*$',
-            r'^Received:.*$',
-            r'^Return-Path:.*$'
+            r"^From:.*$",
+            r"^To:.*$",
+            r"^Subject:.*$",
+            r"^Date:.*$",
+            r"^CC:.*$",
+            r"^BCC:.*$",
+            r"^Reply-To:.*$",
+            r"^Message-ID:.*$",
+            r"^In-Reply-To:.*$",
+            r"^References:.*$",
+            r"^Received:.*$",
+            r"^Return-Path:.*$"
         ]
 
-        lines = content.split('\n')
+        lines = content.split("\n")
         cleaned_lines = []
 
         for line in lines:
@@ -192,13 +194,12 @@ class PDFExportTool(Tool):
             if not is_header:
                 cleaned_lines.append(line)
 
-        cleaned_content = '\n'.join(cleaned_lines).strip()
+        cleaned_content = "\n".join(cleaned_lines).strip()
 
         # Remove excessive whitespace but preserve paragraph breaks
-        cleaned_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned_content)
-        cleaned_content = re.sub(r'[ \t]+', ' ', cleaned_content)
+        cleaned_content = re.sub(r"\n\s*\n\s*\n+", "\n\n", cleaned_content)
+        return re.sub(r"[ \t]+", " ", cleaned_content)
 
-        return cleaned_content
 
     def _extract_title(self, content: str) -> str:
         """
@@ -209,17 +210,18 @@ class PDFExportTool(Tool):
 
         Returns:
             Extracted title
+
         """
         if not content:
             return "Document"
 
         # Look for markdown headers first
-        lines = content.split('\n')
+        lines = content.split("\n")
         for line in lines[:10]:  # Check first 10 lines
             line = line.strip()
-            if line.startswith('# '):
+            if line.startswith("# "):
                 return line[2:].strip()[:60]  # Remove # and limit length
-            elif line.startswith('## '):
+            if line.startswith("## "):
                 return line[3:].strip()[:60]  # Remove ## and limit length
 
         # Look for lines that could be titles (short, meaningful lines)
@@ -228,11 +230,11 @@ class PDFExportTool(Tool):
             if line and len(line) < 100 and len(line) > 5:
                 # Check if it looks like a title (no common body text indicators)
                 if not any(indicator in line.lower() for indicator in
-                          ['the', 'this', 'that', 'with', 'from', 'email', 'message']):
+                          ["the", "this", "that", "with", "from", "email", "message"]):
                     return line[:60]
 
         # Fallback: use first meaningful sentence
-        sentences = re.split(r'[.!?]+', content)
+        sentences = re.split(r"[.!?]+", content)
         for sentence in sentences[:3]:
             sentence = sentence.strip()
             if 10 < len(sentence) < 80:
@@ -249,10 +251,11 @@ class PDFExportTool(Tool):
 
         Returns:
             Sanitized filename
+
         """
         # Remove or replace invalid characters
-        filename = re.sub(r'[<>:"/\\|?*]', '', filename)
-        filename = re.sub(r'\s+', '_', filename)
+        filename = re.sub(r'[<>:"/\\|?*]', "", filename)
+        filename = re.sub(r"\s+", "_", filename)
         filename = filename[:MAX_FILENAME_LENGTH]  # Limit length using constant
         return filename if filename else "document"
 
@@ -274,6 +277,7 @@ class PDFExportTool(Tool):
 
         Returns:
             Complete markdown document
+
         """
         # Start with title
         markdown_parts = [f"# {title}\n"]
@@ -305,8 +309,8 @@ class PDFExportTool(Tool):
         markdown_parts.append('<a href="https://mxtoai.com" class="watermark-link">mxtoai.com</a>')
         markdown_parts.append('<span class="watermark-email"> • Email: </span>')
         markdown_parts.append('<a href="mailto:pdf@mxtoai.com" class="watermark-link">pdf@mxtoai.com</a>')
-        markdown_parts.append('</div>')
-        markdown_parts.append('</div>')
+        markdown_parts.append("</div>")
+        markdown_parts.append("</div>")
 
         return "\n".join(markdown_parts)
 
@@ -320,16 +324,14 @@ class PDFExportTool(Tool):
 
         Returns:
             Enhanced HTML suitable for PDF
+
         """
         # Extract the body content if it's a full HTML document
-        if '<body>' in html_content:
+        if "<body>" in html_content:
             # Extract content between body tags
             import re
-            body_match = re.search(r'<body[^>]*>(.*?)</body>', html_content, re.DOTALL)
-            if body_match:
-                body_content = body_match.group(1)
-            else:
-                body_content = html_content
+            body_match = re.search(r"<body[^>]*>(.*?)</body>", html_content, re.DOTALL)
+            body_content = body_match.group(1) if body_match else html_content
         else:
             body_content = html_content
 
@@ -353,11 +355,11 @@ class PDFExportTool(Tool):
         """Escape HTML special characters."""
         if not text:
             return ""
-        return (text.replace('&', '&amp;')
-                   .replace('<', '&lt;')
-                   .replace('>', '&gt;')
-                   .replace('"', '&quot;')
-                   .replace("'", '&#x27;'))
+        return (text.replace("&", "&amp;")
+                   .replace("<", "&lt;")
+                   .replace(">", "&gt;")
+                   .replace('"', "&quot;")
+                   .replace("'", "&#x27;"))
 
     def _get_pdf_styles(self) -> str:
         """
@@ -365,6 +367,7 @@ class PDFExportTool(Tool):
 
         Returns:
             CSS stylesheet string optimized for PDF
+
         """
         return """
         @page {
