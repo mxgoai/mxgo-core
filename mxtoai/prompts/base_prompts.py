@@ -73,3 +73,14 @@ RESEARCH GUIDELINES:
 - Escalate to brave_search or google_search only if better results are needed
 """,
 }
+
+# Citation guidelines for web research
+CITATION_GUIDELINES = """
+CITATION AND REFERENCE REQUIREMENTS:
+- When conducting web research, sources will be automatically tracked
+- Include specific facts and findings in your response naturally
+- The system will automatically add numbered citations [1], [2], etc. to your content
+- A 'References' section with all sources will be automatically appended
+- Focus on providing accurate, well-researched content - citation formatting is handled automatically
+- When mentioning specific information from sources, be clear about the source of that information
+"""

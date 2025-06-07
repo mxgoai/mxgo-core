@@ -19,6 +19,7 @@ from smolagents.default_tools import (
 from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
+    CITATION_GUIDELINES,
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
@@ -41,6 +42,19 @@ from mxtoai.schemas import (
 )
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
+
+# Import citation-aware tools and functions
+from mxtoai.scripts.citation_tools import (
+    CitationAwareDDGSearchTool,
+    CitationAwareBraveSearchTool,
+    CitationAwareGoogleSearchTool,
+    CitationAwareVisitTool,
+    reset_citation_counter,
+    format_text_with_citations,
+    get_citation_summary,
+    create_references_section,
+)
+
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
@@ -100,12 +114,15 @@ class EmailAgent:
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
         self.schedule_tool = ScheduleTool()
-        self.visit_webpage_tool = VisitWebpageTool()
+        
+        # Use citation-aware visit tool instead of regular one
+        self.visit_webpage_tool = CitationAwareVisitTool()
+        
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
 
-        # Initialize independent search tools
+        # Initialize independent search tools (including citation-aware ones)
         self.search_tools = self._initialize_independent_search_tools()
         self.research_tool = self._initialize_deep_research_tool(enable_deep_research)
 
@@ -180,28 +197,28 @@ class EmailAgent:
         """
         search_tools = []
 
-        # DDG Search - Always available (free)
-        ddg_tool = DDGSearchTool(max_results=10)
+        # DDG Search - Always available (free) - Citation-aware version
+        ddg_tool = CitationAwareDDGSearchTool(max_results=10)
         search_tools.append(ddg_tool)
-        logger.debug("Initialized DDG search tool (free, first choice)")
+        logger.debug("Initialized citation-aware DDG search tool (free, first choice)")
 
-        # Brave Search - Available if API key is configured
+        # Brave Search - Available if API key is configured - Citation-aware version
         if os.getenv("BRAVE_SEARCH_API_KEY"):
-            brave_tool = BraveSearchTool(max_results=5)
+            brave_tool = CitationAwareBraveSearchTool(max_results=5)
             search_tools.append(brave_tool)
-            logger.debug("Initialized Brave search tool (moderate cost, better quality)")
+            logger.debug("Initialized citation-aware Brave search tool (moderate cost, better quality)")
         else:
             logger.warning("BRAVE_SEARCH_API_KEY not found. Brave search tool not initialized.")
 
-        # Google Search - Available if API keys are configured
+        # Google Search - Available if API keys are configured (citation-aware version)
         if os.getenv("SERPAPI_API_KEY") or os.getenv("SERPER_API_KEY"):
-            google_tool = GoogleSearchTool()
+            google_tool = CitationAwareGoogleSearchTool()
             search_tools.append(google_tool)
-            logger.debug("Initialized Google search tool (premium cost, highest quality)")
+            logger.debug("Initialized citation-aware Google search tool (premium cost, highest quality)")
         else:
             logger.warning("No Google Search API keys found. Google search tool not initialized.")
 
-        logger.info(f"Initialized {len(search_tools)} independent search tools: {[tool.name for tool in search_tools]}")
+        logger.info(f"Initialized {len(search_tools)} independent search tools (including citation-aware versions): {[tool.name for tool in search_tools]}")
         return search_tools
 
     def _get_required_actions(self, mode: str) -> list[str]:
@@ -372,6 +389,7 @@ class EmailAgent:
             handle_specific_template,
             output_template,
             RESPONSE_GUIDELINES,
+            CITATION_GUIDELINES,
             MARKDOWN_STYLE_GUIDE,
             # LIST_FORMATTING_REQUIREMENTS,
         ]
@@ -574,6 +592,20 @@ class EmailAgent:
                         r"^[\s\n]*" + re.escape(marker) + r".*$", "", temp_content, flags=re.IGNORECASE | re.MULTILINE
                     ).strip()
 
+                # Format content with citations and references
+                citation_summary = get_citation_summary()
+                if citation_summary['total_sources'] > 0:
+                    logger.info(f"Adding {citation_summary['total_sources']} citations to email content")
+                    # Only add references if the section doesn't already exist
+                    if "## References" not in temp_content:
+                        temp_content = format_text_with_citations(temp_content, include_references=True)
+                    else:
+                        # If references are already present, just format the inline citations
+                        temp_content = format_text_with_citations(temp_content, include_references=False)
+                        logger.debug("References section already found in content. Skipping full citation formatting.")
+                else:
+                    logger.debug("No citations to add to email content")
+
                 email_text_content = self.report_formatter.format_report(
                     temp_content, format_type="text", include_signature=True
                 )
@@ -693,6 +725,10 @@ class EmailAgent:
 
         """
         try:
+            # Reset citations at the start of each email processing
+            reset_citation_counter()
+            logger.debug("Citation counter reset for new email processing")
+            
             self.routed_model.current_handle = email_instructions
             task = self._create_task(email_request, email_instructions)
 
@@ -702,6 +738,11 @@ class EmailAgent:
 
             agent_steps = list(self.agent.memory.steps)
             logger.info(f"Captured {len(agent_steps)} steps from agent memory.")
+
+            # Get citation summary for logging
+            citation_summary = get_citation_summary()
+            if citation_summary['total_sources'] > 0:
+                logger.info(f"Collected {citation_summary['total_sources']} sources during research")
 
             processed_result = self._process_agent_result(final_answer_obj, agent_steps, email_instructions.handle)
 
