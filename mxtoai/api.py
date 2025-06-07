@@ -467,6 +467,29 @@ async def process_email(
         Response: FastAPI Response object with JSON content
 
     """
+    # Skip processing for AWS SES system emails
+    if from_email.endswith("@amazonses.com") or ".amazonses.com" in from_email:
+        logger.info(f"Skipping processing for AWS SES system email: {from_email} (subject: {subject})")
+        logger.info(f"AWS SES email content - Text: {textContent}")
+        logger.info(f"AWS SES email content - HTML: {htmlContent}")
+        if rawHeaders:
+            try:
+                parsed_headers = json.loads(rawHeaders)
+                logger.info(f"AWS SES email headers: {json.dumps(parsed_headers, indent=2)}")
+            except json.JSONDecodeError:
+                logger.warning(f"Could not parse AWS SES email headers: {rawHeaders}")
+        return Response(
+            content=json.dumps(
+                {
+                    "message": "Skipped processing AWS SES system email",
+                    "email": from_email,
+                    "status": "skipped",
+                }
+            ),
+            status_code=status.HTTP_200_OK,
+            media_type="application/json",
+        )
+
     # Validate API key
     if response := await validate_api_key(api_key):
         return response
