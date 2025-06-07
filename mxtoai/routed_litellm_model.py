@@ -177,7 +177,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         completion_kwargs = self._prepare_completion_kwargs(
             messages=messages,
             stop_sequences=stop_sequences,
-            grammar=None if is_local_llm else grammar,
+            grammar=None if is_local_llm else grammar, # this seems to be removed in smolagents v1.17.0
             tools_to_call_from=None if is_local_llm else tools_to_call_from,
             model=self.model_id,
             api_base=self.api_base,

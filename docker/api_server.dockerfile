@@ -25,4 +25,4 @@ COPY mxtoai ./mxtoai
 COPY run_api.py .
 
 # Run the API via uvicorn
-CMD ["poetry", "run", "uvicorn", "mxtoai.api:app", "--host", "0.0.0.0", "--port", "9292", "--workers", "4"]
+CMD ["poetry", "run", "uvicorn", "mxtoai.api:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

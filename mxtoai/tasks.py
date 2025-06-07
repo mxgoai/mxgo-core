@@ -36,7 +36,17 @@ logger = get_logger(__name__)
 # Build RabbitMQ URL from environment variables (Broker)
 # Include heartbeat as a query parameter in the URL
 RABBITMQ_HEARTBEAT = os.getenv("RABBITMQ_HEARTBEAT", "5")
-RABBITMQ_URL = f"amqp://{os.getenv('RABBITMQ_USER', 'guest')}:{os.getenv('RABBITMQ_PASSWORD', 'guest')}@{os.getenv('RABBITMQ_HOST', 'localhost')}:{os.getenv('RABBITMQ_PORT', '5672')}{os.getenv('RABBITMQ_VHOST', '/')}?heartbeat={RABBITMQ_HEARTBEAT}"
+RABBITMQ_URL = os.getenv("RABBITMQ_URL")
+
+if not RABBITMQ_URL:
+    user = os.getenv("RABBITMQ_USER", "guest")
+    password = os.getenv("RABBITMQ_PASSWORD", "guest")
+    host = os.getenv("RABBITMQ_HOST", "localhost")
+    port = os.getenv("RABBITMQ_PORT", "5672")
+    vhost = os.getenv("RABBITMQ_VHOST", "/")
+    heartbeat = os.getenv("RABBITMQ_HEARTBEAT", "60")
+
+    RABBITMQ_URL = f"amqp://{user}:{password}@{host}:{port}{vhost}?heartbeat={heartbeat}"
 
 # Initialize RabbitMQ broker
 rabbitmq_broker = RabbitmqBroker(
