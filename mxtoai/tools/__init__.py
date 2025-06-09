@@ -4,13 +4,13 @@ from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.schedule_tool import ScheduleTool
 
 # Web search tools
-from mxtoai.tools.web_search import DDGSearchTool, BraveSearchTool, GoogleSearchTool
+from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 __all__ = [
     "AttachmentProcessingTool",
-    "DeepResearchTool",
-    "ScheduleTool",
-    "DDGSearchTool",
     "BraveSearchTool",
+    "DDGSearchTool",
+    "DeepResearchTool",
     "GoogleSearchTool",
+    "ScheduleTool",
 ]

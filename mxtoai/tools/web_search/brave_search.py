@@ -5,6 +5,7 @@ Brave search tool - Better quality results with moderate API cost.
 import logging
 import os
 from typing import Optional
+
 from smolagents import Tool
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,7 @@ class BraveSearchTool(Tool):
 
         Args:
             max_results: Maximum number of results to return
+
         """
         self.max_results = max_results
         self.api_key = os.getenv("BRAVE_SEARCH_API_KEY")
@@ -61,7 +63,8 @@ class BraveSearchTool(Tool):
     ) -> str:
         """Execute Brave search."""
         if not self.api_key:
-            raise ValueError("Brave Search API key not configured. Cannot perform search.")
+            msg = "Brave Search API key not configured. Cannot perform search."
+            raise ValueError(msg)
 
         try:
             log_params = {

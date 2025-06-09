@@ -5,6 +5,7 @@ Google search tool - Highest quality results with premium API cost.
 import logging
 import os
 from typing import Optional
+
 from smolagents import Tool
 from smolagents.default_tools import GoogleSearchTool as SmolagentsGoogleSearchTool
 
@@ -57,7 +58,8 @@ class GoogleSearchTool(Tool):
     def forward(self, query: str) -> str:
         """Execute Google search."""
         if not self.google_tool:
-            raise ValueError("Google Search API not configured. Cannot perform search.")
+            msg = "Google Search API not configured. Cannot perform search."
+            raise ValueError(msg)
 
         try:
             logger.info(f"Performing Google search for: {query}")

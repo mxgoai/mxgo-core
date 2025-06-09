@@ -3,6 +3,7 @@ DuckDuckGo search tool - Free and fast search option.
 """
 
 import logging
+
 from smolagents import Tool
 from smolagents.default_tools import WebSearchTool
 
@@ -32,6 +33,7 @@ class DDGSearchTool(Tool):
 
         Args:
             max_results: Maximum number of results to return
+
         """
         self.max_results = max_results
         self.ddg_tool = WebSearchTool(engine="duckduckgo", max_results=max_results)

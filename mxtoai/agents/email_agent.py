@@ -177,6 +177,7 @@ class EmailAgent:
 
         Returns:
             list[Tool]: List of available search tools.
+
         """
         search_tools = []
 
