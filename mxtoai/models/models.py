@@ -41,6 +41,7 @@ class Tasks(BaseMixin, table=True):
     task_id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     email_id: str = Field(index=True, nullable=False, description="Email ID associated with the task")
     cron_expression: Optional[str] = Field(default=None, description="Cron expression for scheduled tasks")
+    scheduler_job_id: Optional[str] = Field(default=None, nullable=True, description="APScheduler job ID for tracking")
     status: TaskStatus = Field(
         sa_column=Column(SQLAEnum(TaskStatus), nullable=False),
         default=TaskStatus.INITIALISED,

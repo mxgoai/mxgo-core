@@ -68,8 +68,8 @@ DEFAULT_EMAIL_HANDLES = [
         output_template=output_prompts.TRANSLATION_OUTPUT_GUIDELINES,
     ),
     ProcessingInstructions(
-        handle="schedule",
-        aliases=["schedule-action"],
+        handle="meeting",
+        aliases=["meet", "find-time", "calendar"],
         process_attachments=True,
         deep_research_mandatory=False,
         target_model="gpt-4",
@@ -87,7 +87,7 @@ DEFAULT_EMAIL_HANDLES = [
         output_template=output_prompts.PDF_EXPORT_OUTPUT_GUIDELINES,
     ),
     ProcessingInstructions(
-        handle="future",
+        handle="schedule",
         aliases=[
             "remind",
             "recurring",
@@ -102,5 +102,21 @@ DEFAULT_EMAIL_HANDLES = [
         target_model="gpt-4",
         task_template=template_prompts.FUTURE_TEMPLATE,
         output_template=output_prompts.FUTURE_OUTPUT_GUIDELINES,
+    ),
+    ProcessingInstructions(
+        handle="delete",
+        aliases=[
+            "cancel",
+            "cancel-task",
+            "delete-task",
+            "remove-task",
+            "unschedule",
+            "stop-task",
+        ],
+        process_attachments=False,
+        deep_research_mandatory=False,
+        target_model="gpt-4",
+        task_template=template_prompts.DELETE_TEMPLATE,
+        output_template=output_prompts.DELETE_OUTPUT_GUIDELINES,
     ),
 ]

@@ -1153,20 +1153,13 @@ Analyze email content to extract scheduling requirements for future or recurring
 ## STEP 3: SCHEDULED TASK CREATION
 **If all scheduling details are confirmed and a future or recurring task should be created:**
 
-**Tool Usage: scheduled_tasks_storage**
+**Tool Usage: scheduled_tasks**
 - **cron_expression**: Valid cron expression in UTC (e.g., "0 14 * * 1" for every Monday at 2 PM UTC)
-- **email_request**: Complete original email request data as a dictionary (all fields needed to reprocess the email in the future)
+- **email_request**: Use the "Raw Email Request Data (for tool use)" JSON object provided in the email context EXACTLY as-is. This JSON contains all required fields (from, to, subject, textContent, etc.). Do NOT construct a new dictionary - use the provided JSON data directly by parsing it.
 - **task_description**: Human-readable description of what the scheduled task will do (e.g., "Weekly reminder to review sales report")
 - **next_run_time**: (Optional) Next execution time in ISO 8601 format (e.g., "2024-08-19T14:00:00Z")
 
-**Example Tool Call:**
-```
-scheduled_tasks_storage(
-    cron_expression="0 14 * * 1",
-    email_request={...original email data...},
-    task_description="Weekly reminder to review sales report"
-)
-```
+**CRITICAL: The email context contains a "Raw Email Request Data (for tool use)" section with a JSON object. Use this JSON object EXACTLY as provided - do NOT modify, construct, or omit any fields. This ensures all required fields (from, to, subject) are included.**
 
 **Response (Successful Scheduling):**
 1. Confirmation message with:
@@ -1183,7 +1176,7 @@ scheduled_tasks_storage(
 - ALWAYS provide a clear confirmation with the next execution time and task ID
 - ALWAYS ensure the task ID from the tool's response is included in your final response
 - NEVER show the cron expression in the user-facing output
-- ALWAYS use the `scheduled_tasks_storage` tool for this purpose
+- ALWAYS use the `scheduled_tasks` tool for this purpose
 
 ## STEP 4: Response Format
 **Provide clear confirmation with:**
@@ -1193,7 +1186,7 @@ scheduled_tasks_storage(
 **Task Description**: [Clear description of what will be reminded/processed]
 **Schedule**: [Human-readable schedule description]
 **Next Occurrence**: [Next execution date/time in user's timezone]
-**Task ID**: [CRITICAL: Include the actual task UUID returned by the scheduled_tasks_storage tool]
+**Task ID**: [CRITICAL: Include the actual task UUID returned by the scheduled_tasks tool]
 
 ## Processing Details
 **Content to Process**: [Summary of email content that will be reprocessed]
@@ -1225,9 +1218,9 @@ scheduled_tasks_storage(
 
 **Step 3: Tool Usage**
 ```
-scheduled_tasks_storage(
+scheduled_tasks(
     cron_expression="0 14 * * 1",
-    email_request={...original email data...},
+    email_request=raw_email_request_json_from_context,  # Use the "Raw Email Request Data" JSON exactly as provided
     task_description="Weekly reminder to review sales report"
 )
 ```
@@ -1269,9 +1262,9 @@ scheduled_tasks_storage(
 
 **Step 3: Tool Usage**
 ```
-scheduled_tasks_storage(
+scheduled_tasks(
     cron_expression="0 9 [day] [month] *",
-    email_request={...original email data...},
+    email_request=raw_email_request_json_from_context,  # Use the "Raw Email Request Data" JSON exactly as provided
     task_description="One-time reprocessing of research request"
 )
 ```
@@ -1280,9 +1273,9 @@ scheduled_tasks_storage(
 - **ALWAYS generate valid cron expressions in UTC**
 - **ALWAYS store complete email request data for future processing**
 - **ALWAYS provide clear confirmation with next execution time**
-- **ALWAYS include the task ID returned by the scheduled_tasks_storage tool in your final response**
+- **ALWAYS include the task ID returned by the scheduled_tasks tool in your final response**
 - **NEVER show the cron expression in the user-facing output**
-- **ALWAYS use scheduled_tasks_storage to store the task**
+- **ALWAYS use scheduled_tasks to store the task**
 - **ALWAYS convert user timezone to UTC for cron expressions**
 - **ALWAYS validate cron expression syntax before storage**
 
@@ -1292,4 +1285,255 @@ scheduled_tasks_storage(
 3. **Complete data storage** - preserve all necessary context for future processing
 4. **User-friendly confirmation** - explain what was scheduled and when it will happen
 5. **Error handling** - validate timing requests and provide alternatives if invalid
+"""
+
+# Delete handler template
+DELETE_TEMPLATE = """
+Analyze email content to identify and delete scheduled tasks with user verification and safety checks.
+
+# Task Deletion Process
+
+## STEP 1: Task Identification & Extraction
+**Extract ALL relevant task identification information:**
+- **Task ID**: UUID format task identifiers (e.g., "12345678-1234-1234-1234-123456789012")
+- **Task Description**: Descriptive text that might help identify tasks
+- **User Context**: The user's email address is the "from:" field in the email context provided
+- **Intent Analysis**: Determine if this is a deletion request for scheduled tasks
+
+**Task ID Extraction Strategy:**
+- Look for UUID patterns in email content (36-character format with hyphens)
+- Check for "Task ID:", "Delete task:", or similar patterns
+- Extract task IDs from forwarded emails or previous confirmations
+- Handle multiple task IDs if present
+
+## STEP 2: User Verification & Authorization
+**Security Requirements:**
+- **User Email Verification**: Match deletion requester with task owner
+- **CRITICAL**: Only the task owner (user whose email is in the "from:" field) can delete their tasks
+- **Task Ownership Check**: Verify user has permission to delete specific tasks
+- **Clear Intent Confirmation**: Ensure user actually wants to delete tasks
+- **Safety Warnings**: Inform about consequences of deletion
+
+## STEP 3: TASK DELETION EXECUTION
+**If task ID is identified and verification is complete:**
+
+**Tool Usage: delete_scheduled_tasks**
+- **task_id**: Valid UUID of the task to delete (e.g., "12345678-1234-1234-1234-123456789012")
+- **user_email**: Email address of the user requesting deletion (from the "from:" field in email context)
+
+**Example Tool Call:**
+```
+delete_scheduled_tasks(
+    task_id="12345678-1234-1234-1234-123456789012",
+    user_email="user@example.com"
+)
+```
+
+**Response (Successful Deletion):**
+1. Confirmation message with:
+    - Task ID that was deleted
+    - Brief description of what was deleted
+    - Confirmation that both scheduler and database cleanup occurred
+2. Summary of task that was removed
+3. Security confirmation (only user's own tasks can be deleted)
+
+## STEP 4: Response Format
+**Provide clear confirmation with:**
+```
+## Task Deletion Confirmation
+
+**Status**: Successfully deleted
+**Task ID**: [UUID of deleted task]
+**Task Description**: [Brief description of what was scheduled]
+**Deleted By**: [User email for verification - taken from "from:" field]
+
+## What Was Removed
+**Scheduled Content**: [Summary of the task that was scheduled]
+**Schedule**: [What the timing/recurrence was]
+**Cleanup**: Both scheduler and database entries have been removed
+
+## Important Notes
+- This action cannot be undone
+- Only your own scheduled tasks can be deleted
+- The task will no longer execute at its scheduled time
+```
+
+# EXAMPLES
+
+## Example 1: Delete by Task ID
+**User Request**: "Delete scheduled task 12345678-1234-1234-1234-123456789012"
+
+**Step 1: Task Identification**
+- Task ID found: "12345678-1234-1234-1234-123456789012"
+- User email: user@example.com (from "from:" field in email headers)
+- Clear deletion intent
+
+**Step 2: Tool Usage**
+```
+delete_scheduled_tasks(
+    task_id="12345678-1234-1234-1234-123456789012",
+    user_email="user@example.com"
+)
+```
+
+**Sample Response:**
+```
+## Task Deletion Confirmation
+
+**Status**: Successfully deleted
+**Task ID**: 12345678-1234-1234-1234-123456789012
+**Task Description**: Weekly reminder to review sales report
+**Deleted By**: user@example.com
+
+## What Was Removed
+**Scheduled Content**: "Remind me every Monday at 9 AM to review the weekly sales report"
+**Schedule**: Every Monday at 9:00 AM EST
+**Cleanup**: Both scheduler and database entries have been removed
+
+## Important Notes
+- This action cannot be undone
+- Only your own scheduled tasks can be deleted
+- The task will no longer execute at its scheduled time
+```
+
+## Example 2: Task Not Found or Permission Denied
+**User Request**: "Cancel task 99999999-9999-9999-9999-999999999999"
+
+**Step 1: Task Identification**
+- Task ID found: "99999999-9999-9999-9999-999999999999"
+- User email: user@example.com (from "from:" field)
+
+**Step 2: Tool Usage & Error Response**
+```
+delete_scheduled_tasks(
+    task_id="99999999-9999-9999-9999-999999999999",
+    user_email="user@example.com"
+)
+```
+
+**Sample Error Response:**
+```
+## Task Deletion Failed
+
+**Status**: Task not found
+**Task ID**: 99999999-9999-9999-9999-999999999999
+**Requested By**: user@example.com
+
+## Issue
+The specified task could not be found or you don't have permission to delete it.
+
+## Possible Reasons
+- Task ID doesn't exist in the system
+- Task belongs to a different user
+- Task was already deleted previously
+- Task ID was copied incorrectly
+
+## What You Can Do
+- Verify the correct task ID from your scheduling confirmation email
+- Check that you're using the email address that originally created the task
+- Contact support if you believe this is an error
+```
+
+## Example 3: Complex Multi-Part Claim
+**User Request**: "Delete both task 11111111-1111-1111-1111-111111111111 and 22222222-2222-2222-2222-222222222222"
+
+**Step 1: Task Identification**
+- Multiple Task IDs found: "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+- User email: user@example.com (from "from:" field)
+
+**Step 2: Multiple Tool Usage**
+```
+delete_scheduled_tasks(
+    task_id="11111111-1111-1111-1111-111111111111",
+    user_email="user@example.com"
+)
+
+delete_scheduled_tasks(
+    task_id="22222222-2222-2222-2222-222222222222",
+    user_email="user@example.com"
+)
+```
+
+**Sample Response:**
+```
+## Multiple Task Deletion Results
+
+### Task 1: 11111111-1111-1111-1111-111111111111
+**Status**: Successfully deleted
+**Task Description**: Daily standup reminder
+**Schedule**: Every weekday at 9:00 AM
+
+### Task 2: 22222222-2222-2222-2222-222222222222
+**Status**: Successfully deleted
+**Task Description**: Weekly report reminder
+**Schedule**: Every Friday at 3:00 PM
+
+## Summary
+- 2 tasks successfully deleted
+- Both scheduler and database entries removed
+- All cleanup completed successfully
+
+## Important Notes
+- These actions cannot be undone
+- Only your own scheduled tasks can be deleted
+- The tasks will no longer execute at their scheduled times
+```
+
+## STEP 5: FALLBACK STRATEGIES
+
+### Missing Task ID
+```
+I need a task ID to delete a scheduled task.
+
+**Current Understanding:**
+- Intent: Delete scheduled task
+- Missing: Specific task ID (UUID format)
+- User: [user email from "from:" field]
+
+**To proceed, please provide:**
+- The task ID (36-character UUID like: 12345678-1234-1234-1234-123456789012)
+- This can usually be found in your original scheduling confirmation email
+
+**Alternative:**
+If you don't have the task ID, you can:
+1. Check your email for the original scheduling confirmation
+2. Forward that confirmation email to delete@mxtoai.com for deletion
+3. Provide a description of the task and I can help identify it (less reliable)
+```
+
+### Ambiguous Deletion Request
+```
+I found multiple potential tasks or need clarification:
+
+**Found in your message:**
+- [Task ID 1]: [Brief description if available]
+- [Task ID 2]: [Brief description if available]
+
+**Please clarify:**
+- Which specific task(s) should be deleted?
+- Should I delete all found tasks or just specific ones?
+- Confirm this is a deletion request (this action cannot be undone)
+
+Once confirmed, I'll proceed with the deletion using your verified email address from the "from:" field.
+```
+
+**CRITICAL REQUIREMENTS:**
+- **ALWAYS verify user ownership** before deleting any tasks
+- **ALWAYS require explicit task ID** for deletion (UUID format)
+- **ALWAYS provide clear confirmation** of what was deleted
+- **ALWAYS include security confirmations** in responses
+- **NEVER delete tasks without proper verification**
+- **ALWAYS use the delete_scheduled_tasks tool** for actual deletion
+- **ALWAYS handle permission errors gracefully**
+- **ALWAYS warn about irreversible nature** of deletion
+- **ALWAYS use the user's email from the "from:" field** for ownership verification
+
+**Content Guidelines:**
+1. **Security first** - verify ownership before any deletion
+2. **Clear identification** - require specific task IDs, not descriptions
+3. **Comprehensive confirmation** - explain exactly what was removed
+4. **Error handling** - provide helpful guidance when deletion fails
+5. **User safety** - warn about permanent nature of deletion
+6. **Professional tone** - handle deletion requests with appropriate gravity
+7. **User context awareness** - remember the user is identified by the "from:" email field
 """

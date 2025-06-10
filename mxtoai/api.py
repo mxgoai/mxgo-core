@@ -444,6 +444,7 @@ async def process_email(
     date: Annotated[Optional[str], Form()] = None,
     emailId: Annotated[Optional[str], Form()] = None,
     rawHeaders: Annotated[Optional[str], Form()] = None,
+    scheduled_task_id: Annotated[Optional[str], Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: str = Depends(api_auth_scheme),
 ):
@@ -460,6 +461,7 @@ async def process_email(
         date (str): Date when the email was sent
         emailId (str): Unique identifier for the email in the system
         rawHeaders (str): Raw headers of the email in JSON format
+        scheduled_task_id (str, optional): ID of the scheduled task if this is a scheduled email
         files (list[UploadFile] | None): List of uploaded files as attachments
         api_key (str): API key for authentication
 
@@ -467,6 +469,12 @@ async def process_email(
         Response: FastAPI Response object with JSON content
 
     """
+    # Determine if this is a scheduled task
+    is_scheduled_task = scheduled_task_id is not None
+
+    if is_scheduled_task:
+        logger.info(f"Processing scheduled task: {scheduled_task_id}")
+
     # Skip processing for AWS SES system emails
     if from_email.endswith("@amazonses.com") or ".amazonses.com" in from_email:
         logger.info(f"Skipping processing for AWS SES system email: {from_email} (subject: {subject})")
@@ -620,8 +628,14 @@ async def process_email(
             )
 
         # Enqueue the task for async processing
-        process_email_task.send(email_request.model_dump(), email_attachments_dir, processed_attachment_info)
-        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments")
+        process_email_task.send(
+            email_request.model_dump(),
+            email_attachments_dir,
+            processed_attachment_info,
+            scheduled_task_id
+        )
+        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
+                   + (f" (scheduled task: {scheduled_task_id})" if scheduled_task_id else ""))
 
         # Return immediate success response
         return Response(

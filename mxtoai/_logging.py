@@ -116,7 +116,7 @@ def setup_stdlib_logging_intercept():
 
     # Also configure specific loggers that might be problematic
     third_party_loggers = [
-        "litellm",
+        # "litellm", #TODO: change to warning and above
         "httpx",
         "dramatiq",
         # "pika",  # RabbitMQ client

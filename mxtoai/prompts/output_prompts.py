@@ -113,6 +113,7 @@ Output Format Guidelines:
 4. Explain what content will be reprocessed
 5. End with clear next steps and expectations
 6. DO NOT include the cron expression in the output
+7. **NEVER expose internal error details** - if scheduling fails, simply state "An error occurred" and suggest trying again
 
 Sample format:
 ```
@@ -133,5 +134,74 @@ Sample format:
 - At the scheduled time, the original email content will be reprocessed
 - You'll receive the results via email at the specified time
 - The task will [continue recurring/end after one execution] as configured
+```
+
+## Error Handling Guidelines:
+**For internal errors:**
+- DO NOT expose technical details, stack traces, or internal variable names
+- Simply state: "An error occurred while creating the scheduled task"
+- Suggest: "Please try again later or contact support if the issue persists"
+- Offer alternatives if appropriate (different timing, simpler schedule, etc.)
+
+**Sample error response:**
+```
+## Scheduling Error
+
+An error occurred while creating the scheduled task. Please try again later or contact support if the issue persists.
+
+**Alternative Options:**
+- Try a different timing (e.g., hourly instead of every 2 minutes)
+- Contact support for assistance with complex scheduling requirements
+- Use simpler time expressions
+
+We apologize for the inconvenience.
+```
+"""
+
+# Delete handler output guidelines
+DELETE_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Start with clear status confirmation (success/failure)
+2. Always include the task ID that was processed
+3. Provide task description/context for verification
+4. Include security confirmations (user verification)
+5. Explain cleanup actions taken (scheduler + database)
+6. Add important warnings about irreversible nature
+7. For errors, provide helpful guidance and next steps
+8. Use consistent status symbols and formatting
+
+Sample success format:
+```
+## Task Deletion Confirmation
+
+**Status**: Successfully deleted
+**Task ID**: [UUID of deleted task]
+**Task Description**: [Brief description of what was scheduled]
+**Deleted By**: [User email for verification]
+
+## What Was Removed
+**Scheduled Content**: [Summary of the task that was scheduled]
+**Schedule**: [What the timing/recurrence was]
+**Cleanup**: Both scheduler and database entries have been removed
+
+## Important Notes
+- This action cannot be undone
+- Only your own scheduled tasks can be deleted
+- The task will no longer execute at its scheduled time
+```
+
+Sample error format:
+```
+## Task Deletion Failed
+
+**Status**: [Specific error reason]
+**Task ID**: [UUID that was requested]
+**Requested By**: [User email]
+
+## Issue
+[Clear explanation of what went wrong]
+
+## What You Can Do
+[Specific steps user can take to resolve]
 ```
 """

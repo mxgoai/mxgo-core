@@ -59,6 +59,7 @@ class EmailRequest(BaseModel):
     attachments: Optional[list[EmailAttachment]] = []
     emailId: Optional[str] = None  # Unique ID for this email
     rawHeaders: Optional[dict[str, Any]] = None  # Raw email headers
+    scheduled_task_id: Optional[str] = None  # ID of scheduled task if this is a scheduled execution
 
 
 class ResearchResult(BaseModel):

@@ -54,7 +54,9 @@ dependencies = [
     "asyncpg (>=0.30.0,<0.31.0)",
     "alembic-postgresql-enum (>=1.7.0,<2.0.0)",
     "pydantic-settings (>=2.0.0,<3.0.0)",
-    "cron-validator (>=1.0.8,<2.0.0)",
+    "croniter (>=6.0.0,<7.0.0)",
+    "apscheduler[sqlalchemy] (>=3.10.4,<4.0.0)",
+    "httpx (>=0.27.0,<1.0.0)",
 ]
 
 [tool.ruff]
