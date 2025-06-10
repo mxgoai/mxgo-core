@@ -300,6 +300,7 @@ class EmailAgent:
 
         # Convert email request to dictionary for AI agent use
         import json
+
         email_request_dict = self._email_request_to_dict(email_request)
         email_request_json = json.dumps(email_request_dict, indent=2)
 
@@ -353,7 +354,9 @@ This is a scheduled task execution, but task details could not be retrieved (Tas
 
                 # Parse the original email request
                 try:
-                    original_request = json.loads(task.email_request) if isinstance(task.email_request, str) else task.email_request
+                    original_request = (
+                        json.loads(task.email_request) if isinstance(task.email_request, str) else task.email_request
+                    )
                 except (json.JSONDecodeError, TypeError):
                     original_request = {}
 
@@ -364,10 +367,10 @@ This is a scheduled task execution, but task details could not be retrieved (Tas
 
 📧 **Original Request Details**:
 - Task ID: {scheduled_task_id}
-- Created: {task.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') if task.created_at else 'Unknown'}
-- Cron Schedule: {task.cron_expression or 'One-time task'}
-- Original Subject: {original_request.get('subject', 'Unknown')}
-- Original From: {original_request.get('from_email', original_request.get('from', 'Unknown'))}
+- Created: {task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if task.created_at else "Unknown"}
+- Cron Schedule: {task.cron_expression or "One-time task"}
+- Original Subject: {original_request.get("subject", "Unknown")}
+- Original From: {original_request.get("from_email", original_request.get("from", "Unknown"))}
 - Task Status: {task.status}
 
 🚀 **Your Task**: Execute the intended action based on the original email request below. Focus on the user's original intent rather than scheduling functionality.
@@ -383,8 +386,6 @@ This is a scheduled task execution, but task details could not be retrieved (Tas
             logger.error(f"Error creating scheduled task context for {scheduled_task_id}: {e}")
             return f"""⏰ **SCHEDULED TASK EXECUTION**
 This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on executing the intended action rather than creating new schedules."""
-
-
 
     def _create_attachment_task(self, attachment_details: list[str]) -> str:
         """

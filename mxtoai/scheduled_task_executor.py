@@ -200,10 +200,20 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
         # Make HTTP request
         url = f"{API_BASE_URL}/process-email"
 
+        # Get API key from environment
+        api_key = os.environ.get("X_API_KEY")
+        if not api_key:
+            logger.error(f"X_API_KEY environment variable not set - cannot authenticate request for task {task_id}")
+            return False
+
+        headers = {
+            "x-api-key": api_key
+        }
+
         with httpx.Client(timeout=HTTP_TIMEOUT) as client:
             logger.info(f"Making HTTP request to {url} for task {task_id}")
 
-            response = client.post(url, data=form_data)
+            response = client.post(url, data=form_data, headers=headers)
 
             if response.status_code == 200:
                 logger.info(f"HTTP request successful for task {task_id}")
