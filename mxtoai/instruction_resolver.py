@@ -1,7 +1,6 @@
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
-
-from .models import ProcessingInstructions
+from mxtoai.schemas import ProcessingInstructions
 
 logger = get_logger(__name__)
 

@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Union
+from typing import Any, Union
 
 import dramatiq
 from dotenv import load_dotenv
@@ -22,11 +22,9 @@ from mxtoai.schemas import (
     EmailRequest,
     EmailSentStatus,
     ProcessingError,
+    ProcessingInstructions,
     ProcessingMetadata,
 )
-
-if TYPE_CHECKING:
-    from mxtoai.models import ProcessingInstructions
 
 # Load environment variables
 load_dotenv()

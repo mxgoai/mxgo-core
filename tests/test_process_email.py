@@ -8,13 +8,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
-from mxtoai.models import ProcessingInstructions
 from mxtoai.schemas import (
     AttachmentsProcessingResult,
     DetailedEmailProcessingResult,
     EmailContentDetails,
     EmailSentStatus,
     ProcessingError,
+    ProcessingInstructions,
     ProcessingMetadata,
 )
 from mxtoai.tasks import process_email_task
@@ -647,6 +647,58 @@ def test_pdf_export_cleanup():
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
 
+def test_future_handle_full_integration(prepare_email_request_data):
+    """Test the full future handle integration with a comprehensive email."""
+    import shutil
+    import tempfile
+    from unittest.mock import MagicMock, patch
+
+    from mxtoai.tasks import process_email_task
+
+    # Create comprehensive test email content
+    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
+        to_email="future@mxtoai.com",
+        subject="Schedule a future task",
+        text_content="Please process this email again next week.",
+    )
+
+    # Create temporary directory for attachments
+    temp_dir = tempfile.mkdtemp()
+
+    try:
+        with (
+            patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        ):
+            mock_sender_instance = MockEmailSender.return_value
+
+            async def mock_async_send_reply(*args, **kwargs):
+                return {"MessageId": "test-future-message-id", "status": "sent"}
+
+            mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
+
+            # Run the task
+            result = process_email_task.fn(
+                email_data=email_data,
+                email_attachments_dir=temp_dir,
+                attachment_info=[]
+            )
+
+            # Verify successful processing
+            assert isinstance(result, DetailedEmailProcessingResult)
+            assert result.metadata.email_sent.status == "sent"
+            assert len(result.metadata.errors) == 0, f"Processing errors: {result.metadata.errors}"
+
+            # Verify email response content
+            assert result.email_content is not None
+            assert result.email_content.text is not None
+            assert "Successfully stored scheduled task" in result.email_content.text
+    finally:
+        # Clean up temporary directory
+        shutil.rmtree(temp_dir)
+        if email_attachments_dir_str and os.path.exists(email_attachments_dir_str):
+            shutil.rmtree(email_attachments_dir_str)
+
+
 if __name__ == "__main__":
     # Run only PDF tests if executed directly
     pytest.main([__file__ + "::test_pdf_export_tool_direct", "-v"])
@@ -655,3 +707,4 @@ if __name__ == "__main__":
     pytest.main([__file__ + "::test_pdf_handle_full_integration", "-v"])
     pytest.main([__file__ + "::test_pdf_export_error_handling", "-v"])
     pytest.main([__file__ + "::test_pdf_export_cleanup", "-v"])
+    pytest.main([__file__ + "::test_future_handle_full_integration", "-v"])

@@ -1170,7 +1170,7 @@ scheduled_tasks_storage(
 
 **Response (Successful Scheduling):**
 1. Confirmation message with:
-    - Task ID (CRITICALLY IMPORTANT - MUST be included in the final response)
+    - Task ID (MUST be included in the final response)
     - Human-readable schedule description
     - Next execution time (in user's timezone and UTC)
     - DO NOT include the cron expression in the user-facing output

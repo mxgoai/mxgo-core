@@ -430,6 +430,7 @@ class EmailAgent:
                         "attachment_processor",
                         "deep_research",
                         "pdf_export",
+                        "scheduled_tasks_storage",
                     ]
                     if isinstance(tool_output, str) and needs_parsing:
                         try:
@@ -516,6 +517,14 @@ class EmailAgent:
                                 ProcessingError(message="PDF Export Error", details=f"{error_msg}. {details}")
                             )
                             logger.error(f"PDF export failed: {error_msg}")
+                            
+                    elif tool_name == "scheduled_tasks_storage" and isinstance(tool_output, dict):
+                        if tool_output.get("status") == "success" and tool_output.get("task_id"):
+                            logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")
+                        else:
+                            error_msg = tool_output.get("message", "Scheduled task creation failed")
+                            errors_list.append(ProcessingError(message="Scheduled Task Error", details=error_msg))
+                            logger.error(f"Scheduled task creation failed: {error_msg}")
 
                     else:
                         logger.debug(

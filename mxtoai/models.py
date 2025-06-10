@@ -1,39 +1,78 @@
+import uuid
+from datetime import datetime, timezone
+from enum import Enum
 from typing import Any, Optional
 
-from pydantic import BaseModel
+from sqlalchemy import JSON, Column, DateTime
+from sqlalchemy import Enum as SQLAEnum
+from sqlmodel import Field, Relationship, SQLModel
 
 
-class ProcessingInstructions(BaseModel):
-    handle: str
-    aliases: list[str]
-    process_attachments: bool
-    deep_research_mandatory: bool
-    rejection_message: Optional[str] = (
-        "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+class TaskStatus(str, Enum):
+    INITIALISED = "INITIALISED"
+    ACTIVE = "ACTIVE"
+    EXECUTING = "EXECUTING"
+    FINISHED = "FINISHED"
+    DELETED = "DELETED"
+
+
+class TaskRunStatus(str, Enum):
+    INITIALISED = "INITIALISED"
+    IN_PROGRESS = "IN_PROGRESS"
+    COMPLETED = "COMPLETED"
+    ERRORED = "ERRORED"
+
+
+class BaseMixin(SQLModel):
+    created_at: Optional[datetime] = Field(
+        sa_type=DateTime(timezone=True),
+        default_factory=lambda: datetime.now(timezone.utc),
     )
-    task_template: Optional[str] = None
-    output_template: Optional[str] = None
-    task_specific_instructions: Optional[str] = None
-    requires_language_detection: bool = False
-    requires_schedule_extraction: bool = False
-    target_model: Optional[str] = "gpt-4"
-    output_instructions: Optional[str] = None
+    updated_at: Optional[datetime] = Field(
+        sa_type=DateTime(timezone=True),
+        nullable=False,
+        default_factory=lambda: datetime.now(timezone.utc),
+    )
 
 
-class LiteLLMParams(BaseModel):
-    model: str
-    base_url: str
-    api_key: str
-    api_version: str
-    weight: int
+class Tasks(BaseMixin, table=True):
+    __tablename__ = "tasks"
+
+    task_id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    email_id: str = Field(
+        index=True, nullable=False, description="Email ID associated with the task"
+    )
+    cron_expression: Optional[str] = Field(
+        default=None, description="Cron expression for scheduled tasks"
+    )
+    status: TaskStatus = Field(
+        sa_column=Column(SQLAEnum(TaskStatus), nullable=False),
+        default=TaskStatus.INITIALISED,
+        description="Current status of the task",
+    )
+
+    email_request: dict = Field(
+        sa_column=Column(JSON),
+        default_factory=dict)
+
+    runs: list["TaskRun"] = Relationship(
+        back_populates="task"
+    )
 
 
-class ModelConfig(BaseModel):
-    model_name: str
-    litellm_params: LiteLLMParams
-
-
-class RouterConfig(BaseModel):
-    routing_strategy: str
-    fallbacks: list[dict[str, list[str]]]
-    default_litellm_params: dict[str, Any]
+class TaskRun(BaseMixin, table=True):
+    __tablename__ = "task_runs"
+    run_id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    task_id: uuid.UUID = Field(
+        foreign_key="tasks.task_id",
+        nullable=False,
+        description="ID of the task this run belongs to",
+    )
+    status: TaskRunStatus = Field(
+        sa_column=Column(SQLAEnum(TaskRunStatus), nullable=False),
+        default=TaskRunStatus.INITIALISED,
+        description="Current status of the task run",
+    )
+    task: Optional[Tasks] = Relationship(
+        back_populates="runs"
+    )
