@@ -1,4 +1,5 @@
 import ast
+import json
 import os
 import re
 from datetime import datetime
@@ -15,13 +16,19 @@ from smolagents.default_tools import (
     VisitWebpageTool,
     WikipediaSearchTool,
 )
+from sqlmodel import select
 
 from mxtoai._logging import get_logger, get_smolagents_console
+
+# Database imports for scheduled task context
+from mxtoai.db import init_db_connection
+from mxtoai.models.models import Tasks
 from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
 )
+from mxtoai.prompts.output_prompts import SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
     AgentResearchMetadata,
@@ -270,19 +277,7 @@ class EmailAgent:
             dict: EmailRequest data as dictionary
 
         """
-        return {
-            "from": email_request.from_email,
-            "to": email_request.to,
-            "subject": email_request.subject,
-            "textContent": email_request.textContent,
-            "htmlContent": email_request.htmlContent,
-            "date": email_request.date,
-            "messageId": email_request.messageId,
-            "recipients": email_request.recipients,
-            "cc": email_request.cc,
-            "bcc": email_request.bcc,
-            "scheduled_task_id": email_request.scheduled_task_id,
-        }
+        return email_request.model_dump()
 
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
         """
@@ -345,13 +340,6 @@ Raw Email Request Data (for tool use):
 
         """
         try:
-            import json
-
-            from sqlmodel import select
-
-            from mxtoai.db import init_db_connection
-            from mxtoai.models.models import Tasks
-
             db_connection = init_db_connection()
 
             with db_connection.get_session() as session:
@@ -382,74 +370,21 @@ This is a scheduled task execution, but task details could not be retrieved (Tas
 - Original From: {original_request.get('from_email', original_request.get('from', 'Unknown'))}
 - Task Status: {task.status}
 
-🚀 **Your Task**: Execute the intended action based on the original email request below. Focus on the user's original intent rather than scheduling functionality."""
+🚀 **Your Task**: Execute the intended action based on the original email request below. Focus on the user's original intent rather than scheduling functionality.
+
+⚠️ **IMPORTANT OUTPUT GUIDELINES**:
+- Do NOT include any scheduling confirmation messages
+- Do NOT mention task IDs, cron expressions, or next execution times
+- Do NOT say "task scheduled successfully" or similar confirmation language
+- Focus ONLY on the execution results (research, analysis, data, recommendations)
+- Your response should look like a natural completion of the user's original request"""
 
         except Exception as e:
             logger.error(f"Error creating scheduled task context for {scheduled_task_id}: {e}")
             return f"""⏰ **SCHEDULED TASK EXECUTION**
 This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on executing the intended action rather than creating new schedules."""
 
-    def _filter_scheduling_messages(self, content: str) -> str:
-        """
-        Filter out scheduling confirmation messages from the agent's output when processing scheduled tasks.
 
-        Args:
-            content: The original agent output content
-
-        Returns:
-            str: Filtered content with scheduling messages removed
-
-        """
-        # Patterns to remove (scheduling confirmation messages)
-        scheduling_patterns = [
-            r"Task.*scheduled successfully.*",
-            r"Task.*has been scheduled.*",
-            r"I have scheduled.*",
-            r"The task has been scheduled.*",
-            r"Your.*task.*scheduled.*",
-            r"Scheduled task.*created.*",
-            r"Task ID:.*",
-            r"Next execution:.*",
-            r"Cron expression:.*",
-            r"Scheduler job ID:.*",
-            r"You will receive.*confirmation.*email.*",
-            r"A confirmation email.*sent.*",
-            r".*will be executed at.*scheduled time.*",
-            r".*task.*will run.*according to.*schedule.*",
-            r"I've successfully created.*scheduled task.*",
-            r"The scheduling.*has been.*completed.*",
-        ]
-
-        filtered_content = content
-
-        # Remove scheduling confirmation patterns
-        for pattern in scheduling_patterns:
-            filtered_content = re.sub(pattern, "", filtered_content, flags=re.IGNORECASE | re.MULTILINE)
-
-        # Remove empty lines and excessive whitespace
-        lines = [line.strip() for line in filtered_content.split("\n")]
-        lines = [line for line in lines if line]  # Remove empty lines
-
-        # Join back and clean up
-        filtered_content = "\n".join(lines)
-
-        # Remove any remaining scheduling-related sentences
-        sentences = filtered_content.split(".")
-        filtered_sentences = []
-
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if sentence and not any(keyword in sentence.lower() for keyword in [
-                "scheduled successfully", "task id", "next execution", "cron expression",
-                "confirmation email", "scheduler", "will be executed", "task will run"
-            ]):
-                filtered_sentences.append(sentence)
-
-        result = ". ".join(filtered_sentences)
-        if result and not result.endswith("."):
-            result += "."
-
-        return result.strip()
 
     def _create_attachment_task(self, attachment_details: list[str]) -> str:
         """
@@ -483,13 +418,21 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             else []
         )
 
+        # Check if this is a scheduled task execution
+        is_scheduled_execution = email_request.scheduled_task_id is not None
+
+        # Use specific output guidelines for scheduled executions
+        output_template = email_instructions.output_template
+        if is_scheduled_execution:
+            output_template = SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES
+
         return self._create_task_template(
             handle=email_instructions.handle,
             email_context=self._create_email_context(email_request, attachments),
             handle_specific_template=email_instructions.task_template,
             attachment_task=self._create_attachment_task(attachments),
             deep_research_mandatory=email_instructions.deep_research_mandatory,
-            output_template=email_instructions.output_template,
+            output_template=output_template,
         )
 
     def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]:
@@ -547,7 +490,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
         return "\n\n".join(filter(None, sections))
 
     def _process_agent_result(
-        self, final_answer_obj: Any, agent_steps: list, current_email_handle: str, email_request: Optional[EmailRequest] = None
+        self, final_answer_obj: Any, agent_steps: list, current_email_handle: str
     ) -> DetailedEmailProcessingResult:
         processed_at_time = datetime.now().isoformat()
 
@@ -737,10 +680,6 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             # Determine email body content
             email_body_content_source = research_output_findings if research_output_findings else final_answer_from_llm
 
-            # Filter out scheduling confirmation messages if this is a scheduled task execution
-            if email_body_content_source and email_request and email_request.scheduled_task_id:
-                email_body_content_source = self._filter_scheduling_messages(email_body_content_source)
-
             if email_body_content_source:
                 signature_markers = [
                     "Best regards,\nMXtoAI Assistant",
@@ -885,7 +824,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             agent_steps = list(self.agent.memory.steps)
             logger.info(f"Captured {len(agent_steps)} steps from agent memory.")
 
-            processed_result = self._process_agent_result(final_answer_obj, agent_steps, email_instructions.handle, email_request)
+            processed_result = self._process_agent_result(final_answer_obj, agent_steps, email_instructions.handle)
 
             if not processed_result.email_content or not processed_result.email_content.text:
                 msg = "No reply text was generated by _process_agent_result"
