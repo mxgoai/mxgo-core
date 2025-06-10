@@ -18,7 +18,7 @@ from smolagents.default_tools import (
 )
 
 from mxtoai._logging import get_logger
-from mxtoai.mcp_support import load_mcp_tools_from_config
+from mxtoai.mcp_support import load_mcp_tools_from_stdio_params
 from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
     LIST_FORMATTING_REQUIREMENTS,
@@ -662,6 +662,7 @@ class EmailAgent:
 
             # Get MCP server configurations
             mcp_servers_config = self._get_mcp_servers_config()
+            print(f"MCP servers config: {mcp_servers_config}")
             
             all_tools = list(self.base_tools)  # Start with base tools
             agent_steps = []
@@ -677,7 +678,7 @@ class EmailAgent:
                 try:
                     logger.info(f"Loading MCP tools from {len(mcp_servers_config)} configured servers")
                     
-                    with load_mcp_tools_from_config(mcp_servers_config) as mcp_tools:
+                    with load_mcp_tools_from_stdio_params(mcp_servers_config) as mcp_tools:
                         all_tools.extend(mcp_tools)
                         mcp_tools_count = len(mcp_tools)
                         

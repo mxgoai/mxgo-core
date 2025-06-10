@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from typing import Any, Dict, List, Optional
-
+import os
 # Import from the official MCP library using specific paths to avoid local package conflict
 import mcp.types as mcp_types
 from mcp import StdioServerParameters
@@ -225,6 +225,14 @@ class StdioMCPClient(BaseMCPClient):
     async def _create_session(self) -> ClientSession:
         """Create a stdio-based MCP session using proper async context managers."""
         try:
+            # Debug logging for environment variables
+            github_token = self.server_params.env.get('GITHUB_PERSONAL_ACCESS_TOKEN', 'NOT_FOUND')
+            if github_token != 'NOT_FOUND':
+                logger.info(f"GitHub token found in environment (starts with: {github_token[:20]}...)")
+            else:
+                logger.warning(f"GITHUB_PERSONAL_ACCESS_TOKEN not found in MCP server environment!")
+                logger.debug(f"Available environment keys: {list(self.server_params.env.keys())[:10]}...")
+            
             logger.info(f"Creating stdio client for {self.server_name} with command: {self.server_params.command} {' '.join(self.server_params.args)}")
             
             # Create and enter the stdio context manager
@@ -350,7 +358,11 @@ def create_mcp_client(server_name: str, server_config: Dict[str, Any]):
             # Create StdioServerParameters
             command = server_config.get("command")
             args = server_config.get("args", [])
-            env = server_config.get("env", {})
+            
+            # Start with current environment and merge in custom env vars
+            env = os.environ.copy()
+            custom_env = server_config.get("env", {})
+            env.update(custom_env)
             
             if not command:
                 raise ValueError(f"Stdio server {server_name} missing 'command'")
@@ -361,14 +373,16 @@ def create_mcp_client(server_name: str, server_config: Dict[str, Any]):
                 env=env
             )
             client = StdioMCPClient(server_name, server_params)
-            
-        elif server_type == "sse":
-            url = server_config.get("url")
-            if not url:
-                raise ValueError(f"SSE server {server_name} missing 'url'")
-            
-            extra_params = server_config.get("extra_params", {})
-            client = SSEMCPClient(server_name, url, **extra_params)
+            """
+            elif server_type == "sse":
+                url = server_config.get("url")
+                if not url:
+                    raise ValueError(f"SSE server {server_name} missing 'url'")
+                
+                extra_params = server_config.get("extra_params", {})
+                client = SSEMCPClient(server_name, url, **extra_params)
+            """   
+
             
         else:
             raise ValueError(f"Unknown server type: {server_type}")

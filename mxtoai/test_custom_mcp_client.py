@@ -39,6 +39,7 @@ def test_custom_mcp_github_client():
         logger.error("One or more Azure OpenAI environment variables are missing.")
         logger.error("Please ensure AZURE_OPENAI_MODEL, AZURE_OPENAI_ENDPOINT, and AZURE_OPENAI_API_KEY are set.")
         return
+    
 
     logger.info(f"Using Azure OpenAI Model: {azure_openai_model} at endpoint: {azure_openai_endpoint}")
 
@@ -101,6 +102,100 @@ def test_custom_mcp_github_client():
         logger.error(f"An error occurred: {e}", exc_info=True)
 
 
+def test_sequential_thinking_mcp_client():
+    """
+    Test our custom MCP client with Sequential Thinking MCP server.
+    This demonstrates the sequential thinking tool for complex problem-solving.
+    """
+    # Load environment variables
+    load_dotenv()
+
+    # Azure OpenAI environment variables
+    azure_openai_model = os.getenv("AZURE_OPENAI_MODEL", "o3-mini-deep-research")
+    azure_openai_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT")
+    azure_openai_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+    openai_api_version = os.getenv("OPENAI_API_VERSION", "2024-12-01-preview")
+
+    if not all([azure_openai_model, azure_openai_endpoint, azure_openai_api_key]):
+        logger.error("One or more Azure OpenAI environment variables are missing.")
+        logger.error("Please ensure AZURE_OPENAI_MODEL, AZURE_OPENAI_ENDPOINT, and AZURE_OPENAI_API_KEY are set.")
+        return
+
+    logger.info(f"Using Azure OpenAI Model: {azure_openai_model} at endpoint: {azure_openai_endpoint}")
+
+    # Configure MCP StdioServerParameters for the Sequential Thinking server
+    mcp_server_params = StdioServerParameters(
+        command="npx",
+        args=[
+            "-y",
+            "@modelcontextprotocol/server-sequential-thinking"
+        ],
+        env=os.environ.copy()
+    )
+    logger.info("Configured Sequential Thinking MCP server with NPX command")
+
+    # Complex query that would benefit from sequential thinking
+    query = """
+    I need to design a scalable microservices architecture for an e-commerce platform that handles:
+    - 1 million users
+    - 10,000 concurrent transactions
+    - Real-time inventory management
+    - Payment processing
+    - Order fulfillment
+    - Customer notifications
+    
+    Break this down step by step, considering trade-offs, potential issues, and revisions as needed.
+    Use the sequential thinking approach to work through this complex problem.
+    """
+    logger.info(f"Agent Query for Sequential Thinking: {query}")
+
+    try:
+        # Use our custom MCP implementation with Sequential Thinking server
+        logger.info("Testing Sequential Thinking MCP client implementation...")
+        
+        with load_mcp_tools_from_stdio_params(mcp_server_params, "sequential_thinking_server") as mcp_tools:
+            if not mcp_tools:
+                logger.error("No tools loaded from Sequential Thinking MCP server. Check server configuration.")
+                return
+
+            logger.info(f"Successfully loaded {len(mcp_tools)} tools from Sequential Thinking MCP server.")
+            
+            # Log the available tools
+            for tool in mcp_tools:
+                logger.info(f"Available tool: {tool.name} - {tool.description}")
+                logger.info(f"Tool inputs: {tool.inputs}")
+            
+            # Initialize the AzureOpenAIServerModel
+            model = AzureOpenAIServerModel(
+                model_id=azure_openai_model,
+                azure_endpoint=azure_openai_endpoint,
+                api_key=azure_openai_api_key,
+                api_version=openai_api_version    
+            )
+            logger.info("AzureOpenAIServerModel initialized.")
+
+            # Initialize CodeAgent with Sequential Thinking MCP tools
+            agent = CodeAgent(
+                tools=mcp_tools,
+                model=model,
+                max_steps=15,  # More steps for complex thinking process
+                verbosity_level=2  # Higher verbosity to see the thinking process
+            )
+            logger.info("CodeAgent initialized with Sequential Thinking MCP tools.")
+
+            # Run the agent
+            logger.info("Running agent with Sequential Thinking MCP client...")
+            result = agent.run(query)
+
+            logger.info("Agent execution finished.")
+            print("\n--- Sequential Thinking MCP Client Result ---")
+            print(result)
+            print("--- End of Sequential Thinking MCP Client Result ---")
+
+    except Exception as e:
+        logger.error(f"An error occurred with Sequential Thinking MCP: {e}", exc_info=True)
+
+
 def test_custom_mcp_config_loading():
     """
     Test loading MCP tools from configuration file.
@@ -129,14 +224,20 @@ if __name__ == "__main__":
     print("Testing Custom MCP Client Implementation")
     print("=" * 50)
     
-    # Test 1: Direct MCP client usage
+    # Test 1: Direct MCP client usage with GitHub
     print("\n1. Testing direct MCP client with GitHub server...")
     test_custom_mcp_github_client()
     
     print("\n" + "=" * 50)
     
-    # Test 2: Configuration loading
-    print("\n2. Testing MCP configuration loading...")
+    # Test 2: Sequential Thinking MCP server
+    print("\n2. Testing Sequential Thinking MCP server...")
+    test_sequential_thinking_mcp_client()
+    
+    print("\n" + "=" * 50)
+    
+    # Test 3: Configuration loading
+    print("\n3. Testing MCP configuration loading...")
     test_custom_mcp_config_loading()
     
     print("\nCustom MCP client tests completed!")
