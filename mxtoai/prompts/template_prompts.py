@@ -731,7 +731,7 @@ Provide accurate translations with cultural context preservation and clear expla
 """
 
 # Scheduling handler template
-SCHEDULE_TEMPLATE = """
+MEETING_TEMPLATE = """
 Intelligently extract, research, and schedule meetings or appointments with proper validation, research, and clarification protocols.
 
 # Scheduling Methodology - SYSTEMATIC PROCESS
@@ -818,12 +818,12 @@ I've researched based on your request. Here's a summary:
 </scheduling_checklist>
 
 **If ANY validation point fails (user input needed):**
-- **STOP scheduling.** Do NOT call `schedule_generator` if critical info is missing.
+- **STOP scheduling.** Do NOT call `meeting_creator` if critical info is missing.
 - Present research & request specific clarification (See Step 2 & 6).
 
 ## STEP 5: SCHEDULE GENERATION / FINALIZING RECOMMENDATION
-**If direct scheduling possible (`schedule_generator` details confirmed):**
-**Tool Usage: schedule_generator**
+**If direct scheduling possible (`meeting_creator` details confirmed):**
+**Tool Usage: meeting_creator**
 - title: Clear meeting/appointment title.
 - start_time: ISO 8601 with timezone (e.g., "2024-08-15T10:00:00-07:00").
 - end_time: ISO 8601 (start_time + duration).
@@ -945,7 +945,7 @@ References:
 
 **Step 5: Schedule Generation (if slot confirmed by user & professional):**
 (e.g., Dr. Carter available next Tue 6:30 PM PST, user confirms)
-**Tool Usage: schedule_generator**
+**Tool Usage: meeting_creator**
 - title: "Initial Consultation: [User Name] & Dr. Emily Carter"
 - start_time: "[YYYY-MM-DD]T18:30:00-07:00" (Calculated date/time PST)
 - end_time: "[YYYY-MM-DD]T19:20:00-07:00" (50-min session)
@@ -958,11 +958,11 @@ References:
 
 **Research (if Sarah's email unknown):** Internal directory search. Web search: "[User's Company] Sarah Marketing email". If multiple Sarahs, ask user for last name/team.
 
-**Scheduling (Contact Found/Provided):** If sarah.m@example.com found: Schedule tomorrow 3pm local. Duration 30 min. Location: "TBD" or virtual. Call `schedule_generator`.
+**Scheduling (Contact Found/Provided):** If sarah.m@example.com found: Schedule tomorrow 3pm local. Duration 30 min. Location: "TBD" or virtual. Call `meeting_creator`.
 
 **CRITICAL REQUIREMENTS:**
 - **Present research with sources/links** if external research was done.
-- **NEVER schedule without confirmed participant contact information** (email for `schedule_generator`).
+- **NEVER schedule without confirmed participant contact information** (email for `meeting_creator`).
 - **Validate min. 2 participants for meetings** (or confirmed service provider contact) unless personal reminder.
 - **Specify timezone assumptions clearly.**
 - **Default to appropriate duration** (30 min meetings, 50-60 min therapy) unless specified.
@@ -1106,4 +1106,190 @@ The PDF is attached to this email for your use.
 3. **Professional presentation** - ensure the PDF looks polished and readable
 4. **Appropriate inclusion** - only export content that has substantial value
 5. **Clear documentation** - explain what was included and why
+"""
+
+# Future handler template
+FUTURE_TEMPLATE = """
+Analyze email content to extract scheduling requirements for future or recurring task processing and create appropriate cron expressions.
+
+# Future Task Scheduling Process
+
+## STEP 1: Intent Analysis & Information Extraction
+**Extract ALL relevant scheduling information:**
+- **Task/Reminder Content**: What should be processed/reminded about
+- **Time References**: Specific dates/times, relative timing ("every Monday", "in 2 weeks", "quarterly")
+- **Recurrence Pattern**: One-time, daily, weekly, monthly, yearly, custom intervals
+- **Context Requirements**: Any specific processing instructions or conditions
+- **Email Content**: Full email content that should be reprocessed at scheduled time
+
+**CRITICAL ANALYSIS:**
+- Identify if this is a one-time future task or recurring reminder
+- Determine the exact timing requirements
+- Extract any special processing instructions for the future task
+
+## STEP 2: Cron Expression Generation
+**Generate appropriate cron expressions based on timing requirements:**
+
+**Cron Format**: `minute hour day month day_of_week`
+- minute (0-59)
+- hour (0-23) 
+- day of month (1-31)
+- month (1-12)
+- day of week (0-7, Sunday=0 or 7)
+
+**Common Patterns:**
+- **Daily at specific time**: `0 9 * * *` (9 AM daily)
+- **Weekly**: `0 9 * * 1` (9 AM every Monday)
+- **Monthly**: `0 9 1 * *` (9 AM on 1st of each month)
+- **Yearly**: `0 9 1 1 *` (9 AM on January 1st)
+- **Weekdays only**: `0 9 * * 1-5` (9 AM Monday-Friday)
+- **Every 2 weeks**: Use specific dates for bi-weekly patterns
+
+**Time Zone Handling:**
+- Convert all times to UTC for cron expressions
+- Note original timezone in task metadata
+- Handle timezone awareness clearly
+
+## STEP 3: SCHEDULED TASK CREATION
+**If all scheduling details are confirmed and a future or recurring task should be created:**
+
+**Tool Usage: scheduled_tasks_storage**
+- **cron_expression**: Valid cron expression in UTC (e.g., "0 14 * * 1" for every Monday at 2 PM UTC)
+- **email_request**: Complete original email request data as a dictionary (all fields needed to reprocess the email in the future)
+- **task_description**: Human-readable description of what the scheduled task will do (e.g., "Weekly reminder to review sales report")
+- **next_run_time**: (Optional) Next execution time in ISO 8601 format (e.g., "2024-08-19T14:00:00Z")
+
+**Example Tool Call:**
+```
+scheduled_tasks_storage(
+    cron_expression="0 14 * * 1",
+    email_request={...original email data...},
+    task_description="Weekly reminder to review sales report"
+)
+```
+
+**Response (Successful Scheduling):**
+1. Confirmation message with:
+    - Task ID (CRITICALLY IMPORTANT - MUST be included in the final response)
+    - Human-readable schedule description
+    - Next execution time (in user's timezone and UTC)
+    - DO NOT include the cron expression in the user-facing output
+2. Summary of what will be processed/reminded
+3. Clear next steps (e.g., "You will receive results at the scheduled time.")
+
+**CRITICAL REQUIREMENTS:**
+- ALWAYS generate and validate a correct cron expression in UTC
+- ALWAYS store the complete email request data for future processing
+- ALWAYS provide a clear confirmation with the next execution time and task ID
+- ALWAYS ensure the task ID from the tool's response is included in your final response
+- NEVER show the cron expression in the user-facing output
+- ALWAYS use the `scheduled_tasks_storage` tool for this purpose
+
+## STEP 4: Response Format
+**Provide clear confirmation with:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: [Clear description of what will be reminded/processed]
+**Schedule**: [Human-readable schedule description]
+**Next Occurrence**: [Next execution date/time in user's timezone]
+**Task ID**: [CRITICAL: Include the actual task UUID returned by the scheduled_tasks_storage tool]
+
+## Processing Details
+**Content to Process**: [Summary of email content that will be reprocessed]
+**Frequency**: [One-time/Daily/Weekly/Monthly/Custom interval description]
+**Timezone**: [Original timezone and UTC conversion notes]
+
+## What Happens Next
+- The task has been stored in the system
+- At the scheduled time, the original email content will be reprocessed
+- You'll receive the results via email at the specified time
+- The task will [continue recurring/end after one execution] as configured
+```
+
+# EXAMPLES
+
+## Example 1: Weekly Report Reminder
+**User Request**: "Remind me every Monday at 9 AM to review the weekly sales report"
+
+**Step 1: Analysis**
+- Task: Review weekly sales report
+- Schedule: Every Monday at 9 AM
+- Recurrence: Weekly
+- Content: Original email content about sales report review
+
+**Step 2: Cron Generation**
+- User timezone assumed: EST/EDT (UTC-5/-4)
+- 9 AM EST = 14:00 UTC (standard time)
+- Cron: `0 14 * * 1`
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks_storage(
+    cron_expression="0 14 * * 1",
+    email_request={...original email data...},
+    task_description="Weekly reminder to review sales report"
+)
+```
+
+**Sample Response:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: Weekly reminder to review sales report
+**Schedule**: Every Monday at 9:00 AM
+**Next Occurrence**: Monday, August 19, 2024 at 9:00 AM EST
+**Task ID**: c7101912-423c-38b1-d95e-f8424b55e325
+
+## Processing Details
+**Content to Process**: "Remind me every Monday at 9 AM to review the weekly sales report"
+**Frequency**: Weekly (every Monday)
+**Timezone**: Eastern Standard Time (UTC-5)
+
+## What Happens Next
+- The task has been stored in the system
+- At the scheduled time, the original email content will be reprocessed
+- You'll receive the results via email at the specified time
+- The task will continue recurring as configured
+```
+
+## Example 2: One-time Future Task
+**User Request**: "Process this research request again in 2 weeks"
+
+**Step 1: Analysis**
+- Task: Reprocess research request
+- Schedule: One-time, 2 weeks from now
+- Recurrence: None (one-time)
+- Content: Current email content
+
+**Step 2: Cron Generation**
+- Calculate exact date 2 weeks from now
+- Convert to UTC
+- One-time cron expression for specific date/time
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks_storage(
+    cron_expression="0 9 [day] [month] *",
+    email_request={...original email data...},
+    task_description="One-time reprocessing of research request"
+)
+```
+
+**CRITICAL REQUIREMENTS:**
+- **ALWAYS generate valid cron expressions in UTC**
+- **ALWAYS store complete email request data for future processing**
+- **ALWAYS provide clear confirmation with next execution time**
+- **ALWAYS include the task ID returned by the scheduled_tasks_storage tool in your final response**
+- **NEVER show the cron expression in the user-facing output**
+- **ALWAYS use scheduled_tasks_storage to store the task**
+- **ALWAYS convert user timezone to UTC for cron expressions**
+- **ALWAYS validate cron expression syntax before storage**
+
+**Content Guidelines:**
+1. **Clear scheduling intent** - understand exactly what user wants scheduled
+2. **Accurate time conversion** - handle timezones properly
+3. **Complete data storage** - preserve all necessary context for future processing
+4. **User-friendly confirmation** - explain what was scheduled and when it will happen
+5. **Error handling** - validate timing requests and provide alternatives if invalid
 """

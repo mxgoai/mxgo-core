@@ -77,7 +77,7 @@ Output Format Guidelines:
 """
 
 # Scheduling handler output guidelines
-SCHEDULE_OUTPUT_GUIDELINES = """
+MEETING_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
 1. Structure sections clearly:
    - **Event Details**: Title, date, time, location
@@ -102,4 +102,36 @@ Output Format Guidelines:
    - Quality of source material for export
 4. Professional tone acknowledging the export request
 5. Keep response concise - let the PDF be the main deliverable
+"""
+
+# Future handler output guidelines
+FUTURE_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Start with clear task confirmation including task ID prominently displayed
+2. Present schedule in human-readable format
+3. Show next execution time in user's timezone
+4. Explain what content will be reprocessed
+5. End with clear next steps and expectations
+6. DO NOT include the cron expression in the output
+
+Sample format:
+```
+## Scheduled Task Confirmation
+
+**Task Description**: [Clear description of what will be reminded/processed]
+**Schedule**: [Human-readable schedule description]
+**Next Occurrence**: [Next execution date/time in user's timezone]
+**Task ID**: [ALWAYS include the generated task UUID here]
+
+## Processing Details
+**Content to Process**: [Summary of email content that will be reprocessed]
+**Frequency**: [One-time/Daily/Weekly/Monthly/Custom interval description]
+**Timezone**: [Original timezone and UTC conversion notes]
+
+## What Happens Next
+- The task has been stored in the system
+- At the scheduled time, the original email content will be reprocessed
+- You'll receive the results via email at the specified time
+- The task will [continue recurring/end after one execution] as configured
+```
 """

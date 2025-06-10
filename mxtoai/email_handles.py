@@ -1,5 +1,5 @@
-from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts import output_prompts, template_prompts
+from mxtoai.schemas import ProcessingInstructions
 
 # default email handles for processing instructions
 DEFAULT_EMAIL_HANDLES = [
@@ -74,8 +74,8 @@ DEFAULT_EMAIL_HANDLES = [
         deep_research_mandatory=False,
         target_model="gpt-4",
         requires_schedule_extraction=True,
-        task_template=template_prompts.SCHEDULE_TEMPLATE,
-        output_template=output_prompts.SCHEDULE_OUTPUT_GUIDELINES,
+        task_template=template_prompts.MEETING_TEMPLATE,
+        output_template=output_prompts.MEETING_OUTPUT_GUIDELINES,
     ),
     ProcessingInstructions(
         handle="pdf",
@@ -85,5 +85,14 @@ DEFAULT_EMAIL_HANDLES = [
         target_model="gpt-4",
         task_template=template_prompts.PDF_EXPORT_TEMPLATE,
         output_template=output_prompts.PDF_EXPORT_OUTPUT_GUIDELINES,
+    ),
+    ProcessingInstructions(
+        handle="future",
+        aliases=["remind", "recurring", "schedule-task", "schedule-reminder", "future-task", "recurring-task", "delayed-processing"],
+        process_attachments=True,
+        deep_research_mandatory=False,
+        target_model="gpt-4",
+        task_template=template_prompts.FUTURE_TEMPLATE,
+        output_template=output_prompts.FUTURE_OUTPUT_GUIDELINES,
     ),
 ]

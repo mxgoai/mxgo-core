@@ -17,7 +17,6 @@ from smolagents.default_tools import (
 )
 
 from mxtoai._logging import get_logger, get_smolagents_console
-from mxtoai.models import ProcessingInstructions
 from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
@@ -37,7 +36,7 @@ from mxtoai.schemas import (
     PDFExportResult,
     ProcessedAttachmentDetail,
     ProcessingError,
-    ProcessingMetadata,
+    ProcessingMetadata, ProcessingInstructions,
 )
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
@@ -45,7 +44,8 @@ from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
-from mxtoai.tools.schedule_tool import ScheduleTool
+from mxtoai.tools.meeting_tool import MeetingTool
+from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
 
 # Import the web search tools
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
@@ -99,11 +99,12 @@ class EmailAgent:
 
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
-        self.schedule_tool = ScheduleTool()
+        self.meeting_tool = MeetingTool()
         self.visit_webpage_tool = VisitWebpageTool()
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
+        self.scheduled_tasks_tool = ScheduledTasksTool()
 
         # Initialize independent search tools
         self.search_tools = self._initialize_independent_search_tools()
@@ -111,11 +112,12 @@ class EmailAgent:
 
         self.available_tools: list[Tool] = [
             self.attachment_tool,
-            self.schedule_tool,
+            self.meeting_tool,
             self.visit_webpage_tool,
             self.python_tool,
             self.wikipedia_search_tool,
             self.pdf_export_tool,
+            self.scheduled_tasks_tool,
             azure_visualizer,
         ]
 
@@ -424,7 +426,7 @@ class EmailAgent:
 
                 if tool_name and tool_output is not None:
                     needs_parsing = tool_name in [
-                        "schedule_generator",
+                        "meeting_creator",
                         "attachment_processor",
                         "deep_research",
                         "pdf_export",
@@ -488,7 +490,7 @@ class EmailAgent:
                         if not research_output_findings:
                             errors_list.append(ProcessingError(message="Deep research tool returned empty findings."))
 
-                    elif tool_name == "schedule_generator" and isinstance(tool_output, dict):
+                    elif tool_name == "meeting_creator" and isinstance(tool_output, dict):
                         if tool_output.get("status") == "success" and tool_output.get("ics_content"):
                             calendar_result_data = CalendarResult(ics_content=tool_output["ics_content"])
                         else:
