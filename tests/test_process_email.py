@@ -324,9 +324,13 @@ def test_process_email_task_for_handle(
                 assert returned_result.pdf_export is not None, "PDF export result should be present for PDF handle"
                 assert returned_result.pdf_export.filename.endswith(".pdf"), "PDF export should have .pdf filename"
                 assert returned_result.pdf_export.file_size > 0, "PDF export should have non-zero file size"
-                assert returned_result.pdf_export.mimetype == "application/pdf", "PDF export should have correct mimetype"
+                assert returned_result.pdf_export.mimetype == "application/pdf", (
+                    "PDF export should have correct mimetype"
+                )
                 assert returned_result.pdf_export.title is not None, "PDF export should have a title"
-                assert returned_result.pdf_export.pages_estimated >= 1, "PDF export should have at least 1 page estimated"
+                assert returned_result.pdf_export.pages_estimated >= 1, (
+                    "PDF export should have at least 1 page estimated"
+                )
         else:
             # If not expecting a sent reply (e.g. if we were to use SKIP_EMAIL_DELIVERY for some handles)
             mock_sender_instance.send_reply.assert_not_called()
@@ -355,7 +359,7 @@ def test_pdf_export_tool_direct():
     # Test basic content export
     result = tool.forward(
         content="# Test Document\n\nThis is a test document with some content.\n\n- Item 1\n- Item 2\n- Item 3",
-        title="Test PDF Document"
+        title="Test PDF Document",
     )
 
     assert result["success"] is True, f"PDF export failed: {result.get('error', 'Unknown error')}"
@@ -390,7 +394,7 @@ def test_pdf_export_tool_with_research_findings():
         title="Weekly Newsletter Export",
         research_findings="## Research Results\n\n1. Finding one\n2. Finding two\n3. Finding three",
         attachments_summary="## Attachments Processed\n\n- attachment1.pdf\n- attachment2.docx",
-        include_attachments=True
+        include_attachments=True,
     )
 
     assert result["success"] is True
@@ -494,7 +498,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
         "cc": None,
         "bcc": None,
         "references": None,
-        "attachments": []
+        "attachments": [],
     }
 
     # Create temporary directory for attachments
@@ -524,11 +528,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
             mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
             # Run the task
-            result = process_email_task.fn(
-                email_data=email_data,
-                email_attachments_dir=temp_dir,
-                attachment_info=[]
-            )
+            result = process_email_task.fn(email_data=email_data, email_attachments_dir=temp_dir, attachment_info=[])
 
             # Verify successful processing
             assert isinstance(result, DetailedEmailProcessingResult)
@@ -620,7 +620,7 @@ def test_pdf_export_cleanup():
         # Generate a PDF
         result = tool.forward(
             content="# Test PDF Cleanup\n\nThis tests that temporary directories are properly cleaned up.",
-            title="Cleanup Test PDF"
+            title="Cleanup Test PDF",
         )
 
         assert result["success"] is True, f"PDF generation failed: {result.get('error', 'Unknown error')}"
@@ -677,11 +677,7 @@ def test_future_handle_full_integration(prepare_email_request_data):
             mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
             # Run the task
-            result = process_email_task.fn(
-                email_data=email_data,
-                email_attachments_dir=temp_dir,
-                attachment_info=[]
-            )
+            result = process_email_task.fn(email_data=email_data, email_attachments_dir=temp_dir, attachment_info=[])
 
             # Verify successful processing
             assert isinstance(result, DetailedEmailProcessingResult)

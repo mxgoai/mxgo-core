@@ -1132,7 +1132,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 
 **Cron Format**: `minute hour day month day_of_week`
 - minute (0-59)
-- hour (0-23) 
+- hour (0-23)
 - day of month (1-31)
 - month (1-12)
 - day of week (0-7, Sunday=0 or 7)

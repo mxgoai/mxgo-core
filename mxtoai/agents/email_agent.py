@@ -36,15 +36,16 @@ from mxtoai.schemas import (
     PDFExportResult,
     ProcessedAttachmentDetail,
     ProcessingError,
-    ProcessingMetadata, ProcessingInstructions,
+    ProcessingInstructions,
+    ProcessingMetadata,
 )
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
-from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.meeting_tool import MeetingTool
+from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
 
 # Import the web search tools
@@ -517,7 +518,7 @@ class EmailAgent:
                                 ProcessingError(message="PDF Export Error", details=f"{error_msg}. {details}")
                             )
                             logger.error(f"PDF export failed: {error_msg}")
-                            
+
                     elif tool_name == "scheduled_tasks_storage" and isinstance(tool_output, dict):
                         if tool_output.get("status") == "success" and tool_output.get("task_id"):
                             logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")

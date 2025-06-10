@@ -1,7 +1,7 @@
 import os
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Generator, Optional
+from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
@@ -36,7 +36,7 @@ class DbConnection:
     async def close_connection(self) -> None:
         if self._engine is not None:
             await self._engine.dispose()
-        
+
         if self._sync_engine is not None:
             self._sync_engine.dispose()
 
@@ -70,11 +70,11 @@ class DbConnection:
                 await session.close()
 
     @contextmanager
-    def get_sync_session(self) -> Generator[Session, None, None]:
+    def get_sync_session(self) -> Generator[Session]:
         """Get a synchronous database session."""
         if self._sync_engine is None:
             self.init_sync_connection()
-            
+
         session = Session(self._sync_engine)
         try:
             yield session
@@ -89,7 +89,7 @@ class DbConnection:
         db_url = self.db_uri
         self._engine = create_async_engine(db_url, pool_pre_ping=True, echo=False)
         return self._engine
-        
+
     def _create_sync_engine(self):
         """Create a synchronous SQLAlchemy engine."""
         db_url = self.sync_db_uri

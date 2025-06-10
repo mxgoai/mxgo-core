@@ -88,7 +88,15 @@ DEFAULT_EMAIL_HANDLES = [
     ),
     ProcessingInstructions(
         handle="future",
-        aliases=["remind", "recurring", "schedule-task", "schedule-reminder", "future-task", "recurring-task", "delayed-processing"],
+        aliases=[
+            "remind",
+            "recurring",
+            "schedule-task",
+            "schedule-reminder",
+            "future-task",
+            "recurring-task",
+            "delayed-processing",
+        ],
         process_attachments=True,
         deep_research_mandatory=False,
         target_model="gpt-4",
