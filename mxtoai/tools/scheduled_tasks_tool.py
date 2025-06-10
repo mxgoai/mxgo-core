@@ -6,12 +6,13 @@ from typing import Any, Dict, Optional
 from croniter import croniter
 from pydantic import BaseModel, Field, validator
 from smolagents import Tool
-from mxtoai.db import DbConnection, init_db_connection
+from mxtoai.db import DbConnection, init_sync_db_connection
 from mxtoai.models import TaskStatus, Tasks
 
 logger = logging.getLogger(__name__)
 
-db_connection = DbConnection()
+# Use synchronous DB connection
+db_connection = init_sync_db_connection()
 
 
 class ScheduledTaskInput(BaseModel):
@@ -86,7 +87,7 @@ class ScheduledTasksTool(Tool):
             logger.error(f"Error calculating next run time for cron '{cron_expression}': {e}")
             raise ValueError(f"Invalid cron expression: {e}")
     
-    async def forward(
+    def forward(
         self,
         cron_expression: str,
         email_request: Dict[str, Any],
@@ -146,21 +147,15 @@ class ScheduledTasksTool(Tool):
                 email_request=email_request
             )
             
-            # Initialize DB connection if needed
+            # Store in database using synchronous session
             try:
-                # Ensure DB connection is initialized
-                logger.debug("Initializing DB connection...")
-                # Use a new connection for this operation
-                conn = await init_db_connection()
-                
-                # Store in database
                 logger.debug(f"Storing task in database with ID: {task_id}")
-                async with conn.get_session() as session:
-                    logger.debug("Obtained database session")
+                with db_connection.get_sync_session() as session:
+                    logger.debug("Obtained synchronous database session")
                     try:
                         session.add(task)
                         logger.debug("Task added to session, committing...")
-                        await session.commit()
+                        session.commit()
                         logger.debug("Session committed successfully")
                         logger.info(f"Task successfully stored with ID: {task_id}")
                     except Exception as tx_error:
@@ -195,7 +190,6 @@ class ScheduledTasksTool(Tool):
 # Example usage for testing
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    import asyncio
     import os
     
     # Set required environment variables for testing
@@ -206,26 +200,23 @@ if __name__ == "__main__":
         os.environ['DB_PORT'] = '5432'
         os.environ['DB_NAME'] = 'mxtoai'
     
-    async def test_tool():
-        # Create and initialize tool
-        tool = ScheduledTasksTool()
-        
-        # Example task
-        sample_email_request = {
-            "from": "test@example.com",
-            "to": "remind@mxtoai.com",
-            "subject": "Weekly Report Reminder",
-            "textContent": "Remind me to review the weekly sales report",
-            "emailId": "test_email_123"
-        }
-        
-        result = await tool.forward(
-            cron_expression="0 14 * * 1",  # Every Monday at 2 PM UTC
-            email_request=sample_email_request,
-            task_description="Weekly reminder to review sales report"
-        )
-        
-        print("Task creation result:", result)
+    # Create tool instance
+    tool = ScheduledTasksTool()
     
-    # Run the test
-    asyncio.run(test_tool()) 
+    # Example task
+    sample_email_request = {
+        "from": "test@example.com",
+        "to": "remind@mxtoai.com",
+        "subject": "Weekly Report Reminder",
+        "textContent": "Remind me to review the weekly sales report",
+        "emailId": "test_email_123"
+    }
+    
+    # Execute the tool synchronously
+    result = tool.forward(
+        cron_expression="0 14 * * 1",  # Every Monday at 2 PM UTC
+        email_request=sample_email_request,
+        task_description="Weekly reminder to review sales report"
+    )
+    
+    print("Task creation result:", result) 
