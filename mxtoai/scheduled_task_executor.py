@@ -78,7 +78,9 @@ def execute_scheduled_task(task_id: str) -> None:
 
             # Parse email request data
             try:
-                email_request = json.loads(task.email_request) if isinstance(task.email_request, str) else task.email_request
+                email_request = (
+                    json.loads(task.email_request) if isinstance(task.email_request, str) else task.email_request
+                )
             except (json.JSONDecodeError, TypeError) as e:
                 logger.error(f"Failed to parse email_request for task {task_id}: {e}")
                 msg = f"Invalid email_request data: {e}"
@@ -188,7 +190,7 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             if request_field in email_request:
                 value = email_request[request_field]
                 # Convert lists to JSON strings
-                if isinstance(value, (list, dict)):
+                if isinstance(value, list | dict):
                     form_data[form_field] = json.dumps(value)
                 else:
                     form_data[form_field] = str(value)
@@ -206,9 +208,7 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             logger.error(f"X_API_KEY environment variable not set - cannot authenticate request for task {task_id}")
             return False
 
-        headers = {
-            "x-api-key": api_key
-        }
+        headers = {"x-api-key": api_key}
 
         with httpx.Client(timeout=HTTP_TIMEOUT) as client:
             logger.info(f"Making HTTP request to {url} for task {task_id}")
@@ -257,9 +257,12 @@ def _is_recurring_cron_expression(cron_expression: str) -> bool:
 
     # Check for specific date patterns that might be one-time
     # If day and month are both specific numbers (not wildcards), it might be one-time
-    if (day.isdigit() and month.isdigit() and
-        dayofweek == "*" and
-        not any(char in cron_expression for char in ["/", "-", ","])):
+    if (
+        day.isdigit()
+        and month.isdigit()
+        and dayofweek == "*"
+        and not any(char in cron_expression for char in ["/", "-", ","])
+    ):
         # This looks like a specific date, might be one-time
         # But we'll default to recurring for safety
         return True

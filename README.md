@@ -264,6 +264,8 @@ Make sure your database is up to date:
 poetry run alembic upgrade head
 ```
 
+For detailed information about database migrations, see [mxtoai/db/README.md](mxtoai/db/README.md).
+
 ### 3. Start All Processes
 
 You need to run **three separate processes**:
