@@ -574,7 +574,7 @@ class EmailAgent:
                     f"Could not find specific answer attribute in final_answer object, using str(). Result: {final_answer_from_llm[:100]}..."
                 )
 
-            # Determine email body content
+            # Determine email body content - prioritize final answer, fallback to research findings
             email_body_content_source = research_output_findings if research_output_findings else final_answer_from_llm
 
             if email_body_content_source:
@@ -600,9 +600,9 @@ class EmailAgent:
                     if "## References" not in temp_content:
                         temp_content = format_text_with_citations(temp_content, include_references=True)
                     else:
-                        # If references are already present, just format the inline citations
-                        temp_content = format_text_with_citations(temp_content, include_references=False)
-                        logger.debug("References section already found in content. Skipping full citation formatting.")
+                        # Strip any existing references section and regenerate our authoritative list
+                        temp_content = format_text_with_citations(temp_content, include_references=True)
+                        logger.debug("Existing references section replaced with authoritative citations.")
                 else:
                     logger.debug("No citations to add to email content")
 

@@ -11,6 +11,8 @@ from typing import Optional
 
 from smolagents import GoogleSearchTool, Tool
 
+from mxtoai._logging import get_logger
+logger = get_logger("citation_tools")
 
 # Import the existing search tools to wrap them
 try:
@@ -57,30 +59,16 @@ class CitationAwareGoogleSearchTool(GoogleSearchTool):
 
     def forward(self, query: str, filter_year: Optional[int] = None) -> str:
         """
-        Perform a Google search and collect URL information.
+        Perform a Google search **without** collecting URL information.
 
-        Args:
-            query: Search query
-            filter_year: Optional year filter
-
-        Returns:
-            Original search results
-
+        We intentionally avoid adding search-result URLs to the global
+        references list because those pages have not actually been visited and
+        therefore might never appear in the final e-mail.  Only pages that are
+        explicitly opened via `CitationAwareVisitTool` should be cited.
         """
+        # Call the original implementation to fetch search results.
         original_results = super().forward(query, filter_year)
-
-        # Extract URLs from search results
-        urls = re.findall(r"\[.*?\]\((https?://.*?)\)", original_results)
-        title_url_matches = re.findall(r"\[(.*?)\]\((https?://.*?)\)", original_results)
-
-        for match in title_url_matches:
-            title, url = match
-            add_url_to_references(url=url, title=title)
-
-        for url in urls:
-            if url not in [u.get("url") for u in _all_visited_urls]:
-                add_url_to_references(url=url)
-
+        # Simply return the results – do *not* harvest URLs.
         return original_results
 
 
@@ -129,6 +117,7 @@ class CitationAwareVisitTool(Tool):
             ) from e
         
         try:
+            logger.info(f"Visiting URL: {url}") 
             # Send a GET request to the URL with a 20-second timeout
             response = requests.get(url, timeout=20)
             response.raise_for_status()
@@ -148,6 +137,7 @@ class CitationAwareVisitTool(Tool):
 
             # Collect URL information for references
             add_url_to_references(url=url, title=title)
+            logger.info(f"Added URL to references: {url}")
             return original_content
 
         except requests.exceptions.Timeout:
@@ -171,29 +161,9 @@ class CitationAwareDDGSearchTool(DDGSearchTool):
 
     def forward(self, query: str) -> str:
         """
-        Perform a DDG search and collect URL information.
-
-        Args:
-            query: Search query
-
-        Returns:
-            Original search results
-
+        Perform a DDG search **without** collecting URL information.
         """
         original_results = super().forward(query)
-
-        # Extract URLs from search results (similar pattern to Google search)
-        urls = re.findall(r"\[.*?\]\((https?://.*?)\)", original_results)
-        title_url_matches = re.findall(r"\[(.*?)\]\((https?://.*?)\)", original_results)
-
-        for match in title_url_matches:
-            title, url = match
-            add_url_to_references(url=url, title=title)
-
-        for url in urls:
-            if url not in [u.get("url") for u in _all_visited_urls]:
-                add_url_to_references(url=url)
-
         return original_results
 
 
@@ -210,29 +180,9 @@ class CitationAwareBraveSearchTool(BraveSearchTool):
 
     def forward(self, query: str) -> str:
         """
-        Perform a Brave search and collect URL information.
-
-        Args:
-            query: Search query
-
-        Returns:
-            Original search results
-
+        Perform a Brave search **without** collecting URL information.
         """
         original_results = super().forward(query)
-
-        # Extract URLs from search results (similar pattern to Google search)
-        urls = re.findall(r"\[.*?\]\((https?://.*?)\)", original_results)
-        title_url_matches = re.findall(r"\[(.*?)\]\((https?://.*?)\)", original_results)
-
-        for match in title_url_matches:
-            title, url = match
-            add_url_to_references(url=url, title=title)
-
-        for url in urls:
-            if url not in [u.get("url") for u in _all_visited_urls]:
-                add_url_to_references(url=url)
-
         return original_results
 
 
@@ -387,16 +337,20 @@ def create_references_section() -> str:
 
     references = ["## References"]
 
-    # Sort references by timestamp (newest first)
-    sorted_urls = sorted(_all_visited_urls, key=lambda x: x["timestamp"], reverse=True)
+    # Sort references by timestamp (oldest first to keep numbering consistent)
+    sorted_urls = sorted(_all_visited_urls, key=lambda x: x["timestamp"])
 
     for i, url_info in enumerate(sorted_urls, 1):
         title = url_info.get("title", url_info["url"])
         url = url_info["url"]
-        date = url_info.get("date", "n.d.")
+        retrieval_time = time.strftime('%B %d, %Y', time.localtime(url_info["timestamp"]))
 
-        # Format reference
-        reference = f"{i}. *{title}*. Retrieved on {date} from [{url}]({url})"
+        # Escape markdown characters in title and URL to prevent unintended formatting
+        display_title = title.replace("_", r"\_").replace("*", r"\*")
+        display_url = url.replace("_", r"\_").replace("*", r"\*")
+
+        # Format reference to show retrieval date
+        reference = f"{i}. *{display_title}*. Retrieved {retrieval_time} from [{display_url}]({url})"
         references.append(reference)
 
     return "\n\n".join(references)
@@ -445,26 +399,67 @@ def insert_citations_in_text(text: str, auto_cite: bool = True) -> str:
     return modified_text
 
 
+def _strip_existing_references(text: str) -> str:
+    """Remove any existing references section from the provided Markdown text.
+
+    The LLM occasionally outputs its own references list which can lead to
+    duplicates when we later append the authoritative references section that
+    is generated from URLs actually *visited* by this agent.  This helper
+    removes anything that looks like a references section so that we can
+    safely attach our own.
+
+    Args:
+        text: Markdown or plain-text e-mail body.
+
+    Returns:
+        The text with any trailing references section removed.
+    """
+    # We iterate line-by-line so that we can cleanly cut off at the first
+    # heading/line that looks like a reference header and return everything
+    # that precedes it.
+    import re
+
+    reference_header_pattern = re.compile(r"^(?:#{1,6}\s*)?references\s*:?$", re.IGNORECASE)
+    lines = text.splitlines()
+
+    for idx, line in enumerate(lines):
+        if reference_header_pattern.match(line.strip()):
+            # Return all content *before* the references header, trimming
+            # possible trailing whitespace.
+            return "\n".join(lines[:idx]).rstrip()
+
+    # If no references header was found just return the original text.
+    return text
+
+
 def format_text_with_citations(text: str, include_references: bool = True) -> str:
     """
     Format text with proper citations and optionally append references section.
-    
+
+    This function will first strip any references section that might already exist.
+    It then injects inline citations and finally appends the references list generated
+    from URLs that were actually *visited* by the agent (not merely shown in search results).
+
     Args:
-        text: Original text
-        include_references: Whether to append references section
-        
+        text: Original text produced by the LLM.
+        include_references: Whether to append the references section.
+
     Returns:
-        Formatted text with citations and references
+        Text with inline citation markers and (optionally) a single references
+        section appended.
     """
-    # Insert citations in text
-    formatted_text = insert_citations_in_text(text)
-    
-    # Add references section if requested
+    # 1. Remove any references section that might already exist.
+    clean_text = _strip_existing_references(text)
+
+    # 2. Insert/format inline citations.
+    formatted_text = insert_citations_in_text(clean_text)
+
+    # 3. Append our authoritative references section if requested.
     if include_references:
         references = create_references_section()
         if references:
             formatted_text += "\n\n" + references
-    
+
     return formatted_text
 
 

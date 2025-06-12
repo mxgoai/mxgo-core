@@ -73,7 +73,7 @@ Strong Q3 performance driven by West region success and Product A growth. East r
 
 # Research handler template
 RESEARCH_TEMPLATE = """
-Conduct comprehensive research and provide a detailed analysis with proper sections and citations.
+Conduct comprehensive research and provide a detailed analysis with proper sections.
 For this task, you must use deep research tool at least once with appropriate query.
 
 Response Requirements:
@@ -176,7 +176,6 @@ Execute custom tasks and workflows systematically with research, analysis, and p
 **Content Creation:**
 - Structure information logically and professionally
 - Create engaging and informative content
-- Include proper citations and links
 - Format for easy reading and comprehension
 
 ## STEP 3: Professional Presentation
@@ -190,13 +189,9 @@ Execute custom tasks and workflows systematically with research, analysis, and p
 
 ### [Subsections as needed]
 - [Bullet points, lists, or structured information]
-- [Include links, sources, and references]
 
 ## Key Insights/Summary
 [Important takeaways or conclusions]
-
-## Sources & References
-[All sources used with proper attribution]
 ```
 
 ## STEP 4: Quality Standards
