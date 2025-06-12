@@ -15,7 +15,6 @@ from fastapi.security import APIKeyHeader
 
 from mxtoai import validators
 from mxtoai._logging import get_logger
-from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
@@ -91,10 +90,6 @@ if os.environ["IS_PROD"].lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
-
-# Create the email agent on startup
-email_agent = EmailAgent(attachment_dir=ATTACHMENTS_DIR, verbose=True, enable_deep_research=True)
-
 
 # Function to cleanup attachment files and directory
 def cleanup_attachments(directory_path: str) -> bool:

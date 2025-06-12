@@ -6,50 +6,50 @@ output structure and formatting, while avoiding redundancy with the template con
 """
 
 # Scheduled task execution output guidelines
-SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES = """
-Output Format Guidelines for Scheduled Task Execution:
+# SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES = """
+# Output Format Guidelines for Scheduled Task Execution:
 
-**CRITICAL**: This is a scheduled task execution, NOT initial scheduling. Focus on execution results only.
+# **CRITICAL**: This is a scheduled task execution, NOT initial scheduling. Focus on execution results only.
 
-**What TO Include:**
-1. Direct execution results (research findings, analysis, data)
-2. Actionable recommendations and insights
-3. Structured information relevant to the original request
-4. Professional analysis and conclusions
-5. Any deliverables the user originally requested
+# **What TO Include:**
+# 1. Direct execution results (research findings, analysis, data)
+# 2. Actionable recommendations and insights
+# 3. Structured information relevant to the original request
+# 4. Professional analysis and conclusions
+# 5. Any deliverables the user originally requested
 
-**What NOT TO Include:**
-- ❌ NO scheduling confirmation messages
-- ❌ NO "task scheduled successfully" language
-- ❌ NO task IDs, cron expressions, or schedule details
-- ❌ NO "next execution" or timing information
-- ❌ NO administrative scheduling language
-- ❌ NO confirmation emails or system notifications
+# **What NOT TO Include:**
+# - ❌ NO scheduling confirmation messages
+# - ❌ NO "task scheduled successfully" language
+# - ❌ NO task IDs, cron expressions, or schedule details
+# - ❌ NO "next execution" or timing information
+# - ❌ NO administrative scheduling language
+# - ❌ NO confirmation emails or system notifications
 
-**Tone and Style:**
-- Write as if you're delivering the actual work requested
-- Use natural, conversational language appropriate to the content
-- Structure information clearly with headers and sections
-- Focus on value delivery, not system operations
+# **Tone and Style:**
+# - Write as if you're delivering the actual work requested
+# - Use natural, conversational language appropriate to the content
+# - Structure information clearly with headers and sections
+# - Focus on value delivery, not system operations
 
-**Example Structure:**
-```
-## [Subject Matter] Analysis Results
+# **Example Structure:**
+# ```
+# ## [Subject Matter] Analysis Results
 
-[Executive summary of findings]
+# [Executive summary of findings]
 
-### Key Findings
-- [Insight 1]
-- [Insight 2]
-- [Insight 3]
+# ### Key Findings
+# - [Insight 1]
+# - [Insight 2]
+# - [Insight 3]
 
-### Detailed Analysis
-[In-depth content]
+# ### Detailed Analysis
+# [In-depth content]
 
-### Recommendations
-[Actionable next steps]
-```
-"""
+# ### Recommendations
+# [Actionable next steps]
+# ```
+# """
 
 # Summarize handler output guidelines
 SUMMARIZE_OUTPUT_GUIDELINES = """
@@ -153,13 +153,12 @@ Output Format Guidelines:
 # Future handler output guidelines
 FUTURE_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
-1. Start with clear task confirmation including task ID prominently displayed
+1. Start with clear task confirmation including task ID
 2. Present schedule in human-readable format
 3. Show next execution time in user's timezone
-4. Explain what content will be reprocessed
+4. Explain what will be reprocessed
 5. End with clear next steps and expectations
 6. DO NOT include the cron expression in the output
-7. **NEVER expose internal error details** - if scheduling fails, simply state "An error occurred" and suggest trying again
 
 Sample format:
 ```
@@ -171,34 +170,21 @@ Sample format:
 **Task ID**: [ALWAYS include the generated task UUID here]
 
 ## Processing Details
-**Content to Process**: [Summary of email content that will be reprocessed]
+**Task details**: [Summary of the task that will be processed]
 **Frequency**: [One-time/Daily/Weekly/Monthly/Custom interval description]
 **Timezone**: [Original timezone and UTC conversion notes]
 
 ## What Happens Next
 - The task has been stored in the system
-- At the scheduled time, the original email content will be reprocessed
-- You'll receive the results via email at the specified time
+- At the scheduled time, the task will be processed and you'll receive the results
 - The task will [continue recurring/end after one execution] as configured
 ```
-
-## Error Handling Guidelines:
-**For internal errors:**
-- DO NOT expose technical details, stack traces, or internal variable names
-- Simply state: "An error occurred while creating the scheduled task"
-- Suggest: "Please try again later or contact support if the issue persists"
-- Offer alternatives if appropriate (different timing, simpler schedule, etc.)
 
 **Sample error response:**
 ```
 ## Scheduling Error
 
 An error occurred while creating the scheduled task. Please try again later or contact support if the issue persists.
-
-**Alternative Options:**
-- Try a different timing (e.g., hourly instead of every 2 minutes)
-- Contact support for assistance with complex scheduling requirements
-- Use simpler time expressions
 
 We apologize for the inconvenience.
 ```

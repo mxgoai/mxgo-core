@@ -175,29 +175,34 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             "from": "from_email",  # Handle both variations
             "to": "to",
             "subject": "subject",
-            "textContent": "text_content",
-            "text_content": "text_content",
-            "htmlContent": "html_content",
-            "html_content": "html_content",
-            "messageId": "message_id",
-            "message_id": "message_id",
+            "textContent": "textContent",
+            "text_content": "textContent",
+            "htmlContent": "htmlContent",
+            "html_content": "htmlContent",
+            "messageId": "messageId",
+            "message_id": "messageId",
             "date": "date",
-            "recipients": "recipients",
+            "emailId": "emailId",
+            "email_id": "emailId",
+            "rawHeaders": "rawHeaders",
+            "raw_headers": "rawHeaders",
         }
 
         # Map fields from email_request to form_data
         for request_field, form_field in field_mapping.items():
             if request_field in email_request:
                 value = email_request[request_field]
-                # Convert lists to JSON strings
-                if isinstance(value, list | dict):
+                # Special handling for rawHeaders - convert dict to JSON string
+                if (request_field in ["rawHeaders", "raw_headers"] and isinstance(value, dict)) or isinstance(value, list | dict):
                     form_data[form_field] = json.dumps(value)
                 else:
                     form_data[form_field] = str(value)
 
-        # Handle attachments if present
-        if "attachments" in email_request:
-            form_data["attachments"] = json.dumps(email_request["attachments"])
+        # Handle attachments if present (not as form field but as files)
+        if email_request.get("attachments"):
+            # Note: For now, we're not handling file attachments in scheduled tasks
+            # This would require additional logic to handle file content
+            logger.warning(f"Task {task_id} has attachments but file handling not implemented for scheduled tasks")
 
         # Make HTTP request
         url = f"{API_BASE_URL}/process-email"
@@ -212,6 +217,8 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
 
         with httpx.Client(timeout=HTTP_TIMEOUT) as client:
             logger.info(f"Making HTTP request to {url} for task {task_id}")
+            logger.debug(f"Form data keys: {list(form_data.keys())}")
+            logger.debug(f"Form data: {form_data}")
 
             response = client.post(url, data=form_data, headers=headers)
 

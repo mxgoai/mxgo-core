@@ -1120,7 +1120,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **Time References**: Specific dates/times, relative timing ("every Monday", "in 2 weeks", "quarterly")
 - **Recurrence Pattern**: One-time, daily, weekly, monthly, yearly, custom intervals
 - **Context Requirements**: Any specific processing instructions or conditions
-- **Email Content**: Full email content that should be reprocessed at scheduled time
+- **Processing Instructions**: Detailed instructions about how this task should be handled when executed
 
 **CRITICAL ANALYSIS:**
 - Identify if this is a one-time future task or recurring reminder
@@ -1155,11 +1155,9 @@ Analyze email content to extract scheduling requirements for future or recurring
 
 **Tool Usage: scheduled_tasks**
 - **cron_expression**: Valid cron expression in UTC (e.g., "0 14 * * 1" for every Monday at 2 PM UTC)
-- **email_request**: Use the "Raw Email Request Data (for tool use)" JSON object provided in the email context EXACTLY as-is. This JSON contains all required fields (from, to, subject, textContent, etc.). Do NOT construct a new dictionary - use the provided JSON data directly by parsing it.
+- **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be.
 - **task_description**: Human-readable description of what the scheduled task will do (e.g., "Weekly reminder to review sales report")
 - **next_run_time**: (Optional) Next execution time in ISO 8601 format (e.g., "2024-08-19T14:00:00Z")
-
-**CRITICAL: The email context contains a "Raw Email Request Data (for tool use)" section with a JSON object. Use this JSON object EXACTLY as provided - do NOT modify, construct, or omit any fields. This ensures all required fields (from, to, subject) are included.**
 
 **Response (Successful Scheduling):**
 1. Confirmation message with:
@@ -1172,7 +1170,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 
 **CRITICAL REQUIREMENTS:**
 - ALWAYS generate and validate a correct cron expression in UTC
-- ALWAYS store the complete email request data for future processing
+- ALWAYS create detailed distilled_future_task_instructions that explain how to process the task
 - ALWAYS provide a clear confirmation with the next execution time and task ID
 - ALWAYS ensure the task ID from the tool's response is included in your final response
 - NEVER show the cron expression in the user-facing output
@@ -1189,13 +1187,14 @@ Analyze email content to extract scheduling requirements for future or recurring
 **Task ID**: [CRITICAL: Include the actual task UUID returned by the scheduled_tasks tool]
 
 ## Processing Details
-**Content to Process**: [Summary of email content that will be reprocessed]
+**Content to Process**: [Summary of what will be processed]
+**Processing Instructions**: [How the task will be handled when executed]
 **Frequency**: [One-time/Daily/Weekly/Monthly/Custom interval description]
 **Timezone**: [Original timezone and UTC conversion notes]
 
 ## What Happens Next
 - The task has been stored in the system
-- At the scheduled time, the original email content will be reprocessed
+- At the scheduled time, the task will be processed according to the specified instructions
 - You'll receive the results via email at the specified time
 - The task will [continue recurring/end after one execution] as configured
 ```
@@ -1209,7 +1208,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 - Task: Review weekly sales report
 - Schedule: Every Monday at 9 AM
 - Recurrence: Weekly
-- Content: Original email content about sales report review
+- Processing Instructions: Send reminder to review weekly sales report
 
 **Step 2: Cron Generation**
 - User timezone assumed: EST/EDT (UTC-5/-4)
@@ -1220,7 +1219,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 ```
 scheduled_tasks(
     cron_expression="0 14 * * 1",
-    email_request=raw_email_request_json_from_context,  # Use the "Raw Email Request Data" JSON exactly as provided
+    distilled_future_task_instructions="Send a reminder email to review the weekly sales report. Include motivation to check key metrics and performance indicators.",
     task_description="Weekly reminder to review sales report"
 )
 ```
@@ -1236,12 +1235,13 @@ scheduled_tasks(
 
 ## Processing Details
 **Content to Process**: "Remind me every Monday at 9 AM to review the weekly sales report"
+**Processing Instructions**: Send reminder with motivation to check key metrics and performance indicators
 **Frequency**: Weekly (every Monday)
 **Timezone**: Eastern Standard Time (UTC-5)
 
 ## What Happens Next
 - The task has been stored in the system
-- At the scheduled time, the original email content will be reprocessed
+- At the scheduled time, the task will be processed according to the specified instructions
 - You'll receive the results via email at the specified time
 - The task will continue recurring as configured
 ```
@@ -1253,7 +1253,7 @@ scheduled_tasks(
 - Task: Reprocess research request
 - Schedule: One-time, 2 weeks from now
 - Recurrence: None (one-time)
-- Content: Current email content
+- Processing Instructions: Re-execute the research request with current data
 
 **Step 2: Cron Generation**
 - Calculate exact date 2 weeks from now
@@ -1264,25 +1264,15 @@ scheduled_tasks(
 ```
 scheduled_tasks(
     cron_expression="0 9 [day] [month] *",
-    email_request=raw_email_request_json_from_context,  # Use the "Raw Email Request Data" JSON exactly as provided
+    distilled_future_task_instructions="Re-execute the research request from the original email. Use current data and updated sources to provide fresh insights on the topic.",
     task_description="One-time reprocessing of research request"
 )
 ```
 
-**CRITICAL REQUIREMENTS:**
-- **ALWAYS generate valid cron expressions in UTC**
-- **ALWAYS store complete email request data for future processing**
-- **ALWAYS provide clear confirmation with next execution time**
-- **ALWAYS include the task ID returned by the scheduled_tasks tool in your final response**
-- **NEVER show the cron expression in the user-facing output**
-- **ALWAYS use scheduled_tasks to store the task**
-- **ALWAYS convert user timezone to UTC for cron expressions**
-- **ALWAYS validate cron expression syntax before storage**
-
 **Content Guidelines:**
 1. **Clear scheduling intent** - understand exactly what user wants scheduled
 2. **Accurate time conversion** - handle timezones properly
-3. **Complete data storage** - preserve all necessary context for future processing
+3. **Detailed processing instructions** - create comprehensive distilled_future_task_instructions
 4. **User-friendly confirmation** - explain what was scheduled and when it will happen
 5. **Error handling** - validate timing requests and provide alternatives if invalid
 """

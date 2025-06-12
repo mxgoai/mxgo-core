@@ -1,7 +1,6 @@
-import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Optional
 
 from croniter import croniter
 from pydantic import BaseModel, Field, field_validator
@@ -13,18 +12,12 @@ from mxtoai.db import init_db_connection
 from mxtoai.models import Tasks, TaskStatus
 from mxtoai.scheduled_task_executor import execute_scheduled_task
 from mxtoai.scheduler import add_scheduled_job
+from mxtoai.schemas import EmailRequest, HandlerAlias
 
 logger = get_logger("scheduled_tasks_tool")
 
 # Use synchronous DB connection
 db_connection = init_db_connection()
-
-# Remove automatic scheduler startup - scheduler will run as separate process
-# try:
-#     start_scheduler()
-#     logger.info("APScheduler started successfully for scheduled tasks tool")
-# except Exception as e:
-#     logger.error(f"Failed to start APScheduler: {e}")
 
 
 def round_to_nearest_minute(dt: datetime) -> datetime:
@@ -51,7 +44,7 @@ class ScheduledTaskInput(BaseModel):
     """Input model for scheduled task creation"""
 
     cron_expression: str = Field(..., description="Valid cron expression for task scheduling")
-    email_request: dict[str, Any] = Field(..., description="Complete email request data to reprocess")
+    distilled_future_task_instructions: str = Field(..., description="Distilled and detailed instructions about how the task will be processed in future")
     task_description: str = Field(..., description="Human-readable description of the task")
     next_run_time: Optional[str] = Field(None, description="Next execution time (ISO format)")
 
@@ -66,53 +59,6 @@ class ScheduledTaskInput(BaseModel):
             msg = f"Invalid cron expression: {e}"
             raise ValueError(msg) from e
         return v
-
-    @field_validator("email_request")
-    @classmethod
-    def validate_email_request(cls, v):
-        """Validate that email_request contains necessary data"""
-        # If input is a string, try to parse it as JSON
-        if isinstance(v, str):
-            try:
-                v = json.loads(v)
-            except json.JSONDecodeError:
-                msg = "email_request string must be valid JSON"
-                raise ValueError(msg)
-
-        if not isinstance(v, dict):
-            msg = "email_request must be a dictionary or valid JSON string"
-            raise ValueError(msg)
-
-        # Normalize email request field keys (support both camelCase and lowercase)
-        normalized_dict = {}
-        for key, value in v.items():
-            # Convert to lowercase for comparison
-            key_lower = key.lower()
-
-            # Map common variations to standard keys
-            if key_lower in {"from", "from_email"}:
-                normalized_dict["from"] = value
-            elif key_lower == "to":
-                normalized_dict["to"] = value
-            elif key_lower == "subject":
-                normalized_dict["subject"] = value
-            elif key_lower in ["textcontent", "text_content"]:
-                normalized_dict["textContent"] = value
-            elif key_lower in ["htmlcontent", "html_content"]:
-                normalized_dict["htmlContent"] = value
-            else:
-                # Keep original key for other fields
-                normalized_dict[key] = value
-
-        # Check for required fields using normalized keys
-        required_fields = ["from", "to", "subject"]
-        missing_fields = [field for field in required_fields if field not in normalized_dict]
-
-        if missing_fields:
-            msg = f"email_request missing required fields: {missing_fields}"
-            raise ValueError(msg)
-
-        return normalized_dict
 
     @field_validator("next_run_time")
     @classmethod
@@ -152,9 +98,9 @@ class ScheduledTasksTool(Tool):
             "type": "string",
             "description": "Valid cron expression for task scheduling"
         },
-        "email_request": {
-            "type": "object",
-            "description": "Complete email request data to reprocess"
+        "distilled_future_task_instructions": {
+            "type": "string",
+            "description": "Distilled and detailed instructions about how the task will be processed in future"
         },
         "task_description": {
             "type": "string",
@@ -168,10 +114,21 @@ class ScheduledTasksTool(Tool):
     }
     output_type = "object"
 
+    def __init__(self, email_request: EmailRequest):
+        """
+        Initialize the ScheduledTasksTool with an optional email request.
+
+        Args:
+            email_request: Optional email request data to reprocess
+
+        """
+        super().__init__()
+        self.email_request = email_request
+
     def forward(
         self,
         cron_expression: str,
-        email_request: dict,
+        distilled_future_task_instructions: str,
         task_description: str,
         next_run_time: Optional[str] = None,
     ) -> dict:
@@ -180,7 +137,7 @@ class ScheduledTasksTool(Tool):
 
         Args:
             cron_expression: Valid cron expression for task scheduling
-            email_request: Complete email request data to reprocess
+            distilled_future_task_instructions: Distilled and detailed instructions about how the task will be processed in future
             task_description: Human-readable description of task
             next_run_time: Optional next run time in ISO 8601 format
 
@@ -191,27 +148,27 @@ class ScheduledTasksTool(Tool):
         logger.info(f"Storing and scheduling task: {task_description}")
 
         # Check if this is already a scheduled task (prevent recursive scheduling)
-        if email_request.get("scheduled_task_id"):
-            logger.info(f"Skipping recursive scheduling for task {email_request.get('scheduled_task_id')}")
+        if self.email_request.scheduled_task_id:
+            logger.info(f"Skipping recursive scheduling for task {self.email_request.scheduled_task_id}")
             return {
                 "success": False,
                 "error": "Recursive scheduling not allowed",
                 "message": "This email is already being processed as a scheduled task",
-                "existing_task_id": email_request.get("scheduled_task_id"),
+                "existing_task_id": self.email_request.scheduled_task_id,
             }
 
         try:
             # Validate input using Pydantic
             input_data = ScheduledTaskInput(
                 cron_expression=cron_expression,
-                email_request=email_request,
+                distilled_future_task_instructions=distilled_future_task_instructions,
                 task_description=task_description,
                 next_run_time=next_run_time,
             )
 
             # Generate unique task ID
             task_id = str(uuid.uuid4())
-            email_id = input_data.email_request.get("messageId") or f"scheduled-{task_id}"
+            email_id = self.email_request.from_email
 
             # Round the next execution time to nearest minute if provided
             next_execution = None
@@ -230,6 +187,11 @@ class ScheduledTasksTool(Tool):
             # Create scheduler job ID (APScheduler will use this)
             scheduler_job_id = f"task_{task_id}"
 
+            # Save distilled instructions to email request
+            self.email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
+            # TODO: Need an AI driver logic here but for now we'll just redirect to ask
+            self.email_request.distilled_alias = HandlerAlias.ASK
+
             # Store task in database using ORM
             try:
                 with db_connection.get_session() as session:
@@ -237,7 +199,7 @@ class ScheduledTasksTool(Tool):
                         task_id=task_id,
                         email_id=email_id,
                         cron_expression=input_data.cron_expression,
-                        email_request=input_data.email_request,
+                        email_request=self.email_request.model_dump(),
                         scheduler_job_id=scheduler_job_id,
                         status=TaskStatus.INITIALISED,
                         created_at=datetime.now(timezone.utc),
@@ -305,36 +267,3 @@ class ScheduledTasksTool(Tool):
                 "task_description": task_description,
                 "message": f"Failed to schedule task: {e}",
             }
-
-
-# Example usage for testing
-if __name__ == "__main__":
-    import os
-
-    # Set required environment variables for testing
-    if "DB_USER" not in os.environ:
-        os.environ["DB_USER"] = "postgres"
-        os.environ["DB_PASSWORD"] = "postgres"
-        os.environ["DB_HOST"] = "localhost"
-        os.environ["DB_PORT"] = "5432"
-        os.environ["DB_NAME"] = "mxtoai"
-
-    # Create tool instance
-    tool = ScheduledTasksTool()
-
-    # Example task
-    sample_email_request = {
-        "from": "test@example.com",
-        "to": "remind@mxtoai.com",
-        "subject": "Weekly Report Reminder",
-        "textContent": "Remind me to review the weekly sales report",
-        "emailId": "test_email_123",
-    }
-
-    # Execute the tool synchronously
-    result = tool.forward(
-        cron_expression="0 14 * * 1",  # Every Monday at 2 PM UTC
-        email_request=sample_email_request,
-        task_description="Weekly reminder to review sales report",
-    )
-

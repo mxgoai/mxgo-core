@@ -9,7 +9,7 @@ import dramatiq
 from dotenv import load_dotenv
 from dramatiq.brokers.rabbitmq import RabbitmqBroker
 
-from mxtoai import exceptions  # Import custom exceptions
+from mxtoai import exceptions
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
@@ -104,14 +104,19 @@ def process_email_task(
 
     """
     email_request = EmailRequest(**email_data)
-    handle = email_request.to.split("@")[0].lower()
-    now_iso = datetime.now().isoformat()  # Define now_iso earlier for use in error cases
 
-    # Log if this is a scheduled task
-    if scheduled_task_id:
-        logger.info(f"Processing scheduled task {scheduled_task_id} for handle: {handle}")
+    # For scheduled tasks, use distilled_alias if available, otherwise fall back to email handle
+    if scheduled_task_id and email_request.distilled_alias:
+        handle = email_request.distilled_alias.value
+        logger.info(f"Processing scheduled task {scheduled_task_id} using distilled alias: {handle}")
     else:
-        logger.info(f"Processing regular email for handle: {handle}")
+        handle = email_request.to.split("@")[0].lower()
+        if scheduled_task_id:
+            logger.info(f"Processing scheduled task {scheduled_task_id} for handle: {handle}")
+        else:
+            logger.info(f"Processing regular email for handle: {handle}")
+
+    now_iso = datetime.now().isoformat()  # Define now_iso earlier for use in error cases
 
     try:
         email_instructions: Union[ProcessingInstructions, None] = processing_instructions_resolver(handle)
@@ -153,7 +158,7 @@ def process_email_task(
         )
     # Removed the early return for `if not email_instructions` as the try-except handles it.
 
-    email_agent = EmailAgent()
+    email_agent = EmailAgent(email_request=email_request)
 
     if email_instructions.deep_research_mandatory and email_agent.research_tool:
         email_agent.research_tool.enable_deep_research()

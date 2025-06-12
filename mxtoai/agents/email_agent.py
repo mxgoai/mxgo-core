@@ -19,8 +19,6 @@ from smolagents.default_tools import (
 from sqlmodel import select
 
 from mxtoai._logging import get_logger, get_smolagents_console
-
-# Database imports for scheduled task context
 from mxtoai.db import init_db_connection
 from mxtoai.models.models import Tasks
 from mxtoai.prompts.base_prompts import (
@@ -28,7 +26,6 @@ from mxtoai.prompts.base_prompts import (
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
 )
-from mxtoai.prompts.output_prompts import SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
     AgentResearchMetadata,
@@ -87,7 +84,7 @@ class EmailAgent:
     """
 
     def __init__(
-        self, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
+        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -106,6 +103,7 @@ class EmailAgent:
         self.attachment_dir = attachment_dir
         os.makedirs(self.attachment_dir, exist_ok=True)
 
+        self.email_request = email_request
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
         self.meeting_tool = MeetingTool()
@@ -113,7 +111,7 @@ class EmailAgent:
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
-        self.scheduled_tasks_tool = ScheduledTasksTool()
+        self.scheduled_tasks_tool = ScheduledTasksTool(email_request=email_request)
         self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool()
 
         # Initialize independent search tools
@@ -299,8 +297,6 @@ class EmailAgent:
         )
 
         # Convert email request to dictionary for AI agent use
-        import json
-
         email_request_dict = self._email_request_to_dict(email_request)
         email_request_json = json.dumps(email_request_dict, indent=2)
 
@@ -419,13 +415,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             else []
         )
 
-        # Check if this is a scheduled task execution
-        is_scheduled_execution = email_request.scheduled_task_id is not None
-
-        # Use specific output guidelines for scheduled executions
         output_template = email_instructions.output_template
-        if is_scheduled_execution:
-            output_template = SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES
 
         return self._create_task_template(
             handle=email_instructions.handle,
@@ -434,6 +424,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             attachment_task=self._create_attachment_task(attachments),
             deep_research_mandatory=email_instructions.deep_research_mandatory,
             output_template=output_template,
+            distilled_processing_instructions=email_request.distilled_processing_instructions,
         )
 
     def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]:
@@ -460,6 +451,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
         attachment_task: str = "",
         deep_research_mandatory: bool = False,
         output_template: str = "",
+        distilled_processing_instructions: Optional[str] = None,
     ) -> str:
         """
         Combine all task components into the final task description.
@@ -471,15 +463,34 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             attachment_task: Instructions for processing attachments.
             deep_research_mandatory: Flag indicating if deep research is mandatory.
             output_template: The output template to use.
+            distilled_processing_instructions: Specific processing instructions for scheduled tasks.
 
         Returns:
             str: The complete task description for the agent.
 
         """
+        # Create distilled processing instructions section for scheduled tasks
+        distilled_section = f"""
+## 🎯 SCHEDULED TASK PROCESSING INSTRUCTIONS
+
+**IMPORTANT**: This is a scheduled task execution. The following are the specific processing instructions that were defined when the task was originally created:
+
+{distilled_processing_instructions}
+
+**CRITICAL NOTES:**
+- The original email may contain scheduling/reminder language, but the scheduling has already happened
+- This is the execution trigger of that scheduled instance
+- Ignore any scheduling instructions and focus ONLY on what needs to be done
+- Execute the task based on these distilled instructions, not the original scheduling request
+
+**Please follow above instructions precisely to execute the intended task.**
+""" if distilled_processing_instructions else ""
+
         # Merge the task components into a single string by listing the sections
         sections = [
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
+            distilled_section,
             RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
@@ -488,6 +499,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             MARKDOWN_STYLE_GUIDE,
             # LIST_FORMATTING_REQUIREMENTS,
         ]
+
         return "\n\n".join(filter(None, sections))
 
     def _process_agent_result(
@@ -819,7 +831,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
             task = self._create_task(email_request, email_instructions)
 
             logger.info("Starting agent execution...")
-            final_answer_obj = self.agent.run(task)
+            final_answer_obj = self.agent.run(task, additional_args={"email_request": email_request})
             logger.info("Agent execution completed.")
 
             agent_steps = list(self.agent.memory.steps)
@@ -838,7 +850,7 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
                 return processed_result
 
             logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
-            return processed_result  # Added return for the successful case
+            return processed_result
 
         except Exception as e:
             error_msg = f"Critical error in email processing: {e!s}"

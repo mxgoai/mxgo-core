@@ -275,7 +275,7 @@ You need to run **three separate processes**:
 poetry run python run_api.py
 
 # Terminal 2: Dramatiq Workers (multiple processes)
-poetry run dramatiq mxtoai.tasks --processes 8 --threads 2 --watch ./
+poetry run dramatiq mxtoai.tasks --processes 1 --threads 2 --watch ./
 
 # Terminal 3: Scheduler Process (separate)
 poetry run python -m mxtoai.scheduler_runner
@@ -351,11 +351,3 @@ For detailed configuration, check `locustfile.py`.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## New Scheduler Process
-
-To run the new scheduler process, use the following command:
-
-```bash
-poetry run python -m mxtoai.scheduler_runner
-```

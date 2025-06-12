@@ -4,6 +4,22 @@ from typing import Any, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class HandlerAlias(str, Enum):
+    """Enum for email handle aliases."""
+
+    SUMMARIZE = "summarize"
+    RESEARCH = "research"
+    SIMPLIFY = "simplify"
+    ASK = "ask"
+    FACT_CHECK = "fact-check"
+    BACKGROUND_RESEARCH = "background-research"
+    TRANSLATE = "translate"
+    MEETING = "meeting"
+    PDF_EXPORT = "pdf-export"
+    SCHEDULE = "schedule"
+    DELETE = "delete"
+
+
 # Enum for Rate Limit Plans
 class RateLimitPlan(Enum):
     BETA = "beta"
@@ -60,6 +76,8 @@ class EmailRequest(BaseModel):
     emailId: Optional[str] = None  # Unique ID for this email
     rawHeaders: Optional[dict[str, Any]] = None  # Raw email headers
     scheduled_task_id: Optional[str] = None  # ID of scheduled task if this is a scheduled execution
+    distilled_processing_instructions: Optional[str] = None  # Processed instructions for the email
+    distilled_alias: Optional[HandlerAlias] = None  # Alias to use for processing this email (overrides the detaul to-email handle)
 
 
 class ResearchResult(BaseModel):

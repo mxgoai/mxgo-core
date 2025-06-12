@@ -120,9 +120,9 @@ class ToolInput(BaseModel):
 Implement robust error handling:
 
 ```python
-import logging
+from mxtoai.utils import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 def forward(self, ...):
     try:
