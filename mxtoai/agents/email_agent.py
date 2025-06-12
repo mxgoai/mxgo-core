@@ -22,6 +22,7 @@ from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
+    SECURITY_GUIDELINES,
 )
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
@@ -168,7 +169,7 @@ class EmailAgent:
         ):
             self.agent.monitor.logger.console = smolagents_console
 
-        logger.debug("Agent initialized with routed model configuration and loguru-integrated Rich console")
+        logger.debug("Agent initialized with routed model configuration, loguru-integrated Rich console")
 
     def _initialize_independent_search_tools(self) -> list[Tool]:
         """
@@ -374,7 +375,7 @@ class EmailAgent:
             output_template,
             RESPONSE_GUIDELINES,
             MARKDOWN_STYLE_GUIDE,
-            # LIST_FORMATTING_REQUIREMENTS,
+            SECURITY_GUIDELINES,
         ]
         return "\n\n".join(filter(None, sections))
 
