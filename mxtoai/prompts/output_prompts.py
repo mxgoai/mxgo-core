@@ -5,52 +5,6 @@ These guidelines complement the template prompts by focusing specifically on
 output structure and formatting, while avoiding redundancy with the template content.
 """
 
-# Scheduled task execution output guidelines
-# SCHEDULED_TASK_EXECUTION_OUTPUT_GUIDELINES = """
-# Output Format Guidelines for Scheduled Task Execution:
-
-# **CRITICAL**: This is a scheduled task execution, NOT initial scheduling. Focus on execution results only.
-
-# **What TO Include:**
-# 1. Direct execution results (research findings, analysis, data)
-# 2. Actionable recommendations and insights
-# 3. Structured information relevant to the original request
-# 4. Professional analysis and conclusions
-# 5. Any deliverables the user originally requested
-
-# **What NOT TO Include:**
-# - ❌ NO scheduling confirmation messages
-# - ❌ NO "task scheduled successfully" language
-# - ❌ NO task IDs, cron expressions, or schedule details
-# - ❌ NO "next execution" or timing information
-# - ❌ NO administrative scheduling language
-# - ❌ NO confirmation emails or system notifications
-
-# **Tone and Style:**
-# - Write as if you're delivering the actual work requested
-# - Use natural, conversational language appropriate to the content
-# - Structure information clearly with headers and sections
-# - Focus on value delivery, not system operations
-
-# **Example Structure:**
-# ```
-# ## [Subject Matter] Analysis Results
-
-# [Executive summary of findings]
-
-# ### Key Findings
-# - [Insight 1]
-# - [Insight 2]
-# - [Insight 3]
-
-# ### Detailed Analysis
-# [In-depth content]
-
-# ### Recommendations
-# [Actionable next steps]
-# ```
-# """
-
 # Summarize handler output guidelines
 SUMMARIZE_OUTPUT_GUIDELINES = """
 Output Format Guidelines:

@@ -19,6 +19,7 @@ from mxtoai._logging import get_logger
 from mxtoai.db import init_db_connection
 from mxtoai.models import Tasks, TaskStatus
 from mxtoai.scheduler import remove_scheduled_job
+from mxtoai.schemas import EmailRequest
 
 logger = get_logger("delete_scheduled_tasks_tool")
 
@@ -30,7 +31,6 @@ class DeleteTaskInput(BaseModel):
     """Input model for task deletion"""
 
     task_id: str = Field(..., description="Task ID to delete")
-    user_email: str = Field(..., min_length=1, description="Email of user requesting deletion")
 
     @field_validator("task_id")
     @classmethod
@@ -121,31 +121,30 @@ class DeleteScheduledTasksTool(Tool):
         "task_id": {
             "type": "string",
             "description": "UUID of the task to delete"
-        },
-        "user_email": {
-            "type": "string",
-            "description": "Email of the user requesting deletion"
         }
     }
     output_type = "object"
 
-    def forward(self, task_id: str, user_email: str) -> dict:
+    def __init__(self, email_request: EmailRequest):
+        super().__init__()
+        self.email_request = email_request
+
+    def forward(self, task_id: str) -> dict:
         """
         Delete a scheduled task after verifying user ownership.
 
         Args:
             task_id: UUID of the task to delete
-            user_email: Email of the user requesting deletion
 
         Returns:
             Dictionary with deletion status and details
 
         """
-        logger.info(f"Processing delete request for task {task_id} by {user_email}")
+        logger.info(f"Processing delete request for task {task_id}")
 
         try:
             # Validate input
-            input_data = DeleteTaskInput(task_id=task_id, user_email=user_email)
+            input_data = DeleteTaskInput(task_id=task_id)
 
             with db_connection.get_session() as session:
                 # Find the task by ID
@@ -188,7 +187,7 @@ class DeleteScheduledTasksTool(Tool):
                     task_email_request.get("from_email", "") or
                     task_email_request.get("from", "")
                 ).lower()
-                requesting_email = input_data.user_email.lower()
+                requesting_email = self.email_request.from_email.lower()
 
                 if task_owner_email != requesting_email:
                     logger.warning(f"Permission denied: {requesting_email} cannot delete task owned by {task_owner_email}")

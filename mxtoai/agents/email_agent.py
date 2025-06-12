@@ -26,6 +26,12 @@ from mxtoai.prompts.base_prompts import (
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
 )
+from mxtoai.prompts.template_prompts import (
+    SCHEDULED_TASK_CONTEXT_TEMPLATE,
+    SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE,
+    SCHEDULED_TASK_ERROR_TEMPLATE,
+    SCHEDULED_TASK_NOT_FOUND_TEMPLATE,
+)
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
     AgentResearchMetadata,
@@ -112,7 +118,7 @@ class EmailAgent:
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
         self.scheduled_tasks_tool = ScheduledTasksTool(email_request=email_request)
-        self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool()
+        self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool(email_request=email_request)
 
         # Initialize independent search tools
         self.search_tools = self._initialize_independent_search_tools()
@@ -345,8 +351,7 @@ Raw Email Request Data (for tool use):
                 task = session.exec(statement).first()
 
                 if not task:
-                    return f"""⏰ **SCHEDULED TASK EXECUTION**
-This is a scheduled task execution, but task details could not be retrieved (Task ID: {scheduled_task_id})."""
+                    return SCHEDULED_TASK_NOT_FOUND_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
 
                 # Parse the original email request
                 try:
@@ -357,31 +362,18 @@ This is a scheduled task execution, but task details could not be retrieved (Tas
                     original_request = {}
 
                 # Format the execution context
-                return f"""⏰ **SCHEDULED TASK EXECUTION**
-
-🎯 **IMPORTANT CONTEXT**: This email is being processed as part of a scheduled task execution. The user previously sent an email requesting that this action be performed at this time. Your focus should be on executing the original intent, NOT on creating new schedules.
-
-📧 **Original Request Details**:
-- Task ID: {scheduled_task_id}
-- Created: {task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if task.created_at else "Unknown"}
-- Cron Schedule: {task.cron_expression or "One-time task"}
-- Original Subject: {original_request.get("subject", "Unknown")}
-- Original From: {original_request.get("from_email", original_request.get("from", "Unknown"))}
-- Task Status: {task.status}
-
-🚀 **Your Task**: Execute the intended action based on the original email request below. Focus on the user's original intent rather than scheduling functionality.
-
-⚠️ **IMPORTANT OUTPUT GUIDELINES**:
-- Do NOT include any scheduling confirmation messages
-- Do NOT mention task IDs, cron expressions, or next execution times
-- Do NOT say "task scheduled successfully" or similar confirmation language
-- Focus ONLY on the execution results (research, analysis, data, recommendations)
-- Your response should look like a natural completion of the user's original request"""
+                return SCHEDULED_TASK_CONTEXT_TEMPLATE.format(
+                    scheduled_task_id=scheduled_task_id,
+                    created_at=task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if task.created_at else "Unknown",
+                    cron_expression=task.cron_expression or "One-time task",
+                    original_subject=original_request.get("subject", "Unknown"),
+                    original_from=original_request.get("from_email", original_request.get("from", "Unknown")),
+                    task_status=task.status,
+                )
 
         except Exception as e:
             logger.error(f"Error creating scheduled task context for {scheduled_task_id}: {e}")
-            return f"""⏰ **SCHEDULED TASK EXECUTION**
-This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on executing the intended action rather than creating new schedules."""
+            return SCHEDULED_TASK_ERROR_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
 
     def _create_attachment_task(self, attachment_details: list[str]) -> str:
         """
@@ -470,21 +462,13 @@ This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on exec
 
         """
         # Create distilled processing instructions section for scheduled tasks
-        distilled_section = f"""
-## 🎯 SCHEDULED TASK PROCESSING INSTRUCTIONS
-
-**IMPORTANT**: This is a scheduled task execution. The following are the specific processing instructions that were defined when the task was originally created:
-
-{distilled_processing_instructions}
-
-**CRITICAL NOTES:**
-- The original email may contain scheduling/reminder language, but the scheduling has already happened
-- This is the execution trigger of that scheduled instance
-- Ignore any scheduling instructions and focus ONLY on what needs to be done
-- Execute the task based on these distilled instructions, not the original scheduling request
-
-**Please follow above instructions precisely to execute the intended task.**
-""" if distilled_processing_instructions else ""
+        distilled_section = (
+            SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE.format(
+                distilled_processing_instructions=distilled_processing_instructions
+            )
+            if distilled_processing_instructions
+            else ""
+        )
 
         # Merge the task components into a single string by listing the sections
         sections = [
