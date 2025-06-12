@@ -343,9 +343,7 @@ Raw Email Request Data (for tool use):
 
         """
         try:
-            db_connection = init_db_connection()
-
-            with db_connection.get_session() as session:
+            with init_db_connection().get_session() as session:
                 # Get the task information
                 statement = select(Tasks).where(Tasks.task_id == scheduled_task_id)
                 task = session.exec(statement).first()

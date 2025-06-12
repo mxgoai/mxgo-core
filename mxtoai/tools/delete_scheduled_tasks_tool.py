@@ -23,9 +23,6 @@ from mxtoai.schemas import EmailRequest
 
 logger = get_logger("delete_scheduled_tasks_tool")
 
-# Use synchronous DB connection
-db_connection = init_db_connection()
-
 
 class DeleteTaskInput(BaseModel):
     """Input model for task deletion"""
@@ -146,6 +143,7 @@ class DeleteScheduledTasksTool(Tool):
             # Validate input
             input_data = DeleteTaskInput(task_id=task_id)
 
+            db_connection = init_db_connection()
             with db_connection.get_session() as session:
                 # Find the task by ID
                 statement = select(Tasks).where(Tasks.task_id == input_data.task_id)

@@ -16,9 +16,6 @@ from mxtoai.schemas import EmailRequest, HandlerAlias
 
 logger = get_logger("scheduled_tasks_tool")
 
-# Use synchronous DB connection
-db_connection = init_db_connection()
-
 
 def round_to_nearest_minute(dt: datetime) -> datetime:
     """
@@ -166,6 +163,7 @@ class ScheduledTasksTool(Tool):
                 next_run_time=next_run_time,
             )
 
+            db_connection = init_db_connection()
             # Generate unique task ID
             task_id = str(uuid.uuid4())
             email_id = self.email_request.from_email

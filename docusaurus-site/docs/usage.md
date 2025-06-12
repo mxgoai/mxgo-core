@@ -16,8 +16,8 @@ Here's a brief overview of the available handles and their primary functions:
 *   `research@mxtoai.com`: Perform in-depth research based on the email [Experimental].
 *   `factcheck@mxtoai.com`: Verify the claims made in the email.
 *   `background@mxtoai.com`: Get background information on entities mentioned.
-*   `ask@mxtoai.com`: Ask specific questions about the email content.
-*   `schedule@mxtoai.com`: Extract scheduling information or propose meeting times.
+*   `meeting@mxtoai.com`: Extract scheduling information, propose meeting times, or book appointments.
+*   `remind@mxtoai.com`: Schedule future or recurring tasks (e.g., reminders, periodic reports, etc.).
 *   `pdf@mxtoai.com`: Export email content as a professional PDF document.
 
 For detailed information on each handle, including aliases and key features, please refer to the [Email Handles section on our website](https://www.mxtoai.com/#usecases).

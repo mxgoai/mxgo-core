@@ -14,6 +14,10 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 
 ## 📧 Daily Email Management
 
+**"I want to set up recurring reminders or automate periodic tasks"**
+- Forward your request to remind@mxtoai.com (e.g., "Remind me every Monday at 9am to review sales report")
+- Get confirmation and automatic reminders/results at the scheduled time
+
 **"I get too many newsletters and updates"**
 - Forward newsletters to summarize@mxtoai.com - get key points in 2-3 sentences
 - Set up auto-forwarding rules so all newsletters get auto-summarized daily
@@ -33,7 +37,7 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 ## 🤝 Meeting & Scheduling
 
 **"Coordinating meetings is a nightmare"**
-- Forward scheduling emails to schedule@mxtoai.com
+- Forward scheduling emails to meeting@mxtoai.com
 - Get back .ics calendar files with suggested meeting times
 - Works with "Can we meet next week?" or complex group scheduling
 
@@ -107,6 +111,28 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 - Forward contracts, agreements, or important announcements to pdf@mxtoai.com
 - Get clean documents without email clutter - perfect for filing or legal records
 
+## 💡 Creative & Technical Work
+
+**"I have writer's block and need to draft a blog post"**
+- Forward your topic and key points to ask@mxtoai.com with "Draft a blog post about this"
+- Get a well-structured draft to kickstart your writing process
+
+**"I need some fresh ideas for a project"**
+- Forward a brief to ask@mxtoai.com with "Brainstorm 10 creative ideas for this"
+- Perfect for naming projects, marketing campaigns, or feature ideas
+
+**"I need to write social media content"**
+- Forward your product announcement to ask@mxtoai.com with "Generate 3 tweets and a LinkedIn post for this"
+- Save time on crafting engaging social media updates
+
+**"I need help with a coding problem"**
+- Forward a code snippet to ask@mxtoai.com with "Find the bug in this Python code"
+- Get a quick analysis and suggestions for a fix
+
+**"I need to understand a complex technical document"**
+- Forward API documentation or a technical paper to simplify@mxtoai.com
+- Receive a clear explanation of the key concepts and how to use them
+
 ## 🏠 Personal Life
 
 **"I get complex medical/insurance emails"**
@@ -129,6 +155,10 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 - Forward lengthy community emails to summarize@mxtoai.com
 - Get key dates, rule changes, and action items
 
+**"I'm planning a trip and need an itinerary"**
+- Forward your destination and dates to ask@mxtoai.com with "Create a 3-day itinerary for a trip to Paris focusing on art and food"
+- Get a detailed plan with suggestions for attractions, restaurants, and activities
+
 ## 🎓 Education & Learning
 
 **"I want to stay informed but don't have time to read everything"**
@@ -150,6 +180,10 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I want to compile research findings into shareable documents"**
 - Forward multiple research emails to ask@mxtoai.com with "Synthesize findings and create PDF report"
 - Perfect for thesis research or professional development
+
+**"I need a quick summary of a long video"**
+- Forward a link to a YouTube video to summarize@mxtoai.com
+- Get the key takeaways and timestamps without watching the whole thing
 
 ## 🛍️ Shopping & Consumer Decisions
 
@@ -187,6 +221,10 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 - Forward to simplify@mxtoai.com - understand deadlines and requirements
 - No more confusion about filing obligations
 
+**"I receive wellness newsletters with conflicting advice"**
+- Forward to factcheck@mxtoai.com - verify health claims
+- Separate science from marketing
+
 ## 🏥 Healthcare & Wellness
 
 **"I get lab results and medical reports"**
@@ -200,10 +238,6 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I get emails about new treatments or procedures"**
 - Forward to ask@mxtoai.com with "What are the risks and benefits?"
 - Make informed healthcare decisions
-
-**"I receive wellness newsletters with conflicting advice"**
-- Forward to factcheck@mxtoai.com - verify health claims
-- Separate science from marketing
 
 ## 🎯 Real-World Examples by Profession
 
@@ -243,3 +277,7 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **Healthcare Worker:**
 - "I forward policy updates to summarize@mxtoai.com - regulations change constantly"
 - "I forward research emails to ask@mxtoai.com with 'How does this apply to my patients?'"
+
+**Marketer:**
+- "I forward competitor ads to ask@mxtoai.com with 'What is their strategy and what can we do better?'"
+- "I forward campaign ideas to ask@mxtoai.com with 'Help me brainstorm some visuals for this concept'"

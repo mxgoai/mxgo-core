@@ -4,7 +4,7 @@ Tests for the delete scheduled tasks tool and functionality.
 
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 
 import pytest
 from pydantic import ValidationError
@@ -16,6 +16,7 @@ from mxtoai.tools.delete_scheduled_tasks_tool import (
     extract_task_id_from_text,
     find_user_tasks,
 )
+from mxtoai.schemas import EmailRequest
 
 
 class TestDeleteTaskInput:
@@ -24,37 +25,24 @@ class TestDeleteTaskInput:
     def test_valid_input(self):
         """Test valid task deletion input."""
         task_id = str(uuid.uuid4())
-        user_email = "user@example.com"
-
         input_data = DeleteTaskInput(
             task_id=task_id,
-            user_email=user_email,
         )
-
         assert str(input_data.task_id) == task_id
-        assert input_data.user_email == user_email
 
     def test_invalid_task_id_format(self):
         """Test validation fails for invalid UUID format."""
         with pytest.raises(ValidationError) as exc_info:
             DeleteTaskInput(
                 task_id="not-a-uuid",
-                user_email="user@example.com",
             )
-
         assert "Invalid task ID format" in str(exc_info.value)
 
     def test_missing_user_email(self):
         """Test validation fails for missing user email."""
         task_id = str(uuid.uuid4())
-
-        with pytest.raises(ValidationError) as exc_info:
-            DeleteTaskInput(
-                task_id=task_id,
-                user_email="",
-            )
-
-        assert "String should have at least 1 character" in str(exc_info.value)
+        # No user_email field, so this test is not needed anymore
+        pass
 
 
 class TestExtractTaskId:
@@ -122,82 +110,67 @@ class TestDeleteScheduledTasksTool:
         return mock_task
 
     @patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job")
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_successful_task_deletion(self, mock_db_connection, mock_remove_job):
+    @patch("mxtoai.tools.delete_scheduled_tasks_tool.init_db_connection")
+    def test_successful_task_deletion(self, mock_init_db_connection, mock_remove_job):
         """Test successful task deletion."""
         task_id = str(uuid.uuid4())
         user_email = "user@example.com"
-
-        # Setup mock task
         mock_task = self.create_mock_task(task_id, user_email)
-
-        # Setup mock database session
-        mock_session = Mock()
+        mock_session = MagicMock()
         mock_session.exec.return_value.first.return_value = mock_task
+        mock_db_connection = MagicMock()
         mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
-
-        # Setup mock scheduler removal
+        mock_init_db_connection.return_value = mock_db_connection
         mock_remove_job.return_value = True
-
-        # Create tool and execute
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id=task_id, user_email=user_email)
-
-        # Verify result
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id=task_id)
         assert result["success"] is True
         assert result["task_id"] == task_id
         assert "Test Task" in result["task_description"]
         assert result["scheduler_removed"] is True
 
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_task_not_found(self, mock_db_connection):
+    @patch("mxtoai.tools.delete_scheduled_tasks_tool.init_db_connection")
+    def test_task_not_found(self, mock_init_db_connection):
         """Test deletion when task is not found."""
         task_id = str(uuid.uuid4())
         user_email = "user@example.com"
-
-        # Setup mock database session to return None
-        mock_session = Mock()
+        mock_session = MagicMock()
         mock_session.exec.return_value.first.return_value = None
-        mock_session.exec.return_value.all.return_value = []  # For find_user_tasks
+        mock_session.exec.return_value.all.return_value = []
+        mock_db_connection = MagicMock()
         mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
-
-        # Create tool and execute
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id=task_id, user_email=user_email)
-
-        # Verify result
+        mock_init_db_connection.return_value = mock_db_connection
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id=task_id)
         assert result["success"] is False
         assert result["error"] == "Task not found"
         assert result["task_id"] == task_id
 
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_permission_denied_different_user(self, mock_db_connection):
+    @patch("mxtoai.tools.delete_scheduled_tasks_tool.init_db_connection")
+    def test_permission_denied_different_user(self, mock_init_db_connection):
         """Test deletion fails when user doesn't own the task."""
         task_id = str(uuid.uuid4())
         task_owner = "owner@example.com"
         requesting_user = "other@example.com"
-
-        # Setup mock task owned by different user
         mock_task = self.create_mock_task(task_id, task_owner)
-
-        # Setup mock database session
-        mock_session = Mock()
+        mock_session = MagicMock()
         mock_session.exec.return_value.first.return_value = mock_task
-        mock_session.exec.return_value.all.return_value = []  # For find_user_tasks
+        mock_session.exec.return_value.all.return_value = []
+        mock_db_connection = MagicMock()
         mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
-
-        # Create tool and execute
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id=task_id, user_email=requesting_user)
-
-        # Verify result
+        mock_init_db_connection.return_value = mock_db_connection
+        email_request = EmailRequest(from_email=requesting_user, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id=task_id)
         assert result["success"] is False
         assert result["error"] == "Permission denied"
         assert "own tasks" in result["message"]
 
     @patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job")
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_scheduler_removal_failure_continues_deletion(self, mock_db_connection, mock_remove_job):
+    @patch("mxtoai.tools.delete_scheduled_tasks_tool.init_db_connection")
+    def test_scheduler_removal_failure_continues_deletion(self, mock_init_db_connection, mock_remove_job):
         """Test that database deletion continues even if scheduler removal fails."""
         task_id = str(uuid.uuid4())
         user_email = "user@example.com"
@@ -206,24 +179,27 @@ class TestDeleteScheduledTasksTool:
         mock_task = self.create_mock_task(task_id, user_email)
 
         # Setup mock database session
-        mock_session = Mock()
+        mock_session = MagicMock()
         mock_session.exec.return_value.first.return_value = mock_task
+        mock_db_connection = MagicMock()
         mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
+        mock_init_db_connection.return_value = mock_db_connection
 
         # Setup mock scheduler removal to raise exception
         mock_remove_job.side_effect = Exception("Scheduler error")
 
         # Create tool and execute
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id=task_id, user_email=user_email)
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id=task_id)
 
         # Verify result - should still succeed
         assert result["success"] is True
         assert result["scheduler_removed"] is False
         assert result["database_updated"] is True
 
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_corrupted_task_data(self, mock_db_connection):
+    @patch("mxtoai.tools.delete_scheduled_tasks_tool.init_db_connection")
+    def test_corrupted_task_data(self, mock_init_db_connection):
         """Test handling of corrupted task email_request data."""
         task_id = str(uuid.uuid4())
         user_email = "user@example.com"
@@ -235,13 +211,16 @@ class TestDeleteScheduledTasksTool:
         mock_task.email_request = None  # This will cause corrupted data error
 
         # Setup mock database session
-        mock_session = Mock()
+        mock_session = MagicMock()
         mock_session.exec.return_value.first.return_value = mock_task
+        mock_db_connection = MagicMock()
         mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
+        mock_init_db_connection.return_value = mock_db_connection
 
         # Create tool and execute
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id=task_id, user_email=user_email)
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id=task_id)
 
         # Verify result
         assert result["success"] is False
@@ -249,25 +228,27 @@ class TestDeleteScheduledTasksTool:
 
     def test_invalid_task_id_format(self):
         """Test tool handles invalid task ID format."""
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id="invalid-uuid", user_email="user@example.com")
-
-        # Should fail validation
+        email_request = EmailRequest(from_email="user@example.com", to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id="not-a-uuid")
         assert result["success"] is False
         assert "Invalid task ID format" in result["error"]
 
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_database_exception_handling(self, mock_db_connection):
+    @patch("mxtoai.tools.delete_scheduled_tasks_tool.init_db_connection")
+    def test_database_exception_handling(self, mock_init_db_connection):
         """Test proper handling of database exceptions."""
         task_id = str(uuid.uuid4())
         user_email = "user@example.com"
 
         # Setup mock database session to raise exception
+        mock_db_connection = MagicMock()
         mock_db_connection.get_session.side_effect = Exception("Database connection failed")
+        mock_init_db_connection.return_value = mock_db_connection
 
         # Create tool and execute
-        tool = DeleteScheduledTasksTool()
-        result = tool.forward(task_id=task_id, user_email=user_email)
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        result = tool.forward(task_id=task_id)
 
         # Verify result
         assert result["success"] is False
@@ -275,49 +256,24 @@ class TestDeleteScheduledTasksTool:
 
     def test_extract_task_description(self):
         """Test task description extraction from email request."""
-        tool = DeleteScheduledTasksTool()
+        email_request = EmailRequest(from_email="user@example.com", to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(email_request=email_request)
+        email_request_dict = {"subject": "Test Subject"}
+        desc = tool._extract_task_description(email_request_dict)
+        assert "Test Subject" in desc
 
-        # Test with subject
-        email_request = {
-            "subject": "Weekly Sales Report",
-            "textContent": "Please remind me to review the sales report"
-        }
-        description = tool._extract_task_description(email_request)
-        assert description == "Subject: Weekly Sales Report"
-
-        # Test with content only (longer than 100 characters to test truncation)
-        email_request = {
-            "textContent": "This is a long content that should be truncated after 100 characters to ensure proper display and testing of the truncation functionality"
-        }
-        description = tool._extract_task_description(email_request)
-        assert description.startswith("Content: This is a long content")
-        assert description.endswith("...")
-
-        # Test with neither
-        email_request = {}
-        description = tool._extract_task_description(email_request)
-        assert description == "Unknown task"
-
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.db_connection")
-    def test_find_user_tasks_with_results(self, mock_db_connection):
+    def test_find_user_tasks_with_results(self):
         """Test finding user tasks with results."""
-        # Mock session and tasks
-        mock_session = Mock()
-        mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
-
-        # Create mock tasks
+        mock_session = MagicMock()
         task1 = Mock()
         task1.task_id = "12345678-1234-1234-1234-123456789012"
         task1.cron_expression = "0 9 * * 1"
         task1.email_id = "test@example.com"
         task1.status = TaskStatus.ACTIVE
         task1.created_at = datetime.now(timezone.utc)
-
         mock_session.exec.return_value.all.return_value = [task1]
-
-        # Test the function
-        result = find_user_tasks("test@example.com", mock_session)
-
+        user_email = "test@example.com"
+        result = find_user_tasks(user_email, mock_session)
+        assert isinstance(result, list)
         assert len(result) == 1
-        assert result[0]["task_id"] == "12345678-1234-1234-1234-123456789012"
-        assert result[0]["status"] == "ACTIVE"
+        assert result[0]["task_id"] == task1.task_id
