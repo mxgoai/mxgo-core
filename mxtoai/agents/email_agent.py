@@ -150,8 +150,8 @@ class EmailAgent:
             max_steps=12,
             verbosity_level=2,  # Increased back to 2 to capture detailed Rich console output
             planning_interval=4,
-            name="email_processing_agent",
-            description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities including web search, web browsing, and code execution.",
+            name="mxtoai_email_processing_agent",
+            description="I'm MXtoAI agent - an intelligent email processing agent that automates email-driven tasks and workflows. I can analyze emails, generate professional summaries and replies, conduct comprehensive research using web search and external APIs, process attachments (documents, images, PDFs), extract and create calendar events, export content to PDF, and execute code for data analysis. I maintain professional communication standards while providing accurate, well-researched responses tailored to your specific email handling requirements.",
             provide_run_summary=True,
         )
 

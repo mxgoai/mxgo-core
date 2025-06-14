@@ -38,11 +38,49 @@ api_key = "dummy"
 api_version = ""
 weight = 1
 
+# Claude Sonnet via Amazon Bedrock
+[[model]]
+model_name = "claude-sonnet"
+
+[model.litellm_params]
+model = "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0"
+aws_access_key_id = "os.environ/AWS_ACCESS_KEY_ID"
+aws_secret_access_key = "os.environ/AWS_SECRET_ACCESS_KEY"
+aws_region_name = "os.environ/AWS_REGION_NAME"
+weight = 3
+
+# Claude Sonnet 3.5 via Amazon Bedrock (ARN-based inference profile)
+[[model]]
+model_name = "claude-sonnet"
+
+[model.litellm_params]
+model = "bedrock/arn:aws:bedrock:us-east-1:763126074217:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+aws_access_key_id = "os.environ/AWS_ACCESS_KEY_ID"
+aws_secret_access_key = "os.environ/AWS_SECRET_ACCESS_KEY"
+aws_region_name = "os.environ/AWS_REGION_NAME"
+weight = 5
+
+# Alternative: Claude Sonnet using explicit inference profile parameter
+[[model]]
+model_name = "claude-sonnet"
+
+[model.litellm_params]
+model = "bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0"
+aws_access_key_id = "os.environ/AWS_ACCESS_KEY_ID"
+aws_secret_access_key = "os.environ/AWS_SECRET_ACCESS_KEY"
+aws_region_name = "os.environ/AWS_REGION_NAME"
+aws_bedrock_inference_profile = "arn:aws:bedrock:us-east-1:763126074217:inference-profile/us.anthropic.claude-3-5-sonnet-20241022-v2:0"
+weight = 2
+
 [router_config]
 routing_strategy = "simple-shuffle"
 
 [[router_config.fallbacks]]
 gpt-4 = ["gpt-4-reasoning"]
+
+# Add Claude Sonnet as fallback for GPT-4
+[[router_config.fallbacks]]
+claude-sonnet = ["gpt-4"]
 
 [router_config.default_litellm_params]
 drop_params = true
