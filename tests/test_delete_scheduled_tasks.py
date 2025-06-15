@@ -4,19 +4,19 @@ Tests for the delete scheduled tasks tool and functionality.
 
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from pydantic import ValidationError
 
 from mxtoai.models import TaskStatus
+from mxtoai.schemas import EmailRequest
 from mxtoai.tools.delete_scheduled_tasks_tool import (
     DeleteScheduledTasksTool,
     DeleteTaskInput,
     extract_task_id_from_text,
     find_user_tasks,
 )
-from mxtoai.schemas import EmailRequest
 
 
 class TestDeleteTaskInput:
@@ -40,9 +40,8 @@ class TestDeleteTaskInput:
 
     def test_missing_user_email(self):
         """Test validation fails for missing user email."""
-        task_id = str(uuid.uuid4())
+        str(uuid.uuid4())
         # No user_email field, so this test is not needed anymore
-        pass
 
 
 class TestExtractTaskId:

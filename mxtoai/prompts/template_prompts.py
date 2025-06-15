@@ -1121,11 +1121,15 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **Recurrence Pattern**: One-time, daily, weekly, monthly, yearly, custom intervals
 - **Context Requirements**: Any specific processing instructions or conditions
 - **Processing Instructions**: Detailed instructions about how this task should be handled when executed
+- **Start Time**: Any specified start date/time when the task should begin (e.g., "starting next month", "from January 1st")
+- **End Time**: Any specified end date/time when the task should stop (e.g., "until end of year", "for 6 months")
 
 **CRITICAL ANALYSIS:**
 - Identify if this is a one-time future task or recurring reminder
 - Determine the exact timing requirements
 - Extract any special processing instructions for the future task
+- Look for time bounds - when should the task start and when should it end
+- Note any expiration conditions for the scheduled task
 
 ## STEP 2: Cron Expression Generation
 **Generate appropriate cron expressions based on timing requirements:**
@@ -1145,6 +1149,11 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **Weekdays only**: `0 9 * * 1-5` (9 AM Monday-Friday)
 - **Every 2 weeks**: Use specific dates for bi-weekly patterns
 
+**MINIMUM INTERVAL REQUIREMENT:**
+- All recurring tasks must have a minimum interval of **1 hour** between executions
+- Tasks that would run more frequently than once per hour will be rejected
+- For very frequent reminders, consider if the task really needs to be that frequent
+
 **Time Zone Handling:**
 - Convert all times to UTC for cron expressions
 - Note original timezone in task metadata
@@ -1155,15 +1164,18 @@ Analyze email content to extract scheduling requirements for future or recurring
 
 **Tool Usage: scheduled_tasks**
 - **cron_expression**: Valid cron expression in UTC (e.g., "0 14 * * 1" for every Monday at 2 PM UTC)
-- **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be.
+- **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be. **CRITICAL: If the original email contains attachments, you MUST include detailed context about the attachments in these instructions since attachments will not be available during scheduled execution. Include attachment names, types, sizes, and any relevant content or context from the attachments.**
 - **task_description**: Human-readable description of what the scheduled task will do (e.g., "Weekly reminder to review sales report")
 - **next_run_time**: (Optional) Next execution time in ISO 8601 format (e.g., "2024-08-19T14:00:00Z")
+- **start_time**: (Optional) Start time for the task in ISO 8601 format - task will not execute before this time (e.g., "2024-09-01T00:00:00Z")
+- **end_time**: (Optional) End time for the task in ISO 8601 format - task will not execute after this time (e.g., "2024-12-31T23:59:59Z")
 
 **Response (Successful Scheduling):**
 1. Confirmation message with:
     - Task ID (MUST be included in the final response)
     - Human-readable schedule description
     - Next execution time (in user's timezone and UTC)
+    - Start time and end time if specified
     - DO NOT include the cron expression in the user-facing output
 2. Summary of what will be processed/reminded
 3. Clear next steps (e.g., "You will receive results at the scheduled time.")
@@ -1171,10 +1183,13 @@ Analyze email content to extract scheduling requirements for future or recurring
 **CRITICAL REQUIREMENTS:**
 - ALWAYS generate and validate a correct cron expression in UTC
 - ALWAYS create detailed distilled_future_task_instructions that explain how to process the task
+- **ALWAYS include attachment context in distilled_future_task_instructions if the original email has attachments** - scheduled tasks cannot access original attachments, so all relevant attachment information must be captured in the instructions
 - ALWAYS provide a clear confirmation with the next execution time and task ID
 - ALWAYS ensure the task ID from the tool's response is included in your final response
 - NEVER show the cron expression in the user-facing output
 - ALWAYS use the `scheduled_tasks` tool for this purpose
+- VALIDATE that recurring tasks have minimum 1-hour intervals
+- INCLUDE start_time and end_time parameters when time bounds are specified
 
 ## STEP 4: Response Format
 **Provide clear confirmation with:**
@@ -1209,11 +1224,14 @@ Analyze email content to extract scheduling requirements for future or recurring
 - Schedule: Every Monday at 9 AM
 - Recurrence: Weekly
 - Processing Instructions: Send reminder to review weekly sales report
+- Start Time: None specified (starts immediately)
+- End Time: None specified (continues indefinitely)
 
 **Step 2: Cron Generation**
 - User timezone assumed: EST/EDT (UTC-5/-4)
 - 9 AM EST = 14:00 UTC (standard time)
 - Cron: `0 14 * * 1`
+- Interval check: Weekly (7 days) > 1 hour minimum ✓
 
 **Step 3: Tool Usage**
 ```
@@ -1254,6 +1272,8 @@ scheduled_tasks(
 - Schedule: One-time, 2 weeks from now
 - Recurrence: None (one-time)
 - Processing Instructions: Re-execute the research request with current data
+- Start Time: None specified
+- End Time: None specified (one-time task)
 
 **Step 2: Cron Generation**
 - Calculate exact date 2 weeks from now
@@ -1267,6 +1287,113 @@ scheduled_tasks(
     distilled_future_task_instructions="Re-execute the research request from the original email. Use current data and updated sources to provide fresh insights on the topic.",
     task_description="One-time reprocessing of research request"
 )
+```
+
+## Example 3: Time-bound Recurring Task
+**User Request**: "Send me daily market updates at 8 AM starting January 1st until March 31st"
+
+**Step 1: Analysis**
+- Task: Send daily market updates
+- Schedule: Daily at 8 AM
+- Recurrence: Daily
+- Processing Instructions: Generate and send market updates
+- Start Time: January 1st (specified start date)
+- End Time: March 31st (specified end date)
+
+**Step 2: Cron Generation**
+- 8 AM user timezone → convert to UTC
+- Cron: `0 12 * * *` (assuming UTC-4 timezone)
+- Interval check: Daily (24 hours) > 1 hour minimum ✓
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="0 12 * * *",
+    distilled_future_task_instructions="Generate and send comprehensive daily market updates including key indicators, news, and analysis relevant to the user's interests.",
+    task_description="Daily market updates",
+    start_time="2024-01-01T12:00:00Z",
+    end_time="2024-03-31T23:59:59Z"
+)
+```
+
+**Sample Response:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: Daily market updates
+**Schedule**: Every day at 8:00 AM
+**Active Period**: January 1, 2024 to March 31, 2024
+**Next Occurrence**: January 1, 2024 at 8:00 AM EST
+**Task ID**: a1234567-1234-1234-1234-123456789012
+
+## Processing Details
+**Content to Process**: Daily market updates request
+**Processing Instructions**: Generate comprehensive market updates with key indicators and analysis
+**Frequency**: Daily
+**Time Bounds**: Task will run from January 1st through March 31st only
+**Timezone**: Eastern Standard Time (UTC-5)
+
+## What Happens Next
+- The task has been stored in the system
+- Task will begin executing on January 1st, 2024
+- Daily updates will be sent at 8:00 AM until March 31st
+- Task will automatically stop after the end date
+```
+
+## Example 4: Scheduled Task with Attachments
+**User Request**: "Process this data file every Friday and send me a summary" (with attached CSV file: sales_data.csv, 2.5MB)
+
+**Step 1: Analysis**
+- Task: Process data file and send summary
+- Schedule: Every Friday
+- Recurrence: Weekly
+- Processing Instructions: Process the attached CSV data and generate summary
+- Attachments: sales_data.csv (2.5MB) - contains sales data that needs to be referenced
+- Start Time: None specified
+- End Time: None specified
+
+**Step 2: Cron Generation**
+- Every Friday at reasonable time (assume 9 AM user timezone)
+- Convert to UTC based on user timezone
+- Cron: `0 14 * * 5` (assuming UTC-5 timezone)
+- Interval check: Weekly (7 days) > 1 hour minimum ✓
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="0 14 * * 5",
+    distilled_future_task_instructions="Process and analyze the sales data from the original email attachment 'sales_data.csv' (2.5MB CSV file containing sales records). The file included columns for date, product, quantity, revenue, and region. Generate a comprehensive weekly summary report including: total sales, top performing products, regional breakdown, and trends compared to previous periods. Since the original attachment won't be available during scheduled execution, note that this task requires the user to provide updated data files or access to current sales data sources for meaningful analysis.",
+    task_description="Weekly sales data processing and summary report"
+)
+```
+
+**Sample Response:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: Weekly sales data processing and summary report
+**Schedule**: Every Friday at 9:00 AM
+**Next Occurrence**: Friday, August 23, 2024 at 9:00 AM EST
+**Task ID**: d8202023-534d-49c2-e06f-g9535c66f436
+
+## Processing Details
+**Content to Process**: Sales data analysis and summary generation
+**Original Attachment**: sales_data.csv (2.5MB) - sales records with date, product, quantity, revenue, and region data
+**Processing Instructions**: Generate comprehensive weekly summary with sales totals, top products, regional breakdown, and trend analysis
+**Frequency**: Weekly (every Friday)
+**Timezone**: Eastern Standard Time (UTC-5)
+
+## Important Note About Attachments
+⚠️ **Attachment Limitation**: The original CSV file will not be accessible during scheduled execution. For meaningful analysis, you'll need to either:
+- Provide updated data files when the task runs
+- Ensure the system has access to current sales data sources
+- Consider setting up automated data feeds for the scheduled task
+
+## What Happens Next
+- The task has been stored in the system
+- Every Friday at 9:00 AM, the system will attempt to process sales data
+- You'll receive summary reports via email at the scheduled time
+- The task will continue recurring as configured
 ```
 
 **Content Guidelines:**

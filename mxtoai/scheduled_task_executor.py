@@ -59,6 +59,24 @@ def execute_scheduled_task(task_id: str) -> None:
                 logger.warning(f"Task {task_id} is marked as deleted, skipping execution")
                 return
 
+            # Check start_time and expiry_time constraints
+            current_time = datetime.now(timezone.utc)
+
+            # Check if task has not reached its start time yet
+            if task.start_time and current_time < task.start_time:
+                logger.warning(f"Task {task_id} has not reached its start time yet ({task.start_time}), skipping execution")
+                return
+
+            # Check if task has expired
+            if task.expiry_time and current_time > task.expiry_time:
+                logger.warning(f"Task {task_id} has expired ({task.expiry_time}), marking as FINISHED")
+                # Mark task as finished
+                task.status = TaskStatus.FINISHED
+                task.updated_at = current_time
+                session.add(task)
+                session.commit()
+                return
+
             # Update task status to EXECUTING
             task.status = TaskStatus.EXECUTING
             task.updated_at = datetime.now(timezone.utc)
@@ -311,6 +329,8 @@ def get_task_execution_status(task_id: str) -> Optional[dict[str, Any]]:
                 "updated_at": task.updated_at,
                 "cron_expression": task.cron_expression,
                 "scheduler_job_id": task.scheduler_job_id,
+                "start_time": task.start_time,
+                "expiry_time": task.expiry_time,
             }
 
             if latest_run:

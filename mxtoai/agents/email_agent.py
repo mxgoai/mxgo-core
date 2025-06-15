@@ -270,19 +270,6 @@ class EmailAgent:
             logger.info("JINA_API_KEY not found. DeepResearchTool not initialized.")
         return research_tool
 
-    def _email_request_to_dict(self, email_request: EmailRequest) -> dict:
-        """
-        Convert EmailRequest object to dictionary for AI agent use.
-
-        Args:
-            email_request: EmailRequest instance
-
-        Returns:
-            dict: EmailRequest data as dictionary
-
-        """
-        return email_request.model_dump()
-
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
         """
         Generate context information from the email request.
@@ -302,9 +289,7 @@ class EmailAgent:
             else "No attachments provided."
         )
 
-        # Convert email request to dictionary for AI agent use
-        email_request_dict = self._email_request_to_dict(email_request)
-        email_request_json = json.dumps(email_request_dict, indent=2)
+        email_request_json = email_request.model_dump_json(indent=2)
 
         # Add scheduled task context if this is a scheduled task execution
         scheduled_context = ""
@@ -363,7 +348,7 @@ Raw Email Request Data (for tool use):
                 return SCHEDULED_TASK_CONTEXT_TEMPLATE.format(
                     scheduled_task_id=scheduled_task_id,
                     created_at=task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if task.created_at else "Unknown",
-                    cron_expression=task.cron_expression or "One-time task",
+                    cron_expression=task.cron_expression,
                     original_subject=original_request.get("subject", "Unknown"),
                     original_from=original_request.get("from_email", original_request.get("from", "Unknown")),
                     task_status=task.status,

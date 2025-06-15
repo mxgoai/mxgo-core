@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from croniter import croniter
@@ -8,33 +8,117 @@ from smolagents import Tool
 from sqlmodel import select
 
 from mxtoai._logging import get_logger
+from mxtoai.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
 from mxtoai.db import init_db_connection
 from mxtoai.models import Tasks, TaskStatus
 from mxtoai.scheduled_task_executor import execute_scheduled_task
 from mxtoai.scheduler import add_scheduled_job
 from mxtoai.schemas import EmailRequest, HandlerAlias
+from mxtoai.utils import round_to_nearest_minute, validate_datetime_field
 
 logger = get_logger("scheduled_tasks_tool")
 
 
-def round_to_nearest_minute(dt: datetime) -> datetime:
+
+
+
+def calculate_cron_interval(cron_expression: str) -> timedelta:
     """
-    Round a datetime object to the nearest minute.
-    This ensures we don't use seconds in cron expressions,
-    as most cron implementations only support minute-level precision.
+    Calculate the minimum interval between executions for a cron expression.
 
     Args:
-        dt: The datetime to round
+        cron_expression: The cron expression to analyze
 
     Returns:
-        A datetime object rounded to the nearest minute
+        timedelta: The minimum interval between executions
+
+    Raises:
+        ValueError: If cron expression is invalid or interval cannot be determined
 
     """
-    if dt.second:
-        # Add one minute and set seconds/microseconds to 0
-        return dt.replace(second=0, microsecond=0)
-    # Already at minute precision, just remove microseconds if any
-    return dt.replace(second=0, microsecond=0)
+    try:
+        # Parse the cron expression
+        parts = cron_expression.strip().split()
+        if len(parts) != 5:
+            msg = "Cron expression must have exactly 5 parts"
+            raise ValueError(msg)
+
+        minute, hour, day, month, weekday = parts
+
+        # Check for every minute execution (* in minute field)
+        if minute == "*":
+            return timedelta(minutes=1)
+
+        # Check for specific minute intervals (*/n in minute field)
+        if minute.startswith("*/"):
+            interval_minutes = int(minute[2:])
+            return timedelta(minutes=interval_minutes)
+
+        # Check for minute ranges or lists
+        if "," in minute or "-" in minute:
+            # For complex minute patterns, assume worst case of every minute
+            return timedelta(minutes=1)
+
+        # Check for every hour execution (* in hour field with specific minute)
+        if hour == "*":
+            return timedelta(hours=1)
+
+        # Check for specific hour intervals (*/n in hour field)
+        if hour.startswith("*/"):
+            interval_hours = int(hour[2:])
+            return timedelta(hours=interval_hours)
+
+        # Check for hour ranges or lists
+        if "," in hour or "-" in hour:
+            # For complex hour patterns, assume worst case of every hour
+            return timedelta(hours=1)
+
+        # If we get here, it's likely a daily, weekly, monthly, or yearly pattern
+        # Daily pattern (specific hour and minute, every day)
+        if day == "*" and month == "*" and (weekday in {"*", "?"}):
+            return timedelta(days=1)
+
+        # Weekly pattern (specific weekday)
+        if day == "*" and month == "*" and weekday not in {"*", "?"}:
+            return timedelta(weeks=1)
+
+        # Monthly pattern (specific day of month)
+        if day != "*" and month == "*":
+            return timedelta(days=30)  # Approximate monthly interval
+
+        # Yearly pattern (specific month and day)
+        if day != "*" and month != "*":
+            return timedelta(days=365)  # Yearly interval
+
+        # Default to daily if we can't determine the pattern
+        return timedelta(days=1)
+
+    except Exception as e:
+        msg = f"Could not calculate interval for cron expression '{cron_expression}': {e}"
+        raise ValueError(msg) from e
+
+
+def validate_minimum_interval(cron_expression: str) -> None:
+    """
+    Validate that a recurring cron expression has a minimum interval of 1 hour.
+
+    Args:
+        cron_expression: The cron expression to validate
+
+    Raises:
+        ValueError: If the interval is less than 1 hour
+
+    """
+    interval = calculate_cron_interval(cron_expression)
+    minimum_interval = timedelta(hours=SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS)
+
+    if interval < minimum_interval:
+        msg = (
+            f"Recurring task interval is too frequent. "
+            f"Found interval: {interval}, minimum required: {minimum_interval}. "
+            f"Please use a cron expression that runs at most once per hour."
+        )
+        raise ValueError(msg)
 
 
 class ScheduledTaskInput(BaseModel):
@@ -44,14 +128,20 @@ class ScheduledTaskInput(BaseModel):
     distilled_future_task_instructions: str = Field(..., description="Distilled and detailed instructions about how the task will be processed in future")
     task_description: str = Field(..., description="Human-readable description of the task")
     next_run_time: Optional[str] = Field(None, description="Next execution time (ISO format)")
+    start_time: Optional[str] = Field(None, description="Start time for the task - task will not execute before this time (ISO format)")
+    end_time: Optional[str] = Field(None, description="End time for the task - task will not execute after this time (ISO format)")
 
     @field_validator("cron_expression")
     @classmethod
     def validate_cron_expression(cls, v):
-        """Validate that the cron expression is valid"""
+        """Validate that the cron expression is valid and meets minimum interval requirements"""
         try:
             # Test if cron expression is valid
             croniter(v)
+
+            # Validate minimum interval for recurring tasks
+            validate_minimum_interval(v)
+
         except Exception as e:
             msg = f"Invalid cron expression: {e}"
             raise ValueError(msg) from e
@@ -61,23 +151,19 @@ class ScheduledTaskInput(BaseModel):
     @classmethod
     def validate_next_run_time(cls, v):
         """Validate that next_run_time is a valid ISO 8601 datetime string if provided"""
-        if v is None:
-            return v
-        try:
-            # Parse the datetime string and ensure it has a timezone
-            dt = datetime.fromisoformat(v.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+        return validate_datetime_field(v, "next_run_time")
 
-            # Round to the nearest minute
-            dt = round_to_nearest_minute(dt)
+    @field_validator("start_time")
+    @classmethod
+    def validate_start_time(cls, v):
+        """Validate that start_time is a valid ISO 8601 datetime string if provided"""
+        return validate_datetime_field(v, "start_time")
 
-            # Return the rounded datetime as an ISO string
-            return dt.isoformat()
-        except ValueError as e:
-            msg = f"Invalid datetime format for next_run_time: {e}"
-            raise ValueError(msg)
-        return v
+    @field_validator("end_time")
+    @classmethod
+    def validate_end_time(cls, v):
+        """Validate that end_time is a valid ISO 8601 datetime string if provided"""
+        return validate_datetime_field(v, "end_time")
 
 
 class ScheduledTasksTool(Tool):
@@ -107,6 +193,16 @@ class ScheduledTasksTool(Tool):
             "type": "string",
             "description": "Optional next run time in ISO 8601 format",
             "nullable": True
+        },
+        "start_time": {
+            "type": "string",
+            "description": "Optional start time for the task in ISO 8601 format - task will not execute before this time",
+            "nullable": True
+        },
+        "end_time": {
+            "type": "string",
+            "description": "Optional end time for the task in ISO 8601 format - task will not execute after this time",
+            "nullable": True
         }
     }
     output_type = "object"
@@ -128,6 +224,8 @@ class ScheduledTasksTool(Tool):
         distilled_future_task_instructions: str,
         task_description: str,
         next_run_time: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
     ) -> dict:
         """
         Sync implementation for creating a scheduled task with APScheduler integration.
@@ -137,6 +235,8 @@ class ScheduledTasksTool(Tool):
             distilled_future_task_instructions: Distilled and detailed instructions about how the task will be processed in future
             task_description: Human-readable description of task
             next_run_time: Optional next run time in ISO 8601 format
+            start_time: Optional start time for the task in ISO 8601 format
+            end_time: Optional end time for the task in ISO 8601 format
 
         Returns:
             Dictionary with task details including task_id, next_execution, etc.
@@ -161,12 +261,41 @@ class ScheduledTasksTool(Tool):
                 distilled_future_task_instructions=distilled_future_task_instructions,
                 task_description=task_description,
                 next_run_time=next_run_time,
+                start_time=start_time,
+                end_time=end_time,
             )
 
             db_connection = init_db_connection()
             # Generate unique task ID
             task_id = str(uuid.uuid4())
             email_id = self.email_request.from_email
+
+            # Parse start_time and end_time if provided
+            parsed_start_time = None
+            parsed_end_time = None
+
+            if input_data.start_time:
+                try:
+                    parsed_start_time = datetime.fromisoformat(input_data.start_time.replace("Z", "+00:00"))
+                    parsed_start_time = round_to_nearest_minute(parsed_start_time)
+                except Exception as e:
+                    logger.warning(f"Could not parse start_time: {e}")
+
+            if input_data.end_time:
+                try:
+                    parsed_end_time = datetime.fromisoformat(input_data.end_time.replace("Z", "+00:00"))
+                    parsed_end_time = round_to_nearest_minute(parsed_end_time)
+                except Exception as e:
+                    logger.warning(f"Could not parse end_time: {e}")
+
+            # Validate that start_time is before end_time if both are provided
+            if parsed_start_time and parsed_end_time and parsed_start_time >= parsed_end_time:
+                return {
+                    "success": False,
+                    "error": "Invalid time range",
+                    "message": "start_time must be before end_time",
+                    "task_description": task_description,
+                }
 
             # Round the next execution time to nearest minute if provided
             next_execution = None
@@ -199,6 +328,8 @@ class ScheduledTasksTool(Tool):
                         cron_expression=input_data.cron_expression,
                         email_request=self.email_request.model_dump(),
                         scheduler_job_id=scheduler_job_id,
+                        start_time=parsed_start_time,
+                        expiry_time=parsed_end_time,
                         status=TaskStatus.INITIALISED,
                         created_at=datetime.now(timezone.utc),
                         updated_at=datetime.now(timezone.utc),
@@ -253,6 +384,8 @@ class ScheduledTasksTool(Tool):
                 "scheduler_job_id": scheduler_job_id,
                 "cron_expression": input_data.cron_expression,
                 "next_execution": next_execution.isoformat() if next_execution else None,
+                "start_time": parsed_start_time.isoformat() if parsed_start_time else None,
+                "end_time": parsed_end_time.isoformat() if parsed_end_time else None,
                 "task_description": task_description,
                 "message": f"Task '{task_description}' scheduled successfully",
             }

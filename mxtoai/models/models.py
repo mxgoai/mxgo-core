@@ -40,7 +40,7 @@ class Tasks(BaseMixin, table=True):
 
     task_id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     email_id: str = Field(index=True, nullable=False, description="Email ID associated with the task")
-    cron_expression: Optional[str] = Field(default=None, description="Cron expression for scheduled tasks")
+    cron_expression: str = Field(description="Cron expression for scheduled tasks")
     scheduler_job_id: Optional[str] = Field(default=None, nullable=True, description="APScheduler job ID for tracking")
     status: TaskStatus = Field(
         sa_column=Column(SQLAEnum(TaskStatus), nullable=False),
@@ -49,6 +49,16 @@ class Tasks(BaseMixin, table=True):
     )
 
     email_request: dict = Field(sa_column=Column(JSON), default_factory=dict)
+    start_time: Optional[datetime] = Field(
+        sa_type=DateTime(timezone=True),
+        default=None,
+        description="Start time for the task - task will not execute before this time"
+    )
+    expiry_time: Optional[datetime] = Field(
+        sa_type=DateTime(timezone=True),
+        default=None,
+        description="End time for the task - task will not execute after this time"
+    )
 
     runs: list["TaskRun"] = Relationship(back_populates="task")
 
