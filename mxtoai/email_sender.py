@@ -1,4 +1,5 @@
 import base64
+import hashlib
 import os
 import time
 from copy import deepcopy
@@ -429,6 +430,29 @@ def log_received_email(email_data: EmailRequest) -> None:
     logger.info(f"Text Content: {email_data.textContent}")
     logger.info(f"HTML Content: {email_data.htmlContent}")
     logger.info(f"Number of attachments: {len(email_data.attachments) if email_data.attachments else 0}")
+
+
+def generate_message_id(from_email: str, to: str, subject: str, date: str, html_content: str, text_content: str, files_count: int) -> str:
+    """
+    Generate a deterministic message ID based on email content.
+
+    Args:
+        from_email: Sender's email address
+        to: Recipient's email address
+        subject: Email subject
+        date: Email date
+        html_content: HTML content of the email
+        text_content: Text content of the email
+        files_count: Number of attached files
+
+    Returns:
+        str: A deterministic message ID for the email
+
+    """
+    # Create a deterministic hash from email components
+    hash_input = f"{from_email}|{to}|{subject}|{date}|{html_content}|{text_content}|{files_count}"
+    message_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:16]
+    return f"<{message_hash}@mxtoai.com>"
 
 
 def generate_email_id(email_data: EmailRequest) -> str:

@@ -19,6 +19,7 @@ from smolagents.default_tools import (
 from sqlmodel import select
 
 from mxtoai._logging import get_logger, get_smolagents_console
+from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
 from mxtoai.db import init_db_connection
 from mxtoai.models.models import Tasks
 from mxtoai.prompts.base_prompts import (
@@ -117,7 +118,9 @@ class EmailAgent:
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
-        self.scheduled_tasks_tool = ScheduledTasksTool(email_request=email_request)
+
+        # Initialize scheduled tasks tool with call counter wrapper
+        self.scheduled_tasks_tool = self._create_limited_scheduled_tasks_tool(email_request)
         self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool(email_request=email_request)
 
         # Initialize independent search tools
@@ -612,8 +615,12 @@ Raw Email Request Data (for tool use):
                             logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")
                         else:
                             error_msg = tool_output.get("message", "Scheduled task creation failed")
-                            errors_list.append(ProcessingError(message="Scheduled Task Error", details=error_msg))
-                            logger.error(f"Scheduled task creation failed: {error_msg}")
+                            error_type = "Scheduled Task Limit Exceeded" if tool_output.get("error") == "Task limit exceeded" else "Scheduled Task Error"
+                            errors_list.append(ProcessingError(message=error_type, details=error_msg))
+                            if tool_output.get("error") == "Task limit exceeded":
+                                logger.warning(f"Scheduled task limit exceeded: {error_msg}")
+                            else:
+                                logger.error(f"Scheduled task creation failed: {error_msg}")
 
                     else:
                         logger.debug(
@@ -850,3 +857,55 @@ Raw Email Request Data (for tool use):
                 research=None,
                 pdf_export=None,
             )
+
+    def _create_limited_scheduled_tasks_tool(self, email_request: EmailRequest) -> Tool:
+        """
+        Create a scheduled tasks tool with a call limit wrapper.
+
+        Args:
+            email_request: The email request data
+
+        Returns:
+            Tool: Wrapped scheduled tasks tool with call limiting
+
+        """
+        # Create the base tool
+        base_tool = ScheduledTasksTool(email_request=email_request)
+
+        # Create a counter to track calls
+        call_count = {"count": 0}
+        max_calls = SCHEDULED_TASKS_MAX_PER_EMAIL
+
+        # Store original forward method
+        original_forward = base_tool.forward
+
+        def limited_forward(*args, **kwargs):
+            """Wrapper that limits scheduled task calls to 5 per email."""
+            if call_count["count"] >= max_calls:
+                logger.warning(f"Scheduled task limit reached ({max_calls} tasks per email). Rejecting additional task creation.")
+                return {
+                    "success": False,
+                    "error": "Task limit exceeded",
+                    "message": f"Maximum of {max_calls} scheduled tasks allowed per email. This limit helps prevent excessive automation.",
+                    "tasks_created": call_count["count"],
+                    "max_allowed": max_calls,
+                }
+
+            # Increment counter before calling
+            call_count["count"] += 1
+            logger.info(f"Creating scheduled task {call_count['count']}/{max_calls}")
+
+            # Call the original method
+            result = original_forward(*args, **kwargs)
+
+            # If the call failed, decrement the counter
+            if not result.get("success", False):
+                call_count["count"] -= 1
+                logger.info(f"Scheduled task creation failed, decremented counter to {call_count['count']}")
+
+            return result
+
+        # Replace the forward method
+        base_tool.forward = limited_forward
+
+        return base_tool

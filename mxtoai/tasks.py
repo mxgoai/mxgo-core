@@ -1,4 +1,3 @@
-import asyncio
 import os
 import shutil
 from datetime import datetime
@@ -25,6 +24,7 @@ from mxtoai.schemas import (
     ProcessingInstructions,
     ProcessingMetadata,
 )
+from mxtoai.validators import check_task_idempotency, mark_email_as_processed
 
 # Load environment variables
 load_dotenv()
@@ -104,6 +104,30 @@ def process_email_task(
 
     """
     email_request = EmailRequest(**email_data)
+
+        # Check for duplicate processing using Redis (idempotency check)
+    message_id = email_request.messageId
+    
+    if check_task_idempotency(message_id):
+        # Return a minimal result indicating it was already processed
+        now_iso = datetime.now().isoformat()
+        return DetailedEmailProcessingResult(
+            metadata=ProcessingMetadata(
+                processed_at=now_iso,
+                mode="duplicate",
+                errors=[ProcessingError(message="Email already processed (duplicate)")],
+                email_sent=EmailSentStatus(
+                    status="duplicate",
+                    message_id="duplicate",
+                    timestamp=now_iso,
+                ),
+            ),
+            email_content=EmailContentDetails(text=None, html=None, enhanced=None),
+            attachments=AttachmentsProcessingResult(processed=[]),
+            calendar_data=None,
+            research=None,
+            pdf_export=None,
+        )
 
     # For scheduled tasks, use distilled_alias if available, otherwise fall back to email handle
     if scheduled_task_id and email_request.distilled_alias:
@@ -212,6 +236,9 @@ def process_email_task(
             logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
             processing_result.metadata.email_sent.status = "skipped"
             processing_result.metadata.email_sent.message_id = "skipped"
+
+            # Mark as processed in Redis even for skipped emails
+            mark_email_as_processed(message_id)
         else:
             attachments_to_send = []
             if processing_result.calendar_data and processing_result.calendar_data.ics_content:
@@ -285,6 +312,9 @@ def process_email_task(
                 processing_result.metadata.email_sent.message_id = email_sent_response.get("MessageId")
                 if email_sent_response.get("status") == "error":
                     processing_result.metadata.email_sent.error = email_sent_response.get("error", "Unknown send error")
+                # Mark as processed in Redis after successful email sending
+                else:
+                    mark_email_as_processed(message_id)
 
             except Exception as send_err:
                 logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)

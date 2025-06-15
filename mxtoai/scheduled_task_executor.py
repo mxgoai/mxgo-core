@@ -200,8 +200,6 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             "messageId": "messageId",
             "message_id": "messageId",
             "date": "date",
-            "emailId": "emailId",
-            "email_id": "emailId",
             "rawHeaders": "rawHeaders",
             "raw_headers": "rawHeaders",
         }

@@ -31,6 +31,7 @@ from mxtoai.validators import (
     validate_attachments,
     validate_email_handle,
     validate_email_whitelist,
+    validate_idempotency,
     validate_rate_limits,
 )
 
@@ -437,7 +438,6 @@ async def process_email(
     htmlContent: Annotated[Optional[str], Form()] = "",
     messageId: Annotated[Optional[str], Form()] = None,
     date: Annotated[Optional[str], Form()] = None,
-    emailId: Annotated[Optional[str], Form()] = None,
     rawHeaders: Annotated[Optional[str], Form()] = None,
     scheduled_task_id: Annotated[Optional[str], Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
@@ -454,7 +454,6 @@ async def process_email(
         htmlContent (str): HTML content of the email
         messageId (str): Unique identifier for the email message
         date (str): Date when the email was sent
-        emailId (str): Unique identifier for the email in the system
         rawHeaders (str): Raw headers of the email in JSON format
         scheduled_task_id (str, optional): ID of the scheduled task if this is a scheduled email
         files (list[UploadFile] | None): List of uploaded files as attachments
@@ -555,13 +554,30 @@ async def process_email(
         # Get handle configuration
         email_instructions = processing_instructions_resolver(handle)  # Safe to use direct access now
 
+                # Validate idempotency and generate deterministic messageId if needed
+        if response := await validate_idempotency(
+            from_email=from_email,
+            to=to,
+            subject=subject or "",
+            date=date or "",
+            html_content=htmlContent or "",
+            text_content=textContent or "",
+            files_count=len(files),
+            message_id=messageId
+        ):
+            response_obj, messageId = response
+            if response_obj:
+                return response_obj
+        else:
+            # If validate_idempotency returns None, extract messageId from the tuple
+            _, messageId = response
+
         # Log initial email details
         logger.info("Received new email request:")
         logger.info(f"To: {to} (handle: {handle})")
         logger.info(f"Subject: {subject}")
         logger.info(f"Message ID: {messageId}")
         logger.info(f"Date: {date}")
-        logger.info(f"Email ID: {emailId}")
         logger.info(f"Number of attachments: {len(files)}")
         # Log raw headers count if present
         if parsed_headers:
@@ -589,7 +605,6 @@ async def process_email(
             htmlContent=htmlContent,
             messageId=messageId,
             date=date,
-            emailId=emailId,
             rawHeaders=parsed_headers,
             cc=cc_list,
             attachments=[],  # Start with empty list, will be updated after saving files

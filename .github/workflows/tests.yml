@@ -19,12 +19,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: backend tests
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_USER: testuser
+          POSTGRES_DB: testdb
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
     env:
       X_API_KEY: "some-api-key"
       IS_PROD: "true"
       LITELLM_DEFAULT_MODEL_GROUP: ${{ secrets.LITELLM_DEFAULT_MODEL_GROUP }}
       # TODO: Ideally, this shouldn't be needed, remove later
       AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      # Test database configuration
+      TEST_DB_URL: postgresql://testuser:testpassword@localhost:5432/testdb
 
     steps:
       - name: Checkout repository
