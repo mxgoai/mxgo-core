@@ -60,6 +60,7 @@ class Tasks(BaseMixin, table=True):
         description="End time for the task - task will not execute after this time"
     )
 
+
     runs: list["TaskRun"] = Relationship(back_populates="task")
 
 

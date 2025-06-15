@@ -115,11 +115,11 @@ class TestIdempotency:
         # Task should not be called
         mock_task.send.assert_not_called()
 
-    @patch("mxtoai.validators.check_task_idempotency")
+    @patch("mxtoai.tasks.check_task_idempotency")
     def test_task_idempotency_already_processed(self, mock_check_idempotency):
         """Test task returns early when email already processed."""
         from mxtoai.tasks import process_email_task
-        
+
         # Setup mock to return True (already processed)
         mock_check_idempotency.return_value = True
 

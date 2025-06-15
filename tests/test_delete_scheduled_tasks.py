@@ -116,9 +116,7 @@ class TestDeleteScheduledTasksTool:
                 scheduler_job_id=f"job_{task_id}",
                 cron_expression="0 9 * * 1",
                 email_id="test@example.com",
-                created_at=datetime.now(timezone.utc),
-                distilled_future_task_instructions="Test task instructions",
-                task_description="Test task description"
+                created_at=datetime.now(timezone.utc)
             )
             session.add(task)
             session.commit()
@@ -207,22 +205,6 @@ class TestDeleteScheduledTasksTool:
         result = tool.forward(task_id="not-a-uuid")
         assert result["success"] is False
         assert "Invalid task ID format" in result["error"]
-
-    @requires_database
-    def test_extract_task_description(self):
-        """Test task description extraction from email request."""
-        task_id = str(uuid.uuid4())
-        user_email = "test@example.com"
-
-        # Create a real task
-        self.create_test_task(task_id, user_email)
-
-        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
-        tool = DeleteScheduledTasksTool(email_request=email_request)
-
-        # Test the private method
-        description = tool._extract_task_description({"subject": "Test Task"})
-        assert description == "Test Task"
 
     @requires_database
     def test_find_user_tasks_with_results(self):

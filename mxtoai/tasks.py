@@ -1,3 +1,4 @@
+import asyncio
 import os
 import shutil
 from datetime import datetime
@@ -107,7 +108,7 @@ def process_email_task(
 
         # Check for duplicate processing using Redis (idempotency check)
     message_id = email_request.messageId
-    
+
     if check_task_idempotency(message_id):
         # Return a minimal result indicating it was already processed
         now_iso = datetime.now().isoformat()

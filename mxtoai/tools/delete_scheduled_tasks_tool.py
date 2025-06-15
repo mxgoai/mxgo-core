@@ -61,7 +61,7 @@ def extract_task_id_from_text(text: str) -> Optional[str]:
     return None
 
 
-def find_user_tasks(user_email: str, db_session: Session, limit: int = 10) -> list[dict]:
+def find_user_tasks(db_session: Session, user_email: str, limit: int = 10) -> list[dict]:
     """
     Find tasks for a specific user.
 
@@ -196,8 +196,6 @@ class DeleteScheduledTasksTool(Tool):
                         "message": f"You can only delete your own tasks. This task belongs to {task_owner_email}",
                     }
 
-                # Extract task description for user confirmation
-                task_description = self._extract_task_description(task_email_request)
 
                 # Remove from APScheduler if scheduler_job_id exists
                 scheduler_removed = False
@@ -225,10 +223,9 @@ class DeleteScheduledTasksTool(Tool):
                 return {
                     "success": True,
                     "task_id": task_id,
-                    "task_description": task_description,
                     "scheduler_removed": scheduler_removed,
                     "database_updated": True,
-                    "message": f"Task successfully deleted: {task_description}",
+                    "message": "Task successfully deleted",
                     "deleted_at": datetime.now(timezone.utc).isoformat(),
                 }
 
@@ -241,29 +238,3 @@ class DeleteScheduledTasksTool(Tool):
                 "message": f"Failed to delete task: {e}",
             }
 
-    def _extract_task_description(self, email_request: dict) -> str:
-        """
-        Extract a readable description from the email request.
-
-        Args:
-            email_request: The email request data
-
-        Returns:
-            Human-readable task description
-
-        """
-        if not email_request:
-            return "Unknown task"
-
-        # Try to get subject first
-        subject = email_request.get("subject", "")
-        if subject:
-            return f"Subject: {subject}"
-
-        # Fallback to text content (truncated)
-        content = email_request.get("textContent", email_request.get("htmlContent", ""))
-        if content:
-            truncated = content[:100] + "..." if len(content) > 100 else content
-            return f"Content: {truncated}"
-
-        return "Task details unavailable"

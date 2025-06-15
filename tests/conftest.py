@@ -54,17 +54,17 @@ def setup_test_database(monkeypatch_session):
     monkeypatch_session.setenv("DB_PORT", str(parsed_url.port or ""))
 
     # Patch the database connection methods to use test database for test code
-    def get_test_db_uri_sync():
+    def get_test_db_uri_sync(cls):
         return sync_test_db_url
 
-    def get_test_db_uri_async():
+    def get_test_db_uri_async(cls):
         # Ensure async URL has asyncpg
         if "+asyncpg" not in test_db_url:
             return test_db_url.replace("postgresql://", "postgresql+asyncpg://")
         return test_db_url
 
-    monkeypatch_session.setattr(DbConnection, "get_db_uri_from_env", get_test_db_uri_sync)
-    monkeypatch_session.setattr(AsyncDbConnection, "get_db_uri_from_env", get_test_db_uri_async)
+    monkeypatch_session.setattr(DbConnection, "get_db_uri_from_env", classmethod(get_test_db_uri_sync))
+    monkeypatch_session.setattr(AsyncDbConnection, "get_db_uri_from_env", classmethod(get_test_db_uri_async))
 
     # Synchronous engine for dropping tables
     sync_engine = create_engine(sync_test_db_url)

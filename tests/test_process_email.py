@@ -347,15 +347,24 @@ def test_process_email_task_for_handle(
 
     attachments_for_test: Optional[list[AttachmentFileContent]] = None
     is_schedule_handle = handle_instructions.handle == "schedule"
+    is_meeting_handle = handle_instructions.handle == "meeting"
 
-    # Specific setup for schedule handle to provide context for scheduling
+    # Specific setup for different handles
     subject_for_test = f"Test for {handle_instructions.handle}"
     text_content_for_test = f"This is a test email for the '{handle_instructions.handle}' handle."
+
     if is_schedule_handle:
-        text_content_for_test = "Please schedule a meeting titled 'Project Kickoff' for January 5th, 2024, at 2:00 PM EST to discuss the project milestones. My email is sender.test@example.com and please invite colleague@example.com."
-        # Add a dummy file if process_attachments is True for schedule, though it might not be used
+        # Schedule handle should test future task scheduling, not meeting creation
+        text_content_for_test = "Please remind me every Monday at 9 AM to review the weekly sales report starting next week."
+        # Add a dummy file if process_attachments is True for schedule
         if handle_instructions.process_attachments:
-            attachments_for_test = [("schedule_context.txt", b"Meeting context document.", "text/plain")]
+            attachments_for_test = [("schedule_context.txt", b"Weekly report context.", "text/plain")]
+    elif is_meeting_handle:
+        # Meeting handle should test calendar event creation
+        text_content_for_test = "Please schedule a meeting titled 'Project Kickoff' for January 5th, 2024, at 2:00 PM EST to discuss the project milestones. My email is sender.test@example.com and please invite colleague@example.com."
+        # Add a dummy file if process_attachments is True for meeting
+        if handle_instructions.process_attachments:
+            attachments_for_test = [("meeting_context.txt", b"Meeting context document.", "text/plain")]
 
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
         to_email=to_email_address,
@@ -369,7 +378,7 @@ def test_process_email_task_for_handle(
     # For now, assume all handles in DEFAULT_EMAIL_HANDLES are expected to try to send a reply.
     expect_reply_actually_sent = True
 
-    # For "schedule" handle, we will mock send_reply but also check if an ICS was generated.
+    # For "meeting" handle, we will mock send_reply but also check if an ICS was generated.
     # For other handles, we mainly check if a reply was attempted.
     # Note: Since EmailAgent is not mocked beyond EmailSender, the actual content of the reply
     # will depend on the LLM and the prompt templates. This test primarily verifies
@@ -382,11 +391,11 @@ def test_process_email_task_for_handle(
         mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
-            # Check for ICS attachment if it's the schedule handle
-            if is_schedule_handle:
+            # Check for ICS attachment if it's the meeting handle
+            if is_meeting_handle:
                 sent_attachments = kwargs.get("attachments", [])
                 assert any(att["filename"] == "invite.ics" for att in sent_attachments), (
-                    "ICS attachment was not prepared for sending by the schedule handle."
+                    "ICS attachment was not prepared for sending by the meeting handle."
                 )
                 assert any(att["mimetype"] == "text/calendar" for att in sent_attachments)
 
@@ -420,13 +429,13 @@ def test_process_email_task_for_handle(
                 if attachments_for_test
                 else None,  # Only check cleanup if dir was used
             )
-            # Specific assertion for schedule handle's calendar_data
-            if is_schedule_handle:
-                assert returned_result.calendar_data is not None, "Calendar data should be present for schedule handle"
+            # Specific assertion for meeting handle's calendar_data
+            if is_meeting_handle:
+                assert returned_result.calendar_data is not None, "Calendar data should be present for meeting handle"
                 assert (
                     returned_result.calendar_data.ics_content is not None
                     and len(returned_result.calendar_data.ics_content) > 0
-                ), "ICS content is missing or empty for schedule handle"
+                ), "ICS content is missing or empty for meeting handle"
 
             # Specific assertions for PDF handle
             if handle_instructions.handle == "pdf":
@@ -565,7 +574,7 @@ def test_pdf_handle_full_integration():
 
     # Create comprehensive test email content
     email_data = {
-        "to": "pdf@mxtoai.com",
+        "to": "pdf-export@mxtoai.com",
         "from_email": "test@example.com",
         "subject": "Weekly AI Newsletter - Export to PDF",
         "textContent": """# Weekly AI Newsletter
@@ -603,7 +612,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 """,
         "messageId": "<test-pdf-message-id>",
         "date": "2024-01-01T12:00:00Z",
-        "recipients": ["pdf@mxtoai.com"],
+        "recipients": ["pdf-export@mxtoai.com"],
         "cc": None,
         "bcc": None,
         "references": None,
