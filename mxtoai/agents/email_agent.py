@@ -26,6 +26,7 @@ from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
+    SECURITY_GUIDELINES,
 )
 from mxtoai.prompts.template_prompts import (
     SCHEDULED_TASK_CONTEXT_TEMPLATE,
@@ -169,8 +170,8 @@ class EmailAgent:
             max_steps=12,
             verbosity_level=2,  # Increased back to 2 to capture detailed Rich console output
             planning_interval=4,
-            name="email_processing_agent",
-            description="An agent that processes emails, generates summaries, replies, and conducts research with advanced capabilities including web search, web browsing, and code execution.",
+            name="mxtoai_email_processing_agent",
+            description="I'm MXtoAI agent - an intelligent email processing agent that automates email-driven tasks and workflows. I can analyze emails, generate professional summaries and replies, conduct comprehensive research using web search and external APIs, process attachments (documents, images, PDFs), extract and create calendar events, export content to PDF, and execute code for data analysis. I maintain professional communication standards while providing accurate, well-researched responses tailored to your specific email handling requirements.",
             provide_run_summary=True,
         )
 
@@ -188,7 +189,7 @@ class EmailAgent:
         ):
             self.agent.monitor.logger.console = smolagents_console
 
-        logger.debug("Agent initialized with routed model configuration and loguru-integrated Rich console")
+        logger.debug("Agent initialized with routed model configuration, loguru-integrated Rich console")
 
     def _initialize_independent_search_tools(self) -> list[Tool]:
         """
@@ -467,7 +468,7 @@ Raw Email Request Data (for tool use):
             output_template,
             RESPONSE_GUIDELINES,
             MARKDOWN_STYLE_GUIDE,
-            # LIST_FORMATTING_REQUIREMENTS,
+            SECURITY_GUIDELINES,
         ]
 
         return "\n\n".join(filter(None, sections))
