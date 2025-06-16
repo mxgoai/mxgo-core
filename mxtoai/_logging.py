@@ -132,6 +132,7 @@ def setup_stdlib_logging_intercept():
         "requests",  # HTTP requests logging
         "urllib3",  # HTTP library used by requests
         "aiohttp",  # Async HTTP client
+        "fontTools",  # Font manipulation library used in PDF generation
     ]
 
     # Set up verbose loggers with configured LOG_LEVEL
