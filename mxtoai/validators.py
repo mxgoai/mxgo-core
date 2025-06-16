@@ -130,6 +130,10 @@ def normalize_email(email_address: str) -> str:
     if not addr:
         return email_address.lower()  # Fallback for unparseable addresses
 
+    # Check if addr contains @
+    if "@" not in addr:
+        return email_address.lower()  # Fallback for invalid addresses
+
     local_part, domain_part = addr.split("@", 1)
     domain_part = domain_part.lower()
 

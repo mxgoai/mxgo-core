@@ -1,0 +1,28 @@
+[run]
+source = mxtoai
+omit = 
+    */tests/*
+    */test_*
+    mxtoai/db/alembic/env.py
+    mxtoai/db/alembic/versions/*
+    mxtoai/scheduler_runner.py
+    mxtoai/scripts/run_*.py
+    */migrations/*
+    */__pycache__/*
+    */.*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if self.debug:
+    if settings.DEBUG
+    raise AssertionError
+    raise NotImplementedError
+    if 0:
+    if __name__ == .__main__.:
+    class .*\bProtocol\):
+    @(abc\.)?abstractmethod
+
+[html]
+directory = htmlcov 
