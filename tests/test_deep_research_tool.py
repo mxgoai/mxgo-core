@@ -194,10 +194,7 @@ class TestMessagePreparation:
         """Test message preparation with context."""
         tool = DeepResearchTool()
 
-        messages = tool._prepare_messages(
-            query="What is AI?",
-            context="This is about machine learning"
-        )
+        messages = tool._prepare_messages(query="What is AI?", context="This is about machine learning")
 
         assert len(messages) == 1
         assert len(messages[0]["content"]) == 2
@@ -212,13 +209,10 @@ class TestMessagePreparation:
 
         thread_messages = [
             {"role": "user", "content": "Previous question"},
-            {"role": "assistant", "content": "Previous answer"}
+            {"role": "assistant", "content": "Previous answer"},
         ]
 
-        messages = tool._prepare_messages(
-            query="Follow-up question",
-            thread_messages=thread_messages
-        )
+        messages = tool._prepare_messages(query="Follow-up question", thread_messages=thread_messages)
 
         assert len(messages) == 1
         assert len(messages[0]["content"]) == 2
@@ -236,14 +230,9 @@ class TestMessagePreparation:
             temp_path = f.name
 
         try:
-            attachments = [
-                {"path": temp_path, "type": "text/plain", "filename": "test.txt"}
-            ]
+            attachments = [{"path": temp_path, "type": "text/plain", "filename": "test.txt"}]
 
-            messages = tool._prepare_messages(
-                query="Analyze this file",
-                attachments=attachments
-            )
+            messages = tool._prepare_messages(query="Analyze this file", attachments=attachments)
 
             assert len(messages) == 1
             assert len(messages[0]["content"]) == 2  # Query + file
@@ -265,14 +254,9 @@ class TestMessagePreparation:
             temp_path = f.name
 
         try:
-            attachments = [
-                {"path": temp_path, "type": "application/octet-stream", "filename": "large.bin"}
-            ]
+            attachments = [{"path": temp_path, "type": "application/octet-stream", "filename": "large.bin"}]
 
-            messages = tool._prepare_messages(
-                query="Analyze this file",
-                attachments=attachments
-            )
+            messages = tool._prepare_messages(query="Analyze this file", attachments=attachments)
 
             # Large file should be skipped - only query content should remain
             assert len(messages[0]["content"]) == 1
@@ -295,18 +279,20 @@ class TestAPIIntegration:
         mock_response = Mock()
         mock_response.ok = True
         mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "AI stands for Artificial Intelligence...",
-                    "annotations": [
-                        {"title": "Source 1", "url": "http://example1.com"},
-                        {"title": "Source 2", "url": "http://example2.com"}
-                    ]
+            "choices": [
+                {
+                    "message": {
+                        "content": "AI stands for Artificial Intelligence...",
+                        "annotations": [
+                            {"title": "Source 1", "url": "http://example1.com"},
+                            {"title": "Source 2", "url": "http://example2.com"},
+                        ],
+                    }
                 }
-            }],
+            ],
             "visitedURLs": ["http://example1.com", "http://example2.com"],
             "readURLs": ["http://example1.com"],
-            "usage": {"total_tokens": 150}
+            "usage": {"total_tokens": 150},
         }
         mock_response.headers = {"date": "2024-01-15"}
         mock_post.return_value = mock_response
@@ -354,17 +340,21 @@ class TestAPIIntegration:
         tool.enable_deep_research()
 
         # Mock the mock service
-        tool.mock_service.process_request = Mock(return_value={
-            "choices": [{
-                "message": {
-                    "content": "Mock research results",
-                    "annotations": [{"title": "Mock source", "url": "http://mock.com"}]
-                }
-            }],
-            "visitedURLs": ["http://mock.com"],
-            "readURLs": ["http://mock.com"],
-            "usage": {"total_tokens": 100}
-        })
+        tool.mock_service.process_request = Mock(
+            return_value={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Mock research results",
+                            "annotations": [{"title": "Mock source", "url": "http://mock.com"}],
+                        }
+                    }
+                ],
+                "visitedURLs": ["http://mock.com"],
+                "readURLs": ["http://mock.com"],
+                "usage": {"total_tokens": 100},
+            }
+        )
 
         result = tool.forward(query="What is AI?")
 
@@ -392,7 +382,7 @@ class TestContentFormatting:
         content = "Research findings about AI"
         annotations = [
             {"title": "Source 1", "url": "http://example1.com"},
-            {"title": "Source 2", "url": "http://example2.com"}
+            {"title": "Source 2", "url": "http://example2.com"},
         ]
         visited_urls = ["http://visited1.com"]
         read_urls = ["http://read1.com"]
@@ -427,7 +417,7 @@ class TestStreamingResponse:
         mock_response.iter_lines.return_value = [
             b'data: {"choices": [{"delta": {"content": "Hello"}}]}',
             b'data: {"choices": [{"delta": {"content": " world"}}]}',
-            b"data: [DONE]"
+            b"data: [DONE]",
         ]
         mock_response.headers = {"date": "2024-01-15"}
 
@@ -443,9 +433,7 @@ class TestStreamingResponse:
 
         # Create mock streaming response with error
         mock_response = Mock()
-        mock_response.iter_lines.return_value = [
-            b'data: {"error": {"message": "API Error"}}'
-        ]
+        mock_response.iter_lines.return_value = [b'data: {"error": {"message": "API Error"}}']
 
         result = tool._process_stream_response(mock_response)
 
@@ -456,16 +444,15 @@ class TestStreamingResponse:
 class TestErrorHandling:
     """Test error handling scenarios."""
 
+    @patch.dict(os.environ, {"JINA_API_KEY": "test_key"})
     def test_forward_json_decode_error(self):
         """Test handling of JSON decode errors."""
         tool = DeepResearchTool()
         tool.enable_deep_research()
 
-        with patch.dict(os.environ, {"JINA_API_KEY": "test_key"}), \
-             patch("requests.post") as mock_post:
-
+        with patch("requests.post") as mock_post:
             mock_response = Mock()
-            mock_response.raise_for_status.return_value = None
+            mock_response.ok = True
             mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
             mock_post.return_value = mock_response
 
@@ -474,14 +461,13 @@ class TestErrorHandling:
             assert "error" in result
             assert "JSON" in str(result["error"])
 
+    @patch.dict(os.environ, {"JINA_API_KEY": "test_key"})
     def test_forward_connection_error(self):
         """Test handling of connection errors."""
         tool = DeepResearchTool()
         tool.enable_deep_research()
 
-        with patch.dict(os.environ, {"JINA_API_KEY": "test_key"}), \
-             patch("requests.post") as mock_post:
-
+        with patch("requests.post") as mock_post:
             mock_post.side_effect = requests.ConnectionError("Connection failed")
 
             result = tool.forward(query="Test query")
@@ -489,14 +475,13 @@ class TestErrorHandling:
             assert "error" in result
             assert "Connection failed" in str(result["error"])
 
+    @patch.dict(os.environ, {"JINA_API_KEY": "test_key"})
     def test_forward_general_exception(self):
         """Test handling of general exceptions."""
         tool = DeepResearchTool()
         tool.enable_deep_research()
 
-        with patch.dict(os.environ, {"JINA_API_KEY": "test_key"}), \
-             patch("requests.post") as mock_post:
-
+        with patch("requests.post") as mock_post:
             mock_post.side_effect = Exception("Unexpected error")
 
             result = tool.forward(query="Test query")
@@ -504,6 +489,7 @@ class TestErrorHandling:
             assert "error" in result
             assert "Unexpected error" in str(result["error"])
 
+    @patch.dict(os.environ, {"JINA_API_KEY": "test_key"})
     def test_research_disabled_workflow(self):
         """Test workflow when deep research is disabled."""
         tool = DeepResearchTool()
@@ -535,18 +521,20 @@ class TestIntegrationScenarios:
             mock_response = Mock()
             mock_response.ok = True
             mock_response.json.return_value = {
-                "choices": [{
-                    "message": {
-                        "content": "Comprehensive research results based on the query and attached document.",
-                        "annotations": [
-                            {"title": "Academic Source", "url": "http://academic.com/paper"},
-                            {"title": "News Article", "url": "http://news.com/article"}
-                        ]
+                "choices": [
+                    {
+                        "message": {
+                            "content": "Comprehensive research results based on the query and attached document.",
+                            "annotations": [
+                                {"title": "Academic Source", "url": "http://academic.com/paper"},
+                                {"title": "News Article", "url": "http://news.com/article"},
+                            ],
+                        }
                     }
-                }],
+                ],
                 "visitedURLs": ["http://site1.com", "http://site2.com"],
                 "readURLs": ["http://academic.com/paper"],
-                "usage": {"total_tokens": 300}
+                "usage": {"total_tokens": 300},
             }
             mock_response.headers = {"date": "2024-01-15"}
             mock_post.return_value = mock_response
@@ -555,16 +543,12 @@ class TestIntegrationScenarios:
             result = tool.forward(
                 query="Analyze the uploaded document and provide insights",
                 context="This is a research project about AI development",
-                attachments=[{
-                    "path": temp_path,
-                    "type": "text/plain",
-                    "filename": "research_notes.txt"
-                }],
+                attachments=[{"path": temp_path, "type": "text/plain", "filename": "research_notes.txt"}],
                 thread_messages=[
                     {"role": "user", "content": "Previous question about AI"},
-                    {"role": "assistant", "content": "Previous answer about AI"}
+                    {"role": "assistant", "content": "Previous answer about AI"},
                 ],
-                reasoning_effort="high"
+                reasoning_effort="high",
             )
 
             # Verify results
@@ -592,15 +576,12 @@ class TestIntegrationScenarios:
             b'data: {"choices": [{"delta": {"content": "Streaming"}}]}',
             b'data: {"choices": [{"delta": {"content": " research"}}]}',
             b'data: {"choices": [{"delta": {"content": " results"}}]}',
-            b"data: [DONE]"
+            b"data: [DONE]",
         ]
         mock_response.headers = {"date": "2024-01-15"}
         mock_post.return_value = mock_response
 
-        result = tool.forward(
-            query="What is machine learning?",
-            stream=True
-        )
+        result = tool.forward(query="What is machine learning?", stream=True)
 
         # Verify streaming results
         assert "findings" in result

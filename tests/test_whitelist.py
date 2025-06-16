@@ -25,14 +25,12 @@ class TestSupabaseInitialization:
 
         # Reset global state
         import mxtoai.whitelist
+
         mxtoai.whitelist.supabase = None
 
         init_supabase()
 
-        mock_create_client.assert_called_once_with(
-            supabase_url="https://test.supabase.co",
-            supabase_key="test_key"
-        )
+        mock_create_client.assert_called_once_with(supabase_url="https://test.supabase.co", supabase_key="test_key")
         assert mxtoai.whitelist.supabase == mock_client
 
     @patch.dict(os.environ, {}, clear=True)
@@ -40,6 +38,7 @@ class TestSupabaseInitialization:
         """Test Supabase initialization with missing environment variables."""
         # Reset global state
         import mxtoai.whitelist
+
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(ValueError, match="Supabase URL and service role key must be set"):
@@ -50,6 +49,7 @@ class TestSupabaseInitialization:
         """Test Supabase initialization with missing service role key."""
         # Reset global state
         import mxtoai.whitelist
+
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(ValueError, match="Supabase URL and service role key must be set"):
@@ -63,6 +63,7 @@ class TestSupabaseInitialization:
 
         # Reset global state
         import mxtoai.whitelist
+
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(Exception, match="Connection failed"):
@@ -73,6 +74,7 @@ class TestSupabaseInitialization:
     def test_init_supabase_already_initialized(self, mock_create_client):
         """Test that initialization is skipped when client already exists."""
         import mxtoai.whitelist
+
         existing_client = Mock()
         mxtoai.whitelist.supabase = existing_client
 
@@ -139,9 +141,7 @@ class TestEmailWhitelistCheck:
     @pytest.mark.asyncio
     async def test_is_email_whitelisted_supabase_not_initialized(self):
         """Test email whitelist check when Supabase is not initialized."""
-        with patch("mxtoai.whitelist.supabase", None), \
-             patch("mxtoai.whitelist.init_supabase") as mock_init:
-
+        with patch("mxtoai.whitelist.supabase", None), patch("mxtoai.whitelist.init_supabase") as mock_init:
             mock_supabase = Mock()
             mock_response = Mock()
             mock_response.data = [{"email": "test@example.com", "verified": True}]
@@ -152,7 +152,9 @@ class TestEmailWhitelistCheck:
             # Mock init_supabase to set the client
             def set_supabase():
                 import mxtoai.whitelist
+
                 mxtoai.whitelist.supabase = mock_supabase
+
             mock_init.side_effect = set_supabase
 
             exists, verified = await is_email_whitelisted("test@example.com")
@@ -198,9 +200,10 @@ class TestAutomaticVerification:
 
         mock_supabase.table.side_effect = [existing_table, insert_table]
 
-        with patch("mxtoai.whitelist.supabase", mock_supabase), \
-             patch("mxtoai.whitelist.send_verification_email", return_value=True) as mock_send:
-
+        with (
+            patch("mxtoai.whitelist.supabase", mock_supabase),
+            patch("mxtoai.whitelist.send_verification_email", return_value=True) as mock_send,
+        ):
             result = await trigger_automatic_verification("new@example.com")
 
         assert result is True
@@ -230,9 +233,10 @@ class TestAutomaticVerification:
 
         mock_supabase.table.side_effect = [existing_table, update_table]
 
-        with patch("mxtoai.whitelist.supabase", mock_supabase), \
-             patch("mxtoai.whitelist.send_verification_email", return_value=True) as mock_send:
-
+        with (
+            patch("mxtoai.whitelist.supabase", mock_supabase),
+            patch("mxtoai.whitelist.send_verification_email", return_value=True) as mock_send,
+        ):
             result = await trigger_automatic_verification("existing@example.com")
 
         assert result is True
@@ -258,9 +262,10 @@ class TestAutomaticVerification:
 
         mock_supabase.table.side_effect = [existing_table, insert_table]
 
-        with patch("mxtoai.whitelist.supabase", mock_supabase), \
-             patch("mxtoai.whitelist.send_verification_email", return_value=False):
-
+        with (
+            patch("mxtoai.whitelist.supabase", mock_supabase),
+            patch("mxtoai.whitelist.send_verification_email", return_value=False),
+        ):
             result = await trigger_automatic_verification("test@example.com")
 
         assert result is False
@@ -288,9 +293,10 @@ class TestSendVerificationEmail:
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "test-123"})
 
-        with patch("mxtoai.email_sender.EmailSender", mock_email_sender), \
-             patch.dict(os.environ, {"FRONTEND_URL": "https://test.mxtoai.com"}):
-
+        with (
+            patch("mxtoai.email_sender.EmailSender", mock_email_sender),
+            patch.dict(os.environ, {"FRONTEND_URL": "https://test.mxtoai.com"}),
+        ):
             result = await send_verification_email("test@example.com", "token-123")
 
         assert result is True
@@ -309,9 +315,7 @@ class TestSendVerificationEmail:
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "test-123"})
 
-        with patch("mxtoai.email_sender.EmailSender", mock_email_sender), \
-             patch.dict(os.environ, {}, clear=True):
-
+        with patch("mxtoai.email_sender.EmailSender", mock_email_sender), patch.dict(os.environ, {}, clear=True):
             result = await send_verification_email("test@example.com", "token-456")
 
         assert result is True
@@ -388,9 +392,10 @@ class TestIntegrationScenarios:
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "msg-123"})
 
-        with patch("mxtoai.whitelist.supabase", mock_supabase), \
-             patch("mxtoai.email_sender.EmailSender", mock_email_sender):
-
+        with (
+            patch("mxtoai.whitelist.supabase", mock_supabase),
+            patch("mxtoai.email_sender.EmailSender", mock_email_sender),
+        ):
             # Trigger verification
             verification_result = await trigger_automatic_verification("newuser@example.com")
 
@@ -407,7 +412,7 @@ class TestIntegrationScenarios:
         with patch("mxtoai.whitelist.uuid.uuid4") as mock_uuid:
             mock_uuid.side_effect = [
                 Mock(spec=uuid.UUID, __str__=lambda self: "token-1"),
-                Mock(spec=uuid.UUID, __str__=lambda self: "token-2")
+                Mock(spec=uuid.UUID, __str__=lambda self: "token-2"),
             ]
 
             mock_supabase = Mock()
@@ -420,9 +425,10 @@ class TestIntegrationScenarios:
             mock_table.insert.return_value.execute.return_value = insert_response
             mock_supabase.table.return_value = mock_table
 
-            with patch("mxtoai.whitelist.supabase", mock_supabase), \
-                 patch("mxtoai.whitelist.send_verification_email", return_value=True):
-
+            with (
+                patch("mxtoai.whitelist.supabase", mock_supabase),
+                patch("mxtoai.whitelist.send_verification_email", return_value=True),
+            ):
                 await trigger_automatic_verification("user1@example.com")
                 await trigger_automatic_verification("user2@example.com")
 
