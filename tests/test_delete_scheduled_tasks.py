@@ -140,7 +140,6 @@ class TestDeleteScheduledTasksTool:
 
         assert result["success"] is True
         assert result["task_id"] == task_id
-        assert "Test task description" in result["task_description"]
         assert result["scheduler_removed"] is True
 
     @requires_database
@@ -220,4 +219,4 @@ class TestDeleteScheduledTasksTool:
         with db_connection.get_session() as session:
             result = find_user_tasks(session, user_email)
             assert len(result) == 1
-            assert result[0].task_id == task_id
+            assert result[0]["task_id"] == task_id

@@ -78,7 +78,7 @@ DEFAULT_EMAIL_HANDLES = [
         output_template=output_prompts.MEETING_OUTPUT_GUIDELINES,
     ),
     ProcessingInstructions(
-        handle=HandlerAlias.PDF_EXPORT.value,
+        handle=HandlerAlias.PDF.value,
         aliases=["export", "convert", "document", "export-pdf"],
         process_attachments=True,
         deep_research_mandatory=False,

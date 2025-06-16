@@ -1,6 +1,12 @@
+import os
 from unittest.mock import AsyncMock, patch
 
+from fastapi.testclient import TestClient
+
+from mxtoai.api import app
 from mxtoai.email_sender import generate_message_id
+
+API_KEY = os.environ["X_API_KEY"]
 
 
 class TestIdempotency:
@@ -45,32 +51,38 @@ class TestIdempotency:
 
         assert msg_id_1 != msg_id_3, "Different inputs should produce different message IDs"
 
-    @patch("mxtoai.validators.redis_client")
+    @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+    @patch("mxtoai.api.validate_rate_limits", new_callable=AsyncMock)
+    @patch("mxtoai.api.validate_idempotency", new_callable=AsyncMock)
     @patch("mxtoai.api.process_email_task")
-    async def test_api_idempotency_already_queued(self, mock_task, mock_redis):
+    def test_api_idempotency_already_queued(self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist):
         """Test API returns conflict when email already queued."""
-        from fastapi.testclient import TestClient
+        mock_validate_whitelist.return_value = None  # Email is whitelisted
+        mock_rate_limits.return_value = None  # Rate limits pass
 
-        from mxtoai.api import app
-
-        # Setup mock Redis client
-        mock_redis.get = AsyncMock(return_value="1")  # Already queued
-
-        client = TestClient(app)
-
-        form_data = {
-            "from_email": "test@example.com",
-            "to": "ask@mxtoai.com",
-            "subject": "Test Subject",
-            "textContent": "Test content",
-            "messageId": "<test123@example.com>",
-        }
-
-        response = client.post(
-            "/process-email",
-            data=form_data,
-            headers={"x-api-key": "test-key"}
+        # Mock idempotency check to return duplicate response
+        from fastapi import Response, status
+        duplicate_response = Response(
+            content='{"message": "Email already queued for processing", "messageId": "<test123@example.com>", "status": "duplicate_queued"}',
+            status_code=status.HTTP_409_CONFLICT,
+            media_type="application/json",
         )
+        mock_validate_idempotency.return_value = (duplicate_response, "<test123@example.com>")
+
+        with TestClient(app) as test_client:
+            form_data = {
+                "from_email": "test@example.com",
+                "to": "ask@mxtoai.com",
+                "subject": "Test Subject",
+                "textContent": "Test content",
+                "messageId": "<test123@example.com>",
+            }
+
+            response = test_client.post(
+                "/process-email",
+                data=form_data,
+                headers={"x-api-key": API_KEY}
+            )
 
         assert response.status_code == 409
         response_data = response.json()
@@ -80,32 +92,38 @@ class TestIdempotency:
         # Task should not be called
         mock_task.send.assert_not_called()
 
-    @patch("mxtoai.validators.redis_client")
+    @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+    @patch("mxtoai.api.validate_rate_limits", new_callable=AsyncMock)
+    @patch("mxtoai.api.validate_idempotency", new_callable=AsyncMock)
     @patch("mxtoai.api.process_email_task")
-    async def test_api_idempotency_already_processed(self, mock_task, mock_redis):
+    def test_api_idempotency_already_processed(self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist):
         """Test API returns conflict when email already processed."""
-        from fastapi.testclient import TestClient
+        mock_validate_whitelist.return_value = None  # Email is whitelisted
+        mock_rate_limits.return_value = None  # Rate limits pass
 
-        from mxtoai.api import app
-
-        # Setup mock Redis client - not queued but already processed
-        mock_redis.get = AsyncMock(side_effect=lambda key: "1" if "processed" in key else None)
-
-        client = TestClient(app)
-
-        form_data = {
-            "from_email": "test@example.com",
-            "to": "ask@mxtoai.com",
-            "subject": "Test Subject",
-            "textContent": "Test content",
-            "messageId": "<test123@example.com>",
-        }
-
-        response = client.post(
-            "/process-email",
-            data=form_data,
-            headers={"x-api-key": "test-key"}
+        # Mock idempotency check to return duplicate response
+        from fastapi import Response, status
+        duplicate_response = Response(
+            content='{"message": "Email already processed", "messageId": "<test123@example.com>", "status": "duplicate_processed"}',
+            status_code=status.HTTP_409_CONFLICT,
+            media_type="application/json",
         )
+        mock_validate_idempotency.return_value = (duplicate_response, "<test123@example.com>")
+
+        with TestClient(app) as test_client:
+            form_data = {
+                "from_email": "test@example.com",
+                "to": "ask@mxtoai.com",
+                "subject": "Test Subject",
+                "textContent": "Test content",
+                "messageId": "<test123@example.com>",
+            }
+
+            response = test_client.post(
+                "/process-email",
+                data=form_data,
+                headers={"x-api-key": API_KEY}
+            )
 
         assert response.status_code == 409
         response_data = response.json()

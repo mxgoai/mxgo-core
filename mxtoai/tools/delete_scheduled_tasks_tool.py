@@ -78,7 +78,7 @@ def find_user_tasks(db_session: Session, user_email: str, limit: int = 10) -> li
         # Query tasks for the user using ORM
         statement = (
             select(Tasks)
-            .where(Tasks.email_request.op("->>")(["from"]) == user_email)
+            .where(Tasks.email_request.op("->>")("from") == user_email)
             .where(Tasks.status.in_([TaskStatus.ACTIVE, TaskStatus.INITIALISED]))
             .order_by(Tasks.created_at.desc())
             .limit(limit)

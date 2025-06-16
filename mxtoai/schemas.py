@@ -15,7 +15,7 @@ class HandlerAlias(str, Enum):
     BACKGROUND_RESEARCH = "background-research"
     TRANSLATE = "translate"
     MEETING = "meeting"
-    PDF_EXPORT = "pdf-export"
+    PDF = "pdf"
     SCHEDULE = "schedule"
     DELETE = "delete"
 

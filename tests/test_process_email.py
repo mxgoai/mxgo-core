@@ -574,7 +574,7 @@ def test_pdf_handle_full_integration():
 
     # Create comprehensive test email content
     email_data = {
-        "to": "pdf-export@mxtoai.com",
+        "to": "pdf@mxtoai.com",
         "from_email": "test@example.com",
         "subject": "Weekly AI Newsletter - Export to PDF",
         "textContent": """# Weekly AI Newsletter
@@ -612,7 +612,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 """,
         "messageId": "<test-pdf-message-id>",
         "date": "2024-01-01T12:00:00Z",
-        "recipients": ["pdf-export@mxtoai.com"],
+        "recipients": ["pdfå@mxtoai.com"],
         "cc": None,
         "bcc": None,
         "references": None,
@@ -844,12 +844,3 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
                 # Verify the response mentions task deletion
                 assert "delete" in reply_text.lower() or "removed" in reply_text.lower()
 
-
-if __name__ == "__main__":
-    # Run only PDF tests if executed directly
-    pytest.main([__file__ + "::test_pdf_export_tool_direct", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_tool_with_research_findings", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_content_cleaning", "-v"])
-    pytest.main([__file__ + "::test_pdf_handle_full_integration", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_error_handling", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_cleanup", "-v"])
