@@ -222,7 +222,17 @@ class TestBraveSearchTool:
         """Test that appropriate logging occurs during search."""
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"web": {"results": []}}
+        mock_response.json.return_value = {
+            "web": {
+                "results": [
+                    {
+                        "title": "Test Result",
+                        "url": "https://example.com",
+                        "description": "Test description"
+                    }
+                ]
+            }
+        }
         mock_get.return_value = mock_response
 
         tool = BraveSearchTool()
