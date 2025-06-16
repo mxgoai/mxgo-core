@@ -111,27 +111,6 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 - Forward contracts, agreements, or important announcements to pdf@mxtoai.com
 - Get clean documents without email clutter - perfect for filing or legal records
 
-## 💡 Creative & Technical Work
-
-**"I have writer's block and need to draft a blog post"**
-- Forward your topic and key points to ask@mxtoai.com with "Draft a blog post about this"
-- Get a well-structured draft to kickstart your writing process
-
-**"I need some fresh ideas for a project"**
-- Forward a brief to ask@mxtoai.com with "Brainstorm 10 creative ideas for this"
-- Perfect for naming projects, marketing campaigns, or feature ideas
-
-**"I need to write social media content"**
-- Forward your product announcement to ask@mxtoai.com with "Generate 3 tweets and a LinkedIn post for this"
-- Save time on crafting engaging social media updates
-
-**"I need help with a coding problem"**
-- Forward a code snippet to ask@mxtoai.com with "Find the bug in this Python code"
-- Get a quick analysis and suggestions for a fix
-
-**"I need to understand a complex technical document"**
-- Forward API documentation or a technical paper to simplify@mxtoai.com
-- Receive a clear explanation of the key concepts and how to use them
 
 ## 🏠 Personal Life
 
@@ -155,10 +134,6 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 - Forward lengthy community emails to summarize@mxtoai.com
 - Get key dates, rule changes, and action items
 
-**"I'm planning a trip and need an itinerary"**
-- Forward your destination and dates to ask@mxtoai.com with "Create a 3-day itinerary for a trip to Paris focusing on art and food"
-- Get a detailed plan with suggestions for attractions, restaurants, and activities
-
 ## 🎓 Education & Learning
 
 **"I want to stay informed but don't have time to read everything"**
@@ -180,10 +155,6 @@ As simple as it sounds, MXtoAI is very powerful. If you spend more than 10 minut
 **"I want to compile research findings into shareable documents"**
 - Forward multiple research emails to ask@mxtoai.com with "Synthesize findings and create PDF report"
 - Perfect for thesis research or professional development
-
-**"I need a quick summary of a long video"**
-- Forward a link to a YouTube video to summarize@mxtoai.com
-- Get the key takeaways and timestamps without watching the whole thing
 
 ## 🛍️ Shopping & Consumer Decisions
 
