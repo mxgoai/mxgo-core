@@ -33,9 +33,6 @@ export default {
     const recipient = message.to;
     const subject = message.headers.get("subject") || "";
 
-    // Generate a unique ID for this email (using timestamp + random string)
-    const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
-
     try {
       // Parse the email using PostalMime
       const parsedEmail = await PostalMime.parse(message.raw, {
@@ -71,7 +68,6 @@ export default {
       formData.append('htmlContent', parsedEmail.html || "");
       formData.append('messageId', message.headers.get("message-id") || "");
       formData.append('date', message.headers.get("date") || "");
-      formData.append('emailId', uniqueId);
       // Add raw headers as a JSON string
       formData.append('rawHeaders', JSON.stringify(rawHeaders));
 
@@ -137,7 +133,6 @@ export default {
         formData.append('from_email', sender);
         formData.append('to', recipient);
         formData.append('subject', subject);
-        formData.append('emailId', uniqueId);
         formData.append('textContent', "");
         formData.append('htmlContent', "");
         // Add raw headers to fallback as well

@@ -15,7 +15,6 @@ from fastapi.security import APIKeyHeader
 
 from mxtoai import validators
 from mxtoai._logging import get_logger
-from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
@@ -32,6 +31,7 @@ from mxtoai.validators import (
     validate_attachments,
     validate_email_handle,
     validate_email_whitelist,
+    validate_idempotency,
     validate_rate_limits,
 )
 
@@ -91,10 +91,6 @@ if os.environ["IS_PROD"].lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
-
-# Create the email agent on startup
-email_agent = EmailAgent(attachment_dir=ATTACHMENTS_DIR, verbose=True, enable_deep_research=True)
-
 
 # Function to cleanup attachment files and directory
 def cleanup_attachments(directory_path: str) -> bool:
@@ -442,8 +438,8 @@ async def process_email(
     htmlContent: Annotated[Optional[str], Form()] = "",
     messageId: Annotated[Optional[str], Form()] = None,
     date: Annotated[Optional[str], Form()] = None,
-    emailId: Annotated[Optional[str], Form()] = None,
     rawHeaders: Annotated[Optional[str], Form()] = None,
+    scheduled_task_id: Annotated[Optional[str], Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: str = Depends(api_auth_scheme),
 ):
@@ -458,8 +454,8 @@ async def process_email(
         htmlContent (str): HTML content of the email
         messageId (str): Unique identifier for the email message
         date (str): Date when the email was sent
-        emailId (str): Unique identifier for the email in the system
         rawHeaders (str): Raw headers of the email in JSON format
+        scheduled_task_id (str, optional): ID of the scheduled task if this is a scheduled email
         files (list[UploadFile] | None): List of uploaded files as attachments
         api_key (str): API key for authentication
 
@@ -467,6 +463,12 @@ async def process_email(
         Response: FastAPI Response object with JSON content
 
     """
+    # Determine if this is a scheduled task
+    is_scheduled_task = scheduled_task_id is not None
+
+    if is_scheduled_task:
+        logger.info(f"Processing scheduled task: {scheduled_task_id}")
+
     # Skip processing for AWS SES system emails
     if from_email.endswith("@amazonses.com") or ".amazonses.com" in from_email:
         logger.info(f"Skipping processing for AWS SES system email: {from_email} (subject: {subject})")
@@ -552,13 +554,30 @@ async def process_email(
         # Get handle configuration
         email_instructions = processing_instructions_resolver(handle)  # Safe to use direct access now
 
+                # Validate idempotency and generate deterministic messageId if needed
+        if response := await validate_idempotency(
+            from_email=from_email,
+            to=to,
+            subject=subject or "",
+            date=date or "",
+            html_content=htmlContent or "",
+            text_content=textContent or "",
+            files_count=len(files),
+            message_id=messageId
+        ):
+            response_obj, messageId = response
+            if response_obj:
+                return response_obj
+        else:
+            # If validate_idempotency returns None, extract messageId from the tuple
+            _, messageId = response
+
         # Log initial email details
         logger.info("Received new email request:")
         logger.info(f"To: {to} (handle: {handle})")
         logger.info(f"Subject: {subject}")
         logger.info(f"Message ID: {messageId}")
         logger.info(f"Date: {date}")
-        logger.info(f"Email ID: {emailId}")
         logger.info(f"Number of attachments: {len(files)}")
         # Log raw headers count if present
         if parsed_headers:
@@ -586,7 +605,6 @@ async def process_email(
             htmlContent=htmlContent,
             messageId=messageId,
             date=date,
-            emailId=emailId,
             rawHeaders=parsed_headers,
             cc=cc_list,
             attachments=[],  # Start with empty list, will be updated after saving files
@@ -620,8 +638,14 @@ async def process_email(
             )
 
         # Enqueue the task for async processing
-        process_email_task.send(email_request.model_dump(), email_attachments_dir, processed_attachment_info)
-        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments")
+        process_email_task.send(
+            email_request.model_dump(),
+            email_attachments_dir,
+            processed_attachment_info,
+            scheduled_task_id
+        )
+        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
+                   + (f" (scheduled task: {scheduled_task_id})" if scheduled_task_id else ""))
 
         # Return immediate success response
         return Response(

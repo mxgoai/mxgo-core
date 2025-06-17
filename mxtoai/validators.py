@@ -12,7 +12,7 @@ from fastapi import Response, status
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
 from mxtoai.dependencies import processing_instructions_resolver
-from mxtoai.email_sender import send_email_reply
+from mxtoai.email_sender import generate_message_id, send_email_reply
 from mxtoai.schemas import RateLimitPlan
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted, trigger_automatic_verification
 
@@ -130,6 +130,10 @@ def normalize_email(email_address: str) -> str:
     if not addr:
         return email_address.lower()  # Fallback for unparseable addresses
 
+    # Check if addr contains @
+    if "@" not in addr:
+        return email_address.lower()  # Fallback for invalid addresses
+
     local_part, domain_part = addr.split("@", 1)
     domain_part = domain_part.lower()
 
@@ -242,6 +246,139 @@ async def validate_rate_limits(
             )
 
     return None
+
+
+async def validate_idempotency(
+    from_email: str, to: str, subject: str, date: str, html_content: str, text_content: str, files_count: int, message_id: Optional[str] = None
+) -> tuple[Optional[Response], str]:
+    """
+    Validate email idempotency and generate deterministic message ID if needed.
+
+    Args:
+        from_email: Sender's email address
+        to: Recipient's email address
+        subject: Email subject
+        date: Email date
+        html_content: HTML content of the email
+        text_content: Text content of the email
+        files_count: Number of attached files
+        message_id: Existing message ID (optional)
+
+    Returns:
+        Tuple of (Response if validation fails, message_id)
+
+    """
+    # Generate deterministic messageId if not provided
+    if not message_id:
+        message_id = generate_message_id(
+            from_email=from_email,
+            to=to,
+            subject=subject or "",
+            date=date or "",
+            html_content=html_content or "",
+            text_content=text_content or "",
+            files_count=files_count
+        )
+        logger.info(f"Generated deterministic message ID: {message_id}")
+
+    # Check for duplicate processing using Redis (idempotency check)
+    redis_key_queued = f"email_queued:{message_id}"
+    redis_key_processed = f"email_processed:{message_id}"
+
+    if redis_client:
+        try:
+            # Check if already queued
+            if await redis_client.get(redis_key_queued):
+                logger.warning(f"Email with messageId {message_id} already queued for processing")
+                return Response(
+                    content=json.dumps({
+                        "message": "Email already queued for processing",
+                        "messageId": message_id,
+                        "status": "duplicate_queued"
+                    }),
+                    status_code=status.HTTP_409_CONFLICT,
+                    media_type="application/json",
+                ), message_id
+
+            # Check if already processed
+            if await redis_client.get(redis_key_processed):
+                logger.warning(f"Email with messageId {message_id} already processed")
+                return Response(
+                    content=json.dumps({
+                        "message": "Email already processed",
+                        "messageId": message_id,
+                        "status": "duplicate_processed"
+                    }),
+                    status_code=status.HTTP_409_CONFLICT,
+                    media_type="application/json",
+                ), message_id
+
+            # Mark as queued (expires in 1 hour)
+            await redis_client.setex(redis_key_queued, 3600, "1")
+            logger.info(f"Marked email {message_id} as queued in Redis")
+
+        except Exception as redis_error:
+            logger.error(f"Redis idempotency check failed: {redis_error}")
+            # Continue processing even if Redis fails
+    else:
+        logger.warning("Redis not available for idempotency checks")
+
+    return None, message_id
+
+
+def check_task_idempotency(message_id: str) -> bool:
+    """
+    Check if an email task has already been processed.
+
+    Args:
+        message_id: The message ID to check
+
+    Returns:
+        True if already processed, False if not processed
+
+    """
+    if not redis_client or not message_id:
+        return False
+
+    redis_key_processed = f"email_processed:{message_id}"
+
+    try:
+        # Check if already processed
+        import asyncio
+        if asyncio.run(redis_client.get(redis_key_processed)):
+            logger.warning(f"Email with messageId {message_id} already processed, skipping duplicate processing")
+            return True
+    except Exception as redis_error:
+        logger.error(f"Redis idempotency check failed in task: {redis_error}")
+        # Continue processing even if Redis fails
+
+    return False
+
+
+def mark_email_as_processed(message_id: str) -> None:
+    """
+    Mark an email as successfully processed in Redis.
+
+    Args:
+        message_id: The message ID to mark as processed
+
+    """
+    if not redis_client or not message_id:
+        return
+
+    redis_key_processed = f"email_processed:{message_id}"
+    redis_key_queued = f"email_queued:{message_id}"
+
+    try:
+        # Mark as processed (expires in 24 hours)
+        import asyncio
+        asyncio.run(asyncio.gather(
+            redis_client.setex(redis_key_processed, 86400, "1"),
+            redis_client.delete(redis_key_queued)
+        ))
+        logger.info(f"Marked email {message_id} as processed in Redis")
+    except Exception as redis_error:
+        logger.error(f"Failed to mark email as processed in Redis: {redis_error}")
 
 
 async def validate_api_key(api_key: str) -> Optional[Response]:

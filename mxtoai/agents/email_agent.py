@@ -1,4 +1,5 @@
 import ast
+import json
 import os
 import re
 from datetime import datetime
@@ -15,14 +16,23 @@ from smolagents.default_tools import (
     VisitWebpageTool,
     WikipediaSearchTool,
 )
+from sqlmodel import select
 
 from mxtoai._logging import get_logger, get_smolagents_console
-from mxtoai.models import ProcessingInstructions
+from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
+from mxtoai.db import init_db_connection
+from mxtoai.models.models import Tasks
 from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
     RESPONSE_GUIDELINES,
     SECURITY_GUIDELINES,
+)
+from mxtoai.prompts.template_prompts import (
+    SCHEDULED_TASK_CONTEXT_TEMPLATE,
+    SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE,
+    SCHEDULED_TASK_ERROR_TEMPLATE,
+    SCHEDULED_TASK_NOT_FOUND_TEMPLATE,
 )
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
@@ -38,15 +48,18 @@ from mxtoai.schemas import (
     PDFExportResult,
     ProcessedAttachmentDetail,
     ProcessingError,
+    ProcessingInstructions,
     ProcessingMetadata,
 )
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
+from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
+from mxtoai.tools.meeting_tool import MeetingTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
-from mxtoai.tools.schedule_tool import ScheduleTool
+from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
 
 # Import the web search tools
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
@@ -79,7 +92,7 @@ class EmailAgent:
     """
 
     def __init__(
-        self, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
+        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -98,13 +111,18 @@ class EmailAgent:
         self.attachment_dir = attachment_dir
         os.makedirs(self.attachment_dir, exist_ok=True)
 
+        self.email_request = email_request
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
-        self.schedule_tool = ScheduleTool()
+        self.meeting_tool = MeetingTool()
         self.visit_webpage_tool = VisitWebpageTool()
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
+
+        # Initialize scheduled tasks tool with call counter wrapper
+        self.scheduled_tasks_tool = self._create_limited_scheduled_tasks_tool(email_request)
+        self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool(email_request=email_request)
 
         # Initialize independent search tools
         self.search_tools = self._initialize_independent_search_tools()
@@ -112,11 +130,13 @@ class EmailAgent:
 
         self.available_tools: list[Tool] = [
             self.attachment_tool,
-            self.schedule_tool,
+            self.meeting_tool,
             self.visit_webpage_tool,
             self.python_tool,
             self.wikipedia_search_tool,
             self.pdf_export_tool,
+            self.scheduled_tasks_tool,
+            self.delete_scheduled_tasks_tool,
             azure_visualizer,
         ]
 
@@ -254,6 +274,107 @@ class EmailAgent:
             logger.info("JINA_API_KEY not found. DeepResearchTool not initialized.")
         return research_tool
 
+    def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
+        """
+        Generate context information from the email request.
+
+        Args:
+            email_request: EmailRequest instance containing email data
+            attachment_details: List of formatted attachment details
+
+        Returns:
+            str: The context information for the agent
+
+        """
+        recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
+        attachments_info = (
+            f"Available Attachments:\n{chr(10).join(attachment_details)}"
+            if attachment_details
+            else "No attachments provided."
+        )
+
+        email_request_json = email_request.model_dump_json(indent=2)
+
+        # Add scheduled task context if this is a scheduled task execution
+        scheduled_context = ""
+        if email_request.scheduled_task_id:
+            scheduled_context = self._create_scheduled_task_context(email_request.scheduled_task_id)
+
+        base_context = f"""Email Content:
+    Subject: {email_request.subject}
+    From: {email_request.from_email}
+    Email Date: {email_request.date}
+    Recipients: {recipients}
+    CC: {email_request.cc or "N/A"}
+    BCC: {email_request.bcc or "N/A"}
+    Body: {email_request.textContent or email_request.htmlContent or ""}
+
+    {attachments_info}
+
+Raw Email Request Data (for tool use):
+{email_request_json}"""
+
+        if scheduled_context:
+            return f"""{scheduled_context}
+
+{base_context}"""
+        return base_context
+
+    def _create_scheduled_task_context(self, scheduled_task_id: str) -> str:
+        """
+        Create context information for a scheduled task execution.
+
+        Args:
+            scheduled_task_id: The ID of the scheduled task being executed
+
+        Returns:
+            str: Formatted context explaining this is a scheduled task execution
+
+        """
+        try:
+            with init_db_connection().get_session() as session:
+                # Get the task information
+                statement = select(Tasks).where(Tasks.task_id == scheduled_task_id)
+                task = session.exec(statement).first()
+
+                if not task:
+                    return SCHEDULED_TASK_NOT_FOUND_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
+
+                # Parse the original email request
+                try:
+                    original_request = (
+                        json.loads(task.email_request) if isinstance(task.email_request, str) else task.email_request
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    original_request = {}
+
+                # Format the execution context
+                return SCHEDULED_TASK_CONTEXT_TEMPLATE.format(
+                    scheduled_task_id=scheduled_task_id,
+                    created_at=task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if task.created_at else "Unknown",
+                    cron_expression=task.cron_expression,
+                    original_subject=original_request.get("subject", "Unknown"),
+                    original_from=original_request.get("from_email", original_request.get("from", "Unknown")),
+                    task_status=task.status,
+                )
+
+        except Exception as e:
+            logger.error(f"Error creating scheduled task context for {scheduled_task_id}: {e}")
+            return SCHEDULED_TASK_ERROR_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
+
+    def _create_attachment_task(self, attachment_details: list[str]) -> str:
+        """
+        Return instructions for processing attachments, if any.
+
+        Args:
+            attachment_details: List of formatted attachment details
+
+        Returns:
+            str: Instructions for processing attachments
+
+        """
+        return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
+
     def _create_task(self, email_request: EmailRequest, email_instructions: ProcessingInstructions) -> str:
         """
         Create a task description for the agent based on email handle instructions.
@@ -273,13 +394,16 @@ class EmailAgent:
             else []
         )
 
+        output_template = email_instructions.output_template
+
         return self._create_task_template(
             handle=email_instructions.handle,
             email_context=self._create_email_context(email_request, attachments),
             handle_specific_template=email_instructions.task_template,
             attachment_task=self._create_attachment_task(attachments),
             deep_research_mandatory=email_instructions.deep_research_mandatory,
-            output_template=email_instructions.output_template,
+            output_template=output_template,
+            distilled_processing_instructions=email_request.distilled_processing_instructions,
         )
 
     def _format_attachments(self, attachments: list[EmailAttachment]) -> list[str]:
@@ -298,49 +422,6 @@ class EmailAgent:
             for att in attachments
         ]
 
-    def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
-        """
-        Generate context information from the email request.
-
-        Args:
-            email_request: EmailRequest instance containing email data
-            attachment_details: List of formatted attachment details
-
-        Returns:
-            str: The context information for the agent
-
-        """
-        recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
-        attachments_info = (
-            f"Available Attachments:\n{chr(10).join(attachment_details)}"
-            if attachment_details
-            else "No attachments provided."
-        )
-        return f"""Email Content:
-    Subject: {email_request.subject}
-    From: {email_request.from_email}
-    Email Date: {email_request.date}
-    Recipients: {recipients}
-    CC: {email_request.cc or "N/A"}
-    BCC: {email_request.bcc or "N/A"}
-    Body: {email_request.textContent or email_request.htmlContent or ""}
-
-    {attachments_info}
-    """
-
-    def _create_attachment_task(self, attachment_details: list[str]) -> str:
-        """
-        Return instructions for processing attachments, if any.
-
-        Args:
-            attachment_details: List of formatted attachment details
-
-        Returns:
-            str: Instructions for processing attachments
-
-        """
-        return f"Process these attachments:\n{chr(10).join(attachment_details)}" if attachment_details else ""
-
     def _create_task_template(
         self,
         handle: str,
@@ -349,6 +430,7 @@ class EmailAgent:
         attachment_task: str = "",
         deep_research_mandatory: bool = False,
         output_template: str = "",
+        distilled_processing_instructions: Optional[str] = None,
     ) -> str:
         """
         Combine all task components into the final task description.
@@ -360,15 +442,26 @@ class EmailAgent:
             attachment_task: Instructions for processing attachments.
             deep_research_mandatory: Flag indicating if deep research is mandatory.
             output_template: The output template to use.
+            distilled_processing_instructions: Specific processing instructions for scheduled tasks.
 
         Returns:
             str: The complete task description for the agent.
 
         """
+        # Create distilled processing instructions section for scheduled tasks
+        distilled_section = (
+            SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE.format(
+                distilled_processing_instructions=distilled_processing_instructions
+            )
+            if distilled_processing_instructions
+            else ""
+        )
+
         # Merge the task components into a single string by listing the sections
         sections = [
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
+            distilled_section,
             RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
@@ -377,6 +470,7 @@ class EmailAgent:
             MARKDOWN_STYLE_GUIDE,
             SECURITY_GUIDELINES,
         ]
+
         return "\n\n".join(filter(None, sections))
 
     def _process_agent_result(
@@ -425,10 +519,11 @@ class EmailAgent:
 
                 if tool_name and tool_output is not None:
                     needs_parsing = tool_name in [
-                        "schedule_generator",
+                        "meeting_creator",
                         "attachment_processor",
                         "deep_research",
                         "pdf_export",
+                        "scheduled_tasks",
                     ]
                     if isinstance(tool_output, str) and needs_parsing:
                         try:
@@ -489,7 +584,7 @@ class EmailAgent:
                         if not research_output_findings:
                             errors_list.append(ProcessingError(message="Deep research tool returned empty findings."))
 
-                    elif tool_name == "schedule_generator" and isinstance(tool_output, dict):
+                    elif tool_name == "meeting_creator" and isinstance(tool_output, dict):
                         if tool_output.get("status") == "success" and tool_output.get("ics_content"):
                             calendar_result_data = CalendarResult(ics_content=tool_output["ics_content"])
                         else:
@@ -515,6 +610,18 @@ class EmailAgent:
                                 ProcessingError(message="PDF Export Error", details=f"{error_msg}. {details}")
                             )
                             logger.error(f"PDF export failed: {error_msg}")
+
+                    elif tool_name == "scheduled_tasks" and isinstance(tool_output, dict):
+                        if tool_output.get("success") and tool_output.get("task_id"):
+                            logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")
+                        else:
+                            error_msg = tool_output.get("message", "Scheduled task creation failed")
+                            error_type = "Scheduled Task Limit Exceeded" if tool_output.get("error") == "Task limit exceeded" else "Scheduled Task Error"
+                            errors_list.append(ProcessingError(message=error_type, details=error_msg))
+                            if tool_output.get("error") == "Task limit exceeded":
+                                logger.warning(f"Scheduled task limit exceeded: {error_msg}")
+                            else:
+                                logger.error(f"Scheduled task creation failed: {error_msg}")
 
                     else:
                         logger.debug(
@@ -699,7 +806,7 @@ class EmailAgent:
             task = self._create_task(email_request, email_instructions)
 
             logger.info("Starting agent execution...")
-            final_answer_obj = self.agent.run(task)
+            final_answer_obj = self.agent.run(task, additional_args={"email_request": email_request})
             logger.info("Agent execution completed.")
 
             agent_steps = list(self.agent.memory.steps)
@@ -718,7 +825,7 @@ class EmailAgent:
                 return processed_result
 
             logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
-            return processed_result  # Added return for the successful case
+            return processed_result
 
         except Exception as e:
             error_msg = f"Critical error in email processing: {e!s}"
@@ -751,3 +858,55 @@ class EmailAgent:
                 research=None,
                 pdf_export=None,
             )
+
+    def _create_limited_scheduled_tasks_tool(self, email_request: EmailRequest) -> Tool:
+        """
+        Create a scheduled tasks tool with a call limit wrapper.
+
+        Args:
+            email_request: The email request data
+
+        Returns:
+            Tool: Wrapped scheduled tasks tool with call limiting
+
+        """
+        # Create the base tool
+        base_tool = ScheduledTasksTool(email_request=email_request)
+
+        # Create a counter to track calls
+        call_count = {"count": 0}
+        max_calls = SCHEDULED_TASKS_MAX_PER_EMAIL
+
+        # Store original forward method
+        original_forward = base_tool.forward
+
+        def limited_forward(*args, **kwargs):
+            """Wrapper that limits scheduled task calls to 5 per email."""
+            if call_count["count"] >= max_calls:
+                logger.warning(f"Scheduled task limit reached ({max_calls} tasks per email). Rejecting additional task creation.")
+                return {
+                    "success": False,
+                    "error": "Task limit exceeded",
+                    "message": f"Maximum of {max_calls} scheduled tasks allowed per email. This limit helps prevent excessive automation.",
+                    "tasks_created": call_count["count"],
+                    "max_allowed": max_calls,
+                }
+
+            # Increment counter before calling
+            call_count["count"] += 1
+            logger.info(f"Creating scheduled task {call_count['count']}/{max_calls}")
+
+            # Call the original method
+            result = original_forward(*args, **kwargs)
+
+            # If the call failed, decrement the counter
+            if not result.get("success", False):
+                call_count["count"] -= 1
+                logger.info(f"Scheduled task creation failed, decremented counter to {call_count['count']}")
+
+            return result
+
+        # Replace the forward method
+        base_tool.forward = limited_forward
+
+        return base_tool

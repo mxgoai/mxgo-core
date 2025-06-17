@@ -731,7 +731,7 @@ Provide accurate translations with cultural context preservation and clear expla
 """
 
 # Scheduling handler template
-SCHEDULE_TEMPLATE = """
+MEETING_TEMPLATE = """
 Intelligently extract, research, and schedule meetings or appointments with proper validation, research, and clarification protocols.
 
 # Scheduling Methodology - SYSTEMATIC PROCESS
@@ -818,12 +818,12 @@ I've researched based on your request. Here's a summary:
 </scheduling_checklist>
 
 **If ANY validation point fails (user input needed):**
-- **STOP scheduling.** Do NOT call `schedule_generator` if critical info is missing.
+- **STOP scheduling.** Do NOT call `meeting_creator` if critical info is missing.
 - Present research & request specific clarification (See Step 2 & 6).
 
 ## STEP 5: SCHEDULE GENERATION / FINALIZING RECOMMENDATION
-**If direct scheduling possible (`schedule_generator` details confirmed):**
-**Tool Usage: schedule_generator**
+**If direct scheduling possible (`meeting_creator` details confirmed):**
+**Tool Usage: meeting_creator**
 - title: Clear meeting/appointment title.
 - start_time: ISO 8601 with timezone (e.g., "2024-08-15T10:00:00-07:00").
 - end_time: ISO 8601 (start_time + duration).
@@ -945,7 +945,7 @@ References:
 
 **Step 5: Schedule Generation (if slot confirmed by user & professional):**
 (e.g., Dr. Carter available next Tue 6:30 PM PST, user confirms)
-**Tool Usage: schedule_generator**
+**Tool Usage: meeting_creator**
 - title: "Initial Consultation: [User Name] & Dr. Emily Carter"
 - start_time: "[YYYY-MM-DD]T18:30:00-07:00" (Calculated date/time PST)
 - end_time: "[YYYY-MM-DD]T19:20:00-07:00" (50-min session)
@@ -958,11 +958,11 @@ References:
 
 **Research (if Sarah's email unknown):** Internal directory search. Web search: "[User's Company] Sarah Marketing email". If multiple Sarahs, ask user for last name/team.
 
-**Scheduling (Contact Found/Provided):** If sarah.m@example.com found: Schedule tomorrow 3pm local. Duration 30 min. Location: "TBD" or virtual. Call `schedule_generator`.
+**Scheduling (Contact Found/Provided):** If sarah.m@example.com found: Schedule tomorrow 3pm local. Duration 30 min. Location: "TBD" or virtual. Call `meeting_creator`.
 
 **CRITICAL REQUIREMENTS:**
 - **Present research with sources/links** if external research was done.
-- **NEVER schedule without confirmed participant contact information** (email for `schedule_generator`).
+- **NEVER schedule without confirmed participant contact information** (email for `meeting_creator`).
 - **Validate min. 2 participants for meetings** (or confirmed service provider contact) unless personal reminder.
 - **Specify timezone assumptions clearly.**
 - **Default to appropriate duration** (30 min meetings, 50-60 min therapy) unless specified.
@@ -1106,4 +1106,541 @@ The PDF is attached to this email for your use.
 3. **Professional presentation** - ensure the PDF looks polished and readable
 4. **Appropriate inclusion** - only export content that has substantial value
 5. **Clear documentation** - explain what was included and why
+"""
+
+# Future handler template
+FUTURE_TEMPLATE = """
+Analyze email content to extract scheduling requirements for future or recurring task processing and create appropriate cron expressions.
+
+# Future Task Scheduling Process
+
+## STEP 1: Intent Analysis & Information Extraction
+**Extract ALL relevant scheduling information:**
+- **Task/Reminder Content**: What should be processed/reminded about
+- **Time References**: Specific dates/times, relative timing ("every Monday", "in 2 weeks", "quarterly")
+- **Recurrence Pattern**: One-time, daily, weekly, monthly, yearly, custom intervals
+- **Context Requirements**: Any specific processing instructions or conditions
+- **Processing Instructions**: Detailed instructions about how this task should be handled when executed
+- **Start Time**: Any specified start date/time when the task should begin (e.g., "starting next month", "from January 1st")
+- **End Time**: Any specified end date/time when the task should stop (e.g., "until end of year", "for 6 months")
+
+**CRITICAL ANALYSIS:**
+- Identify if this is a one-time future task or recurring reminder
+- Determine the exact timing requirements
+- Extract any special processing instructions for the future task
+- Look for time bounds - when should the task start and when should it end
+- Note any expiration conditions for the scheduled task
+
+## STEP 2: Cron Expression Generation
+**Generate appropriate cron expressions based on timing requirements:**
+
+**Cron Format**: `minute hour day month day_of_week`
+- minute (0-59)
+- hour (0-23)
+- day of month (1-31)
+- month (1-12)
+- day of week (0-7, Sunday=0 or 7)
+
+**Common Patterns:**
+- **Daily at specific time**: `0 9 * * *` (9 AM daily)
+- **Weekly**: `0 9 * * 1` (9 AM every Monday)
+- **Monthly**: `0 9 1 * *` (9 AM on 1st of each month)
+- **Yearly**: `0 9 1 1 *` (9 AM on January 1st)
+- **Weekdays only**: `0 9 * * 1-5` (9 AM Monday-Friday)
+- **Every 2 weeks**: Use specific dates for bi-weekly patterns
+
+**MINIMUM INTERVAL REQUIREMENT:**
+- All recurring tasks must have a minimum interval of **1 hour** between executions
+- Tasks that would run more frequently than once per hour will be rejected
+- For very frequent reminders, consider if the task really needs to be that frequent
+
+**Time Zone Handling:**
+- Convert all times to UTC for cron expressions
+- Note original timezone in task metadata
+- Handle timezone awareness clearly
+
+## STEP 3: SCHEDULED TASK CREATION
+**If all scheduling details are confirmed and a future or recurring task should be created:**
+
+**Tool Usage: scheduled_tasks**
+- **cron_expression**: Valid cron expression in UTC (e.g., "0 14 * * 1" for every Monday at 2 PM UTC)
+- **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be. **CRITICAL: If the original email contains attachments, you MUST include detailed context about the attachments in these instructions since attachments will not be available during scheduled execution. Include attachment names, types, sizes, and any relevant content or context from the attachments.**
+- **task_description**: Human-readable description of what the scheduled task will do (e.g., "Weekly reminder to review sales report")
+- **next_run_time**: (Optional) Next execution time in ISO 8601 format (e.g., "2024-08-19T14:00:00Z")
+- **start_time**: (Optional) Start time for the task in ISO 8601 format - task will not execute before this time (e.g., "2024-09-01T00:00:00Z")
+- **end_time**: (Optional) End time for the task in ISO 8601 format - task will not execute after this time (e.g., "2024-12-31T23:59:59Z")
+
+**Response (Successful Scheduling):**
+1. Confirmation message with:
+    - Task ID (MUST be included in the final response)
+    - Human-readable schedule description
+    - Next execution time (in user's timezone and UTC)
+    - Start time and end time if specified
+    - DO NOT include the cron expression in the user-facing output
+2. Summary of what will be processed/reminded
+3. Clear next steps (e.g., "You will receive results at the scheduled time.")
+
+**CRITICAL REQUIREMENTS:**
+- ALWAYS generate and validate a correct cron expression in UTC
+- ALWAYS create detailed distilled_future_task_instructions that explain how to process the task
+- **ALWAYS include attachment context in distilled_future_task_instructions if the original email has attachments** - scheduled tasks cannot access original attachments, so all relevant attachment information must be captured in the instructions
+- ALWAYS provide a clear confirmation with the next execution time and task ID
+- ALWAYS ensure the task ID from the tool's response is included in your final response
+- NEVER show the cron expression in the user-facing output
+- ALWAYS use the `scheduled_tasks` tool for this purpose
+- VALIDATE that recurring tasks have minimum 1-hour intervals
+- INCLUDE start_time and end_time parameters when time bounds are specified
+
+## STEP 4: Response Format
+**Provide clear confirmation with:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: [Clear description of what will be reminded/processed]
+**Schedule**: [Human-readable schedule description]
+**Next Occurrence**: [Next execution date/time in user's timezone]
+**Task ID**: [CRITICAL: Include the actual task UUID returned by the scheduled_tasks tool]
+
+## Processing Details
+**Content to Process**: [Summary of what will be processed]
+**Processing Instructions**: [How the task will be handled when executed]
+**Frequency**: [One-time/Daily/Weekly/Monthly/Custom interval description]
+**Timezone**: [Original timezone and UTC conversion notes]
+
+## What Happens Next
+- The task has been stored in the system
+- At the scheduled time, the task will be processed according to the specified instructions
+- You'll receive the results via email at the specified time
+- The task will [continue recurring/end after one execution] as configured
+```
+
+# EXAMPLES
+
+## Example 1: Weekly Report Reminder
+**User Request**: "Remind me every Monday at 9 AM to review the weekly sales report"
+
+**Step 1: Analysis**
+- Task: Review weekly sales report
+- Schedule: Every Monday at 9 AM
+- Recurrence: Weekly
+- Processing Instructions: Send reminder to review weekly sales report
+- Start Time: None specified (starts immediately)
+- End Time: None specified (continues indefinitely)
+
+**Step 2: Cron Generation**
+- User timezone assumed: EST/EDT (UTC-5/-4)
+- 9 AM EST = 14:00 UTC (standard time)
+- Cron: `0 14 * * 1`
+- Interval check: Weekly (7 days) > 1 hour minimum ✓
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="0 14 * * 1",
+    distilled_future_task_instructions="Send a reminder email to review the weekly sales report. Include motivation to check key metrics and performance indicators.",
+    task_description="Weekly reminder to review sales report"
+)
+```
+
+**Sample Response:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: Weekly reminder to review sales report
+**Schedule**: Every Monday at 9:00 AM
+**Next Occurrence**: Monday, August 19, 2024 at 9:00 AM EST
+**Task ID**: c7101912-423c-38b1-d95e-f8424b55e325
+
+## Processing Details
+**Content to Process**: "Remind me every Monday at 9 AM to review the weekly sales report"
+**Processing Instructions**: Send reminder with motivation to check key metrics and performance indicators
+**Frequency**: Weekly (every Monday)
+**Timezone**: Eastern Standard Time (UTC-5)
+
+## What Happens Next
+- The task has been stored in the system
+- At the scheduled time, the task will be processed according to the specified instructions
+- You'll receive the results via email at the specified time
+- The task will continue recurring as configured
+```
+
+## Example 2: One-time Future Task
+**User Request**: "Process this research request again in 2 weeks"
+
+**Step 1: Analysis**
+- Task: Reprocess research request
+- Schedule: One-time, 2 weeks from now
+- Recurrence: None (one-time)
+- Processing Instructions: Re-execute the research request with current data
+- Start Time: None specified
+- End Time: None specified (one-time task)
+
+**Step 2: Cron Generation**
+- Calculate exact date 2 weeks from now
+- Convert to UTC
+- One-time cron expression for specific date/time
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="0 9 [day] [month] *",
+    distilled_future_task_instructions="Re-execute the research request from the original email. Use current data and updated sources to provide fresh insights on the topic.",
+    task_description="One-time reprocessing of research request"
+)
+```
+
+## Example 3: Time-bound Recurring Task
+**User Request**: "Send me daily market updates at 8 AM starting January 1st until March 31st"
+
+**Step 1: Analysis**
+- Task: Send daily market updates
+- Schedule: Daily at 8 AM
+- Recurrence: Daily
+- Processing Instructions: Generate and send market updates
+- Start Time: January 1st (specified start date)
+- End Time: March 31st (specified end date)
+
+**Step 2: Cron Generation**
+- 8 AM user timezone → convert to UTC
+- Cron: `0 12 * * *` (assuming UTC-4 timezone)
+- Interval check: Daily (24 hours) > 1 hour minimum ✓
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="0 12 * * *",
+    distilled_future_task_instructions="Generate and send comprehensive daily market updates including key indicators, news, and analysis relevant to the user's interests.",
+    task_description="Daily market updates",
+    start_time="2024-01-01T12:00:00Z",
+    end_time="2024-03-31T23:59:59Z"
+)
+```
+
+**Sample Response:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: Daily market updates
+**Schedule**: Every day at 8:00 AM
+**Active Period**: January 1, 2024 to March 31, 2024
+**Next Occurrence**: January 1, 2024 at 8:00 AM EST
+**Task ID**: a1234567-1234-1234-1234-123456789012
+
+## Processing Details
+**Content to Process**: Daily market updates request
+**Processing Instructions**: Generate comprehensive market updates with key indicators and analysis
+**Frequency**: Daily
+**Time Bounds**: Task will run from January 1st through March 31st only
+**Timezone**: Eastern Standard Time (UTC-5)
+
+## What Happens Next
+- The task has been stored in the system
+- Task will begin executing on January 1st, 2024
+- Daily updates will be sent at 8:00 AM until March 31st
+- Task will automatically stop after the end date
+```
+
+## Example 4: Scheduled Task with Attachments
+**User Request**: "Process this data file every Friday and send me a summary" (with attached CSV file: sales_data.csv, 2.5MB)
+
+**Step 1: Analysis**
+- Task: Process data file and send summary
+- Schedule: Every Friday
+- Recurrence: Weekly
+- Processing Instructions: Process the attached CSV data and generate summary
+- Attachments: sales_data.csv (2.5MB) - contains sales data that needs to be referenced
+- Start Time: None specified
+- End Time: None specified
+
+**Step 2: Cron Generation**
+- Every Friday at reasonable time (assume 9 AM user timezone)
+- Convert to UTC based on user timezone
+- Cron: `0 14 * * 5` (assuming UTC-5 timezone)
+- Interval check: Weekly (7 days) > 1 hour minimum ✓
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="0 14 * * 5",
+    distilled_future_task_instructions="Process and analyze the sales data from the original email attachment 'sales_data.csv' (2.5MB CSV file containing sales records). The file included columns for date, product, quantity, revenue, and region. Generate a comprehensive weekly summary report including: total sales, top performing products, regional breakdown, and trends compared to previous periods. Since the original attachment won't be available during scheduled execution, note that this task requires the user to provide updated data files or access to current sales data sources for meaningful analysis.",
+    task_description="Weekly sales data processing and summary report"
+)
+```
+
+**Sample Response:**
+```
+## Scheduled Task Confirmation
+
+**Task Description**: Weekly sales data processing and summary report
+**Schedule**: Every Friday at 9:00 AM
+**Next Occurrence**: Friday, August 23, 2024 at 9:00 AM EST
+**Task ID**: d8202023-534d-49c2-e06f-g9535c66f436
+
+## Processing Details
+**Content to Process**: Sales data analysis and summary generation
+**Original Attachment**: sales_data.csv (2.5MB) - sales records with date, product, quantity, revenue, and region data
+**Processing Instructions**: Generate comprehensive weekly summary with sales totals, top products, regional breakdown, and trend analysis
+**Frequency**: Weekly (every Friday)
+**Timezone**: Eastern Standard Time (UTC-5)
+
+## Important Note About Attachments
+⚠️ **Attachment Limitation**: The original CSV file will not be accessible during scheduled execution. For meaningful analysis, you'll need to either:
+- Provide updated data files when the task runs
+- Ensure the system has access to current sales data sources
+- Consider setting up automated data feeds for the scheduled task
+
+## What Happens Next
+- The task has been stored in the system
+- Every Friday at 9:00 AM, the system will attempt to process sales data
+- You'll receive summary reports via email at the scheduled time
+- The task will continue recurring as configured
+```
+
+**Content Guidelines:**
+1. **Clear scheduling intent** - understand exactly what user wants scheduled
+2. **Accurate time conversion** - handle timezones properly
+3. **Detailed processing instructions** - create comprehensive distilled_future_task_instructions
+4. **User-friendly confirmation** - explain what was scheduled and when it will happen
+5. **Error handling** - validate timing requests and provide alternatives if invalid
+"""
+
+# Delete handler template
+DELETE_TEMPLATE = """
+Analyze email content to identify and delete scheduled tasks.
+
+# Task Deletion Process
+
+## STEP 1: Task Identification & Extraction
+**Extract ALL relevant task identification information:**
+- **Task ID**: UUID format task identifiers (e.g., "12345678-1234-1234-1234-123456789012")
+- **Task Description**: Descriptive text that might help identify tasks
+- **Intent Analysis**: Determine if this is a deletion request for scheduled tasks
+
+**Task ID Extraction Strategy:**
+- Look for UUID patterns in email content (36-character format with hyphens)
+- Check for "Task ID:", "Delete task:", or similar patterns
+- Extract task IDs from forwarded emails or previous confirmations
+- Handle multiple task IDs if present
+
+## STEP 2: TASK DELETION EXECUTION
+**If task ID is identified:**
+
+**Tool Usage: delete_scheduled_tasks**
+- **task_id**: Valid UUID of the task to delete (e.g., "12345678-1234-1234-1234-123456789012")
+
+**Example Tool Call:**
+```
+delete_scheduled_tasks(
+    task_id="12345678-1234-1234-1234-123456789012"
+)
+```
+
+**Response (Successful Deletion):**
+1. Confirmation message with:
+    - Task ID that was deleted
+    - Brief description of what was deleted
+2. Summary of task that was removed
+
+## STEP 3: Response Format
+**Provide clear confirmation with:**
+```
+## Task Deletion Confirmation
+
+**Status**: Successfully deleted
+**Task ID**: [UUID of deleted task]
+**Task Description**: [Brief description of what was scheduled]
+
+## What Was Removed
+**Scheduled Content**: [Summary of the task that was scheduled]
+**Schedule**: [What the timing/recurrence was]
+
+## Important Notes
+- This action cannot be undone
+- The task will no longer execute at its scheduled time
+```
+
+# EXAMPLES
+
+## Example 1: Delete by Task ID
+**User Request**: "Delete scheduled task 12345678-1234-1234-1234-123456789012"
+
+**Step 1: Task Identification**
+- Task ID found: "12345678-1234-1234-1234-123456789012"
+- Clear deletion intent
+
+**Step 2: Tool Usage**
+```
+delete_scheduled_tasks(
+    task_id="12345678-1234-1234-1234-123456789012"
+)
+```
+
+**Sample Response:**
+```
+## Task Deletion Confirmation
+
+**Status**: Successfully deleted
+**Task ID**: 12345678-1234-1234-1234-123456789012
+**Task Description**: Weekly reminder to review sales report
+
+## What Was Removed
+**Scheduled Content**: "Remind me every Monday at 9 AM to review the weekly sales report"
+**Schedule**: Every Monday at 9:00 AM EST
+
+## Important Notes
+- This action cannot be undone
+- The task will no longer execute at its scheduled time
+```
+
+## Example 2: Task Not Found
+**User Request**: "Cancel task 99999999-9999-9999-9999-999999999999"
+
+**Step 1: Task Identification**
+- Task ID found: "99999999-9999-9999-9999-999999999999"
+
+**Step 2: Tool Usage & Error Response**
+```
+delete_scheduled_tasks(
+    task_id="99999999-9999-9999-9999-999999999999"
+)
+```
+
+**Sample Error Response:**
+```
+## Task Deletion Failed
+
+**Status**: Task not found
+**Task ID**: 99999999-9999-9999-9999-999999999999
+
+## Issue
+The specified task could not be found.
+
+## Possible Reasons
+- Task ID doesn't exist in the system
+- Task was already deleted previously
+- Task ID was copied incorrectly
+
+## What You Can Do
+- Verify the correct task ID from your scheduling confirmation email
+- Contact support if you believe this is an error
+```
+
+## Example 3: Multiple Task Deletion
+**User Request**: "Delete both task 11111111-1111-1111-1111-111111111111 and 22222222-2222-2222-2222-222222222222"
+
+**Step 1: Task Identification**
+- Multiple Task IDs found: "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"
+
+**Step 2: Multiple Tool Usage**
+```
+delete_scheduled_tasks(
+    task_id="11111111-1111-1111-1111-111111111111"
+)
+
+delete_scheduled_tasks(
+    task_id="22222222-2222-2222-2222-222222222222"
+)
+```
+
+**Sample Response:**
+```
+## Multiple Task Deletion Results
+
+### Task 1: 11111111-1111-1111-1111-111111111111
+**Status**: Successfully deleted
+**Task Description**: Daily standup reminder
+**Schedule**: Every weekday at 9:00 AM
+
+### Task 2: 22222222-2222-2222-2222-222222222222
+**Status**: Successfully deleted
+**Task Description**: Weekly report reminder
+**Schedule**: Every Friday at 3:00 PM
+
+## Summary
+- 2 tasks successfully deleted
+
+## Important Notes
+- These actions cannot be undone
+- The tasks will no longer execute at their scheduled times
+```
+
+## STEP 4: FALLBACK STRATEGIES
+
+### Missing Task ID
+```
+I need a task ID to delete a scheduled task.
+
+**Current Understanding:**
+- Intent: Delete scheduled task
+- Missing: Specific task ID (UUID format)
+
+**To proceed, please provide:**
+- The task ID (36-character UUID like: 12345678-1234-1234-1234-123456789012)
+- This can usually be found in your original scheduling confirmation email
+
+**Alternative:**
+If you don't have the task ID, you can:
+1. Check your email for the original scheduling confirmation
+2. Contact support if you need help finding the task ID
+```
+
+**CRITICAL REQUIREMENTS:**
+- **ALWAYS require explicit task ID** for deletion (UUID format)
+- **ALWAYS provide clear confirmation** of what was deleted
+- **ALWAYS use the delete_scheduled_tasks tool** for actual deletion
+- **ALWAYS handle errors gracefully**
+- **ALWAYS warn about irreversible nature** of deletion
+
+**Content Guidelines:**
+1. **Clear identification** - require specific task IDs, not descriptions
+2. **Simple confirmation** - explain what was removed
+3. **Error handling** - provide helpful guidance when deletion fails
+4. **User safety** - warn about permanent nature of deletion
+5. **Professional tone** - handle deletion requests appropriately
+"""
+
+# Scheduled Task Context Templates
+# These templates are used for formatting scheduled task execution contexts
+
+SCHEDULED_TASK_NOT_FOUND_TEMPLATE = """⏰ **SCHEDULED TASK EXECUTION**
+This is a scheduled task execution, but task details could not be retrieved (Task ID: {scheduled_task_id})."""
+
+SCHEDULED_TASK_CONTEXT_TEMPLATE = """⏰ **SCHEDULED TASK EXECUTION**
+
+🎯 **IMPORTANT CONTEXT**: This email is being processed as part of a scheduled task execution. The user previously sent an email requesting that this action be performed at this time. Your focus should be on executing the original intent, NOT on creating new schedules.
+
+📧 **Original Request Details**:
+- Task ID: {scheduled_task_id}
+- Created: {created_at}
+- Cron Schedule: {cron_expression}
+- Original Subject: {original_subject}
+- Original From: {original_from}
+- Task Status: {task_status}
+
+🚀 **Your Task**: Execute the intended action based on the original email request below. Focus on the user's original intent rather than scheduling functionality.
+
+⚠️ **IMPORTANT OUTPUT GUIDELINES**:
+- Do NOT include any scheduling confirmation messages
+- Do NOT mention task IDs, cron expressions, or next execution times
+- Do NOT say "task scheduled successfully" or similar confirmation language
+- Focus ONLY on the execution results (research, analysis, data, recommendations)
+- Your response should look like a natural completion of the user's original request"""
+
+SCHEDULED_TASK_ERROR_TEMPLATE = """⏰ **SCHEDULED TASK EXECUTION**
+This is a scheduled task execution (Task ID: {scheduled_task_id}). Focus on executing the intended action rather than creating new schedules."""
+
+SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE = """
+## 🎯 SCHEDULED TASK PROCESSING INSTRUCTIONS
+
+**IMPORTANT**: This is a scheduled task execution. The following are the specific processing instructions that were defined when the task was originally created:
+
+{distilled_processing_instructions}
+
+**CRITICAL NOTES:**
+- The original email may contain scheduling/reminder language, but the scheduling has already happened
+- This is the execution trigger of that scheduled instance
+- Ignore any scheduling instructions and focus ONLY on what needs to be done
+- Execute the task based on these distilled instructions, not the original scheduling request
+
+**Please follow above instructions precisely to execute the intended task.**
 """

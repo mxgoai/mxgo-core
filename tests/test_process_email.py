@@ -8,13 +8,13 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
-from mxtoai.models import ProcessingInstructions
 from mxtoai.schemas import (
     AttachmentsProcessingResult,
     DetailedEmailProcessingResult,
     EmailContentDetails,
     EmailSentStatus,
     ProcessingError,
+    ProcessingInstructions,
     ProcessingMetadata,
 )
 from mxtoai.tasks import process_email_task
@@ -139,9 +139,118 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
         )
 
 
+# --- New Test for Future/Remind Handle ---
+def test_process_email_task_future_remind_handle(prepare_email_request_data):
+    """
+    Tests the future/remind email handle that schedules tasks for later execution.
+    Only EmailSender.send_reply is mocked.
+    """
+    # Create an email with a specific future task request
+    future_content = "Remind me to book a doctor's appointment next Monday at 10 AM."
+
+    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
+        to_email="remind@mxtoai.com",
+        subject="Doctor Appointment Reminder",
+        text_content=future_content,
+    )
+
+    # Mock the database session to verify task creation without actually persisting
+    task_created = False
+    task_id = None
+    cron_expression = None
+    scheduled_time = None
+
+    def mock_session_add(task):
+        nonlocal task_created, task_id, cron_expression, scheduled_time
+        task_created = True
+        task_id = getattr(task, "task_id", None)
+        cron_expression = getattr(task, "cron_expression", None)
+
+    def mock_session_execute(statement, params=None):
+        nonlocal task_created, task_id, cron_expression
+        # This mocks the direct SQL execution approach
+        if params and isinstance(params, dict):
+            task_created = True
+            task_id = params.get("task_id")
+            cron_expression = params.get("cron_expression")
+
+        # Create a mock result that mimics what execute() would return
+        class MockResult:
+            def __init__(self):
+                pass
+
+            def scalar_one_or_none(self):
+                return None
+
+            def scalars(self):
+                return self
+
+            def first(self):
+                return None
+
+            def all(self):
+                return []
+
+        return MockResult()
+
+    with (
+        patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        patch("sqlmodel.Session.add", side_effect=mock_session_add),
+        patch("sqlmodel.Session.execute", side_effect=mock_session_execute),
+        patch("sqlmodel.Session.commit"),  # Prevent actual DB commits
+    ):
+        mock_sender_instance = MockEmailSender.return_value
+
+        async def mock_async_send_reply(*args, **kwargs):
+            return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}
+
+        mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
+
+        # Process the email
+        returned_result = process_email_task.fn(
+            email_data=email_data, email_attachments_dir=email_attachments_dir_str, attachment_info=attachment_info
+        )
+
+        # Verify basic processing success
+        _assert_basic_successful_processing(
+            returned_result,
+            expected_handle="schedule",  # Remind aliases to schedule in current implementation
+            attachments_cleaned_up_dir=email_attachments_dir_str if attachment_info else None
+        )
+
+        # Verify task was created (via our mocked session.add or session.execute)
+        assert task_created, "Task was not created"
+        assert task_id is not None, "Task ID was not generated"
+        assert cron_expression is not None, "Cron expression was not set"
+
+        # Check for task confirmation in the returned email content (text and HTML versions)
+        email_content_text = returned_result.email_content.text or ""
+        email_content_html = returned_result.email_content.html or ""
+
+        # Check for task confirmation in the response content
+        has_task_reference = any(term in email_content_text for term in ["Task", "Scheduled", "scheduled", "task"])
+        has_task_reference_html = any(term in email_content_html for term in ["Task", "Scheduled", "scheduled", "task"])
+
+        assert has_task_reference or has_task_reference_html, f"Email content doesn't mention task. Text: {email_content_text[:100]}..."
+
+        # The response should include the original request
+        has_appointment_reference = any(term in email_content_text.lower() for term in ["doctor", "appointment"])
+        has_appointment_reference_html = any(term in email_content_html.lower() for term in ["doctor", "appointment"])
+
+        assert has_appointment_reference or has_appointment_reference_html, "Email content doesn't include original request"
+
+        # Check if Next Occurrence or similar timing info is in the response
+        timing_terms = ["next occurrence", "scheduled for", "next run", "will be processed", "at the scheduled time"]
+        has_timing_info = any(term in email_content_text.lower() for term in timing_terms)
+        has_timing_info_html = any(term in email_content_html.lower() for term in timing_terms)
+
+        assert has_timing_info or has_timing_info_html, "Email content doesn't include timing information"
+
+        # Verify the email was sent
+        mock_sender_instance.send_reply.assert_called_once()
+
+
 # --- New Test Cases ---
-
-
 def test_process_email_task_unsupported_handle(prepare_email_request_data):
     """Tests behavior when an unsupported email handle is provided."""
     unsupported_handle = "nonexistenthandle@mxtoai.com"
@@ -238,15 +347,24 @@ def test_process_email_task_for_handle(
 
     attachments_for_test: Optional[list[AttachmentFileContent]] = None
     is_schedule_handle = handle_instructions.handle == "schedule"
+    is_meeting_handle = handle_instructions.handle == "meeting"
 
-    # Specific setup for schedule handle to provide context for scheduling
+    # Specific setup for different handles
     subject_for_test = f"Test for {handle_instructions.handle}"
     text_content_for_test = f"This is a test email for the '{handle_instructions.handle}' handle."
+
     if is_schedule_handle:
-        text_content_for_test = "Please schedule a meeting titled 'Project Kickoff' for January 5th, 2024, at 2:00 PM EST to discuss the project milestones. My email is sender.test@example.com and please invite colleague@example.com."
-        # Add a dummy file if process_attachments is True for schedule, though it might not be used
+        # Schedule handle should test future task scheduling, not meeting creation
+        text_content_for_test = "Please remind me every Monday at 9 AM to review the weekly sales report starting next week."
+        # Add a dummy file if process_attachments is True for schedule
         if handle_instructions.process_attachments:
-            attachments_for_test = [("schedule_context.txt", b"Meeting context document.", "text/plain")]
+            attachments_for_test = [("schedule_context.txt", b"Weekly report context.", "text/plain")]
+    elif is_meeting_handle:
+        # Meeting handle should test calendar event creation
+        text_content_for_test = "Please schedule a meeting titled 'Project Kickoff' for January 5th, 2024, at 2:00 PM EST to discuss the project milestones. My email is sender.test@example.com and please invite colleague@example.com."
+        # Add a dummy file if process_attachments is True for meeting
+        if handle_instructions.process_attachments:
+            attachments_for_test = [("meeting_context.txt", b"Meeting context document.", "text/plain")]
 
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
         to_email=to_email_address,
@@ -260,7 +378,7 @@ def test_process_email_task_for_handle(
     # For now, assume all handles in DEFAULT_EMAIL_HANDLES are expected to try to send a reply.
     expect_reply_actually_sent = True
 
-    # For "schedule" handle, we will mock send_reply but also check if an ICS was generated.
+    # For "meeting" handle, we will mock send_reply but also check if an ICS was generated.
     # For other handles, we mainly check if a reply was attempted.
     # Note: Since EmailAgent is not mocked beyond EmailSender, the actual content of the reply
     # will depend on the LLM and the prompt templates. This test primarily verifies
@@ -273,11 +391,11 @@ def test_process_email_task_for_handle(
         mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
-            # Check for ICS attachment if it's the schedule handle
-            if is_schedule_handle:
+            # Check for ICS attachment if it's the meeting handle
+            if is_meeting_handle:
                 sent_attachments = kwargs.get("attachments", [])
                 assert any(att["filename"] == "invite.ics" for att in sent_attachments), (
-                    "ICS attachment was not prepared for sending by the schedule handle."
+                    "ICS attachment was not prepared for sending by the meeting handle."
                 )
                 assert any(att["mimetype"] == "text/calendar" for att in sent_attachments)
 
@@ -311,22 +429,26 @@ def test_process_email_task_for_handle(
                 if attachments_for_test
                 else None,  # Only check cleanup if dir was used
             )
-            # Specific assertion for schedule handle's calendar_data
-            if is_schedule_handle:
-                assert returned_result.calendar_data is not None, "Calendar data should be present for schedule handle"
+            # Specific assertion for meeting handle's calendar_data
+            if is_meeting_handle:
+                assert returned_result.calendar_data is not None, "Calendar data should be present for meeting handle"
                 assert (
                     returned_result.calendar_data.ics_content is not None
                     and len(returned_result.calendar_data.ics_content) > 0
-                ), "ICS content is missing or empty for schedule handle"
+                ), "ICS content is missing or empty for meeting handle"
 
             # Specific assertions for PDF handle
             if handle_instructions.handle == "pdf":
                 assert returned_result.pdf_export is not None, "PDF export result should be present for PDF handle"
                 assert returned_result.pdf_export.filename.endswith(".pdf"), "PDF export should have .pdf filename"
                 assert returned_result.pdf_export.file_size > 0, "PDF export should have non-zero file size"
-                assert returned_result.pdf_export.mimetype == "application/pdf", "PDF export should have correct mimetype"
+                assert returned_result.pdf_export.mimetype == "application/pdf", (
+                    "PDF export should have correct mimetype"
+                )
                 assert returned_result.pdf_export.title is not None, "PDF export should have a title"
-                assert returned_result.pdf_export.pages_estimated >= 1, "PDF export should have at least 1 page estimated"
+                assert returned_result.pdf_export.pages_estimated >= 1, (
+                    "PDF export should have at least 1 page estimated"
+                )
         else:
             # If not expecting a sent reply (e.g. if we were to use SKIP_EMAIL_DELIVERY for some handles)
             mock_sender_instance.send_reply.assert_not_called()
@@ -355,7 +477,7 @@ def test_pdf_export_tool_direct():
     # Test basic content export
     result = tool.forward(
         content="# Test Document\n\nThis is a test document with some content.\n\n- Item 1\n- Item 2\n- Item 3",
-        title="Test PDF Document"
+        title="Test PDF Document",
     )
 
     assert result["success"] is True, f"PDF export failed: {result.get('error', 'Unknown error')}"
@@ -390,7 +512,7 @@ def test_pdf_export_tool_with_research_findings():
         title="Weekly Newsletter Export",
         research_findings="## Research Results\n\n1. Finding one\n2. Finding two\n3. Finding three",
         attachments_summary="## Attachments Processed\n\n- attachment1.pdf\n- attachment2.docx",
-        include_attachments=True
+        include_attachments=True,
     )
 
     assert result["success"] is True
@@ -490,11 +612,11 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 """,
         "messageId": "<test-pdf-message-id>",
         "date": "2024-01-01T12:00:00Z",
-        "recipients": ["pdf@mxtoai.com"],
+        "recipients": ["pdfå@mxtoai.com"],
         "cc": None,
         "bcc": None,
         "references": None,
-        "attachments": []
+        "attachments": [],
     }
 
     # Create temporary directory for attachments
@@ -524,11 +646,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
             mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
             # Run the task
-            result = process_email_task.fn(
-                email_data=email_data,
-                email_attachments_dir=temp_dir,
-                attachment_info=[]
-            )
+            result = process_email_task.fn(email_data=email_data, email_attachments_dir=temp_dir, attachment_info=[])
 
             # Verify successful processing
             assert isinstance(result, DetailedEmailProcessingResult)
@@ -620,7 +738,7 @@ def test_pdf_export_cleanup():
         # Generate a PDF
         result = tool.forward(
             content="# Test PDF Cleanup\n\nThis tests that temporary directories are properly cleaned up.",
-            title="Cleanup Test PDF"
+            title="Cleanup Test PDF",
         )
 
         assert result["success"] is True, f"PDF generation failed: {result.get('error', 'Unknown error')}"
@@ -647,11 +765,82 @@ def test_pdf_export_cleanup():
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-if __name__ == "__main__":
-    # Run only PDF tests if executed directly
-    pytest.main([__file__ + "::test_pdf_export_tool_direct", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_tool_with_research_findings", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_content_cleaning", "-v"])
-    pytest.main([__file__ + "::test_pdf_handle_full_integration", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_error_handling", "-v"])
-    pytest.main([__file__ + "::test_pdf_export_cleanup", "-v"])
+# --- New Test for Delete Handle ---
+def test_process_email_task_delete_handle(prepare_email_request_data):
+    """
+    Tests the delete email handle that removes scheduled tasks.
+    Only EmailSender.send_reply is mocked.
+    """
+    import uuid
+
+    # Create an email with a delete task request
+    task_id = str(uuid.uuid4())
+    delete_content = f"Delete scheduled task {task_id}"
+
+    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
+        to_email="delete@mxtoai.com",
+        subject="Delete Scheduled Task",
+        text_content=delete_content,
+    )
+
+    # Mock the database session to simulate task deletion
+    task_deleted = False
+    deleted_task_id = None
+
+    def mock_session_add(task):
+        nonlocal task_deleted, deleted_task_id
+        if hasattr(task, "status") and str(task.status) == "TaskStatus.DELETED":
+            task_deleted = True
+            deleted_task_id = getattr(task, "task_id", None)
+
+    def mock_session_execute(statement, params=None):
+        # This mocks finding the task for deletion
+        class MockResult:
+            def first(self):
+                # Return a mock task if this is a SELECT query
+                if task_id in str(statement):
+                    return type("MockTask", (), {
+                        "task_id": task_id,
+                        "status": "ACTIVE",
+                        "email_request": f'{{"from_email": "{email_data["from_email"]}", "subject": "Test Task"}}',
+                        "scheduler_job_id": f"job_{task_id}",
+                        "updated_at": None
+                    })()
+                return None
+
+        return MockResult()
+
+    # Mock the delete tool components
+    with patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job", return_value=True):
+        with patch("mxtoai.db.init_db_connection") as mock_init_db:
+            mock_db_connection = MagicMock()
+            mock_session = MagicMock()
+
+            # Setup mock session behavior
+            mock_session.add.side_effect = mock_session_add
+            mock_session.exec.side_effect = mock_session_execute
+            mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
+            mock_init_db.return_value = mock_db_connection
+
+            # Mock email sender to capture the response
+            with patch("mxtoai.tasks.EmailSender") as mock_email_sender_class:
+                mock_email_sender = MagicMock()
+                mock_email_sender_class.return_value = mock_email_sender
+
+                # Execute the task with correct signature
+                process_email_task(
+                    email_data=email_data,
+                    email_attachments_dir=email_attachments_dir_str,
+                    attachment_info=attachment_info,
+                )
+
+                # Verify email sender was called
+                mock_email_sender.send_reply.assert_called_once()
+
+                # Get the call arguments to verify the response content
+                call_args = mock_email_sender.send_reply.call_args
+                reply_text = call_args[1]["reply_text"]
+
+                # Verify the response mentions task deletion
+                assert "delete" in reply_text.lower() or "removed" in reply_text.lower()
+

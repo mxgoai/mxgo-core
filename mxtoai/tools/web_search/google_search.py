@@ -37,13 +37,16 @@ class GoogleSearchTool(Tool):
         self.google_tool: Optional[SmolagentsGoogleSearchTool] = None
 
         # Try to initialize Google search tool with available providers
+        # Try SerpAPI first if available
         if os.getenv("SERPAPI_API_KEY"):
             try:
                 self.google_tool = SmolagentsGoogleSearchTool(provider="serpapi")
                 logger.debug("GoogleSearchTool initialized with SerpAPI")
             except ValueError as e:
                 logger.warning(f"Failed to initialize GoogleSearchTool with SerpAPI: {e}")
-        elif os.getenv("SERPER_API_KEY"):
+
+        # If SerpAPI failed or not available, try Serper
+        if not self.google_tool and os.getenv("SERPER_API_KEY"):
             try:
                 self.google_tool = SmolagentsGoogleSearchTool(provider="serper")
                 logger.debug("GoogleSearchTool initialized with Serper")

@@ -77,7 +77,7 @@ Output Format Guidelines:
 """
 
 # Scheduling handler output guidelines
-SCHEDULE_OUTPUT_GUIDELINES = """
+MEETING_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
 1. Structure sections clearly:
    - **Event Details**: Title, date, time, location
@@ -102,4 +102,92 @@ Output Format Guidelines:
    - Quality of source material for export
 4. Professional tone acknowledging the export request
 5. Keep response concise - let the PDF be the main deliverable
+"""
+
+# Future handler output guidelines
+FUTURE_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Start with clear task confirmation including task ID
+2. Present schedule in human-readable format
+3. Show next execution time in user's timezone
+4. Explain what will be reprocessed
+5. End with clear next steps and expectations
+6. DO NOT include the cron expression in the output
+
+Sample format:
+```
+## Scheduled Task Confirmation
+
+**Task Description**: [Clear description of what will be reminded/processed]
+**Schedule**: [Human-readable schedule description]
+**Next Occurrence**: [Next execution date/time in user's timezone]
+**Task ID**: [ALWAYS include the generated task UUID here]
+
+## Processing Details
+**Task details**: [Summary of the task that will be processed]
+**Frequency**: [One-time/Daily/Weekly/Monthly/Custom interval description]
+**Timezone**: [Original timezone and UTC conversion notes]
+
+## What Happens Next
+- The task has been stored in the system
+- At the scheduled time, the task will be processed and you'll receive the results
+- The task will [continue recurring/end after one execution] as configured
+```
+
+**Sample error response:**
+```
+## Scheduling Error
+
+An error occurred while creating the scheduled task. Please try again later or contact support if the issue persists.
+
+We apologize for the inconvenience.
+```
+"""
+
+# Delete handler output guidelines
+DELETE_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Start with clear status confirmation (success/failure)
+2. Always include the task ID that was processed
+3. Provide task description/context for verification
+4. Include security confirmations (user verification)
+5. Explain cleanup actions taken (scheduler + database)
+6. Add important warnings about irreversible nature
+7. For errors, provide helpful guidance and next steps
+8. Use consistent status symbols and formatting
+
+Sample success format:
+```
+## Task Deletion Confirmation
+
+**Status**: Successfully deleted
+**Task ID**: [UUID of deleted task]
+**Task Description**: [Brief description of what was scheduled]
+**Deleted By**: [User email for verification]
+
+## What Was Removed
+**Scheduled Content**: [Summary of the task that was scheduled]
+**Schedule**: [What the timing/recurrence was]
+**Cleanup**: Both scheduler and database entries have been removed
+
+## Important Notes
+- This action cannot be undone
+- Only your own scheduled tasks can be deleted
+- The task will no longer execute at its scheduled time
+```
+
+Sample error format:
+```
+## Task Deletion Failed
+
+**Status**: [Specific error reason]
+**Task ID**: [UUID that was requested]
+**Requested By**: [User email]
+
+## Issue
+[Clear explanation of what went wrong]
+
+## What You Can Do
+[Specific steps user can take to resolve]
+```
 """

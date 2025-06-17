@@ -4,6 +4,22 @@ from typing import Any, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class HandlerAlias(str, Enum):
+    """Enum for email handle aliases."""
+
+    SUMMARIZE = "summarize"
+    RESEARCH = "research"
+    SIMPLIFY = "simplify"
+    ASK = "ask"
+    FACT_CHECK = "fact-check"
+    BACKGROUND_RESEARCH = "background-research"
+    TRANSLATE = "translate"
+    MEETING = "meeting"
+    PDF = "pdf"
+    SCHEDULE = "schedule"
+    DELETE = "delete"
+
+
 # Enum for Rate Limit Plans
 class RateLimitPlan(Enum):
     BETA = "beta"
@@ -57,8 +73,11 @@ class EmailRequest(BaseModel):
     htmlContent: Optional[str] = ""
     headers: Optional[dict[str, str]] = {}
     attachments: Optional[list[EmailAttachment]] = []
-    emailId: Optional[str] = None  # Unique ID for this email
+
     rawHeaders: Optional[dict[str, Any]] = None  # Raw email headers
+    scheduled_task_id: Optional[str] = None  # ID of scheduled task if this is a scheduled execution
+    distilled_processing_instructions: Optional[str] = None  # Processed instructions for the email
+    distilled_alias: Optional[HandlerAlias] = None  # Alias to use for processing this email (overrides the detaul to-email handle)
 
 
 class ResearchResult(BaseModel):
@@ -181,3 +200,54 @@ class DetailedEmailProcessingResult(BaseModel):
 
     # Ensure Pydantic can populate by name and validate defaults
     model_config = ConfigDict(populate_by_name=True, validate_default=True)
+
+
+class ProcessingInstructions(BaseModel):
+    handle: str
+    aliases: list[str]
+    process_attachments: bool
+    deep_research_mandatory: bool
+    rejection_message: Optional[str] = (
+        "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
+    )
+    task_template: Optional[str] = None
+    output_template: Optional[str] = None
+    task_specific_instructions: Optional[str] = None
+    requires_language_detection: bool = False
+    requires_schedule_extraction: bool = False
+    target_model: Optional[str] = "gpt-4"
+    output_instructions: Optional[str] = None
+
+
+class LiteLLMParams(BaseModel):
+    model: str
+    weight: int
+
+    # Traditional API-based model parameters (optional for Bedrock models)
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    api_version: Optional[str] = None
+
+    # AWS Bedrock-specific parameters
+    aws_access_key_id: Optional[str] = None
+    aws_secret_access_key: Optional[str] = None
+    aws_session_token: Optional[str] = None
+    aws_region_name: Optional[str] = None
+    aws_session_name: Optional[str] = None
+    aws_profile_name: Optional[str] = None
+    aws_role_name: Optional[str] = None
+    aws_web_identity_token: Optional[str] = None
+    aws_bedrock_runtime_endpoint: Optional[str] = None
+    # Support for Bedrock Application Inference Profile ARNs
+    aws_bedrock_inference_profile: Optional[str] = None
+
+
+class ModelConfig(BaseModel):
+    model_name: str
+    litellm_params: LiteLLMParams
+
+
+class RouterConfig(BaseModel):
+    routing_strategy: str
+    fallbacks: list[dict[str, list[str]]]
+    default_litellm_params: dict[str, Any]

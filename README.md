@@ -234,6 +234,58 @@ graph TD
 uvicorn api:app --reload
 ```
 
+## Scheduler Setup & Running
+
+The scheduler runs as a **separate process** from the API server and Dramatiq workers. This ensures clean separation and scalability.
+
+### 1. Ensure Environment Variables
+
+Add these to your `.env` (or set in your environment):
+
+```env
+# Database (PostgreSQL) settings
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=your_database
+DB_USER=your_user
+DB_PASSWORD=your_password
+
+# Scheduler settings
+SCHEDULER_API_BASE_URL=http://localhost:8000
+SCHEDULER_API_TIMEOUT=300
+SCHEDULER_MAX_WORKERS=5
+```
+
+### 2. Run Database Migration
+
+Make sure your database is up to date:
+
+```bash
+poetry run alembic upgrade head
+```
+
+For detailed information about database migrations, see [mxtoai/db/README.md](mxtoai/db/README.md).
+
+### 3. Start All Processes
+
+You need to run **three separate processes**:
+
+```bash
+# Terminal 1: API Server
+poetry run python run_api.py
+
+# Terminal 2: Dramatiq Workers (multiple processes)
+poetry run dramatiq mxtoai.tasks --processes 1 --threads 2 --watch ./
+
+# Terminal 3: Scheduler Process (separate)
+poetry run python -m mxtoai.scheduler_runner
+```
+
+**How it works:**
+- Dramatiq workers handle emails and write scheduled tasks to PostgreSQL
+- Scheduler process reads from PostgreSQL and executes tasks by calling the API
+- API server processes both regular and scheduled emails
+
 ## Advanced Features
 
 ### Attachment Processing

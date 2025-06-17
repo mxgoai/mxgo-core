@@ -5,9 +5,10 @@ import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
-from mxtoai import exceptions, models
+import mxtoai.schemas
+from mxtoai import exceptions
 from mxtoai._logging import get_logger
-from mxtoai.models import ProcessingInstructions
+from mxtoai.schemas import ProcessingInstructions
 
 load_dotenv()
 
@@ -70,7 +71,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             logger.error(f"Failed to load TOML config: {e}")
             return {}
 
-    def _load_model_config(self) -> list[models.ModelConfig]:
+    def _load_model_config(self) -> list[mxtoai.schemas.ModelConfig]:
         """
         Load model configuration from environment variables.
 
@@ -87,9 +88,9 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         for entry in model_entries:
             model_list.append(
-                models.ModelConfig(
+                mxtoai.schemas.ModelConfig(
                     model_name=entry.get("model_name"),
-                    litellm_params=models.LiteLLMParams(**entry.get("litellm_params")),
+                    litellm_params=mxtoai.schemas.LiteLLMParams(**entry.get("litellm_params")),
                 )
             )
 
@@ -99,19 +100,19 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         return model_list
 
-    def _load_router_config(self) -> models.RouterConfig:
+    def _load_router_config(self) -> mxtoai.schemas.RouterConfig:
         """
         Load router configuration from environment variables.
 
         Returns:
-           models.RouterConfig: Router configuration
+           mxtoai.schemas.RouterConfig: Router configuration
 
         """
-        router_config = models.RouterConfig(**self.config.get("router_config"))
+        router_config = mxtoai.schemas.RouterConfig(**self.config.get("router_config"))
 
         if not router_config:
             logger.warning("No router config found in model-config.toml. Using defaults.")
-            return models.RouterConfig(
+            return mxtoai.schemas.RouterConfig(
                 routing_strategy="simple-shuffle",
                 fallbacks=[],
                 default_litellm_params={"drop_params": True},

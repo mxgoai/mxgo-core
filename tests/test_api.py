@@ -88,7 +88,6 @@ def prepare_form_data(**kwargs):
         "htmlContent": "<p>Test HTML content</p>",
         "messageId": f"test-message-id-{os.urandom(4).hex()}",
         "date": "2023-10-26T10:00:00Z",
-        "emailId": f"original-email-id-{os.urandom(4).hex()}",
         "rawHeaders": '{"cc": "cc@example.com"}',
     }
     for key, value in kwargs.items():

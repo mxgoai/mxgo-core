@@ -3,13 +3,13 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Union
+from typing import Any, Optional, Union
 
 import dramatiq
 from dotenv import load_dotenv
 from dramatiq.brokers.rabbitmq import RabbitmqBroker
 
-from mxtoai import exceptions  # Import custom exceptions
+from mxtoai import exceptions
 from mxtoai._logging import get_logger
 from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
@@ -22,11 +22,10 @@ from mxtoai.schemas import (
     EmailRequest,
     EmailSentStatus,
     ProcessingError,
+    ProcessingInstructions,
     ProcessingMetadata,
 )
-
-if TYPE_CHECKING:
-    from mxtoai.models import ProcessingInstructions
+from mxtoai.validators import check_task_idempotency, mark_email_as_processed
 
 # Load environment variables
 load_dotenv()
@@ -87,7 +86,10 @@ def should_retry(retries_so_far: int, exception: Exception) -> bool:
 
 @dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
 def process_email_task(
-    email_data: dict[str, Any], email_attachments_dir: str, attachment_info: list[dict[str, Any]]
+    email_data: dict[str, Any],
+    email_attachments_dir: str,
+    attachment_info: list[dict[str, Any]],
+    scheduled_task_id: Optional[str] = None
 ) -> DetailedEmailProcessingResult:
     """
     Dramatiq task for processing emails asynchronously.
@@ -96,13 +98,49 @@ def process_email_task(
         email_data: Dictionary containing email request data
         email_attachments_dir: Directory containing email attachments
         attachment_info: List of attachment information dictionaries
+        scheduled_task_id: Optional task ID if this is a scheduled task
 
     Returns:
         DetailedEmailProcessingResult: The result of the email processing.
 
     """
     email_request = EmailRequest(**email_data)
-    handle = email_request.to.split("@")[0].lower()
+
+        # Check for duplicate processing using Redis (idempotency check)
+    message_id = email_request.messageId
+
+    if check_task_idempotency(message_id):
+        # Return a minimal result indicating it was already processed
+        now_iso = datetime.now().isoformat()
+        return DetailedEmailProcessingResult(
+            metadata=ProcessingMetadata(
+                processed_at=now_iso,
+                mode="duplicate",
+                errors=[ProcessingError(message="Email already processed (duplicate)")],
+                email_sent=EmailSentStatus(
+                    status="duplicate",
+                    message_id="duplicate",
+                    timestamp=now_iso,
+                ),
+            ),
+            email_content=EmailContentDetails(text=None, html=None, enhanced=None),
+            attachments=AttachmentsProcessingResult(processed=[]),
+            calendar_data=None,
+            research=None,
+            pdf_export=None,
+        )
+
+    # For scheduled tasks, use distilled_alias if available, otherwise fall back to email handle
+    if scheduled_task_id and email_request.distilled_alias:
+        handle = email_request.distilled_alias.value
+        logger.info(f"Processing scheduled task {scheduled_task_id} using distilled alias: {handle}")
+    else:
+        handle = email_request.to.split("@")[0].lower()
+        if scheduled_task_id:
+            logger.info(f"Processing scheduled task {scheduled_task_id} for handle: {handle}")
+        else:
+            logger.info(f"Processing regular email for handle: {handle}")
+
     now_iso = datetime.now().isoformat()  # Define now_iso earlier for use in error cases
 
     try:
@@ -145,7 +183,7 @@ def process_email_task(
         )
     # Removed the early return for `if not email_instructions` as the try-except handles it.
 
-    email_agent = EmailAgent()
+    email_agent = EmailAgent(email_request=email_request)
 
     if email_instructions.deep_research_mandatory and email_agent.research_tool:
         email_agent.research_tool.enable_deep_research()
@@ -169,13 +207,39 @@ def process_email_task(
                 logger.error(f"Error processing attachment {attachment_model.filename}: {e!s}")
         email_request.attachments = valid_attachments
 
+    # Set scheduled task ID in email request for the agent to access
+    if scheduled_task_id:
+        # Add the task ID to the email data for the agent to process
+        email_request.scheduled_task_id = scheduled_task_id
+
     processing_result = email_agent.process_email(email_request, email_instructions)
+
+    # Add task ID to email content if this is a scheduled task
+    if scheduled_task_id and processing_result.email_content:
+        # Append task ID to both text and HTML content
+        task_id_note = f"\n\n---\nTask ID: {scheduled_task_id}"
+        task_id_note_html = f"<br/><br/><hr/><p><strong>Task ID:</strong> {scheduled_task_id}</p>"
+
+        if processing_result.email_content.text:
+            processing_result.email_content.text += task_id_note
+
+        if processing_result.email_content.html:
+            # Insert before closing body tag if present, otherwise append
+            if "</body>" in processing_result.email_content.html:
+                processing_result.email_content.html = processing_result.email_content.html.replace(
+                    "</body>", f"{task_id_note_html}</body>"
+                )
+            else:
+                processing_result.email_content.html += task_id_note_html
 
     if processing_result.email_content and processing_result.email_content.text:
         if email_request.from_email in SKIP_EMAIL_DELIVERY:
             logger.info(f"Skipping email delivery for test email: {email_request.from_email}")
             processing_result.metadata.email_sent.status = "skipped"
             processing_result.metadata.email_sent.message_id = "skipped"
+
+            # Mark as processed in Redis even for skipped emails
+            mark_email_as_processed(message_id)
         else:
             attachments_to_send = []
             if processing_result.calendar_data and processing_result.calendar_data.ics_content:
@@ -249,6 +313,9 @@ def process_email_task(
                 processing_result.metadata.email_sent.message_id = email_sent_response.get("MessageId")
                 if email_sent_response.get("status") == "error":
                     processing_result.metadata.email_sent.error = email_sent_response.get("error", "Unknown send error")
+                # Mark as processed in Redis after successful email sending
+                else:
+                    mark_email_as_processed(message_id)
 
             except Exception as send_err:
                 logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)

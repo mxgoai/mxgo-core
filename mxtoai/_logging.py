@@ -114,26 +114,39 @@ def setup_stdlib_logging_intercept():
     logging.root.handlers = [intercept_handler]
     logging.root.setLevel(LOG_LEVEL)
 
-    # Also configure specific loggers that might be problematic
-    third_party_loggers = [
+    # Configure loggers that should use the configured LOG_LEVEL
+    verbose_loggers = [
+        "smolagents",  # Capture smolagents verbose output
+        "dramatiq",
+    ]
+
+    # Configure loggers that should only show ERROR level messages
+    error_only_loggers = [
         "litellm",
         "httpx",
-        "dramatiq",
-        # "pika",  # RabbitMQ client
+        "pika",  # RabbitMQ client
         "azure",
         "openai",
-        "smolagents",  # Capture smolagents verbose output
         "transformers",  # HuggingFace transformers
         "torch",  # PyTorch logging
         "requests",  # HTTP requests logging
         "urllib3",  # HTTP library used by requests
         "aiohttp",  # Async HTTP client
+        "fontTools",  # Font manipulation library used in PDF generation
     ]
 
-    for logger_name in third_party_loggers:
+    # Set up verbose loggers with configured LOG_LEVEL
+    for logger_name in verbose_loggers:
         third_party_logger = logging.getLogger(logger_name)
         third_party_logger.handlers = [intercept_handler]
         third_party_logger.setLevel(LOG_LEVEL)
+        third_party_logger.propagate = True
+
+    # Set up error-only loggers with ERROR level
+    for logger_name in error_only_loggers:
+        third_party_logger = logging.getLogger(logger_name)
+        third_party_logger.handlers = [intercept_handler]
+        third_party_logger.setLevel("ERROR")
         third_party_logger.propagate = True
 
 

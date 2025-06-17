@@ -132,7 +132,9 @@ def resize_image(image_path: str) -> str:
     img = Image.open(image_path)
     width, height = img.size
     img = img.resize((int(width / 2), int(height / 2)))
-    new_image_path = f"resized_{image_path}"
+    directory = os.path.dirname(image_path)
+    filename = os.path.basename(image_path)
+    new_image_path = os.path.join(directory, f"resized_{filename}")
     img.save(new_image_path)
     return new_image_path
 

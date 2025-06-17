@@ -391,6 +391,17 @@ class ReportFormatter:
                 # Insert blank line before header
                 result_lines.append("")
 
+            # --- FIX 1.5: Ensure consecutive bold text lines are separated ---
+            # This handles cases like **Field**: value followed immediately by **Field2**: value2
+            current_is_bold_field = (line.strip().startswith("**") and "**:" in line)
+            if current_is_bold_field and i > 0 and result_lines:
+                # Check if the previous line was also a bold field
+                prev_line = result_lines[-1].strip()
+                prev_is_bold_field = (prev_line.startswith("**") and "**:" in prev_line)
+                if prev_is_bold_field:
+                    # Insert blank line between consecutive bold fields
+                    result_lines.append("")
+
             # --- FIX 2: Manually parse and fix bolded links in list items ---
             if line.strip().startswith(("*", "-")) and "**[" in line and "](" in line and ")**" in line:
                 # This is a very specific pattern, so we can be confident in this replacement

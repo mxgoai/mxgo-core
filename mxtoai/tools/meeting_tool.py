@@ -40,13 +40,13 @@ class EventDetails(BaseModel):
 
 
 # Inherit from smolagents.Tool
-class ScheduleTool(Tool):
+class MeetingTool(Tool):
     """
     Tool to generate iCalendar (.ics) data and 'Add to Calendar' links.
     """
 
     # Add required attributes for Smol Gents
-    name = "schedule_generator"
+    name = "meeting_creator"
     description = (
         "Generates iCalendar (.ics) file content and 'Add to Calendar' links (Google, Outlook) "
         "based on provided event details. Expects ISO 8601 date/time strings with timezone."
@@ -241,7 +241,7 @@ class ScheduleTool(Tool):
 # Example usage (for testing)
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    tool = ScheduleTool()
+    tool = MeetingTool()
 
     # Example 1: Basic event
     details_basic = {
