@@ -13,7 +13,6 @@ from smolagents import Tool, ToolCallingAgent
 # Add imports for the new default tools
 from smolagents.default_tools import (
     PythonInterpreterTool,
-    VisitWebpageTool,
     WikipediaSearchTool,
 )
 from sqlmodel import select
@@ -55,13 +54,16 @@ from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
+from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
 from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
 from mxtoai.tools.meeting_tool import MeetingTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
+from mxtoai.tools.references_generator_tool import ReferencesGeneratorTool
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
 
-# Import the web search tools
+# Import citation management and web search tools
+from mxtoai.scripts.citation_manager import reset_citations, get_citation_manager
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 # Load environment variables
@@ -113,13 +115,19 @@ class EmailAgent:
 
         self.email_request = email_request
         self.enable_deep_research = enable_deep_research
+
+        # Reset citations for each new email processing session
+        reset_citations()
+        logger.debug("Reset citations for new email processing session")
+
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
         self.meeting_tool = MeetingTool()
-        self.visit_webpage_tool = VisitWebpageTool()
+        self.visit_webpage_tool = CitationAwareVisitTool()
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
+        self.references_generator_tool = ReferencesGeneratorTool()
 
         # Initialize scheduled tasks tool with call counter wrapper
         self.scheduled_tasks_tool = self._create_limited_scheduled_tasks_tool(email_request)
@@ -138,6 +146,7 @@ class EmailAgent:
             self.pdf_export_tool,
             self.scheduled_tasks_tool,
             self.delete_scheduled_tasks_tool,
+            self.references_generator_tool,
             azure_visualizer,
         ]
 
@@ -684,6 +693,9 @@ Raw Email Request Data (for tool use):
                         r"^[\s\n]*" + re.escape(marker) + r".*$", "", temp_content, flags=re.IGNORECASE | re.MULTILINE
                     ).strip()
 
+                # Finalize content with citations if any were collected
+                temp_content = self._finalize_response_with_citations(temp_content)
+
                 email_text_content = self.report_formatter.format_report(
                     temp_content, format_type="text", include_signature=True
                 )
@@ -911,3 +923,30 @@ Raw Email Request Data (for tool use):
         base_tool.forward = limited_forward
 
         return base_tool
+
+    def _finalize_response_with_citations(self, content: str) -> str:
+        """
+        Finalize the response by appending citations if any were collected.
+
+        Args:
+            content: The main response content
+
+        Returns:
+            str: Content with appended references section if citations exist
+        """
+        citation_manager = get_citation_manager()
+
+        if citation_manager.has_citations():
+            # Check if content already contains a References or Sources section to avoid duplication
+            import re
+            existing_references_pattern = r'(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$'
+            if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
+                logger.warning("Content already contains a References/Sources section - skipping automatic references to avoid duplication")
+                return content
+
+            references_section = citation_manager.generate_references_section()
+            logger.info(f"Appending references section with {len(citation_manager.get_citations().sources)} sources")
+            return f"{content}\n\n{references_section}"
+
+        logger.debug("No citations found, returning content without references section")
+        return content

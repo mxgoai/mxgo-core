@@ -1,5 +1,5 @@
 from enum import Enum  # Added for RateLimitPlan
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, List, Dict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -251,3 +251,95 @@ class RouterConfig(BaseModel):
     routing_strategy: str
     fallbacks: list[dict[str, list[str]]]
     default_litellm_params: dict[str, Any]
+
+
+class CitationSource(BaseModel):
+    """A single citation source with metadata."""
+
+    id: str = Field(description="Unique identifier for the citation")
+    title: str = Field(description="Title of the source")
+    url: Optional[str] = Field(default=None, description="URL of the source")
+    filename: Optional[str] = Field(default=None, description="Filename for attachment sources")
+    date_accessed: str = Field(description="Date the source was accessed")
+    source_type: str = Field(description="Type of source: 'web', 'attachment', 'api'")
+    description: Optional[str] = Field(default=None, description="Brief description of the source")
+
+
+class CitationCollection(BaseModel):
+    """Collection of citations with references section."""
+
+    sources: List[CitationSource] = Field(default_factory=list, description="List of citation sources")
+    references_section: str = Field(default="", description="Formatted references section")
+
+    def add_source(self, source: CitationSource) -> None:
+        """Add a citation source if it doesn't already exist."""
+        if not any(s.id == source.id for s in self.sources):
+            self.sources.append(source)
+
+    def generate_references_section(self) -> str:
+        """Generate a formatted references section with improved formatting."""
+        if not self.sources:
+            return ""
+
+        # Separate visited pages from search results
+        visited_sources = []
+        search_sources = []
+        attachment_sources = []
+        api_sources = []
+
+        for source in self.sources:
+            if source.source_type == "web":
+                if source.description == "visited":
+                    visited_sources.append(source)
+                else:
+                    search_sources.append(source)
+            elif source.source_type == "attachment":
+                attachment_sources.append(source)
+            else:
+                api_sources.append(source)
+
+        # Build references section with horizontal line
+        references = ["---", "", "### Sources"]
+
+        # Add visited pages first (highest priority)
+        if visited_sources:
+            references.append("")
+            references.append("#### Visited Pages")
+            for source in visited_sources:
+                ref = f"{source.id}. [{source.title}]({source.url})"
+                references.append(ref)
+
+        # Add search results (lower priority, more condensed)
+        if search_sources:
+            references.append("")
+            references.append("#### Search Results")
+            for source in search_sources:
+                ref = f"{source.id}. [{source.title}]({source.url})"
+                references.append(ref)
+
+        # Add attachments
+        if attachment_sources:
+            references.append("")
+            references.append("#### Attachments")
+            for source in attachment_sources:
+                ref = f"{source.id}. {source.filename}"
+                references.append(ref)
+
+        # Add API sources
+        if api_sources:
+            references.append("")
+            references.append("#### Data Sources")
+            for source in api_sources:
+                ref = f"{source.id}. {source.title}"
+                references.append(ref)
+
+        self.references_section = "\n".join(references)
+        return self.references_section
+
+
+class ToolOutputWithCitations(BaseModel):
+    """Standard output format for tools that include citations."""
+
+    content: str = Field(description="The main content/result from the tool")
+    citations: CitationCollection = Field(default_factory=CitationCollection, description="Collection of citations")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="Additional metadata")

@@ -82,8 +82,7 @@ Response Requirements:
    - ### Key Findings
    - ### Detailed Analysis
    - ### Supporting Evidence
-   - ### References
-2. Include proper citations [1], [2], etc. if the deep_research tool provides them. For web_search results, extract the title and URL for each source and list them under the 'References' section using markdown link format (e.g., 1. [Page Title](URL)).
+2. Use citation-aware tools (web search, visit webpage) - they will automatically collect and format citations
 3. Format tables using markdown table syntax
 4. Use proper paragraph spacing
 
@@ -190,13 +189,10 @@ Execute custom tasks and workflows systematically with research, analysis, and p
 
 ### [Subsections as needed]
 - [Bullet points, lists, or structured information]
-- [Include links, sources, and references]
+- [Include important insights and conclusions]
 
 ## Key Insights/Summary
 [Important takeaways or conclusions]
-
-## Sources & References
-[All sources used with proper attribution]
 ```
 
 ## STEP 4: Quality Standards
@@ -233,17 +229,13 @@ Daily digest of the most engaging discussions and innovations from the HN commun
 ## Community Insights
 Notable discussions, debates, or expert opinions from today's conversations.
 
-## Sources
-- Hacker News front page and trending algorithms
-- Individual post discussions and comment threads
-- Community engagement metrics and voting patterns
 ```
 
 **Requirements:**
 - Execute any custom task or workflow systematically
 - Use all available tools for research and analysis
 - Present results professionally with proper structure
-- Include comprehensive sources and attribution
+- Sources will be automatically collected in references section
 - Adapt format and approach to specific task requirements
 """
 
@@ -605,6 +597,7 @@ This will help me provide reliable business intelligence rather than potentially
 1. [LinkedIn Profile](linkedin-url)
 2. [Company Crunchbase](crunchbase-url)
 3. [Recent Partnership News](news-url)
+**Note**: References will be automatically collected and appended by citation-aware tools used for research.
 
 **Content Guidelines:**
 1. **Business-focused analysis** - always connect findings to business value
@@ -615,13 +608,13 @@ This will help me provide reliable business intelligence rather than potentially
 6. **Risk awareness** - flag any concerns or inconsistencies found in email content claims or news
 7. **Competitive context** - position findings within market landscape
 8. **Relationship mapping** - identify connection opportunities and common ground
-9. **Mandatory references** - include ALL sources used with proper markdown links
+9. **Automatic citations** - citation-aware tools will automatically collect and format sources
 10. **Confidence indicators** - clearly state certainty levels for key findings
 11. **Spelling corrections highlight** - clearly note any name/spelling corrections made during research
 
 **CRITICAL REQUIREMENTS:**
 - **NEVER proceed with research if identity verification fails**
-- **ALWAYS include comprehensive references section with actual links**
+- **ALWAYS rely on citation-aware tools to collect and format references automatically**
 - **ALWAYS state confidence levels and any assumptions made**
 - **ALWAYS provide fallback response if uncertain about identity**
 - **ALWAYS connect research findings to business context and value**
