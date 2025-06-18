@@ -6,7 +6,6 @@ import json
 import logging
 import os
 import re
-from typing import Optional
 
 from smolagents import Tool
 from smolagents.default_tools import GoogleSearchTool as SmolagentsGoogleSearchTool
@@ -39,7 +38,7 @@ class GoogleSearchTool(Tool):
         """
         Initialize Google search tool.
         """
-        self.google_tool: Optional[SmolagentsGoogleSearchTool] = None
+        self.google_tool: SmolagentsGoogleSearchTool | None = None
 
         # Try to initialize Google search tool with available providers
         # Try SerpAPI first if available
@@ -78,13 +77,13 @@ class GoogleSearchTool(Tool):
             results = []
 
             # Extract markdown links: [title](url)
-            link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+            link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
             matches = re.findall(link_pattern, raw_result)
 
             for title, url in matches:
                 results.append({
-                    'title': title.strip(),
-                    'url': url.strip()
+                    "title": title.strip(),
+                    "url": url.strip()
                 })
 
             if not results:
@@ -99,8 +98,8 @@ class GoogleSearchTool(Tool):
             # Format results with citations
             formatted_results = []
             for i, result_data in enumerate(results, 1):
-                title = result_data.get('title', 'No title')
-                url = result_data.get('url', '')
+                title = result_data.get("title", "No title")
+                url = result_data.get("url", "")
 
                 # Add citation for this result
                 if url:

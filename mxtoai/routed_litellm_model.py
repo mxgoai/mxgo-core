@@ -1,5 +1,5 @@
 import os
-from typing import Any, Optional
+from typing import Any
 
 import toml
 from dotenv import load_dotenv
@@ -19,7 +19,7 @@ logger = get_logger("routed_litellm_model")
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
 
-    def __init__(self, current_handle: Optional[ProcessingInstructions] = None, **kwargs):
+    def __init__(self, current_handle: ProcessingInstructions | None = None, **kwargs):
         """
         Initialize the routed LiteLLM model.
 
@@ -202,8 +202,8 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
     def __call__(
         self,
         messages: list[dict[str, Any]],  # MODIFIED type hint for messages
-        stop_sequences: Optional[list[str]] = None,
-        tools_to_call_from: Optional[list[Tool]] = None,
+        stop_sequences: list[str] | None = None,
+        tools_to_call_from: list[Tool] | None = None,
         **kwargs,  # kwargs from the caller of this RoutedLiteLLMModel instance
     ) -> ChatMessage:
         """

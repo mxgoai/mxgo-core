@@ -5,8 +5,6 @@ Brave search tool - Better quality results with moderate API cost.
 import json
 import logging
 import os
-import re
-from typing import Optional
 
 from smolagents import Tool
 
@@ -63,7 +61,7 @@ class BraveSearchTool(Tool):
         search_lang: str = "en",
         ui_lang: str = "en-US",
         safesearch: str = "moderate",
-        freshness: Optional[str] = None,
+        freshness: str | None = None,
         result_filter: str = "web",
     ) -> str:
         """Execute Brave search and return results with citations."""

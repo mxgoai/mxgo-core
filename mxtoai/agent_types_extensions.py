@@ -3,7 +3,7 @@ Custom agent types for citation handling that extend smolagents functionality.
 """
 
 import json
-from typing import Any, Dict
+from typing import Any
 
 from smolagents.agent_types import AgentType
 
@@ -21,6 +21,7 @@ class AgentCitationOutput(AgentType):
 
         Args:
             value: Either a ToolOutputWithCitations object, dict, or string
+
         """
         super().__init__(value)
 
@@ -61,7 +62,7 @@ class AgentCitationOutput(AgentType):
         """Return the string representation of the content."""
         return str(self._content)
 
-    def get_citations(self) -> Dict[str, Any]:
+    def get_citations(self) -> dict[str, Any]:
         """Get citation metadata if available."""
         if self._citations_output:
             return {
@@ -90,6 +91,7 @@ def handle_citation_outputs(output: Any) -> Any:
 
     Returns:
         Processed output with citation handling
+
     """
     if isinstance(output, (dict, str)) and _looks_like_citation_output(output):
         return AgentCitationOutput(output)
@@ -100,7 +102,7 @@ def _looks_like_citation_output(value: Any) -> bool:
     """Check if a value looks like a citation output."""
     if isinstance(value, dict):
         return "content" in value and ("citations" in value or "metadata" in value)
-    elif isinstance(value, str):
+    if isinstance(value, str):
         try:
             parsed = json.loads(value)
             return isinstance(parsed, dict) and "content" in parsed

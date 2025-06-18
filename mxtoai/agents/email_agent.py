@@ -3,7 +3,7 @@ import json
 import os
 import re
 from datetime import datetime
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from dotenv import load_dotenv
 
@@ -50,20 +50,20 @@ from mxtoai.schemas import (
     ProcessingInstructions,
     ProcessingMetadata,
 )
+
+# Import citation management and web search tools
+from mxtoai.scripts.citation_manager import get_citation_manager, reset_citations
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
-from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
+from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
 from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
 from mxtoai.tools.meeting_tool import MeetingTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.references_generator_tool import ReferencesGeneratorTool
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
-
-# Import citation management and web search tools
-from mxtoai.scripts.citation_manager import reset_citations, get_citation_manager
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 # Load environment variables
@@ -256,7 +256,7 @@ class EmailAgent:
             actions.append("Conduct research")
         return actions
 
-    def _initialize_deep_research_tool(self, enable_deep_research: bool) -> Optional[DeepResearchTool]:
+    def _initialize_deep_research_tool(self, enable_deep_research: bool) -> DeepResearchTool | None:
         """
         Initializes the DeepResearchTool if API key is available.
 
@@ -267,7 +267,7 @@ class EmailAgent:
             Optional[DeepResearchTool]: Initialized DeepResearchTool instance or None if API key is not found
 
         """
-        research_tool: Optional[DeepResearchTool] = None
+        research_tool: DeepResearchTool | None = None
         if os.getenv("JINA_API_KEY"):
             research_tool = DeepResearchTool()
             if enable_deep_research:
@@ -440,7 +440,7 @@ Raw Email Request Data (for tool use):
         attachment_task: str = "",
         deep_research_mandatory: bool = False,
         output_template: str = "",
-        distilled_processing_instructions: Optional[str] = None,
+        distilled_processing_instructions: str | None = None,
     ) -> str:
         """
         Combine all task components into the final task description.
@@ -933,13 +933,14 @@ Raw Email Request Data (for tool use):
 
         Returns:
             str: Content with appended references section if citations exist
+
         """
         citation_manager = get_citation_manager()
 
         if citation_manager.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
             import re
-            existing_references_pattern = r'(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$'
+            existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
             if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
                 logger.warning("Content already contains a References/Sources section - skipping automatic references to avoid duplication")
                 return content

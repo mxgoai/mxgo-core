@@ -55,7 +55,7 @@ class DDGSearchTool(Tool):
             logger.debug(f"DDG raw result: {raw_result[:500]}...")  # Log first 500 chars
 
             # Extract markdown links from the raw result: [title](url)
-            link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+            link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
             matches = re.findall(link_pattern, raw_result)
 
             formatted_results = []
@@ -79,13 +79,13 @@ class DDGSearchTool(Tool):
             # If no markdown links found, try to extract URLs directly
             if not formatted_results:
                 logger.info("No markdown links found, trying direct URL extraction")
-                url_pattern = r'https?://[^\s\n)]+'
+                url_pattern = r"https?://[^\s\n)]+"
                 urls = re.findall(url_pattern, raw_result)
 
                 for i, url in enumerate(urls[:self.max_results], 1):
                     # Generate a simple title from URL
-                    title = url.split('/')[-1] or url.split('//')[-1].split('/')[0]
-                    title = title.replace('-', ' ').replace('_', ' ').title()
+                    title = url.split("/")[-1] or url.split("//")[-1].split("/")[0]
+                    title = title.replace("-", " ").replace("_", " ").title()
                     if not title:
                         title = f"Search Result {i}"
 

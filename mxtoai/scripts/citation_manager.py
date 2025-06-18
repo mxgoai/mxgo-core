@@ -7,7 +7,6 @@ across different tools to collect citations and generate references.
 
 import threading
 from datetime import datetime
-from typing import Optional
 
 from mxtoai.schemas import CitationCollection, CitationSource
 
@@ -22,6 +21,7 @@ def _sanitize_api_title(title: str) -> str:
 
     Returns:
         str: Sanitized title suitable for user-facing references
+
     """
     if not title or not title.strip():
         return "External Data Source"
@@ -51,7 +51,7 @@ class GlobalCitationManager:
         self._url_to_id = {}  # Track URL to ID mapping for deduplication
         self._filename_to_id = {}  # Track filename to ID mapping for deduplication
 
-    def add_web_source(self, url: str, title: str, description: Optional[str] = None, visited: bool = False) -> str:
+    def add_web_source(self, url: str, title: str, description: str | None = None, visited: bool = False) -> str:
         """Add a web source and return its citation ID."""
         with self._lock:
             # Check if we already have this URL
@@ -85,7 +85,7 @@ class GlobalCitationManager:
             self._citations.add_source(source)
             return citation_id
 
-    def add_attachment_source(self, filename: str, description: Optional[str] = None) -> str:
+    def add_attachment_source(self, filename: str, description: str | None = None) -> str:
         """Add an attachment source and return its citation ID."""
         with self._lock:
             # Check if we already have this filename
@@ -111,7 +111,7 @@ class GlobalCitationManager:
             self._citations.add_source(source)
             return citation_id
 
-    def add_api_source(self, title: str, description: Optional[str] = None) -> str:
+    def add_api_source(self, title: str, description: str | None = None) -> str:
         """
         Add an API source and return its citation ID.
 
@@ -121,6 +121,7 @@ class GlobalCitationManager:
 
         Returns:
             str: Citation ID
+
         """
         with self._lock:
             # Generate sequential ID (API sources are always unique)
@@ -238,17 +239,17 @@ def reset_citations() -> None:
     _global_citation_manager.reset()
 
 
-def add_web_citation(url: str, title: str, description: Optional[str] = None, visited: bool = False) -> str:
+def add_web_citation(url: str, title: str, description: str | None = None, visited: bool = False) -> str:
     """Add a web citation (convenience function)."""
     return _global_citation_manager.add_web_source(url, title, description, visited)
 
 
-def add_attachment_citation(filename: str, description: Optional[str] = None) -> str:
+def add_attachment_citation(filename: str, description: str | None = None) -> str:
     """Add an attachment citation (convenience function)."""
     return _global_citation_manager.add_attachment_source(filename, description)
 
 
-def add_api_citation(title: str, description: Optional[str] = None) -> str:
+def add_api_citation(title: str, description: str | None = None) -> str:
     """
     Add an API citation (convenience function).
 
@@ -265,6 +266,7 @@ def add_api_citation(title: str, description: Optional[str] = None) -> str:
 
         # Use user-friendly titles:
         add_api_citation("LinkedIn Profile Data")
+
     """
     return _global_citation_manager.add_api_source(title, description)
 

@@ -2,7 +2,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import unquote
 
 from smolagents import Tool
@@ -67,7 +67,7 @@ class AttachmentProcessingTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, model: Optional[Model] = None):
+    def __init__(self, model: Model | None = None):
         """
         Initialize the attachment processing tool.
 
@@ -174,7 +174,7 @@ class AttachmentProcessingTool(Tool):
 
                 # Add citation for this attachment
                 citation_id = add_attachment_citation(
-                    attachment['filename'],
+                    attachment["filename"],
                     f"Email attachment ({attachment.get('type', 'unknown type')})"
                 )
                 citation_ids.append(citation_id)

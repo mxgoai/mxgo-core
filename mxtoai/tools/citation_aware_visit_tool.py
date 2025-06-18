@@ -5,7 +5,6 @@ Citation-aware webpage visit tool that collects citations.
 import json
 import logging
 import re
-from typing import Optional
 
 from smolagents import Tool
 from smolagents.default_tools import VisitWebpageTool
@@ -55,7 +54,7 @@ class CitationAwareVisitTool(Tool):
             )
 
             if title_match:
-                title = re.sub(r'<[^>]+>', '', title_match.group(1)).strip()
+                title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip()
             else:
                 title = f"Webpage: {url}"
 
