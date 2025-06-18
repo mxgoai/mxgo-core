@@ -571,7 +571,7 @@ Raw Email Request Data (for tool use):
                                     pa_detail.caption = attachment_data["content"]["caption"]
                             processed_attachment_details.append(pa_detail)
 
-                    elif self.deep_research_enabled and tool_name == "deep_research" and isinstance(tool_output, dict):
+                    elif self.enable_deep_research and tool_name == "deep_research" and isinstance(tool_output, dict):
                         research_output_findings = tool_output.get("findings")
                         research_output_metadata = AgentResearchMetadata(
                             query=tool_output.get("query"),
