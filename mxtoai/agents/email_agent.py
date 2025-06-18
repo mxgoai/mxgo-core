@@ -100,7 +100,7 @@ class EmailAgent:
         Args:
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
-            enable_deep_research: Whether to enable Jina AI deep research functionality (uses API tokens)
+            enable_deep_research: Whether to enable deep research functionality
 
         """
         # Set up logging
@@ -112,6 +112,7 @@ class EmailAgent:
         os.makedirs(self.attachment_dir, exist_ok=True)
 
         self.email_request = email_request
+        self.enable_deep_research = enable_deep_research
         self.attachment_tool = AttachmentProcessingTool()
         self.report_formatter = ReportFormatter()
         self.meeting_tool = MeetingTool()
@@ -126,7 +127,7 @@ class EmailAgent:
 
         # Initialize independent search tools
         self.search_tools = self._initialize_independent_search_tools()
-        self.research_tool = self._initialize_deep_research_tool(enable_deep_research)
+        self.research_tool = self._initialize_deep_research_tool(self.enable_deep_research)
 
         self.available_tools: list[Tool] = [
             self.attachment_tool,
@@ -462,7 +463,7 @@ Raw Email Request Data (for tool use):
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
             distilled_section,
-            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory else RESEARCH_GUIDELINES["optional"],
+            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory and self.enable_deep_research else RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
             output_template,
@@ -570,7 +571,7 @@ Raw Email Request Data (for tool use):
                                     pa_detail.caption = attachment_data["content"]["caption"]
                             processed_attachment_details.append(pa_detail)
 
-                    elif tool_name == "deep_research" and isinstance(tool_output, dict):
+                    elif self.deep_research_enabled and tool_name == "deep_research" and isinstance(tool_output, dict):
                         research_output_findings = tool_output.get("findings")
                         research_output_metadata = AgentResearchMetadata(
                             query=tool_output.get("query"),
