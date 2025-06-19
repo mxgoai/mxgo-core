@@ -5,12 +5,13 @@ Citation-aware webpage visit tool that collects citations.
 import json
 import logging
 import re
+from typing import ClassVar
 
 from smolagents import Tool
 from smolagents.default_tools import VisitWebpageTool
 
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import ToolOutputWithCitations
-from mxtoai.scripts.citation_manager import add_web_citation
 
 logger = logging.getLogger(__name__)
 
@@ -24,18 +25,19 @@ class CitationAwareVisitTool(Tool):
     name = "visit_webpage_with_citations"
     description = (
         "Visit a webpage and extract its content while automatically tracking citations. "
-        "This tool will add the visited URL to the global citations collection and "
+        "This tool will add the visited URL to the citations collection and "
         "return the webpage content along with citation metadata."
     )
-    inputs = {
+    inputs: ClassVar = {
         "url": {"type": "string", "description": "The URL of the webpage to visit."},
     }
     output_type = "object"
 
-    def __init__(self):
+    def __init__(self, context: RequestContext):
         """Initialize the citation-aware visit tool."""
-        self.visit_tool = VisitWebpageTool()
         super().__init__()
+        self.context = context
+        self.visit_tool = VisitWebpageTool()
         logger.debug("CitationAwareVisitTool initialized")
 
     def forward(self, url: str) -> str:
@@ -53,13 +55,10 @@ class CitationAwareVisitTool(Tool):
                 re.search(r"# (.*?)$", content, re.MULTILINE)
             )
 
-            if title_match:
-                title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip()
-            else:
-                title = f"Webpage: {url}"
+            title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip() if title_match else f"Webpage: {url}"
 
             # Add citation for this webpage - mark as visited
-            citation_id = add_web_citation(url, title, visited=True)
+            citation_id = self.context.add_web_citation(url, title, visited=True)
 
             # Create structured output with citation
             result = ToolOutputWithCitations(

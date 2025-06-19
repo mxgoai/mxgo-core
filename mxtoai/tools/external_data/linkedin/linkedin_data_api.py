@@ -6,11 +6,12 @@ Provides access to LinkedIn data through the LinkedIn Data API (different from F
 import json
 import logging
 import os
+from typing import Optional
 
 import requests
 from smolagents import Tool
 
-from mxtoai.scripts.citation_manager import add_web_citation
+from mxtoai.request_context import RequestContext
 
 logger = logging.getLogger(__name__)
 
@@ -126,12 +127,13 @@ class LinkedInDataAPITool(Tool):
         },
     }
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, context: RequestContext):
         """
         Initialize the LinkedIn Data API tool.
 
         Args:
             api_key: The RapidAPI key for authentication.
+            context: The request context.
 
         """
         super().__init__()
@@ -145,27 +147,28 @@ class LinkedInDataAPITool(Tool):
             "x-rapidapi-host": "linkedin-data-api.p.rapidapi.com",
             "Content-Type": "application/json",
         }
+        self.context = context
 
     def forward(
         self,
         action: str,
-        username: str | None = None,
-        profile_url: str | None = None,
-        search_url: str | None = None,
-        keywords: str | None = None,
-        start: str | None = None,
-        geo: str | None = None,
-        school_id: str | None = None,
-        first_name: str | None = None,
-        last_name: str | None = None,
-        keyword_school: str | None = None,
-        keyword_title: str | None = None,
-        company: str | None = None,
-        keyword: str | None = None,
-        locations: list[int] | None = None,
-        company_sizes: list[str] | None = None,
-        has_jobs: bool | None = None,
-        industries: list[int] | None = None,
+        username: Optional[str] = None,
+        profile_url: Optional[str] = None,
+        search_url: Optional[str] = None,
+        keywords: Optional[str] = None,
+        start: Optional[str] = None,
+        geo: Optional[str] = None,
+        school_id: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        keyword_school: Optional[str] = None,
+        keyword_title: Optional[str] = None,
+        company: Optional[str] = None,
+        keyword: Optional[str] = None,
+        locations: Optional[list[int]] = None,
+        company_sizes: Optional[list[str]] = None,
+        has_jobs: Optional[bool] = None,
+        industries: Optional[list[int]] = None,
         page: int = 1,
     ) -> str:
         """
@@ -220,7 +223,7 @@ class LinkedInDataAPITool(Tool):
                 linkedin_url = f"https://www.linkedin.com/in/{username}/"
                 profile_name = data.get("full_name", username)
                 citation_title = f"{profile_name} - LinkedIn Profile"
-                citation_id = add_web_citation(linkedin_url, citation_title, visited=True)
+                citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             elif action == "get_profile_by_url":
                 if not profile_url:
@@ -230,7 +233,7 @@ class LinkedInDataAPITool(Tool):
                 # Use the provided URL for citation
                 profile_name = data.get("full_name", "LinkedIn Profile")
                 citation_title = f"{profile_name} - LinkedIn Profile"
-                citation_id = add_web_citation(profile_url, citation_title, visited=True)
+                citation_id = self.context.add_web_citation(profile_url, citation_title, visited=True)
 
             elif action == "search_people_by_url":
                 if not search_url:
@@ -245,7 +248,7 @@ class LinkedInDataAPITool(Tool):
                         full_name = item.get("fullName", "LinkedIn Profile")
                         if profile_url:
                             citation_title = f"{full_name} - LinkedIn Profile"
-                            citation_id = add_web_citation(profile_url, citation_title, visited=True)
+                            citation_id = self.context.add_web_citation(profile_url, citation_title, visited=True)
                             citation_ids.append(citation_id)
 
                 # Set citation_id to first one for metadata, or None if no results
@@ -260,7 +263,7 @@ class LinkedInDataAPITool(Tool):
                 linkedin_url = f"https://www.linkedin.com/company/{username}/"
                 company_name = data.get("name", username)
                 citation_title = f"{company_name} - LinkedIn Company"
-                citation_id = add_web_citation(linkedin_url, citation_title, visited=True)
+                citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             elif action == "search_people":
                 data = actions[action](
@@ -282,7 +285,7 @@ class LinkedInDataAPITool(Tool):
                         full_name = item.get("fullName", "LinkedIn Profile")
                         if profile_url:
                             citation_title = f"{full_name} - LinkedIn Profile"
-                            citation_id = add_web_citation(profile_url, citation_title, visited=True)
+                            citation_id = self.context.add_web_citation(profile_url, citation_title, visited=True)
                             citation_ids.append(citation_id)
 
                 # Set citation_id to first one for metadata, or None if no results
@@ -306,7 +309,7 @@ class LinkedInDataAPITool(Tool):
                         company_name = item.get("name", "LinkedIn Company")
                         if company_url:
                             citation_title = f"{company_name} - LinkedIn Company"
-                            citation_id = add_web_citation(company_url, citation_title, visited=True)
+                            citation_id = self.context.add_web_citation(company_url, citation_title, visited=True)
                             citation_ids.append(citation_id)
 
                 # Set citation_id to first one for metadata, or None if no results
@@ -317,31 +320,30 @@ class LinkedInDataAPITool(Tool):
                 raise ValueError(msg)
 
             # Create structured output
-            from mxtoai.schemas import CitationCollection, ToolOutputWithCitations
+            from mxtoai.schemas import ToolOutputWithCitations, CitationCollection, CitationSource
 
             # Create local citation collection if we have citations
             local_citations = CitationCollection()
             if citation_id:
-                # We need to get the citation details from the global manager
-                from mxtoai.scripts.citation_manager import get_citation_manager
-                global_citations = get_citation_manager().get_citations()
+                # We need to get the citation details from the request context
+                context_citations = self.context.get_citations()
 
                 # For search actions, we may have multiple citations
-                if action in ["search_people", "search_companies"] and "citation_ids" in locals():
+                if action in ["search_people", "search_companies"] and 'citation_ids' in locals():
                     # Add all citations from search results
                     for cid in citation_ids:
-                        recent_citation = next((s for s in global_citations.sources if s.id == cid), None)
+                        recent_citation = next((s for s in context_citations.sources if s.id == cid), None)
                         if recent_citation:
                             local_citations.add_source(recent_citation)
                 else:
                     # Single citation for other actions
-                    recent_citation = next((s for s in global_citations.sources if s.id == citation_id), None)
+                    recent_citation = next((s for s in context_citations.sources if s.id == citation_id), None)
                     if recent_citation:
                         local_citations.add_source(recent_citation)
 
             # Format the content with citation references if available
             if citation_id:
-                if action in ["search_people", "search_companies"] and "citation_ids" in locals() and citation_ids:
+                if action in ["search_people", "search_companies"] and 'citation_ids' in locals() and citation_ids:
                     # For search results, show all citation IDs
                     citation_refs = ", ".join([f"#{cid}" for cid in citation_ids])
                     content = f"**LinkedIn Search Results with Citations** [{citation_refs}]\n\n{json.dumps(data, indent=2)}"
@@ -353,7 +355,7 @@ class LinkedInDataAPITool(Tool):
 
             # Calculate total citations for metadata
             total_citations = 0
-            if action in ["search_people", "search_companies"] and "citation_ids" in locals():
+            if action in ["search_people", "search_companies"] and 'citation_ids' in locals():
                 total_citations = len(citation_ids)
             elif citation_id:
                 total_citations = 1
@@ -367,12 +369,12 @@ class LinkedInDataAPITool(Tool):
                     "data_keys": list(data.keys()) if isinstance(data, dict) else [],
                     "has_citation": citation_id is not None,
                     "total_citations": total_citations,
-                    "citation_ids": citation_ids if "citation_ids" in locals() else []
+                    "citation_ids": citation_ids if 'citation_ids' in locals() else []
                 }
             )
 
             # Log completion with citation info
-            if action in ["search_people", "search_companies"] and "citation_ids" in locals() and citation_ids:
+            if action in ["search_people", "search_companies"] and 'citation_ids' in locals() and citation_ids:
                 logger.info(f"LinkedIn {action} completed successfully with {len(citation_ids)} citations: {citation_ids}")
             elif citation_id:
                 logger.info(f"LinkedIn {action} completed successfully with citation [{citation_id}]")
@@ -426,15 +428,15 @@ class LinkedInDataAPITool(Tool):
 
     def search_people(
         self,
-        keywords: str | None = None,
-        start: str | None = None,
-        geo: str | None = None,
-        school_id: str | None = None,
-        first_name: str | None = None,
-        last_name: str | None = None,
-        keyword_school: str | None = None,
-        keyword_title: str | None = None,
-        company: str | None = None,
+        keywords: Optional[str] = None,
+        start: Optional[str] = None,
+        geo: Optional[str] = None,
+        school_id: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        keyword_school: Optional[str] = None,
+        keyword_title: Optional[str] = None,
+        company: Optional[str] = None,
     ) -> dict:
         """
         Search for people on LinkedIn.
@@ -524,11 +526,11 @@ class LinkedInDataAPITool(Tool):
 
     def search_companies(
         self,
-        keyword: str | None = None,
-        locations: list[int] | None = None,
-        company_sizes: list[str] | None = None,
-        has_jobs: bool | None = None,
-        industries: list[int] | None = None,
+        keyword: Optional[str] = None,
+        locations: Optional[list[int]] = None,
+        company_sizes: Optional[list[str]] = None,
+        has_jobs: Optional[bool] = None,
+        industries: Optional[list[int]] = None,
         page: int = 1,
     ) -> dict:
         """
@@ -565,23 +567,18 @@ class LinkedInDataAPITool(Tool):
         return response.json()
 
 
-def initialize_linkedin_data_api_tool() -> LinkedInDataAPITool | None:
+def initialize_linkedin_data_api_tool() -> Optional[LinkedInDataAPITool]:
     """
-    Initializes the LinkedInDataAPITool if the API key is available.
+    Initialize the LinkedIn Data API tool if API key is available.
 
     Returns:
-        Optional[LinkedInDataAPITool]: Initialized tool instance or None if initialization fails
+        LinkedInDataAPITool instance or None if API key not found.
 
     """
     api_key = os.getenv("RAPIDAPI_KEY")
     if api_key:
-        try:
-            tool = LinkedInDataAPITool(api_key=api_key)
-            logger.debug("Initialized LinkedInDataAPITool.")
-            return tool  # noqa: TRY300
-        except ValueError as e:
-            logger.warning(f"Failed to initialize LinkedInDataAPITool: {e}")
-            return None
+        logger.info("RAPIDAPI_KEY found but LinkedInDataAPITool requires context parameter. Tool initialization deferred to agent.")
+        return None  # Return None since we need context from agent
     else:
-        logger.warning("LinkedInDataAPITool not initialized. Missing RAPIDAPI_KEY environment variable.")
+        logger.info("RAPIDAPI_KEY not found. LinkedIn Data API tool not initialized.")
         return None

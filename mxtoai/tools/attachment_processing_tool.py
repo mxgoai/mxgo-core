@@ -2,7 +2,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import unquote
 
 from smolagents import Tool
@@ -13,7 +13,7 @@ from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
 from mxtoai.schemas import ToolOutputWithCitations
-from mxtoai.scripts.citation_manager import add_attachment_citation
+from mxtoai.request_context import RequestContext
 
 # Configure logger
 logger = get_logger("attachment_tool")
@@ -67,18 +67,26 @@ class AttachmentProcessingTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, model: Model | None = None):
+    def __init__(self, context: RequestContext, model: Model | None = None, text_limit: int = 4000):
         """
         Initialize the attachment processing tool.
 
         Args:
-            model: Optional model for generating summaries or processing content.
+            context: Request context containing email data and citation manager
+            model: Optional LLM model for content summarization
+            text_limit: Maximum text length to include in output
 
         """
         super().__init__()
-        self.md_converter = MarkdownConverter()
+        self.context = context
         self.model = model
-        self.text_limit = 8000
+        self.text_limit = text_limit
+        self.converter = MarkdownConverter()
+
+        # Configure image extensions that should be handled by azure_visualizer
+        self.image_extensions = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".svg", ".tiff", ".ico"}
+
+        logger.debug(f"AttachmentProcessingTool initialized with text_limit={text_limit}")
 
         # Set up attachments directory path
         self.attachments_dir = Path(
@@ -136,7 +144,7 @@ class AttachmentProcessingTool(Tool):
 
         """
         try:
-            result = self.md_converter.convert(str(file_path))
+            result = self.converter.convert(str(file_path))
             if not result or not hasattr(result, "text_content"):
                 msg = f"Failed to convert document: {file_path}"
                 raise ValueError(msg)
@@ -173,8 +181,8 @@ class AttachmentProcessingTool(Tool):
                 logger.info(f"Processing attachment: {attachment['filename']}")
 
                 # Add citation for this attachment
-                citation_id = add_attachment_citation(
-                    attachment["filename"],
+                citation_id = self.context.add_attachment_citation(
+                    attachment['filename'],
                     f"Email attachment ({attachment.get('type', 'unknown type')})"
                 )
                 citation_ids.append(citation_id)

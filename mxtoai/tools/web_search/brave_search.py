@@ -5,11 +5,13 @@ Brave search tool - Better quality results with moderate API cost.
 import json
 import logging
 import os
+import re
+from typing import Optional
 
 from smolagents import Tool
 
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import ToolOutputWithCitations
-from mxtoai.scripts.citation_manager import add_web_citation
 
 logger = logging.getLogger(__name__)
 
@@ -37,14 +39,16 @@ class BraveSearchTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, max_results: int = 5):
+    def __init__(self, context: RequestContext, max_results: int = 5):
         """
         Initialize Brave search tool.
 
         Args:
+            context: Request context containing email data and citation manager
             max_results: Maximum number of results to return
 
         """
+        self.context = context
         self.max_results = max_results
         self.api_key = os.getenv("BRAVE_SEARCH_API_KEY")
         super().__init__()
@@ -61,7 +65,7 @@ class BraveSearchTool(Tool):
         search_lang: str = "en",
         ui_lang: str = "en-US",
         safesearch: str = "moderate",
-        freshness: str | None = None,
+        freshness: Optional[str] = None,
         result_filter: str = "web",
     ) -> str:
         """Execute Brave search and return results with citations."""
@@ -131,7 +135,7 @@ class BraveSearchTool(Tool):
 
                     # Add citation for this result
                     if url:
-                        citation_id = add_web_citation(url, title, visited=False)
+                        citation_id = self.context.add_web_citation(url, title, visited=False)
                         formatted_result = f"{i}. **{title}** [#{citation_id}]"
                         if age:
                             formatted_result += f" *({age})*"
@@ -161,7 +165,7 @@ class BraveSearchTool(Tool):
                     breaking = result.get("breaking", False)
 
                     if url:
-                        citation_id = add_web_citation(url, f"{title} (News)", visited=False)
+                        citation_id = self.context.add_web_citation(url, f"{title} (News)", visited=False)
                         formatted_result = f"{i}. **{title}** [#{citation_id}]"
                         if breaking:
                             formatted_result += " *🔴 BREAKING*"
@@ -209,7 +213,7 @@ class BraveSearchTool(Tool):
                     if long_desc:
                         content_parts.append(long_desc)
                     if website_url:
-                        citation_id = add_web_citation(website_url, f"{title} (Official Website)", visited=False)
+                        citation_id = self.context.add_web_citation(website_url, f"{title} (Official Website)", visited=False)
                         content_parts.append(f"Website: {website_url} [#{citation_id}]")
                         citations_added += 1
                 content_parts.append("")  # Add spacing
@@ -232,7 +236,7 @@ class BraveSearchTool(Tool):
                         content_parts.append(f"   A: {answer}")
                     if url:
                         citation_title = title if title else f"FAQ: {question[:50]}..."
-                        citation_id = add_web_citation(url, citation_title, visited=False)
+                        citation_id = self.context.add_web_citation(url, citation_title, visited=False)
                         content_parts.append(f"   Source: {url} [#{citation_id}]")
                         citations_added += 1
                 content_parts.append("")  # Add spacing
@@ -256,7 +260,7 @@ class BraveSearchTool(Tool):
                     creator = video_data.get("creator", "")
 
                     if url:
-                        citation_id = add_web_citation(url, f"{title} (Video)", visited=False)
+                        citation_id = self.context.add_web_citation(url, f"{title} (Video)", visited=False)
                         formatted_result = f"{i}. **{title}** [#{citation_id}]"
                         if duration:
                             formatted_result += f" *({duration})*"
@@ -320,7 +324,7 @@ class BraveSearchTool(Tool):
                         formatted_result += f"\n   Top comment: {top_comment[:100]}..."
 
                     if url:
-                        citation_id = add_web_citation(url, f"{title} (Discussion)", visited=False)
+                        citation_id = self.context.add_web_citation(url, f"{title} (Discussion)", visited=False)
                         formatted_result += f"\n   URL: {url} [#{citation_id}]"
                         citations_added += 1
 
@@ -340,16 +344,16 @@ class BraveSearchTool(Tool):
 
             # Create structured output with local citations
             from mxtoai.schemas import CitationCollection
-            from mxtoai.scripts.citation_manager import get_citation_manager
 
             # Create a local citation collection for this tool's output
             local_citations = CitationCollection()
 
             # Get only the citations that were added by this tool call
             if citations_added > 0:
-                global_citations = get_citation_manager().get_citations()
+                # Get citations from the request context
+                context_citations = self.context.get_citations()
                 # Get the last 'citations_added' number of citations
-                recent_citations = global_citations.sources[-citations_added:] if global_citations.sources else []
+                recent_citations = context_citations.sources[-citations_added:] if context_citations.sources else []
                 for citation in recent_citations:
                     local_citations.add_source(citation)
 

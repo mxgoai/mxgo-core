@@ -20,6 +20,7 @@ from mxtoai.db import init_db_connection
 from mxtoai.models import Tasks, TaskStatus
 from mxtoai.scheduler import remove_scheduled_job
 from mxtoai.schemas import EmailRequest
+from mxtoai.request_context import RequestContext
 
 logger = get_logger("delete_scheduled_tasks_tool")
 
@@ -122,9 +123,16 @@ class DeleteScheduledTasksTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, email_request: EmailRequest):
+    def __init__(self, context: RequestContext):
+        """
+        Initialize the DeleteScheduledTasksTool with request context.
+
+        Args:
+            context: The request context containing email data
+
+        """
         super().__init__()
-        self.email_request = email_request
+        self.context = context
 
     def forward(self, task_id: str) -> dict:
         """
@@ -185,7 +193,7 @@ class DeleteScheduledTasksTool(Tool):
                     task_email_request.get("from_email", "") or
                     task_email_request.get("from", "")
                 ).lower()
-                requesting_email = self.email_request.from_email.lower()
+                requesting_email = self.context.email_request.from_email.lower()
 
                 if task_owner_email != requesting_email:
                     logger.warning(f"Permission denied: {requesting_email} cannot delete task owned by {task_owner_email}")

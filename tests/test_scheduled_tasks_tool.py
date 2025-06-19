@@ -9,6 +9,7 @@ import pytest
 from pydantic import ValidationError
 
 from mxtoai.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import EmailRequest, HandlerAlias
 from mxtoai.tools.scheduled_tasks_tool import (
     ScheduledTaskInput,
@@ -241,7 +242,7 @@ class TestScheduledTasksTool:
 
         # Create tool and execute
         email_request = self.create_mock_email_request()
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         result = tool.forward(
             cron_expression="0 9 * * 1",
@@ -276,7 +277,7 @@ class TestScheduledTasksTool:
 
         # Create tool and execute
         email_request = self.create_mock_email_request()
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         result = tool.forward(
             cron_expression="0 14 * * *",
@@ -299,7 +300,7 @@ class TestScheduledTasksTool:
     def test_invalid_time_range(self):
         """Test validation fails when start_time is after end_time."""
         email_request = self.create_mock_email_request()
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         # Mock the database connection to prevent actual database calls
         with patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db:
@@ -325,7 +326,7 @@ class TestScheduledTasksTool:
         email_request = self.create_mock_email_request()
         email_request.scheduled_task_id = "existing-task-id"  # Already a scheduled task
 
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         result = tool.forward(
             cron_expression="0 9 * * 1",
@@ -340,7 +341,7 @@ class TestScheduledTasksTool:
     def test_distilled_instructions_and_alias_assignment(self):
         """Test that distilled instructions are properly assigned."""
         email_request = self.create_mock_email_request()
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         # Mock the database and scheduler
         with patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db, \
@@ -367,7 +368,7 @@ class TestScheduledTasksTool:
     def test_attachment_context_in_distilled_instructions(self):
         """Test that attachment context can be included in distilled instructions."""
         email_request = self.create_mock_email_request()
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         with patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db, \
              patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job") as mock_add_job:
@@ -399,7 +400,7 @@ class TestScheduledTasksTool:
     def test_cron_expression_validation_in_tool(self):
         """Test that invalid cron expressions are caught by the tool."""
         email_request = self.create_mock_email_request()
-        tool = ScheduledTasksTool(email_request=email_request)
+        tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         result = tool.forward(
             cron_expression="*/15 * * * *",  # Every 15 minutes - too frequent

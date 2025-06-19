@@ -33,6 +33,7 @@ from mxtoai.prompts.template_prompts import (
     SCHEDULED_TASK_ERROR_TEMPLATE,
     SCHEDULED_TASK_NOT_FOUND_TEMPLATE,
 )
+from mxtoai.request_context import RequestContext
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
     AgentResearchMetadata,
@@ -52,14 +53,14 @@ from mxtoai.schemas import (
 )
 
 # Import citation management and web search tools
-from mxtoai.scripts.citation_manager import get_citation_manager, reset_citations
 from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.scripts.visual_qa import azure_visualizer
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
-from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_tool, initialize_linkedin_fresh_tool
+from mxtoai.tools.external_data.linkedin.fresh_data import LinkedInFreshDataTool
+from mxtoai.tools.external_data.linkedin.linkedin_data_api import LinkedInDataAPITool
 from mxtoai.tools.meeting_tool import MeetingTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.references_generator_tool import ReferencesGeneratorTool
@@ -100,6 +101,7 @@ class EmailAgent:
         Initialize the email agent with tools for different operations.
 
         Args:
+            email_request: The email request to process
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
             enable_deep_research: Whether to enable deep research functionality
@@ -110,28 +112,29 @@ class EmailAgent:
             # Consider configuring logging level via environment variables or central logging setup
             logger.debug("Verbose logging potentially enabled (actual level depends on logger config).")
 
+        self.email_request = email_request
         self.attachment_dir = attachment_dir
         os.makedirs(self.attachment_dir, exist_ok=True)
 
-        self.email_request = email_request
         self.enable_deep_research = enable_deep_research
 
-        # Reset citations for each new email processing session
-        reset_citations()
-        logger.debug("Reset citations for new email processing session")
+        # Create request context - this replaces the global citation manager
+        self.context = RequestContext(email_request)
+        logger.debug("Request context initialized with per-request citation manager")
 
-        self.attachment_tool = AttachmentProcessingTool()
+        # Initialize tools with context
+        self.attachment_tool = AttachmentProcessingTool(context=self.context)
         self.report_formatter = ReportFormatter()
         self.meeting_tool = MeetingTool()
-        self.visit_webpage_tool = CitationAwareVisitTool()
+        self.visit_webpage_tool = CitationAwareVisitTool(context=self.context)
         self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
         self.wikipedia_search_tool = WikipediaSearchTool()
         self.pdf_export_tool = PDFExportTool()
-        self.references_generator_tool = ReferencesGeneratorTool()
+        self.references_generator_tool = ReferencesGeneratorTool(context=self.context)
 
         # Initialize scheduled tasks tool with call counter wrapper
-        self.scheduled_tasks_tool = self._create_limited_scheduled_tasks_tool(email_request)
-        self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool(email_request=email_request)
+        self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool(context=self.context)
+        self.scheduled_tasks_tool = self._create_limited_scheduled_tasks_tool()
 
         # Initialize independent search tools
         self.search_tools = self._initialize_independent_search_tools()
@@ -156,13 +159,24 @@ class EmailAgent:
         if self.research_tool:
             self.available_tools.append(self.research_tool)
 
-        linkedin_fresh_tool = initialize_linkedin_fresh_tool()
-        if linkedin_fresh_tool:
-            self.available_tools.append(linkedin_fresh_tool)
+        # Initialize LinkedIn tools with context if API key is available
+        rapidapi_key = os.getenv("RAPIDAPI_KEY")
+        if rapidapi_key:
+            try:
+                linkedin_fresh_tool = LinkedInFreshDataTool(api_key=rapidapi_key, context=self.context)
+                self.available_tools.append(linkedin_fresh_tool)
+                logger.debug("Initialized LinkedInFreshDataTool with context")
+            except Exception as e:
+                logger.warning(f"Failed to initialize LinkedInFreshDataTool: {e}")
 
-        linkedin_data_api_tool = initialize_linkedin_data_api_tool()
-        if linkedin_data_api_tool:
-            self.available_tools.append(linkedin_data_api_tool)
+            try:
+                linkedin_data_api_tool = LinkedInDataAPITool(api_key=rapidapi_key, context=self.context)
+                self.available_tools.append(linkedin_data_api_tool)
+                logger.debug("Initialized LinkedInDataAPITool with context")
+            except Exception as e:
+                logger.warning(f"Failed to initialize LinkedInDataAPITool: {e}")
+        else:
+            logger.info("RAPIDAPI_KEY not found. LinkedIn tools not initialized.")
 
         logger.info(f"Agent tools initialized: {[tool.name for tool in self.available_tools]}")
         self._init_agent()
@@ -213,13 +227,13 @@ class EmailAgent:
         search_tools = []
 
         # DDG Search - Always available (free)
-        ddg_tool = DDGSearchTool(max_results=10)
+        ddg_tool = DDGSearchTool(context=self.context, max_results=10)
         search_tools.append(ddg_tool)
         logger.debug("Initialized DDG search tool (free, first choice)")
 
         # Brave Search - Available if API key is configured
         if os.getenv("BRAVE_SEARCH_API_KEY"):
-            brave_tool = BraveSearchTool(max_results=5)
+            brave_tool = BraveSearchTool(context=self.context, max_results=5)
             search_tools.append(brave_tool)
             logger.debug("Initialized Brave search tool (moderate cost, better quality)")
         else:
@@ -227,7 +241,7 @@ class EmailAgent:
 
         # Google Search - Available if API keys are configured
         if os.getenv("SERPAPI_API_KEY") or os.getenv("SERPER_API_KEY"):
-            google_tool = GoogleSearchTool()
+            google_tool = GoogleSearchTool(context=self.context)
             search_tools.append(google_tool)
             logger.debug("Initialized Google search tool (premium cost, highest quality)")
         else:
@@ -537,8 +551,12 @@ Raw Email Request Data (for tool use):
                     ]
                     if isinstance(tool_output, str) and needs_parsing:
                         try:
-                            tool_output = ast.literal_eval(tool_output)
-                        except (ValueError, SyntaxError) as e:
+                            # Try JSON parsing first for tools that return ToolOutputWithCitations
+                            if tool_name in ["attachment_processor"]:
+                                tool_output = json.loads(tool_output)
+                            else:
+                                tool_output = ast.literal_eval(tool_output)
+                        except (ValueError, SyntaxError, json.JSONDecodeError) as e:
                             logger.error(
                                 f"[Memory Step {i + 1}] Failed to parse '{tool_name}' output: {e!s}. Content: {tool_output[:200]}..."
                             )
@@ -560,25 +578,48 @@ Raw Email Request Data (for tool use):
                     )
 
                     if tool_name == "attachment_processor" and isinstance(tool_output, dict):
-                        attachment_proc_summary = tool_output.get("summary")
-                        for attachment_data in tool_output.get("attachments", []):
-                            pa_detail = ProcessedAttachmentDetail(
-                                filename=attachment_data.get("filename", "unknown.file"),
-                                size=attachment_data.get("size", 0),
-                                type=attachment_data.get("type", "unknown"),
-                            )
-                            if "error" in attachment_data:
-                                pa_detail.error = attachment_data["error"]
-                                errors_list.append(
-                                    ProcessingError(
-                                        message=f"Error processing attachment {pa_detail.filename}",
-                                        details=pa_detail.error,
-                                    )
+                        # Handle new ToolOutputWithCitations format
+                        if "metadata" in tool_output and "attachments" in tool_output["metadata"]:
+                            attachment_proc_summary = tool_output.get("content")  # Summary is now in content field
+                            for attachment_data in tool_output["metadata"]["attachments"]:
+                                pa_detail = ProcessedAttachmentDetail(
+                                    filename=attachment_data.get("filename", "unknown.file"),
+                                    size=attachment_data.get("size", 0),
+                                    type=attachment_data.get("type", "unknown"),
                                 )
-                            if "content" in attachment_data and isinstance(attachment_data["content"], dict):
-                                if attachment_data["content"].get("caption"):
-                                    pa_detail.caption = attachment_data["content"]["caption"]
-                            processed_attachment_details.append(pa_detail)
+                                if "error" in attachment_data:
+                                    pa_detail.error = attachment_data["error"]
+                                    errors_list.append(
+                                        ProcessingError(
+                                            message=f"Error processing attachment {pa_detail.filename}",
+                                            details=pa_detail.error,
+                                        )
+                                    )
+                                if "content" in attachment_data and isinstance(attachment_data["content"], dict):
+                                    if attachment_data["content"].get("caption"):
+                                        pa_detail.caption = attachment_data["content"]["caption"]
+                                processed_attachment_details.append(pa_detail)
+                        else:
+                            # Handle legacy format (fallback)
+                            attachment_proc_summary = tool_output.get("summary")
+                            for attachment_data in tool_output.get("attachments", []):
+                                pa_detail = ProcessedAttachmentDetail(
+                                    filename=attachment_data.get("filename", "unknown.file"),
+                                    size=attachment_data.get("size", 0),
+                                    type=attachment_data.get("type", "unknown"),
+                                )
+                                if "error" in attachment_data:
+                                    pa_detail.error = attachment_data["error"]
+                                    errors_list.append(
+                                        ProcessingError(
+                                            message=f"Error processing attachment {pa_detail.filename}",
+                                            details=pa_detail.error,
+                                        )
+                                    )
+                                if "content" in attachment_data and isinstance(attachment_data["content"], dict):
+                                    if attachment_data["content"].get("caption"):
+                                        pa_detail.caption = attachment_data["content"]["caption"]
+                                processed_attachment_details.append(pa_detail)
 
                     elif self.enable_deep_research and tool_name == "deep_research" and isinstance(tool_output, dict):
                         research_output_findings = tool_output.get("findings")
@@ -872,19 +913,16 @@ Raw Email Request Data (for tool use):
                 pdf_export=None,
             )
 
-    def _create_limited_scheduled_tasks_tool(self, email_request: EmailRequest) -> Tool:
+    def _create_limited_scheduled_tasks_tool(self) -> Tool:
         """
         Create a scheduled tasks tool with a call limit wrapper.
-
-        Args:
-            email_request: The email request data
 
         Returns:
             Tool: Wrapped scheduled tasks tool with call limiting
 
         """
         # Create the base tool
-        base_tool = ScheduledTasksTool(email_request=email_request)
+        base_tool = ScheduledTasksTool(context=self.context)
 
         # Create a counter to track calls
         call_count = {"count": 0}
@@ -935,9 +973,7 @@ Raw Email Request Data (for tool use):
             str: Content with appended references section if citations exist
 
         """
-        citation_manager = get_citation_manager()
-
-        if citation_manager.has_citations():
+        if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
             import re
             existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
@@ -945,8 +981,8 @@ Raw Email Request Data (for tool use):
                 logger.warning("Content already contains a References/Sources section - skipping automatic references to avoid duplication")
                 return content
 
-            references_section = citation_manager.generate_references_section()
-            logger.info(f"Appending references section with {len(citation_manager.get_citations().sources)} sources")
+            references_section = self.context.get_references_section()
+            logger.info(f"Appending references section with {len(self.context.get_citations().sources)} sources")
             return f"{content}\n\n{references_section}"
 
         logger.debug("No citations found, returning content without references section")

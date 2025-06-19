@@ -195,10 +195,18 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
 
     with (
         patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
         patch("sqlmodel.Session.add", side_effect=mock_session_add),
         patch("sqlmodel.Session.execute", side_effect=mock_session_execute),
         patch("sqlmodel.Session.commit"),  # Prevent actual DB commits
     ):
+        # Set up mock database connection
+        mock_db_connection = MagicMock()
+        mock_session = MagicMock()
+        mock_db_connection.get_session.return_value.__enter__ = lambda self: mock_session
+        mock_db_connection.get_session.return_value.__exit__ = lambda self, *args: None
+        mock_init_db.return_value = mock_db_connection
+
         mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
