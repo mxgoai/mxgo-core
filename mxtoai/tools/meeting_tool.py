@@ -6,8 +6,6 @@ from urllib.parse import urlencode
 import pytz
 from ics import Calendar, Event
 from pydantic import BaseModel, EmailStr, Field, field_validator
-
-# Import Smol Gents Tool
 from smolagents import Tool
 
 logger = logging.getLogger(__name__)
@@ -80,9 +78,7 @@ class MeetingTool(Tool):
             "nullable": True,
         },
     }
-    output_type = (
-        "object"  # Changed from "dict". Output is a dictionary with status, ics_content, calendar_links, message
-    )
+    output_type = "object"
 
     def generate_ics_content(self, details: EventDetails) -> str:
         """
@@ -206,7 +202,7 @@ class MeetingTool(Tool):
             dict: A dictionary containing the status, ICS content, calendar links, and a message.
 
         """
-        logger.info(f"Running {self.name} tool with title: '{title}'")  # Added logging
+        logger.info(f"Running {self.name} tool with title: '{title}'")
         try:
             # Use Pydantic for parsing and validation including timezone handling
             event_details = EventDetails(
@@ -227,7 +223,7 @@ class MeetingTool(Tool):
                 "calendar_links": calendar_links,
                 "message": "Successfully generated calendar data. The 'ics_content' should be used to create an email attachment.",
             }
-            logger.info(f"{self.name} completed successfully.")  # Added logging
+            logger.info(f"{self.name} completed successfully.")
             return result
         except Exception as e:
             logger.error(f"Error in {self.name}: {e}", exc_info=True)
@@ -252,7 +248,7 @@ if __name__ == "__main__":
         "location": "Meeting Room 3",
         "attendees": ["test1@example.com", "test2@example.com"],
     }
-    result_basic = tool.forward(**details_basic)  # Changed run to forward
+    result_basic = tool.forward(**details_basic)
     # print("\nICS Content:\n", result_basic.get('ics_content'))
 
     # Example 2: Event with UTC time and no end time (defaults may apply in calendar apps)
@@ -261,7 +257,7 @@ if __name__ == "__main__":
         "start_time": "2024-08-16T14:00:00Z",  # UTC
         "location": "Virtual",
     }
-    result_utc_no_end = tool.forward(**details_utc_no_end)  # Changed run to forward
+    result_utc_no_end = tool.forward(**details_utc_no_end)
     # print("\nICS Content:\n", result_utc_no_end.get('ics_content'))
 
     # Example 3: Naive time (should log warning and assume UTC)
@@ -269,4 +265,4 @@ if __name__ == "__main__":
         "title": "Coffee Chat",
         "start_time": "2024-08-17T09:00:00",  # Naive time
     }
-    result_naive = tool.forward(**details_naive)  # Changed run to forward
+    result_naive = tool.forward(**details_naive)

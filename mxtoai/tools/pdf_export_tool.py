@@ -98,7 +98,6 @@ class PDFExportTool(Tool):
 
         """
         try:
-            # Import WeasyPrint here to avoid import errors if not installed
             from weasyprint import CSS, HTML
         except ImportError as e:
             logger.error(f"WeasyPrint not available: {e}")

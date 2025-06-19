@@ -267,22 +267,6 @@ doc = ["doc8", "sphinx (>=7.0.0)", "sphinx-autobuild", "sphinx-autodoc-typehints
 test = ["dateparser (==1.*)", "pre-commit", "pytest", "pytest-cov", "pytest-mock", "pytz (==2021.1)", "simplejson (==3.*)"]
 
 [[package]]
-name = "asttokens"
-version = "3.0.0"
-description = "Annotate AST trees with source code positions"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "asttokens-3.0.0-py3-none-any.whl", hash = "sha256:e3078351a059199dd5138cb1c706e6430c05eff2ff136af5eb4790f9d28932e2"},
-    {file = "asttokens-3.0.0.tar.gz", hash = "sha256:0dcd8baa8d62b0c1d118b399b2ddba3c4aff271d0d7a9e0d4c1681c79035bbc7"},
-]
-
-[package.extras]
-astroid = ["astroid (>=2,<4)"]
-test = ["astroid (>=2,<4)", "pytest", "pytest-cov", "pytest-xdist"]
-
-[[package]]
 name = "asyncpg"
 version = "0.30.0"
 description = "An asyncio PostgreSQL driver"
@@ -1139,18 +1123,6 @@ webencodings = "*"
 [package.extras]
 doc = ["furo", "sphinx"]
 test = ["pytest", "ruff"]
-
-[[package]]
-name = "decorator"
-version = "5.2.1"
-description = "Decorators for Humans"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "decorator-5.2.1-py3-none-any.whl", hash = "sha256:d316bb415a2d9e2d2b3abcc4084c6502fc09240e292cd76a76afc106a1c8e04a"},
-    {file = "decorator-5.2.1.tar.gz", hash = "sha256:65f266143752f734b0a7cc83c46f4618af75b8c5911b00ccb61d0ac9b6da0360"},
-]
 
 [[package]]
 name = "defusedxml"
@@ -2270,69 +2242,6 @@ files = [
 ]
 
 [[package]]
-name = "ipdb"
-version = "0.13.13"
-description = "IPython-enabled pdb"
-optional = false
-python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
-groups = ["main"]
-files = [
-    {file = "ipdb-0.13.13-py3-none-any.whl", hash = "sha256:45529994741c4ab6d2388bfa5d7b725c2cf7fe9deffabdb8a6113aa5ed449ed4"},
-    {file = "ipdb-0.13.13.tar.gz", hash = "sha256:e3ac6018ef05126d442af680aad863006ec19d02290561ac88b8b1c0b0cfc726"},
-]
-
-[package.dependencies]
-decorator = {version = "*", markers = "python_version >= \"3.11\""}
-ipython = {version = ">=7.31.1", markers = "python_version >= \"3.11\""}
-
-[[package]]
-name = "ipython"
-version = "9.2.0"
-description = "IPython: Productive Interactive Computing"
-optional = false
-python-versions = ">=3.11"
-groups = ["main"]
-files = [
-    {file = "ipython-9.2.0-py3-none-any.whl", hash = "sha256:fef5e33c4a1ae0759e0bba5917c9db4eb8c53fee917b6a526bd973e1ca5159f6"},
-    {file = "ipython-9.2.0.tar.gz", hash = "sha256:62a9373dbc12f28f9feaf4700d052195bf89806279fc8ca11f3f54017d04751b"},
-]
-
-[package.dependencies]
-colorama = {version = "*", markers = "sys_platform == \"win32\""}
-decorator = "*"
-ipython-pygments-lexers = "*"
-jedi = ">=0.16"
-matplotlib-inline = "*"
-pexpect = {version = ">4.3", markers = "sys_platform != \"win32\" and sys_platform != \"emscripten\""}
-prompt_toolkit = ">=3.0.41,<3.1.0"
-pygments = ">=2.4.0"
-stack_data = "*"
-traitlets = ">=5.13.0"
-
-[package.extras]
-all = ["ipython[doc,matplotlib,test,test-extra]"]
-black = ["black"]
-doc = ["docrepr", "exceptiongroup", "intersphinx_registry", "ipykernel", "ipython[test]", "matplotlib", "setuptools (>=18.5)", "sphinx (>=1.3)", "sphinx-rtd-theme", "sphinx_toml (==0.0.4)", "typing_extensions"]
-matplotlib = ["matplotlib"]
-test = ["packaging", "pytest", "pytest-asyncio (<0.22)", "testpath"]
-test-extra = ["curio", "ipykernel", "ipython[test]", "jupyter_ai", "matplotlib (!=3.2.0)", "nbclient", "nbformat", "numpy (>=1.23)", "pandas", "trio"]
-
-[[package]]
-name = "ipython-pygments-lexers"
-version = "1.1.1"
-description = "Defines a variety of Pygments lexers for highlighting IPython code."
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "ipython_pygments_lexers-1.1.1-py3-none-any.whl", hash = "sha256:a9462224a505ade19a605f71f8fa63c2048833ce50abc86768a0d81d876dc81c"},
-    {file = "ipython_pygments_lexers-1.1.1.tar.gz", hash = "sha256:09c0138009e56b6854f9535736f4171d855c8c08a563a0dcd8022f78355c7e81"},
-]
-
-[package.dependencies]
-pygments = "*"
-
-[[package]]
 name = "itsdangerous"
 version = "2.2.0"
 description = "Safely pass data to untrusted environments and back."
@@ -2343,26 +2252,6 @@ files = [
     {file = "itsdangerous-2.2.0-py3-none-any.whl", hash = "sha256:c6242fc49e35958c8b15141343aa660db5fc54d4f13a1db01a3f5891b98700ef"},
     {file = "itsdangerous-2.2.0.tar.gz", hash = "sha256:e0050c0b7da1eea53ffaf149c0cfbb5c6e2e2b69c4bef22c81fa6eb73e5f6173"},
 ]
-
-[[package]]
-name = "jedi"
-version = "0.19.2"
-description = "An autocompletion tool for Python that can be used for text editors."
-optional = false
-python-versions = ">=3.6"
-groups = ["main"]
-files = [
-    {file = "jedi-0.19.2-py2.py3-none-any.whl", hash = "sha256:a8ef22bde8490f57fe5c7681a3c83cb58874daf72b4784de3cce5b6ef6edb5b9"},
-    {file = "jedi-0.19.2.tar.gz", hash = "sha256:4770dc3de41bde3966b02eb84fbcf557fb33cce26ad23da12c742fb50ecb11f0"},
-]
-
-[package.dependencies]
-parso = ">=0.8.4,<0.9.0"
-
-[package.extras]
-docs = ["Jinja2 (==2.11.3)", "MarkupSafe (==1.1.1)", "Pygments (==2.8.1)", "alabaster (==0.7.12)", "babel (==2.9.1)", "chardet (==4.0.0)", "commonmark (==0.8.1)", "docutils (==0.17.1)", "future (==0.18.2)", "idna (==2.10)", "imagesize (==1.2.0)", "mock (==1.0.1)", "packaging (==20.9)", "pyparsing (==2.4.7)", "pytz (==2021.1)", "readthedocs-sphinx-ext (==2.1.4)", "recommonmark (==0.5.0)", "requests (==2.25.1)", "six (==1.15.0)", "snowballstemmer (==2.1.0)", "sphinx (==1.8.5)", "sphinx-rtd-theme (==0.4.3)", "sphinxcontrib-serializinghtml (==1.1.4)", "sphinxcontrib-websupport (==1.2.4)", "urllib3 (==1.26.4)"]
-qa = ["flake8 (==5.0.4)", "mypy (==0.971)", "types-setuptools (==67.2.0.1)"]
-testing = ["Django", "attrs", "colorama", "docopt", "pytest (<9.0.0)"]
 
 [[package]]
 name = "jinja2"
@@ -2988,21 +2877,6 @@ files = [
 ]
 
 [[package]]
-name = "matplotlib-inline"
-version = "0.1.7"
-description = "Inline Matplotlib backend for Jupyter"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "matplotlib_inline-0.1.7-py3-none-any.whl", hash = "sha256:df192d39a4ff8f21b1895d72e6a13f5fcc5099f00fa84384e0ea28c2cc0653ca"},
-    {file = "matplotlib_inline-0.1.7.tar.gz", hash = "sha256:8423b23ec666be3d16e16b60bdd8ac4e86e840ebd1dd11a30b9f117f2fa0ab90"},
-]
-
-[package.dependencies]
-traitlets = "*"
-
-[[package]]
 name = "mccabe"
 version = "0.7.0"
 description = "McCabe checker, plugin for flake8"
@@ -3547,34 +3421,6 @@ test = ["hypothesis (>=6.46.1)", "pytest (>=7.3.2)", "pytest-xdist (>=2.2.0)"]
 xml = ["lxml (>=4.9.2)"]
 
 [[package]]
-name = "parso"
-version = "0.8.4"
-description = "A Python Parser"
-optional = false
-python-versions = ">=3.6"
-groups = ["main"]
-files = [
-    {file = "parso-0.8.4-py2.py3-none-any.whl", hash = "sha256:a418670a20291dacd2dddc80c377c5c3791378ee1e8d12bffc35420643d43f18"},
-    {file = "parso-0.8.4.tar.gz", hash = "sha256:eb3a7b58240fb99099a345571deecc0f9540ea5f4dd2fe14c2a99d6b281ab92d"},
-]
-
-[package.extras]
-qa = ["flake8 (==5.0.4)", "mypy (==0.971)", "types-setuptools (==67.2.0.1)"]
-testing = ["docopt", "pytest"]
-
-[[package]]
-name = "pathlib"
-version = "1.0.1"
-description = "Object-oriented filesystem paths"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "pathlib-1.0.1-py3-none-any.whl", hash = "sha256:f35f95ab8b0f59e6d354090350b44a80a80635d22efdedfa84c7ad1cf0a74147"},
-    {file = "pathlib-1.0.1.tar.gz", hash = "sha256:6940718dfc3eff4258203ad5021090933e5c04707d5ca8cc9e73c94a7894ea9f"},
-]
-
-[[package]]
 name = "pathvalidate"
 version = "3.2.3"
 description = "pathvalidate is a Python library to sanitize/validate a string such as filenames/file-paths/etc."
@@ -3611,22 +3457,6 @@ cryptography = ">=36.0.0"
 dev = ["atheris", "black", "mypy (==0.931)", "nox", "pytest"]
 docs = ["sphinx", "sphinx-argparse"]
 image = ["Pillow"]
-
-[[package]]
-name = "pexpect"
-version = "4.9.0"
-description = "Pexpect allows easy control of interactive console applications."
-optional = false
-python-versions = "*"
-groups = ["main"]
-markers = "sys_platform != \"win32\" and sys_platform != \"emscripten\""
-files = [
-    {file = "pexpect-4.9.0-py2.py3-none-any.whl", hash = "sha256:7236d1e080e4936be2dc3e326cec0af72acf9212a7e1d060210e70a47e253523"},
-    {file = "pexpect-4.9.0.tar.gz", hash = "sha256:ee7d41123f3c9911050ea2c2dac107568dc43b2d3b0c7557a33212c398ead30f"},
-]
-
-[package.dependencies]
-ptyprocess = ">=0.5"
 
 [[package]]
 name = "pika"
@@ -3850,21 +3680,6 @@ files = [
 
 [package.extras]
 twisted = ["twisted"]
-
-[[package]]
-name = "prompt-toolkit"
-version = "3.0.51"
-description = "Library for building powerful interactive command lines in Python"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "prompt_toolkit-3.0.51-py3-none-any.whl", hash = "sha256:52742911fde84e2d423e2f9a4cf1de7d7ac4e51958f648d9540e0fb8db077b07"},
-    {file = "prompt_toolkit-3.0.51.tar.gz", hash = "sha256:931a162e3b27fc90c86f1b48bb1fb2c528c2761475e57c9c06de13311c7b54ed"},
-]
-
-[package.dependencies]
-wcwidth = "*"
 
 [[package]]
 name = "propcache"
@@ -4096,34 +3911,6 @@ files = [
     {file = "psycopg2_binary-2.9.10-cp39-cp39-win32.whl", hash = "sha256:3216ccf953b3f267691c90c6fe742e45d890d8272326b4a8b20850a03d05b7b8"},
     {file = "psycopg2_binary-2.9.10-cp39-cp39-win_amd64.whl", hash = "sha256:30e34c4e97964805f715206c7b789d54a78b70f3ff19fbe590104b71c45600e5"},
 ]
-
-[[package]]
-name = "ptyprocess"
-version = "0.7.0"
-description = "Run a subprocess in a pseudo terminal"
-optional = false
-python-versions = "*"
-groups = ["main"]
-markers = "sys_platform != \"win32\" and sys_platform != \"emscripten\""
-files = [
-    {file = "ptyprocess-0.7.0-py2.py3-none-any.whl", hash = "sha256:4b41f3967fce3af57cc7e94b888626c18bf37a083e3651ca8feeb66d492fef35"},
-    {file = "ptyprocess-0.7.0.tar.gz", hash = "sha256:5c5d0a3b48ceee0b48485e0c26037c0acd7d29765ca3fbb5cb3831d347423220"},
-]
-
-[[package]]
-name = "pure-eval"
-version = "0.2.3"
-description = "Safely evaluate AST nodes without side effects"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "pure_eval-0.2.3-py3-none-any.whl", hash = "sha256:1db8e35b67b3d218d818ae653e27f06c3aa420901fa7b081ca98cbedc874e0d0"},
-    {file = "pure_eval-0.2.3.tar.gz", hash = "sha256:5f4e983f40564c576c7c8635ae88db5956bb2229d7e9237d03b3c0b0190eaf42"},
-]
-
-[package.extras]
-tests = ["pytest"]
 
 [[package]]
 name = "puremagic"
@@ -5546,26 +5333,6 @@ pydantic = ">=1.10.13,<3.0.0"
 SQLAlchemy = ">=2.0.14,<2.1.0"
 
 [[package]]
-name = "stack-data"
-version = "0.6.3"
-description = "Extract data from python stack frames and tracebacks for informative displays"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "stack_data-0.6.3-py3-none-any.whl", hash = "sha256:d5558e0c25a4cb0853cddad3d77da9891a08cb85dd9f9f91b9f8cd66e511e695"},
-    {file = "stack_data-0.6.3.tar.gz", hash = "sha256:836a778de4fec4dcd1dcd89ed8abff8a221f58308462e1c4aa2a3cf30148f0b9"},
-]
-
-[package.dependencies]
-asttokens = ">=2.1.0"
-executing = ">=1.2.0"
-pure-eval = "*"
-
-[package.extras]
-tests = ["cython", "littleutils", "pygments", "pytest", "typeguard"]
-
-[[package]]
 name = "standard-aifc"
 version = "3.13.0"
 description = "Standard library aifc redistribution. \"dead battery\"."
@@ -5833,18 +5600,6 @@ docs = ["setuptools-rust", "sphinx", "sphinx-rtd-theme"]
 testing = ["black (==22.3)", "datasets", "numpy", "pytest", "requests", "ruff"]
 
 [[package]]
-name = "toml"
-version = "0.10.2"
-description = "Python Library for Tom's Obvious, Minimal Language"
-optional = false
-python-versions = ">=2.6, !=3.0.*, !=3.1.*, !=3.2.*"
-groups = ["main"]
-files = [
-    {file = "toml-0.10.2-py2.py3-none-any.whl", hash = "sha256:806143ae5bfb6a3c6e736a764057db0e6a0e05e338b5630894a5f779cabb4f9b"},
-    {file = "toml-0.10.2.tar.gz", hash = "sha256:b3bda1d108d5dd99f4a20d24d9c348e91c4db7ab1b749200bded2f839ccbe68f"},
-]
-
-[[package]]
 name = "tqdm"
 version = "4.67.1"
 description = "Fast, Extensible Progress Meter"
@@ -5865,22 +5620,6 @@ discord = ["requests"]
 notebook = ["ipywidgets (>=6)"]
 slack = ["slack-sdk"]
 telegram = ["requests"]
-
-[[package]]
-name = "traitlets"
-version = "5.14.3"
-description = "Traitlets Python configuration system"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "traitlets-5.14.3-py3-none-any.whl", hash = "sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f"},
-    {file = "traitlets-5.14.3.tar.gz", hash = "sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7"},
-]
-
-[package.extras]
-docs = ["myst-parser", "pydata-sphinx-theme", "sphinx"]
-test = ["argcomplete (>=3.0.3)", "mypy (>=1.7.0)", "pre-commit", "pytest (>=7.0,<8.2)", "pytest-mock", "pytest-mypy-testing"]
 
 [[package]]
 name = "types-python-dateutil"
@@ -5971,14 +5710,14 @@ zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
 name = "uvicorn"
-version = "0.29.0"
+version = "0.34.3"
 description = "The lightning-fast ASGI server."
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "uvicorn-0.29.0-py3-none-any.whl", hash = "sha256:2c2aac7ff4f4365c206fd773a39bf4ebd1047c238f8b8268ad996829323473de"},
-    {file = "uvicorn-0.29.0.tar.gz", hash = "sha256:6a69214c0b6a087462412670b3ef21224fa48cae0e452b5883e8e8bdfdd11dd0"},
+    {file = "uvicorn-0.34.3-py3-none-any.whl", hash = "sha256:16246631db62bdfbf069b0645177d6e8a77ba950cfedbfd093acef9444e4d885"},
+    {file = "uvicorn-0.34.3.tar.gz", hash = "sha256:35919a9a979d7a59334b6b10e05d77c1d0d574c50e0fc98b8b1a0f165708b55a"},
 ]
 
 [package.dependencies]
@@ -5986,7 +5725,7 @@ click = ">=7.0"
 h11 = ">=0.8"
 
 [package.extras]
-standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.5.0)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.14.0,!=0.15.0,!=0.15.1) ; sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\"", "watchfiles (>=0.13)", "websockets (>=10.4)"]
+standard = ["colorama (>=0.4) ; sys_platform == \"win32\"", "httptools (>=0.6.3)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.15.1) ; sys_platform != \"win32\" and sys_platform != \"cygwin\" and platform_python_implementation != \"PyPy\"", "watchfiles (>=0.13)", "websockets (>=10.4)"]
 
 [[package]]
 name = "virtualenv"
@@ -6070,18 +5809,6 @@ watchdog = ">=4.0"
 
 [package.extras]
 dev = ["bumpversion", "flake8", "flake8-quotes", "pytest", "pytest-cov", "twine"]
-
-[[package]]
-name = "wcwidth"
-version = "0.2.13"
-description = "Measures the displayed width of unicode strings in a terminal"
-optional = false
-python-versions = "*"
-groups = ["main"]
-files = [
-    {file = "wcwidth-0.2.13-py2.py3-none-any.whl", hash = "sha256:3da69048e4540d84af32131829ff948f1e022c1c6bdb8d6102117aac784f6859"},
-    {file = "wcwidth-0.2.13.tar.gz", hash = "sha256:72ea0c06399eb286d978fdedb6923a9eb47e1c486ce63e9b4e64fc18303972b5"},
-]
 
 [[package]]
 name = "weasyprint"
@@ -6697,4 +6424,4 @@ test = ["pytest"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "a81fd70a08f3e0b7c304c1071f32776d88db97d09cb16b6f042a4522a91c6665"
+content-hash = "696f9a567c6cf4b56c44f0d9b4c563326dc811b5c644be917e41d489d3069bc7"

@@ -60,8 +60,6 @@ from mxtoai.tools.external_data.linkedin import initialize_linkedin_data_api_too
 from mxtoai.tools.meeting_tool import MeetingTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
-
-# Import the web search tools
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 # Load environment variables

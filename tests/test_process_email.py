@@ -756,7 +756,6 @@ def test_pdf_export_cleanup():
         assert not os.path.exists(pdf_file_path), "PDF file should be cleaned up with the temp directory"
 
     finally:
-        # Restore original mkdtemp
         tempfile.mkdtemp = original_mkdtemp
 
         # Clean up any remaining directories

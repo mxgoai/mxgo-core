@@ -1,12 +1,10 @@
 import json
 import os
-
-# import shelve # Removed shelve
-from datetime import datetime, timezone  # Added timezone
+from datetime import datetime, timezone
 from email.utils import parseaddr
 from typing import Optional
 
-import redis.asyncio as aioredis  # Added redis
+import redis.asyncio as aioredis
 from fastapi import Response, status
 
 from mxtoai import exceptions
