@@ -21,8 +21,7 @@ Output Format Guidelines:
 2. Key Findings: 3-5 points of most important insights
 3. Detailed Analysis: In-depth exploration with subheadings
 4. Supporting Evidence: Data, quotes, statistics
-5. References: Numbered citations with links when available
-6. Have separate sections for each of the above mentioned.
+5. Have separate sections for each of the above mentioned.
 """
 
 # Simplify handler output guidelines
@@ -53,8 +52,8 @@ Output Format Guidelines:
    - **Claim**: [Original statement]
    - **Status**: [Verified ✓ / Not verified ❌ / Partially verified ⚠️]
    - **Evidence**: [Supporting information]
-   - **Sources**: [Citations with links, make sure the links are valid]
-2. Use consistent status symbols throughout
+   - **Source Info**: Reference citation-aware tools used for verification
+3. Use consistent status symbols throughout
 """
 
 # Background research handler output guidelines
