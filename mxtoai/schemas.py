@@ -1,5 +1,5 @@
-from enum import Enum  # Added for RateLimitPlan
-from typing import Any, Union
+from enum import Enum
+from typing import Any, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -130,8 +130,13 @@ class ProcessingError(BaseModel):
 
 class ProcessingMetadata(BaseModel):
     processed_at: str
+<<<<<<< HEAD
+    mode: Optional[str] = None
+    errors: list[ProcessingError] = []
+=======
     mode: str | None = None
     errors: list[ProcessingError] = []  # Updated to use ProcessingError model
+>>>>>>> origin/master
     email_sent: EmailSentStatus
 
 
@@ -159,7 +164,7 @@ class AttachmentsProcessingResult(BaseModel):
 
 class CalendarResult(BaseModel):
     ics_content: str
-    # calendar_links: Optional[dict[str, str]] = None # If this exists as per comments in agent
+
 
 
 class AgentResearchMetadata(BaseModel):

@@ -151,7 +151,6 @@ async def send_verification_email(email: str, verification_token: str) -> bool:
 
     """
     try:
-        # Import here to avoid circular imports
         from mxtoai.email_sender import EmailSender
 
         # Get the origin URL for verification links

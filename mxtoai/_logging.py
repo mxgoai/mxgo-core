@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import sys
 from collections.abc import Sequence
 from contextlib import contextmanager, suppress
@@ -26,6 +27,107 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 # Get log level from environment or use default
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip()
 
+# Define sensitive data patterns for scrubbing (same as Logfire's default patterns)
+SENSITIVE_PATTERNS = [
+    r"password",
+    r"passwd",
+    r"mysql_pwd",
+    r"secret",
+    r"auth(?!ors?\b)",
+    r"credential",
+    r"private[._ -]?key",
+    r"api[._ -]?key",
+    r"session",
+    r"cookie",
+    r"social[._ -]?security",
+    r"credit[._ -]?card",
+    r"(?:\b|_)csrf(?:\b|_)",
+    r"(?:\b|_)xsrf(?:\b|_)",
+    r"(?:\b|_)jwt(?:\b|_)",
+    r"(?:\b|_)ssn(?:\b|_)",
+    # Additional email-specific patterns
+    r"email",
+    r"e-mail",
+    r"mail",
+    r"token",
+    r"bearer",
+]
+
+# Compile regex patterns for case-insensitive matching
+COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SENSITIVE_PATTERNS]
+
+# Pre-compile scrubbing patterns for better performance
+PRECOMPILED_SCRUB_PATTERNS = []
+SCRUBBED_TOKEN = "[SCRUBBED]"
+
+for pattern in COMPILED_PATTERNS:
+    key_value_pattern = re.compile(rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)", re.IGNORECASE)
+    quoted_pattern = re.compile(rf'(["\']?\b\w*{pattern.pattern}\w*["\']?\s*[:=]\s*)(["\'])([^"\']*)\2', re.IGNORECASE)
+    PRECOMPILED_SCRUB_PATTERNS.append((key_value_pattern, quoted_pattern))
+
+
+def scrub_sensitive_data(text: str) -> str:
+    """
+    Scrub sensitive data from log messages using patterns similar to Logfire's default scrubbing.
+
+    Args:
+        text: The text to scrub
+
+    Returns:
+        The scrubbed text with sensitive data replaced with [SCRUBBED]
+
+    """
+    if not isinstance(text, str):
+        text = str(text)
+
+    # Look for key-value patterns that contain sensitive data
+    for key_value_pattern, quoted_pattern in PRECOMPILED_SCRUB_PATTERNS:
+        # Match key=value or key: value patterns where key contains sensitive words
+        text = key_value_pattern.sub(rf"\1{SCRUBBED_TOKEN}", text)
+
+        # Match quoted key-value patterns: "key": "value" or 'key': 'value'
+        text = quoted_pattern.sub(rf'\1\2{SCRUBBED_TOKEN}\2', text)
+
+    return text
+
+
+def loguru_scrubbing_filter(record):
+    """
+    Filter function for Loguru that scrubs sensitive data from log records.
+
+    Args:
+        record: The log record to filter
+
+    Returns:
+        True to keep the record, False to drop it
+
+    """
+    try:
+        # Scrub the message - use dict-style access for loguru records
+        if record.get("message"):
+            record["message"] = scrub_sensitive_data(record["message"])
+
+        # Scrub extra data if present
+        if "extra" in record:
+            for key, value in record["extra"].items():
+                if isinstance(value, str):
+                    # Check if the key itself contains sensitive patterns
+                    key_is_sensitive = any(pattern.search(key) for pattern in COMPILED_PATTERNS)
+                    if key_is_sensitive:
+                        record["extra"][key] = SCRUBBED_TOKEN
+                    else:
+                        # Also scrub the value if it contains key=value patterns
+                        record["extra"][key] = scrub_sensitive_data(value)
+                elif isinstance(value, (int, float)):
+                    # Preserve numeric values without scrubbing
+                    continue
+    except Exception:
+        # If scrubbing fails, keep the original record to avoid breaking logging
+        pass
+
+    return True
+
+
 # Define log format that works with and without 'source' in extra
 LOG_FORMAT = (
     "<green>{process}:{level}: {time:YYYY-MM-DD at HH:mm:ss}</green> <blue>({name}::{function})</blue> {message}"
@@ -42,6 +144,7 @@ logger.add(
     format=LOG_FORMAT,
     level=LOG_LEVEL,
     colorize=True,
+    filter=loguru_scrubbing_filter,
 )
 
 # Add file handlers
@@ -53,6 +156,7 @@ logger.add(
     retention="1 year",
     compression="zip",
     enqueue=True,  # Use a queue for thread-safe logging
+    filter=loguru_scrubbing_filter,
 )
 
 logger.add(
@@ -63,13 +167,21 @@ logger.add(
     retention="1 year",
     compression="zip",
     enqueue=True,  # Use a queue for thread-safe logging
+    filter=loguru_scrubbing_filter,
 )
 
 # Add logfire handler if token is available
 if os.environ.get("LOGFIRE_TOKEN"):
     logfire_handler = logfire.loguru_handler()
-    logger.add(**logfire_handler)
-    logfire.configure(console=False)
+    logger.add(**logfire_handler, filter=loguru_scrubbing_filter)
+    # Configure logfire with scrubbing enabled
+    logfire.configure(
+        console=False,
+        scrubbing=logfire.ScrubbingOptions(
+            # Use default patterns which include the same sensitive data patterns
+            extra_patterns=["email", "e-mail", "mail", "token", "bearer"]  # Add email-specific patterns
+        ),
+    )
 
 
 class InterceptHandler(logging.Handler):
@@ -200,8 +312,11 @@ class LoguruRichConsole:
             elif "debug" in content.lower():
                 log_level = "DEBUG"
 
+            # Scrub sensitive data from content before logging
+            scrubbed_content = scrub_sensitive_data(content)
+
             # Log to loguru (which feeds to app.log, debug.log, and logfire)
-            self.rich_logger.log(log_level, "Rich Console: {}", content)
+            self.rich_logger.log(log_level, "Rich Console: {}", scrubbed_content)
 
         except Exception as e:
             # Fallback logging if Rich integration fails
