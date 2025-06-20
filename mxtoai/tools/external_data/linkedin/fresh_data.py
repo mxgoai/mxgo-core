@@ -3,12 +3,14 @@ LinkedIn Fresh Data API implementation.
 Provides access to LinkedIn data through the Fresh LinkedIn Profile Data API.
 """
 
+import json
 import logging
 import os
-from typing import Optional
 
 import requests
 from smolagents import Tool
+
+from mxtoai.scripts.citation_manager import add_web_citation
 
 logger = logging.getLogger(__name__)
 
@@ -128,9 +130,9 @@ class LinkedInFreshDataTool(Tool):
         include_organizations: bool = False,
         include_profile_status: bool = False,
         include_company_public_url: bool = False,
-    ) -> dict:
+    ) -> str:
         """
-        Process LinkedIn data requests.
+        Process LinkedIn data requests and return structured output with citations.
 
         Args:
             action: The type of request to perform ('get_linkedin_profile' or 'get_company_by_linkedin_url')
@@ -148,7 +150,7 @@ class LinkedInFreshDataTool(Tool):
             include_company_public_url: Include company public URL information (default: false)
 
         Returns:
-            Dict containing the results
+            str: JSON string containing the results with citation metadata
 
         """
         actions = {
@@ -161,8 +163,9 @@ class LinkedInFreshDataTool(Tool):
             raise ValueError(msg)
 
         try:
+            # Get the raw data from LinkedIn API
             if action == "get_linkedin_profile":
-                return actions[action](
+                data = actions[action](
                     linkedin_url=linkedin_url,
                     include_skills=include_skills,
                     include_certifications=include_certifications,
@@ -176,8 +179,51 @@ class LinkedInFreshDataTool(Tool):
                     include_profile_status=include_profile_status,
                     include_company_public_url=include_company_public_url,
                 )
-            # get_company_by_linkedin_url
-            return actions[action](linkedin_url=linkedin_url)
+                # Simple: just use the input LinkedIn URL and extract name for title
+                profile_name = data.get("full_name", "LinkedIn Profile")
+                citation_title = f"{profile_name} - LinkedIn Profile"
+            else:
+                # get_company_by_linkedin_url
+                data = actions[action](linkedin_url=linkedin_url)
+                # Simple: just use the input LinkedIn URL and extract name for title
+                company_name = data.get("name", "LinkedIn Company")
+                citation_title = f"{company_name} - LinkedIn Company"
+
+            # Add web citation for the input LinkedIn URL
+            citation_id = add_web_citation(linkedin_url, citation_title, visited=True)
+
+            # Create structured output with citation reference
+            from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
+
+            # Create local citation collection
+            local_citations = CitationCollection()
+            citation_source = CitationSource(
+                id=citation_id,
+                title=citation_title,
+                url=linkedin_url,
+                date_accessed="",  # Will be set by citation manager
+                source_type="web",
+                description="visited"
+            )
+            local_citations.add_source(citation_source)
+
+            # Format the content with citation reference
+            content = f"**LinkedIn Data Retrieved** [#{citation_id}]\n\n{json.dumps(data, indent=2)}"
+
+            result = ToolOutputWithCitations(
+                content=content,
+                citations=local_citations,
+                metadata={
+                    "action": action,
+                    "linkedin_url": linkedin_url,
+                    "citation_id": citation_id,
+                    "data_keys": list(data.keys()) if isinstance(data, dict) else []
+                }
+            )
+
+            logger.info(f"LinkedIn {action} completed successfully with citation [{citation_id}]")
+            return json.dumps(result.model_dump())
+
         except requests.exceptions.RequestException as e:
             logger.error(f"LinkedIn Fresh Data API request failed: {e}")
             msg = f"LinkedIn Fresh Data API request failed: {e}"
@@ -262,7 +308,7 @@ class LinkedInFreshDataTool(Tool):
         return response.json()
 
 
-def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
+def initialize_linkedin_fresh_tool() -> LinkedInFreshDataTool | None:
     """
     Initializes the LinkedInFreshDataTool if the API key is available.
 

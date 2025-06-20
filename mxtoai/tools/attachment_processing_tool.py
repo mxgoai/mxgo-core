@@ -1,7 +1,8 @@
+import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import unquote
 
 from smolagents import Tool
@@ -11,6 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
+from mxtoai.schemas import ToolOutputWithCitations
+from mxtoai.scripts.citation_manager import add_attachment_citation
 
 # Configure logger
 logger = get_logger("attachment_tool")
@@ -64,7 +67,7 @@ class AttachmentProcessingTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, model: Optional[Model] = None):
+    def __init__(self, model: Model | None = None):
         """
         Initialize the attachment processing tool.
 
@@ -144,17 +147,18 @@ class AttachmentProcessingTool(Tool):
 
     def forward(self, attachments: list[dict[str, Any]], mode: str = "basic") -> dict[str, Any]:
         """
-        Process email attachments synchronously.
+        Process email attachments synchronously with citation tracking.
 
         Args:
             attachments: List of attachment dictionaries containing file information.
             mode: Processing mode: 'basic' for metadata only, 'full' for complete content analysis.
 
         Returns:
-            dict: Processed attachments with content and summaries.
+            str: JSON string of ToolOutputWithCitations containing processed attachments.
 
         """
         processed_attachments = []
+        citation_ids = []
         logger.info(f"Processing {len(attachments)} attachments in {mode} mode")
 
         for attachment in attachments:
@@ -168,13 +172,21 @@ class AttachmentProcessingTool(Tool):
 
                 logger.info(f"Processing attachment: {attachment['filename']}")
 
+                # Add citation for this attachment
+                citation_id = add_attachment_citation(
+                    attachment["filename"],
+                    f"Email attachment ({attachment.get('type', 'unknown type')})"
+                )
+                citation_ids.append(citation_id)
+
                 # Skip image files - they should be handled by azure_visualizer directly
                 if attachment["type"].startswith("image/"):
                     processed_attachments.append(
                         {
                             **attachment,
+                            "citation_id": citation_id,
                             "content": {
-                                "text": "This is an image file that requires visual processing.",
+                                "text": f"This is an image file that requires visual processing. [#{citation_id}]",
                                 "type": "image",
                                 "requires_visual_qa": True,
                             },
@@ -223,8 +235,9 @@ class AttachmentProcessingTool(Tool):
                 processed_attachments.append(
                     {
                         **attachment,
+                        "citation_id": citation_id,
                         "content": {
-                            "text": content[: self.text_limit] if len(content) > self.text_limit else content,
+                            "text": f"{content[: self.text_limit] if len(content) > self.text_limit else content} [#{citation_id}]",
                             "type": "text",
                             "summary": summary,
                         },
@@ -235,10 +248,25 @@ class AttachmentProcessingTool(Tool):
             except Exception as e:
                 logger.error(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
                 processed_attachments.append(
-                    {**{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]}, "error": str(e)}
+                    {**{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]}, "citation_id": citation_id, "error": str(e)}
                 )
 
-        return {"attachments": processed_attachments, "summary": self._create_attachment_summary(processed_attachments)}
+        # Create structured output with citations
+        attachment_summary = self._create_attachment_summary(processed_attachments)
+        content = f"Processed {len(processed_attachments)} attachments:\n\n{attachment_summary}"
+
+        result = ToolOutputWithCitations(
+            content=content,
+            metadata={
+                "total_attachments": len(attachments),
+                "processed_successfully": len([a for a in processed_attachments if "error" not in a]),
+                "failed": len([a for a in processed_attachments if "error" in a]),
+                "citation_ids": citation_ids,
+                "attachments": processed_attachments
+            }
+        )
+
+        return json.dumps(result.model_dump())
 
     def _create_attachment_summary(self, attachments: list[dict[str, Any]]) -> str:
         """
