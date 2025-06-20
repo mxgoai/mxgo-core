@@ -56,6 +56,15 @@ SENSITIVE_PATTERNS = [
 # Compile regex patterns for case-insensitive matching
 COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SENSITIVE_PATTERNS]
 
+# Pre-compile scrubbing patterns for better performance
+PRECOMPILED_SCRUB_PATTERNS = []
+SCRUBBED_TOKEN = "[SCRUBBED]"
+
+for pattern in COMPILED_PATTERNS:
+    key_value_pattern = re.compile(rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)", re.IGNORECASE)
+    quoted_pattern = re.compile(rf'(["\']?\b\w*{pattern.pattern}\w*["\']?\s*[:=]\s*)(["\'])([^"\']*)\2', re.IGNORECASE)
+    PRECOMPILED_SCRUB_PATTERNS.append((key_value_pattern, quoted_pattern))
+
 
 def scrub_sensitive_data(text: str) -> str:
     """
@@ -72,14 +81,12 @@ def scrub_sensitive_data(text: str) -> str:
         text = str(text)
 
     # Look for key-value patterns that contain sensitive data
-    for pattern in COMPILED_PATTERNS:
+    for key_value_pattern, quoted_pattern in PRECOMPILED_SCRUB_PATTERNS:
         # Match key=value or key: value patterns where key contains sensitive words
-        key_value_pattern = rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)"
-        text = re.sub(key_value_pattern, r"\1[SCRUBBED]", text, flags=re.IGNORECASE)
+        text = key_value_pattern.sub(rf"\1{SCRUBBED_TOKEN}", text)
 
         # Match quoted key-value patterns: "key": "value" or 'key': 'value'
-        quoted_pattern = rf'(["\']?\b\w*{pattern.pattern}\w*["\']?\s*[:=]\s*["\'])([^"\']*)["\']'
-        text = re.sub(quoted_pattern, r'\1[SCRUBBED]"', text, flags=re.IGNORECASE)
+        text = quoted_pattern.sub(rf'\1\2{SCRUBBED_TOKEN}\2', text)
 
     return text
 
@@ -101,16 +108,19 @@ def loguru_scrubbing_filter(record):
             record["message"] = scrub_sensitive_data(record["message"])
 
         # Scrub extra data if present
-        if record.get("extra"):
+        if "extra" in record:
             for key, value in record["extra"].items():
-                if isinstance(value, str | int | float):
+                if isinstance(value, str):
                     # Check if the key itself contains sensitive patterns
                     key_is_sensitive = any(pattern.search(key) for pattern in COMPILED_PATTERNS)
                     if key_is_sensitive:
-                        record["extra"][key] = "[SCRUBBED]"
+                        record["extra"][key] = SCRUBBED_TOKEN
                     else:
                         # Also scrub the value if it contains key=value patterns
-                        record["extra"][key] = scrub_sensitive_data(str(value))
+                        record["extra"][key] = scrub_sensitive_data(value)
+                elif isinstance(value, (int, float)):
+                    # Preserve numeric values without scrubbing
+                    continue
     except Exception:
         # If scrubbing fails, keep the original record to avoid breaking logging
         pass
