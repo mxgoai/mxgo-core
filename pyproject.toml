@@ -141,7 +141,7 @@ pre-commit = "^4.2.0"
 [tool.poetry.group.test.dependencies]
 locust = "^2.33.2"
 psutil = "^7.0.0"
-faker = "^37.1.0"
+faker = "^37.4.0"
 pytest = "^8.3.5"
 pytest-asyncio = "^0.26.0"
 pytest-sugar = "^1.0.0"
