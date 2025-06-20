@@ -4,7 +4,6 @@ from typing import Any
 import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
-from smolagents.monitoring import TokenUsage
 
 import mxtoai.schemas
 from mxtoai import exceptions
@@ -193,10 +192,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
-            token_usage=TokenUsage(
-                input_tokens=response.usage.prompt_tokens,
-                output_tokens=response.usage.completion_tokens,
-            ),
         )
 
     def __call__(
