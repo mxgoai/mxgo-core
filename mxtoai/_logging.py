@@ -86,7 +86,7 @@ def scrub_sensitive_data(text: str) -> str:
         text = key_value_pattern.sub(rf"\1{SCRUBBED_TOKEN}", text)
 
         # Match quoted key-value patterns: "key": "value" or 'key': 'value'
-        text = quoted_pattern.sub(rf"\1\2{SCRUBBED_TOKEN}\2", text)
+        text = quoted_pattern.sub(rf'\1\2{SCRUBBED_TOKEN}\2', text)
 
     return text
 
