@@ -339,7 +339,6 @@ class DeepResearchTool(Tool):
             Original research content
 
         """
-        # Removed TOCGenerator logic which was inserting a template.
         logger.debug("Skipping TOC generation, returning raw content structure.")
         return content
 

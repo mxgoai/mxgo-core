@@ -1,7 +1,6 @@
 import os
 from typing import Any
 
-import toml
 from dotenv import load_dotenv
 from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
@@ -65,8 +64,8 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             raise exceptions.ModelConfigFileNotFoundException(msg)
 
         try:
-            with open(self.config_path) as f:
-                return toml.load(f)
+            with open(self.config_path, "rb") as f:
+                return tomllib.load(f)
         except Exception as e:
             logger.error(f"Failed to load TOML config: {e}")
             return {}
@@ -237,7 +236,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                     **kwargs_for_super_generate,
                 )
             finally:
-                # Restore the original model_id for the instance.
                 self.model_id = original_smol_model_id
 
             return chat_message

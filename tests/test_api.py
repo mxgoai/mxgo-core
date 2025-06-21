@@ -69,12 +69,11 @@ def client_with_patched_redis():
             yield test_client # Test runs here
 
             # Teardown: clear fake redis and restore original globals
-            # fake_redis_instance.flushall() # fakeredis might not have async flushall, use sync version for setup/teardown
+
             # For FakeAsyncRedis, usually it's per-instance, so just letting it go out of scope is fine.
             # Or, if it's a singleton from fakeredis, you might need fake_redis_instance.client.flushall()
             # For now, assume FakeAsyncRedis instances are independent.
 
-            # Restore original globals to prevent interference between tests if not using function scope for everything
             mxtoai.validators.redis_client = original_redis_client
             mxtoai.validators.email_provider_domain_set = original_domain_set
 

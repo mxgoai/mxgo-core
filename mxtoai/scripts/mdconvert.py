@@ -325,7 +325,6 @@ class YouTubeConverter(DocumentConverter):
             try:
                 # Must be a single transcript.
                 transcript = YouTubeTranscriptApi.get_transcript(video_id)  # type: ignore
-                # transcript_text = " ".join([part["text"] for part in transcript])  # type: ignore
                 # Alternative formatting:
                 transcript_text = SRTFormatter().format_transcript(transcript)
             except Exception:

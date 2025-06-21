@@ -181,7 +181,6 @@ def process_email_task(
             research=None,
             pdf_export=None,
         )
-    # Removed the early return for `if not email_instructions` as the try-except handles it.
 
     email_agent = EmailAgent(email_request=email_request)
 
