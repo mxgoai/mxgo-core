@@ -5,7 +5,6 @@ Brave search tool - Better quality results with moderate API cost.
 import json
 import logging
 import os
-import re
 from typing import Optional
 
 from smolagents import Tool
@@ -195,10 +194,7 @@ class BraveSearchTool(Tool):
                 content_parts.append("**Information Box:**")
 
                 # Handle different infobox types
-                if isinstance(infobox_results, list):
-                    infobox_list = infobox_results
-                else:
-                    infobox_list = [infobox_results]
+                infobox_list = infobox_results if isinstance(infobox_results, list) else [infobox_results]
 
                 for infobox in infobox_list:
                     title = infobox.get("title", "")

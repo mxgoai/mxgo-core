@@ -320,7 +320,7 @@ class LinkedInDataAPITool(Tool):
                 raise ValueError(msg)
 
             # Create structured output
-            from mxtoai.schemas import ToolOutputWithCitations, CitationCollection, CitationSource
+            from mxtoai.schemas import CitationCollection, ToolOutputWithCitations
 
             # Create local citation collection if we have citations
             local_citations = CitationCollection()
@@ -329,7 +329,7 @@ class LinkedInDataAPITool(Tool):
                 context_citations = self.context.get_citations()
 
                 # For search actions, we may have multiple citations
-                if action in ["search_people", "search_companies"] and 'citation_ids' in locals():
+                if action in ["search_people", "search_companies"] and "citation_ids" in locals():
                     # Add all citations from search results
                     for cid in citation_ids:
                         recent_citation = next((s for s in context_citations.sources if s.id == cid), None)
@@ -343,7 +343,7 @@ class LinkedInDataAPITool(Tool):
 
             # Format the content with citation references if available
             if citation_id:
-                if action in ["search_people", "search_companies"] and 'citation_ids' in locals() and citation_ids:
+                if action in ["search_people", "search_companies"] and "citation_ids" in locals() and citation_ids:
                     # For search results, show all citation IDs
                     citation_refs = ", ".join([f"#{cid}" for cid in citation_ids])
                     content = f"**LinkedIn Search Results with Citations** [{citation_refs}]\n\n{json.dumps(data, indent=2)}"
@@ -355,7 +355,7 @@ class LinkedInDataAPITool(Tool):
 
             # Calculate total citations for metadata
             total_citations = 0
-            if action in ["search_people", "search_companies"] and 'citation_ids' in locals():
+            if action in ["search_people", "search_companies"] and "citation_ids" in locals():
                 total_citations = len(citation_ids)
             elif citation_id:
                 total_citations = 1
@@ -369,12 +369,12 @@ class LinkedInDataAPITool(Tool):
                     "data_keys": list(data.keys()) if isinstance(data, dict) else [],
                     "has_citation": citation_id is not None,
                     "total_citations": total_citations,
-                    "citation_ids": citation_ids if 'citation_ids' in locals() else []
+                    "citation_ids": citation_ids if "citation_ids" in locals() else []
                 }
             )
 
             # Log completion with citation info
-            if action in ["search_people", "search_companies"] and 'citation_ids' in locals() and citation_ids:
+            if action in ["search_people", "search_companies"] and "citation_ids" in locals() and citation_ids:
                 logger.info(f"LinkedIn {action} completed successfully with {len(citation_ids)} citations: {citation_ids}")
             elif citation_id:
                 logger.info(f"LinkedIn {action} completed successfully with citation [{citation_id}]")
@@ -579,6 +579,5 @@ def initialize_linkedin_data_api_tool() -> Optional[LinkedInDataAPITool]:
     if api_key:
         logger.info("RAPIDAPI_KEY found but LinkedInDataAPITool requires context parameter. Tool initialization deferred to agent.")
         return None  # Return None since we need context from agent
-    else:
-        logger.info("RAPIDAPI_KEY not found. LinkedIn Data API tool not initialized.")
-        return None
+    logger.info("RAPIDAPI_KEY not found. LinkedIn Data API tool not initialized.")
+    return None

@@ -2,7 +2,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from urllib.parse import unquote
 
 from smolagents import Tool
@@ -12,8 +12,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
-from mxtoai.schemas import ToolOutputWithCitations
 from mxtoai.request_context import RequestContext
+from mxtoai.schemas import ToolOutputWithCitations
 
 # Configure logger
 logger = get_logger("attachment_tool")
@@ -182,7 +182,7 @@ class AttachmentProcessingTool(Tool):
 
                 # Add citation for this attachment
                 citation_id = self.context.add_attachment_citation(
-                    attachment['filename'],
+                    attachment["filename"],
                     f"Email attachment ({attachment.get('type', 'unknown type')})"
                 )
                 citation_ids.append(citation_id)

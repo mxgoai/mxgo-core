@@ -18,9 +18,8 @@ from sqlmodel import Session, select
 from mxtoai._logging import get_logger
 from mxtoai.db import init_db_connection
 from mxtoai.models import Tasks, TaskStatus
-from mxtoai.scheduler import remove_scheduled_job
-from mxtoai.schemas import EmailRequest
 from mxtoai.request_context import RequestContext
+from mxtoai.scheduler import remove_scheduled_job
 
 logger = get_logger("delete_scheduled_tasks_tool")
 

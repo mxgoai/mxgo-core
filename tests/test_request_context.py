@@ -2,7 +2,6 @@
 Tests for RequestContext functionality.
 """
 
-import pytest
 
 from mxtoai.request_context import CitationManager, RequestContext
 from mxtoai.schemas import EmailRequest

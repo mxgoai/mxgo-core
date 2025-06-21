@@ -945,6 +945,7 @@ class MarkdownConverter:
                     _kwargs["mlm_model"] = self._mlm_model
 
                 # If we hit an error log it and keep trying
+                res = None
                 try:
                     res = converter.convert(local_path, **_kwargs)
                 except Exception:

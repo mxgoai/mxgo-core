@@ -40,6 +40,7 @@ class GoogleSearchTool(Tool):
 
         Args:
             context: Request context containing email data and citation manager
+
         """
         super().__init__()
         self.context = context
@@ -80,13 +81,13 @@ class GoogleSearchTool(Tool):
             results = []
 
             # Extract markdown links: [title](url)
-            link_pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+            link_pattern = r"\[([^\]]+)\]\(([^)]+)\)"
             matches = re.findall(link_pattern, raw_result)
 
             for title, url in matches:
                 results.append({
-                    'title': title.strip(),
-                    'url': url.strip()
+                    "title": title.strip(),
+                    "url": url.strip()
                 })
 
             if not results:
@@ -103,8 +104,8 @@ class GoogleSearchTool(Tool):
             citations_added = 0
 
             for i, result_item in enumerate(results, 1):
-                title = result_item['title']
-                url = result_item['url']
+                title = result_item["title"]
+                url = result_item["url"]
 
                 # Add citation for this result
                 if url:

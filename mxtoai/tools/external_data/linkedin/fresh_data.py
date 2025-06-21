@@ -196,7 +196,7 @@ class LinkedInFreshDataTool(Tool):
             citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             # Create structured output with citation reference
-            from mxtoai.schemas import ToolOutputWithCitations, CitationCollection, CitationSource
+            from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
 
             # Create local citation collection
             local_citations = CitationCollection()
@@ -323,6 +323,5 @@ def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
     if api_key:
         logger.info("RAPIDAPI_KEY found but LinkedInFreshDataTool requires context parameter. Tool initialization deferred to agent.")
         return None  # Return None since we need context from agent
-    else:
-        logger.info("RAPIDAPI_KEY not found. LinkedIn Fresh Data tool not initialized.")
-        return None
+    logger.info("RAPIDAPI_KEY not found. LinkedIn Fresh Data tool not initialized.")
+    return None

@@ -6,8 +6,11 @@ from typing import Any, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
+from sqlmodel import select
 
+from mxtoai.db import init_db_connection
 from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
+from mxtoai.models.models import Tasks, TaskStatus
 from mxtoai.schemas import (
     AttachmentsProcessingResult,
     DetailedEmailProcessingResult,
@@ -143,7 +146,7 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
 def test_process_email_task_future_remind_handle(prepare_email_request_data):
     """
     Tests the future/remind email handle that schedules tasks for later execution.
-    Only EmailSender.send_reply is mocked.
+    Uses actual test database to verify task creation.
     """
     # Create an email with a specific future task request
     future_content = "Remind me to book a doctor's appointment next Monday at 10 AM."
@@ -154,59 +157,11 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
         text_content=future_content,
     )
 
-    # Mock the database session to verify task creation without actually persisting
-    task_created = False
-    task_id = None
-    cron_expression = None
-    scheduled_time = None
-
-    def mock_session_add(task):
-        nonlocal task_created, task_id, cron_expression, scheduled_time
-        task_created = True
-        task_id = getattr(task, "task_id", None)
-        cron_expression = getattr(task, "cron_expression", None)
-
-    def mock_session_execute(statement, params=None):
-        nonlocal task_created, task_id, cron_expression
-        # This mocks the direct SQL execution approach
-        if params and isinstance(params, dict):
-            task_created = True
-            task_id = params.get("task_id")
-            cron_expression = params.get("cron_expression")
-
-        # Create a mock result that mimics what execute() would return
-        class MockResult:
-            def __init__(self):
-                pass
-
-            def scalar_one_or_none(self):
-                return None
-
-            def scalars(self):
-                return self
-
-            def first(self):
-                return None
-
-            def all(self):
-                return []
-
-        return MockResult()
-
     with (
         patch("mxtoai.tasks.EmailSender") as MockEmailSender,
-        patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
-        patch("sqlmodel.Session.add", side_effect=mock_session_add),
-        patch("sqlmodel.Session.execute", side_effect=mock_session_execute),
-        patch("sqlmodel.Session.commit"),  # Prevent actual DB commits
+        patch("mxtoai.scheduler.add_scheduled_job") as mock_add_scheduled_job,
     ):
-        # Set up mock database connection
-        mock_db_connection = MagicMock()
-        mock_session = MagicMock()
-        mock_db_connection.get_session.return_value.__enter__ = lambda self: mock_session
-        mock_db_connection.get_session.return_value.__exit__ = lambda self, *args: None
-        mock_init_db.return_value = mock_db_connection
-
+        mock_add_scheduled_job.return_value = None
         mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
@@ -226,10 +181,16 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
             attachments_cleaned_up_dir=email_attachments_dir_str if attachment_info else None
         )
 
-        # Verify task was created (via our mocked session.add or session.execute)
-        assert task_created, "Task was not created"
-        assert task_id is not None, "Task ID was not generated"
-        assert cron_expression is not None, "Cron expression was not set"
+        # Check the actual test database for the created task
+        db_connection = init_db_connection()
+        with db_connection.get_session() as session:
+            tasks = session.exec(select(Tasks)).all()
+            assert len(tasks) > 0, "Expected at least one scheduled task to be created"
+
+            # Verify the task has appropriate details
+            task = tasks[0]
+            assert task.task_id is not None, "Task ID should be set"
+            assert task.cron_expression is not None, "Cron expression should be set"
 
         # Check for task confirmation in the returned email content (text and HTML versions)
         email_content_text = returned_result.email_content.text or ""
@@ -776,12 +737,33 @@ def test_pdf_export_cleanup():
 def test_process_email_task_delete_handle(prepare_email_request_data):
     """
     Tests the delete email handle that removes scheduled tasks.
-    Only EmailSender.send_reply is mocked.
+    Uses actual test database to verify task deletion.
     """
     import uuid
 
+    # First, create a task in the test database to delete
+    task_id = uuid.uuid4()
+    db_connection = init_db_connection()
+
+    with db_connection.get_session() as session:
+        # Create a test task owned by the sender
+        test_task = Tasks(
+            task_id=task_id,
+            email_id="sender.test@example.com",  # Same as the delete requester
+            cron_expression="0 9 * * 1",  # Every Monday at 9 AM
+            scheduler_job_id=f"job_{task_id}",
+            status=TaskStatus.ACTIVE,
+            email_request={"from_email": "sender.test@example.com", "subject": "Test Task"}
+        )
+        session.add(test_task)
+        session.commit()
+
+        # Verify task was created
+        created_task = session.exec(select(Tasks).where(Tasks.task_id == task_id)).first()
+        assert created_task is not None, "Test task should be created"
+        assert created_task.status == TaskStatus.ACTIVE, "Test task should be active"
+
     # Create an email with a delete task request
-    task_id = str(uuid.uuid4())
     delete_content = f"Delete scheduled task {task_id}"
 
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
@@ -790,64 +772,43 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
         text_content=delete_content,
     )
 
-    # Mock the database session to simulate task deletion
-    task_deleted = False
-    deleted_task_id = None
+    # Mock only the scheduler removal and email sender
+    with (
+        patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job", return_value=True),
+        patch("mxtoai.tasks.EmailSender") as mock_email_sender_class,
+    ):
+        mock_email_sender = MagicMock()
+        mock_email_sender_class.return_value = mock_email_sender
 
-    def mock_session_add(task):
-        nonlocal task_deleted, deleted_task_id
-        if hasattr(task, "status") and str(task.status) == "TaskStatus.DELETED":
-            task_deleted = True
-            deleted_task_id = getattr(task, "task_id", None)
+        async def mock_async_send_reply(*args, **kwargs):
+            return {"MessageId": "mocked_message_id_delete", "status": "sent"}
 
-    def mock_session_execute(statement, params=None):
-        # This mocks finding the task for deletion
-        class MockResult:
-            def first(self):
-                # Return a mock task if this is a SELECT query
-                if task_id in str(statement):
-                    return type("MockTask", (), {
-                        "task_id": task_id,
-                        "status": "ACTIVE",
-                        "email_request": f'{{"from_email": "{email_data["from_email"]}", "subject": "Test Task"}}',
-                        "scheduler_job_id": f"job_{task_id}",
-                        "updated_at": None
-                    })()
-                return None
+        mock_email_sender.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
-        return MockResult()
+        # Execute the task
+        result = process_email_task.fn(
+            email_data=email_data,
+            email_attachments_dir=email_attachments_dir_str,
+            attachment_info=attachment_info,
+        )
 
-    # Mock the delete tool components
-    with patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job", return_value=True):
-        with patch("mxtoai.db.init_db_connection") as mock_init_db:
-            mock_db_connection = MagicMock()
-            mock_session = MagicMock()
+        # Verify email sender was called
+        mock_email_sender.send_reply.assert_called_once()
 
-            # Setup mock session behavior
-            mock_session.add.side_effect = mock_session_add
-            mock_session.exec.side_effect = mock_session_execute
-            mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
-            mock_init_db.return_value = mock_db_connection
+        # Verify the response
+        assert isinstance(result, DetailedEmailProcessingResult)
+        assert result.metadata.email_sent.status == "sent"
+        assert len(result.metadata.errors) == 0, f"Processing errors: {result.metadata.errors}"
 
-            # Mock email sender to capture the response
-            with patch("mxtoai.tasks.EmailSender") as mock_email_sender_class:
-                mock_email_sender = MagicMock()
-                mock_email_sender_class.return_value = mock_email_sender
+        # Check that the task was actually deleted from the database
+        with db_connection.get_session() as session:
+            deleted_task = session.exec(select(Tasks).where(Tasks.task_id == task_id)).first()
+            assert deleted_task is not None, "Task should still exist in database"
+            assert deleted_task.status == TaskStatus.DELETED, "Task should be marked as deleted"
 
-                # Execute the task with correct signature
-                process_email_task(
-                    email_data=email_data,
-                    email_attachments_dir=email_attachments_dir_str,
-                    attachment_info=attachment_info,
-                )
-
-                # Verify email sender was called
-                mock_email_sender.send_reply.assert_called_once()
-
-                # Get the call arguments to verify the response content
-                call_args = mock_email_sender.send_reply.call_args
-                reply_text = call_args[1]["reply_text"]
-
-                # Verify the response mentions task deletion
-                assert "delete" in reply_text.lower() or "removed" in reply_text.lower()
+        # Verify the response mentions task deletion
+        reply_text = result.email_content.text or ""
+        reply_html = result.email_content.html or ""
+        assert ("delete" in reply_text.lower() or "removed" in reply_text.lower() or
+                "delete" in reply_html.lower() or "removed" in reply_html.lower()), "Response should mention task deletion"
 
