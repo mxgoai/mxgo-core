@@ -5,12 +5,12 @@ from typing import Optional
 from croniter import croniter
 from pydantic import BaseModel, Field, field_validator
 from smolagents import Tool
-from sqlmodel import select
 
 from mxtoai._logging import get_logger
 from mxtoai.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
+from mxtoai.crud import create_task, delete_task, update_task_status
 from mxtoai.db import init_db_connection
-from mxtoai.models import Tasks, TaskStatus
+from mxtoai.models import TaskStatus
 from mxtoai.request_context import RequestContext
 from mxtoai.scheduled_task_executor import execute_scheduled_task
 from mxtoai.scheduler import add_scheduled_job
@@ -321,10 +321,11 @@ class ScheduledTasksTool(Tool):
             # TODO: Need an AI driver logic here but for now we'll just redirect to ask
             email_request.distilled_alias = HandlerAlias.ASK
 
-            # Store task in database using ORM
+            # Store task in database using CRUD
             try:
                 with db_connection.get_session() as session:
-                    new_task = Tasks(
+                    create_task(
+                        session=session,
                         task_id=task_id,
                         email_id=email_id,
                         cron_expression=input_data.cron_expression,
@@ -333,16 +334,11 @@ class ScheduledTasksTool(Tool):
                         start_time=parsed_start_time,
                         expiry_time=parsed_end_time,
                         status=TaskStatus.INITIALISED,
-                        created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc),
                     )
+                    logger.info(f"Task successfully stored with CRUD method, ID: {task_id}")
 
-                    session.add(new_task)
-                    session.commit()
-                    logger.info(f"Task successfully stored with ORM method, ID: {task_id}")
-
-            except Exception as orm_error:
-                logger.error(f"ORM method failed: {orm_error}")
+            except Exception as crud_error:
+                logger.error(f"CRUD method failed: {crud_error}")
                 raise
 
             # Schedule the task with APScheduler
@@ -355,26 +351,16 @@ class ScheduledTasksTool(Tool):
                 )
                 logger.info(f"Task {task_id} scheduled successfully with job ID: {scheduler_job_id}")
 
-                # Update task status to ACTIVE in database using ORM
+                # Update task status to ACTIVE in database using CRUD
                 with db_connection.get_session() as session:
-                    statement = select(Tasks).where(Tasks.task_id == task_id)
-                    task = session.exec(statement).first()
-                    if task:
-                        task.status = TaskStatus.ACTIVE
-                        task.updated_at = datetime.now(timezone.utc)
-                        session.add(task)
-                        session.commit()
+                    update_task_status(session, task_id, TaskStatus.ACTIVE, clear_email_data_if_terminal=False)
 
             except Exception as scheduler_error:
                 logger.error(f"Failed to schedule task {task_id}: {scheduler_error}")
-                # Mark task as failed in database using ORM
+                # Mark task as failed in database using CRUD
                 try:
                     with db_connection.get_session() as session:
-                        statement = select(Tasks).where(Tasks.task_id == task_id)
-                        task = session.exec(statement).first()
-                        if task:
-                            session.delete(task)
-                            session.commit()
+                        delete_task(session, task_id)
                 except Exception:
                     pass  # Ignore cleanup errors
                 raise scheduler_error

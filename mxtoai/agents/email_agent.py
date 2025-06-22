@@ -15,12 +15,11 @@ from smolagents.default_tools import (
     PythonInterpreterTool,
     WikipediaSearchTool,
 )
-from sqlmodel import select
 
 from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
+from mxtoai.crud import count_active_tasks_for_user, get_task_by_id
 from mxtoai.db import init_db_connection
-from mxtoai.models.models import ACTIVE_TASK_STATUSES, Tasks
 from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
@@ -358,9 +357,8 @@ Raw Email Request Data (for tool use):
         """
         try:
             with init_db_connection().get_session() as session:
-                # Get the task information
-                statement = select(Tasks).where(Tasks.task_id == scheduled_task_id)
-                task = session.exec(statement).first()
+                # Get the task information using CRUD
+                task = get_task_by_id(session, scheduled_task_id)
 
                 if not task:
                     return SCHEDULED_TASK_NOT_FOUND_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
@@ -937,14 +935,8 @@ Raw Email Request Data (for tool use):
             with db_connection.get_session() as session:
                 user_email = self.context.email_request.from_email
 
-                # Count only active (non-terminal) tasks
-                statement = (
-                    select(Tasks)
-                    .where(Tasks.email_request.op("->>")("from") == user_email)
-                    .where(Tasks.status.in_(ACTIVE_TASK_STATUSES))
-                )
-                active_tasks = session.exec(statement).all()
-                current_active_count = len(active_tasks)
+                # Count only active (non-terminal) tasks using CRUD
+                current_active_count = count_active_tasks_for_user(session, user_email)
 
                 if current_active_count >= max_calls:
                     logger.warning(f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks.")

@@ -10,8 +10,9 @@ import sys
 import time
 
 from mxtoai._logging import get_logger
+from mxtoai.crud import get_tasks_by_status
 from mxtoai.db import init_db_connection
-from mxtoai.models import TERMINAL_TASK_STATUSES, Tasks
+from mxtoai.models import TERMINAL_TASK_STATUSES
 from mxtoai.scheduler import get_scheduler, reload_jobs_from_database, start_scheduler, stop_scheduler
 
 logger = get_logger("scheduler_runner")
@@ -50,15 +51,8 @@ def cleanup_terminal_task_jobs():
             return
 
         with db_connection.get_session() as session:
-            from sqlmodel import select
-
-            # Find terminal tasks that still have scheduler_job_id
-            statement = (
-                select(Tasks)
-                .where(Tasks.status.in_(TERMINAL_TASK_STATUSES))
-                .where(Tasks.scheduler_job_id.is_not(None))
-            )
-            terminal_tasks = session.exec(statement).all()
+            # Find terminal tasks that still have scheduler_job_id using CRUD
+            terminal_tasks = get_tasks_by_status(session, TERMINAL_TASK_STATUSES, has_scheduler_job_id=True)
 
             cleaned_count = 0
             for task in terminal_tasks:
