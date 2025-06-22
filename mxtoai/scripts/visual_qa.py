@@ -1,8 +1,6 @@
 import base64
 import json
-import mimetypes
 import os
-import uuid
 from io import BytesIO
 from typing import Optional
 
@@ -21,12 +19,12 @@ load_dotenv(override=True)
 logger = get_logger("azure_visualizer")
 
 
-def process_images_and_text(image_path: str, query: str, client: InferenceClient):
+def process_images_and_text_from_content(content: bytes, query: str, client: InferenceClient):
     """
-    Process images and text using the IDEFICS model.
+    Process images and text using the IDEFICS model from memory content.
 
     Args:
-        image_path: Path to the image file.
+        content: Image content as bytes.
         query: The question to ask about the image.
         client: Inference client for the model.
 
@@ -45,22 +43,14 @@ def process_images_and_text(image_path: str, query: str, client: InferenceClient
     idefics_processor = AutoProcessor.from_pretrained("HuggingFaceM4/idefics2-8b-chatty")
     prompt_with_template = idefics_processor.apply_chat_template(messages, add_generation_prompt=True)
 
-    # load images from local directory
-
-    # encode images to strings which can be sent to the endpoint
-    def encode_local_image(image_path):
-        # load image
-        image = Image.open(image_path).convert("RGB")
-
-        # Convert the image to a base64 string
+    def encode_content_image(content: bytes):
+        image = Image.open(BytesIO(content)).convert("RGB")
         buffer = BytesIO()
-        image.save(buffer, format="JPEG")  # Use the appropriate format (e.g., JPEG, PNG)
+        image.save(buffer, format="JPEG")
         base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
-
-        # add string formatting required by the endpoint
         return f"data:image/jpeg;base64,{base64_image}"
 
-    image_string = encode_local_image(image_path)
+    image_string = encode_content_image(content)
     prompt_with_images = prompt_with_template.replace("<image>", "![]({}) ").format(image_string)
 
     payload = {
@@ -74,77 +64,52 @@ def process_images_and_text(image_path: str, query: str, client: InferenceClient
     return json.loads(client.post(json=payload).decode())[0]
 
 
-# Function to encode the image
-def encode_image(image_path: str) -> str:
+def encode_image_from_content(content: bytes) -> str:
     """
-    Encode an image to base64 format.
+    Encode image content to base64 format.
 
     Args:
-        image_path: The path to the image file.
+        content: The image content as bytes.
 
     Returns:
         str: The base64 encoded string of the image.
 
     """
-    if image_path.startswith("http"):
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0"
-        request_kwargs = {
-            "headers": {"User-Agent": user_agent},
-            "stream": True,
-        }
+    return base64.b64encode(content).decode("utf-8")
 
-        # Send a HTTP request to the URL
-        response = requests.get(image_path, **request_kwargs)
-        response.raise_for_status()
-        content_type = response.headers.get("content-type", "")
 
-        extension = mimetypes.guess_extension(content_type)
-        if extension is None:
-            extension = ".download"
+def resize_image_from_content(content: bytes) -> bytes:
+    """
+    Resize image content to half its original size.
 
-        fname = str(uuid.uuid4()) + extension
-        download_path = os.path.abspath(os.path.join("downloads", fname))
+    Args:
+        content: The image content as bytes.
 
-        with open(download_path, "wb") as fh:
-            for chunk in response.iter_content(chunk_size=512):
-                fh.write(chunk)
+    Returns:
+        bytes: The resized image content as bytes.
 
-        image_path = download_path
-
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+    """
+    img = Image.open(BytesIO(content))
+    width, height = img.size
+    img = img.resize((int(width / 2), int(height / 2)))
+    buffer = BytesIO()
+    img.save(buffer, format="JPEG")
+    return buffer.getvalue()
 
 
 headers = {"Content-Type": "application/json", "Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
 
 
-def resize_image(image_path: str) -> str:
-    """
-    Resize the image to half its original size.
-
-    Args:
-        image_path: The path to the image file.
-
-    Returns:
-        str: The path to the resized image.
-
-    """
-    img = Image.open(image_path)
-    width, height = img.size
-    img = img.resize((int(width / 2), int(height / 2)))
-    directory = os.path.dirname(image_path)
-    filename = os.path.basename(image_path)
-    new_image_path = os.path.join(directory, f"resized_{filename}")
-    img.save(new_image_path)
-    return new_image_path
-
-
 class VisualQATool(Tool):
     name = "visualizer"
-    description = "A tool that can answer questions about attached images."
+    description = "A tool that can answer questions about attached images from memory content."
     inputs = {
-        "image_path": {
-            "description": "The path to the image on which to answer the question",
+        "content": {
+            "description": "The image content as bytes",
+            "type": "any",
+        },
+        "mime_type": {
+            "description": "MIME type of the image",
             "type": "string",
         },
         "question": {"description": "the question to answer", "type": "string", "nullable": True},
@@ -153,12 +118,13 @@ class VisualQATool(Tool):
 
     client = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
-    def forward(self, image_path: str, question: Optional[str] = None) -> str:
+    def forward(self, content: bytes, mime_type: str, question: Optional[str] = None) -> str:
         """
         Process the image and return a short caption based on the content.
 
         Args:
-            image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
+            content: The image content as bytes.
+            mime_type: MIME type of the image.
             question: The question to answer.
 
         Returns:
@@ -171,11 +137,11 @@ class VisualQATool(Tool):
             add_note = True
             question = "Please write a detailed caption for this image."
         try:
-            output = process_images_and_text(image_path, question, self.client)
+            output = process_images_and_text_from_content(content, question, self.client)
         except Exception as e:
             if "Payload Too Large" in str(e):
-                new_image_path = resize_image(image_path)
-                output = process_images_and_text(new_image_path, question, self.client)
+                resized_content = resize_image_from_content(content)
+                output = process_images_and_text_from_content(resized_content, question, self.client)
 
         if add_note:
             output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
@@ -184,12 +150,13 @@ class VisualQATool(Tool):
 
 
 @tool
-def visualizer(image_path: str, question: Optional[str] = None) -> str:
+def visualizer_from_content(content: bytes, mime_type: str, question: Optional[str] = None) -> str:
     """
-    A tool that can answer questions about attached images.
+    A tool that can answer questions about image content.
 
     Args:
-        image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
+        content: The image content as bytes.
+        mime_type: MIME type of the image.
         question: The question to answer.
 
     """
@@ -197,12 +164,11 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
     if not question:
         add_note = True
         question = "Please write a detailed caption for this image."
-    if not isinstance(image_path, str):
-        msg = "You should provide at least `image_path` string argument to this tool!"
-        raise Exception(msg)
 
-    mime_type, _ = mimetypes.guess_type(image_path)
-    base64_image = encode_image(image_path)
+    if not mime_type:
+        mime_type = "image/jpeg"
+
+    base64_image = encode_image_from_content(content)
 
     payload = {
         "model": "gpt-4o",
@@ -231,12 +197,13 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
 
 
 @tool
-def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
+def azure_visualizer_from_content(content: bytes, mime_type: str, question: Optional[str] = None) -> str:
     """
-    A tool that can answer questions about attached images using Azure OpenAI.
+    A tool that can answer questions about image content using Azure OpenAI.
 
     Args:
-        image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
+        content: The image content as bytes.
+        mime_type: MIME type of the image.
         question: The question to answer.
 
     """
@@ -246,67 +213,85 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
         question = "Please write a detailed caption for this image."
 
     try:
-        # Get image MIME type
-        mime_type, _ = mimetypes.guess_type(image_path)
         if not mime_type:
-            mime_type = "image/jpeg"  # Default to JPEG if can't determine
+            mime_type = "image/jpeg"
 
-        # Encode the image to base64
-        base64_image = encode_image(image_path)
+        base64_image = encode_image_from_content(content)
 
-        # Format the content for the Azure OpenAI API
-        content = [
+        content_payload = [
             {"type": "text", "text": question},
             {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
         ]
 
-        # Get Azure OpenAI configuration
         model = f"azure/{os.getenv('MODEL_NAME', 'gpt-4o')}"
         api_key = os.getenv("MODEL_API_KEY")
         api_base = os.getenv("MODEL_ENDPOINT")
         api_version = os.getenv("MODEL_API_VERSION")
 
-        logger.info(f"Sending image to Azure OpenAI model: {model}")
-        # Call Azure OpenAI using litellm
+        logger.info(f"Sending image content to Azure OpenAI model: {model}")
         response = completion(
             model=model,
-            messages=[{"role": "user", "content": content}],
+            messages=[{"role": "user", "content": content_payload}],
             api_key=api_key,
             api_base=api_base,
             api_version=api_version,
             max_tokens=1000,
         )
 
-        # Extract content from response
         if hasattr(response, "choices") and response.choices:
             if hasattr(response.choices[0], "message") and hasattr(response.choices[0].message, "content"):
                 output = response.choices[0].message.content
             else:
-                # Fallback if direct access doesn't work
                 output = response.choices[0].get("message", {}).get("content", "")
         else:
-            # Handle unusual response format
             output = str(response)
 
         if not output:
             msg = "Empty response from Azure OpenAI"
             raise Exception(msg)
 
-        # Add note if no question was provided
         if add_note:
             output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
 
         return output
 
     except Exception as e:
-        logger.error(f"Error in azure_visualizer: {e!s}")
+        logger.error(f"Error in azure_visualizer_from_content: {e!s}")
 
-        # Try resizing the image if it might be too large
-        if "too large" in str(e).lower() or "payload" in str(e).lower():
-            try:
-                new_image_path = resize_image(image_path)
-                return azure_visualizer(new_image_path, question)
-            except Exception as resize_error:
-                logger.error(f"Error resizing image: {resize_error!s}")
+        try:
+            resized_content = resize_image_from_content(content)
+            base64_image = encode_image_from_content(resized_content)
 
-        return f"Error processing image: {e!s}"
+            content_payload = [
+                {"type": "text", "text": question},
+                {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
+            ]
+
+            response = completion(
+                model=model,
+                messages=[{"role": "user", "content": content_payload}],
+                api_key=api_key,
+                api_base=api_base,
+                api_version=api_version,
+                max_tokens=1000,
+            )
+
+            if hasattr(response, "choices") and response.choices:
+                if hasattr(response.choices[0], "message") and hasattr(response.choices[0].message, "content"):
+                    output = response.choices[0].message.content
+                else:
+                    output = response.choices[0].get("message", {}).get("content", "")
+            else:
+                output = str(response)
+
+            if add_note:
+                output = (
+                    f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
+                )
+
+            return output
+
+        except Exception as retry_error:
+            logger.error(f"Error in azure_visualizer_from_content retry: {retry_error!s}")
+            msg = f"Failed to process image: {retry_error!s}"
+            raise Exception(msg)

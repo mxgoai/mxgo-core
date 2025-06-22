@@ -1,22 +1,22 @@
 import base64
 import os
 import tempfile
-from unittest.mock import Mock, mock_open, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from PIL import Image
 
 from mxtoai.scripts.visual_qa import (
     VisualQATool,
-    azure_visualizer,
-    encode_image,
-    resize_image,
-    visualizer,
+    azure_visualizer_from_content,
+    encode_image_from_content,
+    resize_image_from_content,
+    visualizer_from_content,
 )
 
 
 class TestEncodeImage:
-    """Test the encode_image function."""
+    """Test the encode_image_from_content function."""
 
     def test_encode_local_image_file(self):
         """Test encoding a local image file."""
@@ -28,7 +28,11 @@ class TestEncodeImage:
             temp_path = temp_file.name
 
         try:
-            result = encode_image(temp_path)
+            # Read the file content
+            with open(temp_path, "rb") as f:
+                content = f.read()
+
+            result = encode_image_from_content(content)
 
             # Should return a base64 string
             assert isinstance(result, str)
@@ -41,79 +45,60 @@ class TestEncodeImage:
         finally:
             os.unlink(temp_path)
 
-    @patch("requests.get")
-    def test_encode_remote_image_url(self, mock_get):
-        """Test encoding an image from URL."""
-        # Mock HTTP response
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.headers = {"content-type": "image/jpeg"}
-        mock_response.iter_content.return_value = [b"fake_jpeg_data"]
-        mock_get.return_value = mock_response
+    def test_encode_image_from_bytes(self):
+        """Test encoding image from bytes."""
+        # Create a simple test image in memory
+        img = Image.new("RGB", (50, 50), color="green")
+        import io
 
-        # Mock file operations - provide binary data for base64 encoding
-        with patch("builtins.open", mock_open(read_data=b"fake_jpeg_data")) as mock_file, patch("os.path.abspath") as mock_abspath:
-            mock_abspath.return_value = "/downloads/test.jpg"
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format="JPEG")
+        content = img_bytes.getvalue()
 
-            result = encode_image("http://example.com/image.jpg")
+        result = encode_image_from_content(content)
 
-            assert isinstance(result, str)
-            mock_get.assert_called_once()
-            mock_file.assert_called()
+        # Should return a base64 string
+        assert isinstance(result, str)
+        assert len(result) > 0
 
-    @patch("requests.get")
-    def test_encode_remote_image_no_extension(self, mock_get):
-        """Test encoding remote image when content-type doesn't map to extension."""
-        mock_response = Mock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.headers = {"content-type": "application/octet-stream"}
-        mock_response.iter_content.return_value = [b"data"]
-        mock_get.return_value = mock_response
-
-        with patch("builtins.open", mock_open(read_data=b"data")):
-            with patch("os.path.abspath", return_value="/downloads/test.download"):
-                # Should handle unknown content types
-                result = encode_image("http://example.com/unknown")
-                assert isinstance(result, str)
+        # Should be valid base64
+        decoded = base64.b64decode(result)
+        assert len(decoded) > 0
 
     def test_encode_nonexistent_file(self):
-        """Test encoding a file that doesn't exist."""
-        with pytest.raises(FileNotFoundError):
-            encode_image("/nonexistent/file.jpg")
+        """Test encoding with empty content."""
+        # encode_image_from_content just does base64 encoding, so empty bytes will return empty string
+        result = encode_image_from_content(b"")
+        assert result == ""
 
 
 class TestResizeImage:
-    """Test the resize_image function."""
+    """Test the resize_image_from_content function."""
 
     def test_resize_image_success(self):
         """Test successful image resizing."""
-        # Create a temporary image
-        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temp_file:
-            img = Image.new("RGB", (200, 200), color="blue")
-            img.save(temp_file.name, "JPEG")
-            temp_path = temp_file.name
+        # Create a test image in memory
+        img = Image.new("RGB", (200, 200), color="blue")
+        import io
 
-        resized_path = None
-        try:
-            resized_path = resize_image(temp_path)
+        img_bytes = io.BytesIO()
+        img.save(img_bytes, format="JPEG")
+        content = img_bytes.getvalue()
 
-            # Check that resized file was created
-            assert os.path.exists(resized_path)
-            assert "resized_" in resized_path
+        resized_content = resize_image_from_content(content)
 
-            # Check dimensions are halved
-            resized_img = Image.open(resized_path)
-            assert resized_img.size == (100, 100)
+        # Check that we got bytes back
+        assert isinstance(resized_content, bytes)
+        assert len(resized_content) > 0
 
-        finally:
-            os.unlink(temp_path)
-            if resized_path and os.path.exists(resized_path):
-                os.unlink(resized_path)
+        # Check dimensions are halved
+        resized_img = Image.open(io.BytesIO(resized_content))
+        assert resized_img.size == (100, 100)
 
     def test_resize_nonexistent_file(self):
-        """Test resizing a file that doesn't exist."""
-        with pytest.raises(FileNotFoundError):
-            resize_image("/nonexistent/file.jpg")
+        """Test resizing with empty content."""
+        with pytest.raises(Exception):  # PIL will raise UnidentifiedImageError
+            resize_image_from_content(b"")
 
 
 class TestProcessImagesAndText:
@@ -133,29 +118,30 @@ class TestVisualQATool:
 
         assert tool.name == "visualizer"
         assert "answer questions about attached images" in tool.description
-        assert "image_path" in tool.inputs
+        assert "content" in tool.inputs
+        assert "mime_type" in tool.inputs
         assert "question" in tool.inputs
         assert tool.output_type == "string"
         assert hasattr(tool, "client")
 
-    @patch("mxtoai.scripts.visual_qa.process_images_and_text")
+    @patch("mxtoai.scripts.visual_qa.process_images_and_text_from_content")
     def test_forward_with_question(self, mock_process):
         """Test forward method with a specific question."""
         mock_process.return_value = {"generated_text": "This is a test image"}
 
         tool = VisualQATool()
-        result = tool.forward("test_image.jpg", "What do you see?")
+        result = tool.forward(b"fake_image_content", "image/jpeg", "What do you see?")
 
         assert result == {"generated_text": "This is a test image"}
-        mock_process.assert_called_once_with("test_image.jpg", "What do you see?", tool.client)
+        mock_process.assert_called_once_with(b"fake_image_content", "What do you see?", tool.client)
 
-    @patch("mxtoai.scripts.visual_qa.process_images_and_text")
+    @patch("mxtoai.scripts.visual_qa.process_images_and_text_from_content")
     def test_forward_without_question(self, mock_process):
         """Test forward method without a specific question (auto-caption)."""
         mock_process.return_value = {"generated_text": "Auto-generated caption"}
 
         tool = VisualQATool()
-        result = tool.forward("test_image.jpg")
+        result = tool.forward(b"fake_image_content", "image/jpeg")
 
         # Should add explanatory note
         assert "You did not provide a particular question" in result
@@ -166,22 +152,19 @@ class TestVisualQATool:
         call_args = mock_process.call_args
         assert "Please write a detailed caption" in call_args[0][1]
 
-    @patch("mxtoai.scripts.visual_qa.process_images_and_text")
-    @patch("mxtoai.scripts.visual_qa.resize_image")
+    @patch("mxtoai.scripts.visual_qa.process_images_and_text_from_content")
+    @patch("mxtoai.scripts.visual_qa.resize_image_from_content")
     def test_forward_payload_too_large_retry(self, mock_resize, mock_process):
         """Test handling of 'Payload Too Large' error with image resizing."""
         # First call fails with payload error, second succeeds
-        mock_process.side_effect = [
-            Exception("Payload Too Large"),
-            {"generated_text": "Resized image result"}
-        ]
-        mock_resize.return_value = "resized_test_image.jpg"
+        mock_process.side_effect = [Exception("Payload Too Large"), {"generated_text": "Resized image result"}]
+        mock_resize.return_value = b"resized_image_content"
 
         tool = VisualQATool()
-        result = tool.forward("test_image.jpg", "What's this?")
+        result = tool.forward(b"fake_image_content", "image/jpeg", "What's this?")
 
         assert result == {"generated_text": "Resized image result"}
-        mock_resize.assert_called_once_with("test_image.jpg")
+        mock_resize.assert_called_once_with(b"fake_image_content")
         assert mock_process.call_count == 2
 
 
@@ -189,30 +172,24 @@ class TestVisualizerFunction:
     """Test the visualizer function."""
 
     def test_invalid_image_path_type(self):
-        """Test visualizer with invalid image_path type."""
-        with pytest.raises(Exception, match="You should provide at least `image_path` string argument"):
-            visualizer(123)  # Non-string path
+        """Test visualizer with invalid content type."""
+        with pytest.raises(TypeError):
+            visualizer_from_content(123, "image/jpeg")  # Non-bytes content
 
     @patch("requests.post")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_visualizer_success(self, mock_encode, mock_post):
         """Test successful image analysis with visualizer function."""
         mock_encode.return_value = "base64_encoded_image"
 
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "This is an image of a cat"
-                }
-            }]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "This is an image of a cat"}}]}
         mock_post.return_value = mock_response
 
-        result = visualizer("test_image.jpg", "What animal is this?")
+        result = visualizer_from_content(b"test_image_content", "image/jpeg", "What animal is this?")
 
         assert result == "This is an image of a cat"
-        mock_encode.assert_called_once_with("test_image.jpg")
+        mock_encode.assert_called_once_with(b"test_image_content")
 
         # Check API call
         mock_post.assert_called_once()
@@ -231,22 +208,16 @@ class TestVisualizerFunction:
         assert content[1]["type"] == "image_url"
 
     @patch("requests.post")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_visualizer_without_question(self, mock_encode, mock_post):
         """Test visualizer function without specific question."""
         mock_encode.return_value = "base64_data"
 
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "Auto-generated description"
-                }
-            }]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "Auto-generated description"}}]}
         mock_post.return_value = mock_response
 
-        result = visualizer("image.jpg")
+        result = visualizer_from_content(b"image_content", "image/jpeg")
 
         # Should add explanatory note
         assert "You did not provide a particular question" in result
@@ -259,7 +230,7 @@ class TestVisualizerFunction:
         assert "Please write a detailed caption" in content
 
     @patch("requests.post")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_visualizer_api_error(self, mock_encode, mock_post):
         """Test visualizer function handling API errors."""
         mock_encode.return_value = "base64_data"
@@ -269,20 +240,23 @@ class TestVisualizerFunction:
         mock_post.return_value = mock_response
 
         with pytest.raises(Exception, match="Response format unexpected"):
-            visualizer("image.jpg", "What's this?")
+            visualizer_from_content(b"image_content", "image/jpeg", "What's this?")
 
 
 class TestAzureVisualizer:
     """Test the azure_visualizer function."""
 
     @patch("mxtoai.scripts.visual_qa.completion")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
-    @patch.dict(os.environ, {
-        "MODEL_NAME": "gpt-4o",
-        "MODEL_API_KEY": "test_key",
-        "MODEL_ENDPOINT": "https://test.openai.azure.com",
-        "MODEL_API_VERSION": "2024-02-01"
-    })
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
+    @patch.dict(
+        os.environ,
+        {
+            "MODEL_NAME": "gpt-4o",
+            "MODEL_API_KEY": "test_key",
+            "MODEL_ENDPOINT": "https://test.openai.azure.com",
+            "MODEL_API_VERSION": "2024-02-01",
+        },
+    )
     def test_azure_visualizer_success(self, mock_encode, mock_completion):
         """Test successful Azure OpenAI image analysis."""
         mock_encode.return_value = "base64_image_data"
@@ -293,10 +267,10 @@ class TestAzureVisualizer:
         mock_response.choices[0].message.content = "Azure analysis result"
         mock_completion.return_value = mock_response
 
-        result = azure_visualizer("test_image.jpg", "Analyze this image")
+        result = azure_visualizer_from_content(b"test_image_content", "image/jpeg", "Analyze this image")
 
         assert result == "Azure analysis result"
-        mock_encode.assert_called_once_with("test_image.jpg")
+        mock_encode.assert_called_once_with(b"test_image_content")
 
         # Check litellm completion call
         mock_completion.assert_called_once()
@@ -320,7 +294,7 @@ class TestAzureVisualizer:
         assert content[1]["type"] == "image_url"
 
     @patch("mxtoai.scripts.visual_qa.completion")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_azure_visualizer_without_question(self, mock_encode, mock_completion):
         """Test Azure visualizer without specific question."""
         mock_encode.return_value = "base64_data"
@@ -331,14 +305,14 @@ class TestAzureVisualizer:
         mock_response.choices[0].message.content = "Default caption"
         mock_completion.return_value = mock_response
 
-        result = azure_visualizer("image.jpg")
+        result = azure_visualizer_from_content(b"image_content", "image/jpeg")
 
         assert "You did not provide a particular question" in result
         assert "detailed caption for the image" in result
 
     @patch("mxtoai.scripts.visual_qa.completion")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
-    @patch("mxtoai.scripts.visual_qa.resize_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
+    @patch("mxtoai.scripts.visual_qa.resize_image_from_content")
     def test_azure_visualizer_image_too_large(self, mock_resize, mock_encode, mock_completion):
         """Test Azure visualizer handling large image errors."""
         mock_encode.return_value = "base64_data"
@@ -347,17 +321,17 @@ class TestAzureVisualizer:
         # First call fails with size error, second succeeds after resize
         mock_completion.side_effect = [
             Exception("image too large"),
-            Mock(choices=[Mock(message=Mock(content="Resized result"))])
+            Mock(choices=[Mock(message=Mock(content="Resized result"))]),
         ]
 
-        result = azure_visualizer("large_image.jpg", "What's this?")
+        result = azure_visualizer_from_content(b"large_image_content", "image/jpeg", "What's this?")
 
         # The function successfully retries with resized image and returns the result
         assert result == "Resized result"
-        mock_resize.assert_called_once_with("large_image.jpg")
+        mock_resize.assert_called_once_with(b"large_image_content")
 
     @patch("mxtoai.scripts.visual_qa.completion")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_azure_visualizer_empty_response(self, mock_encode, mock_completion):
         """Test Azure visualizer handling empty response."""
         mock_encode.return_value = "base64_data"
@@ -368,23 +342,20 @@ class TestAzureVisualizer:
         mock_response.choices[0].message.content = ""
         mock_completion.return_value = mock_response
 
-        result = azure_visualizer("image.jpg", "What's this?")
-
-        # The function catches the exception and returns an error message
-        assert "Error processing image: Empty response from Azure OpenAI" in result
+        with pytest.raises(Exception, match="Failed to process image"):
+            azure_visualizer_from_content(b"image_content", "image/jpeg", "What's this?")
 
     @patch("mxtoai.scripts.visual_qa.completion")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_azure_visualizer_api_error(self, mock_encode, mock_completion):
         """Test Azure visualizer handling API errors."""
         mock_encode.return_value = "base64_data"
         mock_completion.side_effect = Exception("API connection failed")
 
-        result = azure_visualizer("image.jpg", "What's this?")
+        with pytest.raises(Exception, match="Failed to process image"):
+            azure_visualizer_from_content(b"image_content", "image/jpeg", "What's this?")
 
-        assert "Error processing image: API connection failed" in result
-
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxtoai.scripts.visual_qa.encode_image_from_content")
     def test_azure_visualizer_mime_type_detection(self, mock_encode):
         """Test MIME type detection for different image formats."""
         mock_encode.return_value = "base64_data"
@@ -397,15 +368,10 @@ class TestAzureVisualizer:
             mock_completion.return_value = mock_response
 
             # Test different image extensions
-            test_files = [
-                "image.jpg",
-                "image.png",
-                "image.gif",
-                "image.unknown"
-            ]
+            test_files = ["image.jpg", "image.png", "image.gif", "image.unknown"]
 
             for filename in test_files:
-                result = azure_visualizer(filename, "Analyze")
+                result = azure_visualizer_from_content(b"image_content", "image/jpeg", "Analyze")
                 assert result == "Analysis result"
 
                 # Check MIME type handling
@@ -434,30 +400,32 @@ class TestIntegrationScenarios:
             temp_path = temp_file.name
 
         try:
-            with patch("mxtoai.scripts.visual_qa.process_images_and_text") as mock_process:
+            with patch("mxtoai.scripts.visual_qa.process_images_and_text_from_content") as mock_process:
                 mock_process.return_value = {"generated_text": "Integration test result"}
 
-                result = tool.forward(temp_path, "What color is this image?")
+                # Read the file content to pass as bytes
+                with open(temp_path, "rb") as f:
+                    content = f.read()
+
+                result = tool.forward(content, "image/jpeg", "What color is this image?")
 
                 # Should return the processed result
                 assert result == {"generated_text": "Integration test result"}
-                mock_process.assert_called_once_with(
-                    temp_path,
-                    "What color is this image?",
-                    tool.client
-                )
+                mock_process.assert_called_once_with(content, "What color is this image?", tool.client)
 
         finally:
             os.unlink(temp_path)
 
     def test_error_handling_chain(self):
         """Test error handling across different visual processing functions."""
-        # Test that errors propagate properly through the processing chain
-        with pytest.raises(FileNotFoundError):
-            encode_image("nonexistent_file.jpg")
+        # encode_image_from_content just does base64 encoding, won't raise FileNotFoundError
+        result = encode_image_from_content(b"")
+        assert result == ""
 
-        with pytest.raises(FileNotFoundError):
-            resize_image("nonexistent_file.jpg")
-
+        # resize_image_from_content will raise an image processing error
         with pytest.raises(Exception):
-            visualizer(None)  # Invalid input type
+            resize_image_from_content(b"")
+
+        # visualizer_from_content requires proper parameters
+        with pytest.raises(TypeError):
+            visualizer_from_content(None, "image/jpeg")  # Invalid input type
