@@ -9,8 +9,8 @@ import re
 from smolagents import Tool
 from smolagents.default_tools import WebSearchTool
 
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import ToolOutputWithCitations
-from mxtoai.scripts.citation_manager import add_web_citation
 
 logger = logging.getLogger(__name__)
 
@@ -32,17 +32,19 @@ class DDGSearchTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, max_results: int = 5):
+    def __init__(self, context: RequestContext, max_results: int = 5):
         """
         Initialize DDG search tool.
 
         Args:
+            context: Request context containing email data and citation manager
             max_results: Maximum number of results to return
 
         """
+        super().__init__()
+        self.context = context
         self.max_results = max_results
         self.ddg_tool = WebSearchTool(engine="duckduckgo", max_results=max_results)
-        super().__init__()
         logger.debug(f"DDGSearchTool initialized with max_results={max_results}")
 
     def forward(self, query: str) -> str:
@@ -51,7 +53,7 @@ class DDGSearchTool(Tool):
             logger.info(f"Performing DDG search for: {query}")
             raw_result = self.ddg_tool.forward(query=query)
 
-                        # Log the raw result to understand its format
+            # Log the raw result to understand its format
             logger.debug(f"DDG raw result: {raw_result[:500]}...")  # Log first 500 chars
 
             # Extract markdown links from the raw result: [title](url)
@@ -68,7 +70,7 @@ class DDGSearchTool(Tool):
 
                 # Add citation for this result
                 if url:
-                    citation_id = add_web_citation(url, title, visited=False)
+                    citation_id = self.context.add_web_citation(url, title, visited=False)
                     formatted_result = f"{i}. **{title}** [#{citation_id}]\n   URL: {url}\n"
                     citations_added += 1
                 else:
@@ -89,7 +91,7 @@ class DDGSearchTool(Tool):
                     if not title:
                         title = f"Search Result {i}"
 
-                    citation_id = add_web_citation(url, title, visited=False)
+                    citation_id = self.context.add_web_citation(url, title, visited=False)
                     formatted_result = f"{i}. **{title}** [#{citation_id}]\n   URL: {url}\n"
                     formatted_results.append(formatted_result)
                     citations_added += 1
@@ -103,17 +105,15 @@ class DDGSearchTool(Tool):
                 logger.info("Using raw content as fallback")
                 content = f"## Search Results\n\n{raw_result}"
 
-                        # Create structured output with local citations
+            # Create structured output with local citations
             from mxtoai.schemas import CitationCollection
 
             # Create a local citation collection for this tool's output
             local_citations = CitationCollection()
 
             # Get only the citations that were added by this tool call
-            # Since we track citations_added, we can get the last N citations
             if citations_added > 0:
-                from mxtoai.scripts.citation_manager import get_citation_manager
-                global_citations = get_citation_manager().get_citations()
+                global_citations = self.context.get_citations()
                 # Get the last 'citations_added' number of citations
                 recent_citations = global_citations.sources[-citations_added:] if global_citations.sources else []
                 for citation in recent_citations:

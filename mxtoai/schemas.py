@@ -130,13 +130,8 @@ class ProcessingError(BaseModel):
 
 class ProcessingMetadata(BaseModel):
     processed_at: str
-<<<<<<< HEAD
     mode: Optional[str] = None
     errors: list[ProcessingError] = []
-=======
-    mode: str | None = None
-    errors: list[ProcessingError] = []  # Updated to use ProcessingError model
->>>>>>> origin/master
     email_sent: EmailSentStatus
 
 

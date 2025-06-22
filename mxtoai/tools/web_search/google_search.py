@@ -1,44 +1,50 @@
 """
-Google search tool - Highest quality results with premium API cost.
+Google search tool using SerpAPI or Serper APIs - Premium results with higher costs.
 """
 
 import json
 import logging
 import os
 import re
+from typing import Optional
 
 from smolagents import Tool
 from smolagents.default_tools import GoogleSearchTool as SmolagentsGoogleSearchTool
 
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import ToolOutputWithCitations
-from mxtoai.scripts.citation_manager import add_web_citation
 
 logger = logging.getLogger(__name__)
 
 
 class GoogleSearchTool(Tool):
     """
-    Google search tool - Highest quality results, premium API cost.
-    Use only when DDG and Brave searches are insufficient for critical or complex queries.
+    Google search tool using premium APIs - Best quality results with higher costs.
+    Uses SerpAPI or Serper for Google search. Requires API keys.
     """
 
     name = "google_search"
     description = (
-        "Performs a web search using Google Search API (SerpAPI or Serper). Use it when google results are needed"
-        "It has premium API costs. Use this only when "
-        "DDG and Brave searches are insufficient, or for critical/complex queries that require the best available information."
-        "Ideal for authoritative sources, breaking news, and complex research topics."
+        "Performs web search using Google Search APIs (SerpAPI/Serper). This provides the highest quality "
+        "and most comprehensive search results but also has the highest cost. Use this when you need "
+        "the most authoritative, current, or specialized information that might not be found with other search engines."
     )
     inputs = {
         "query": {"type": "string", "description": "The search query to perform."},
     }
-    output_type = "object"
+    output_type = "string"
 
-    def __init__(self):
+    def __init__(self, context: RequestContext):
         """
         Initialize Google search tool.
+
+        Args:
+            context: Request context containing email data and citation manager
+
         """
-        self.google_tool: SmolagentsGoogleSearchTool | None = None
+        super().__init__()
+        self.context = context
+        self.google_tool: Optional[SmolagentsGoogleSearchTool] = None
 
         # Try to initialize Google search tool with available providers
         # Try SerpAPI first if available
@@ -59,8 +65,6 @@ class GoogleSearchTool(Tool):
 
         if not self.google_tool:
             logger.warning("No Google Search API keys found. Google search will not be available.")
-
-        super().__init__()
 
     def forward(self, query: str) -> str:
         """Execute Google search and return results with citations."""
@@ -97,40 +101,27 @@ class GoogleSearchTool(Tool):
 
             # Format results with citations
             formatted_results = []
-            for i, result_data in enumerate(results, 1):
-                title = result_data.get("title", "No title")
-                url = result_data.get("url", "")
+            citations_added = 0
+
+            for i, result_item in enumerate(results, 1):
+                title = result_item["title"]
+                url = result_item["url"]
 
                 # Add citation for this result
                 if url:
-                    citation_id = add_web_citation(url, title, visited=False)
+                    citation_id = self.context.add_web_citation(url, title, visited=False)
                     formatted_result = f"{i}. **{title}** [#{citation_id}]\n   URL: {url}\n"
                 else:
                     formatted_result = f"{i}. **{title}**\n"
 
                 formatted_results.append(formatted_result)
+                citations_added += 1
 
-            content = "\n".join(formatted_results)
-
-            # Create structured output with local citations
-            from mxtoai.schemas import CitationCollection
-            from mxtoai.scripts.citation_manager import get_citation_manager
-
-            # Create a local citation collection for this tool's output
-            local_citations = CitationCollection()
-
-            # Get only the citations that were added by this tool call
-            citations_added = len(results)
-            if citations_added > 0:
-                global_citations = get_citation_manager().get_citations()
-                # Get the last 'citations_added' number of citations
-                recent_citations = global_citations.sources[-citations_added:] if global_citations.sources else []
-                for citation in recent_citations:
-                    local_citations.add_source(citation)
+            # Create content with citations
+            content = "## Search Results\n\n" + "\n".join(formatted_results)
 
             result = ToolOutputWithCitations(
                 content=content,
-                citations=local_citations,
                 metadata={
                     "query": query,
                     "total_results": len(results),
@@ -139,7 +130,7 @@ class GoogleSearchTool(Tool):
                 }
             )
 
-            logger.info("Google search completed successfully")
+            logger.info(f"Google search completed successfully with {citations_added} citations")
             return json.dumps(result.model_dump())
 
         except Exception as e:

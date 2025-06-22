@@ -12,11 +12,20 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import httpx
-from sqlmodel import select
 
 from mxtoai._logging import get_logger
+from mxtoai.crud import (
+    create_task_run,
+    get_task_by_id,
+    update_task_run_status,
+    update_task_status,
+)
+from mxtoai.crud import (
+    get_task_execution_status as crud_get_task_execution_status,
+)
 from mxtoai.db import init_db_connection
-from mxtoai.models import TaskRun, TaskRunStatus, Tasks, TaskStatus
+from mxtoai.models import TaskRunStatus, TaskStatus, is_active_status
+from mxtoai.scheduler import get_scheduler
 
 logger = get_logger("scheduled_task_executor")
 
@@ -47,16 +56,25 @@ def execute_scheduled_task(task_id: str) -> None:
     try:
         # Read task from database
         with db_connection.get_session() as session:
-            statement = select(Tasks).where(Tasks.task_id == task_id)
-            task = session.exec(statement).first()
+            task = get_task_by_id(session, task_id)
 
             if not task:
                 logger.error(f"Task {task_id} not found in database")
                 msg = f"Task {task_id} not found"
                 raise ValueError(msg)
 
-            if task.status == TaskStatus.DELETED:
-                logger.warning(f"Task {task_id} is marked as deleted, skipping execution")
+            if not is_active_status(task.status):
+                logger.warning(f"Task {task_id} has terminal status {task.status}, removing from scheduler and skipping execution")
+
+                # Remove the job from scheduler since we're in the scheduler process
+                if task.scheduler_job_id:
+                    scheduler = get_scheduler()
+                    try:
+                        scheduler.remove_job(task.scheduler_job_id)
+                        logger.info(f"Removed APScheduler job {task.scheduler_job_id} for terminal task {task_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove APScheduler job {task.scheduler_job_id}: {e}")
+
                 return
 
             # Check start_time and expiry_time constraints
@@ -70,27 +88,16 @@ def execute_scheduled_task(task_id: str) -> None:
             # Check if task has expired
             if task.expiry_time and current_time > task.expiry_time:
                 logger.warning(f"Task {task_id} has expired ({task.expiry_time}), marking as FINISHED")
-                # Mark task as finished
-                task.status = TaskStatus.FINISHED
-                task.updated_at = current_time
-                session.add(task)
-                session.commit()
+                # Mark task as finished using CRUD
+                update_task_status(session, task_id, TaskStatus.FINISHED)
                 return
 
-            # Update task status to EXECUTING
-            task.status = TaskStatus.EXECUTING
-            task.updated_at = datetime.now(timezone.utc)
-            session.add(task)
+            # Update task status to EXECUTING using CRUD
+            update_task_status(session, task_id, TaskStatus.EXECUTING, clear_email_data_if_terminal=False)
 
-            # Create TaskRun entry
+            # Create TaskRun entry using CRUD
             task_run_id = str(uuid.uuid4())
-            task_run = TaskRun(
-                run_id=task_run_id,
-                task_id=task_id,
-                status=TaskRunStatus.IN_PROGRESS,
-            )
-            session.add(task_run)
-            session.commit()
+            create_task_run(session, task_run_id, task_id, TaskRunStatus.IN_PROGRESS)
 
             logger.info(f"Created TaskRun {task_run_id} for task {task_id}")
 
@@ -109,31 +116,23 @@ def execute_scheduled_task(task_id: str) -> None:
 
         # Update task and task run based on result
         with db_connection.get_session() as session:
-            # Update TaskRun
-            statement = select(TaskRun).where(TaskRun.run_id == task_run_id)
-            task_run = session.exec(statement).first()
-            if task_run:
-                task_run.status = TaskRunStatus.COMPLETED if success else TaskRunStatus.ERRORED
-                task_run.updated_at = datetime.now(timezone.utc)
-                session.add(task_run)
+            # Update TaskRun using CRUD
+            new_run_status = TaskRunStatus.COMPLETED if success else TaskRunStatus.ERRORED
+            update_task_run_status(session, task_run_id, new_run_status)
 
-            # Update Task
-            statement = select(Tasks).where(Tasks.task_id == task_id)
-            task = session.exec(statement).first()
+            # Update Task using CRUD
+            task = get_task_by_id(session, task_id)
             if task:
                 # For one-time tasks, mark as FINISHED after successful execution
                 # For recurring tasks, mark as ACTIVE to continue scheduling
                 if success:
                     # Check if this is a one-time task by examining cron expression
                     is_recurring = _is_recurring_cron_expression(task.cron_expression)
-                    task.status = TaskStatus.ACTIVE if is_recurring else TaskStatus.FINISHED
+                    new_task_status = TaskStatus.ACTIVE if is_recurring else TaskStatus.FINISHED
                 else:
-                    task.status = TaskStatus.ACTIVE  # Keep active for retry
+                    new_task_status = TaskStatus.ACTIVE  # Keep active for retry
 
-                task.updated_at = datetime.now(timezone.utc)
-                session.add(task)
-
-            session.commit()
+                update_task_status(session, task_id, new_task_status)
 
         if success:
             logger.info(f"Successfully executed scheduled task {task_id}")
@@ -147,22 +146,11 @@ def execute_scheduled_task(task_id: str) -> None:
         if task_run_id:
             try:
                 with db_connection.get_session() as session:
-                    statement = select(TaskRun).where(TaskRun.run_id == task_run_id)
-                    task_run = session.exec(statement).first()
-                    if task_run:
-                        task_run.status = TaskRunStatus.ERRORED
-                        task_run.updated_at = datetime.now(timezone.utc)
-                        session.add(task_run)
+                    # Update TaskRun using CRUD
+                    update_task_run_status(session, task_run_id, TaskRunStatus.ERRORED)
 
-                    # Update task status back to ACTIVE for potential retry
-                    statement = select(Tasks).where(Tasks.task_id == task_id)
-                    task = session.exec(statement).first()
-                    if task:
-                        task.status = TaskStatus.ACTIVE
-                        task.updated_at = datetime.now(timezone.utc)
-                        session.add(task)
-
-                    session.commit()
+                    # Update task status back to ACTIVE for potential retry using CRUD
+                    update_task_status(session, task_id, TaskStatus.ACTIVE, clear_email_data_if_terminal=False)
             except Exception as cleanup_error:
                 logger.error(f"Failed to update error status for task {task_id}: {cleanup_error}")
 
@@ -309,38 +297,7 @@ def get_task_execution_status(task_id: str) -> Optional[dict[str, Any]]:
 
     try:
         with db_connection.get_session() as session:
-            # Get task info
-            statement = select(Tasks).where(Tasks.task_id == task_id)
-            task = session.exec(statement).first()
-
-            if not task:
-                return None
-
-            # Get latest task run
-            statement = select(TaskRun).where(TaskRun.task_id == task_id).order_by(TaskRun.created_at.desc())
-            latest_run = session.exec(statement).first()
-
-            result = {
-                "task_id": task_id,
-                "task_status": task.status,
-                "created_at": task.created_at,
-                "updated_at": task.updated_at,
-                "cron_expression": task.cron_expression,
-                "scheduler_job_id": task.scheduler_job_id,
-                "start_time": task.start_time,
-                "expiry_time": task.expiry_time,
-            }
-
-            if latest_run:
-                result["latest_run"] = {
-                    "run_id": latest_run.run_id,
-                    "status": latest_run.status,
-                    "created_at": latest_run.created_at,
-                    "updated_at": latest_run.updated_at,
-                }
-
-            return result
-
+            return crud_get_task_execution_status(session, task_id)
     except Exception as e:
         logger.error(f"Error getting task execution status for {task_id}: {e}")
         return None

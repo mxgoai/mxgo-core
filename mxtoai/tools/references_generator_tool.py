@@ -4,11 +4,12 @@ References Generator Tool for creating formatted references sections.
 
 import json
 import logging
+from typing import ClassVar
 
 from smolagents import Tool
 
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import ToolOutputWithCitations
-from mxtoai.scripts.citation_manager import get_citation_manager
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ class ReferencesGeneratorTool(Tool):
         "into a properly formatted references section. Call this tool after completing research "
         "to include all sources in your final output."
     )
-    inputs = {
+    inputs: ClassVar = {
         "include_in_content": {
             "type": "boolean",
             "description": "Whether to include the references in the main content output. Default: True.",
@@ -36,19 +37,24 @@ class ReferencesGeneratorTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self):
-        """Initialize the references generator tool."""
+    def __init__(self, context: RequestContext):
+        """
+        Initialize the references generator tool.
+
+        Args:
+            context: Request context containing email data and citation manager
+
+        """
         super().__init__()
+        self.context = context
         logger.debug("ReferencesGeneratorTool initialized")
 
-    def forward(self, include_in_content: bool = True) -> str:
+    def forward(self, *, include_in_content: bool = True) -> str:
         """Generate a formatted references section."""
         try:
             logger.info("Generating references section from collected citations")
 
-            citation_manager = get_citation_manager()
-
-            if not citation_manager.has_citations():
+            if not self.context.has_citations():
                 result = ToolOutputWithCitations(
                     content="No citations were collected during this session.",
                     metadata={
@@ -60,8 +66,8 @@ class ReferencesGeneratorTool(Tool):
                 return json.dumps(result.model_dump())
 
             # Generate the references section
-            references_section = citation_manager.generate_references_section()
-            citations = citation_manager.get_citations()
+            references_section = self.context.get_references_section()
+            citations = self.context.get_citations()
 
             content = references_section if include_in_content else "References section generated successfully."
 

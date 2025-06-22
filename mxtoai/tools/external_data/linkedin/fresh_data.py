@@ -6,11 +6,12 @@ Provides access to LinkedIn data through the Fresh LinkedIn Profile Data API.
 import json
 import logging
 import os
+from typing import Optional
 
 import requests
 from smolagents import Tool
 
-from mxtoai.scripts.citation_manager import add_web_citation
+from mxtoai.request_context import RequestContext
 
 logger = logging.getLogger(__name__)
 
@@ -99,12 +100,13 @@ class LinkedInFreshDataTool(Tool):
         },
     }
 
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str, context: RequestContext):
         """
         Initialize the LinkedIn Fresh Data tool.
 
         Args:
             api_key: The RapidAPI key for authentication.
+            context: The request context.
 
         """
         super().__init__()
@@ -114,6 +116,7 @@ class LinkedInFreshDataTool(Tool):
         self.api_key = api_key
         self.base_url = "https://fresh-linkedin-profile-data.p.rapidapi.com"
         self.headers = {"x-rapidapi-key": self.api_key, "x-rapidapi-host": "fresh-linkedin-profile-data.p.rapidapi.com"}
+        self.context = context
 
     def forward(
         self,
@@ -190,7 +193,7 @@ class LinkedInFreshDataTool(Tool):
                 citation_title = f"{company_name} - LinkedIn Company"
 
             # Add web citation for the input LinkedIn URL
-            citation_id = add_web_citation(linkedin_url, citation_title, visited=True)
+            citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             # Create structured output with citation reference
             from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
@@ -308,23 +311,17 @@ class LinkedInFreshDataTool(Tool):
         return response.json()
 
 
-def initialize_linkedin_fresh_tool() -> LinkedInFreshDataTool | None:
+def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
     """
-    Initializes the LinkedInFreshDataTool if the API key is available.
+    Initialize the LinkedIn Fresh Data tool if API key is available.
 
     Returns:
-        Optional[LinkedInFreshDataTool]: Initialized tool instance or None if initialization fails
+        LinkedInFreshDataTool instance or None if API key not found.
 
     """
     api_key = os.getenv("RAPIDAPI_KEY")
     if api_key:
-        try:
-            tool = LinkedInFreshDataTool(api_key=api_key)
-            logger.debug("Initialized LinkedInFreshDataTool.")
-            return tool  # noqa: TRY300
-        except ValueError as e:
-            logger.warning(f"Failed to initialize LinkedInFreshDataTool: {e}")
-            return None
-    else:
-        logger.warning("LinkedInFreshDataTool not initialized. Missing RAPIDAPI_KEY environment variable.")
-        return None
+        logger.info("RAPIDAPI_KEY found but LinkedInFreshDataTool requires context parameter. Tool initialization deferred to agent.")
+        return None  # Return None since we need context from agent
+    logger.info("RAPIDAPI_KEY not found. LinkedIn Fresh Data tool not initialized.")
+    return None

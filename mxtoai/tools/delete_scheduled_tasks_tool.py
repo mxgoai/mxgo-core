@@ -13,13 +13,14 @@ from typing import Optional
 
 from pydantic import BaseModel, Field, field_validator
 from smolagents import Tool
-from sqlmodel import Session, select
+from sqlmodel import Session
 
 from mxtoai._logging import get_logger
+from mxtoai.crud import find_user_tasks_formatted, get_task_by_id, update_task_status
 from mxtoai.db import init_db_connection
-from mxtoai.models import Tasks, TaskStatus
+from mxtoai.models import TaskStatus
+from mxtoai.request_context import RequestContext
 from mxtoai.scheduler import remove_scheduled_job
-from mxtoai.schemas import EmailRequest
 
 logger = get_logger("delete_scheduled_tasks_tool")
 
@@ -75,30 +76,7 @@ def find_user_tasks(db_session: Session, user_email: str, limit: int = 10) -> li
 
     """
     try:
-        # Query tasks for the user using ORM
-        statement = (
-            select(Tasks)
-            .where(Tasks.email_request.op("->>")("from") == user_email)
-            .where(Tasks.status.in_([TaskStatus.ACTIVE, TaskStatus.INITIALISED]))
-            .order_by(Tasks.created_at.desc())
-            .limit(limit)
-        )
-
-        tasks = db_session.exec(statement).all()
-
-        user_tasks = []
-        for task in tasks:
-            user_tasks.append({
-                "task_id": str(task.task_id),
-                "description": f"Cron: {task.cron_expression}",
-                "email_id": task.email_id,
-                "status": task.status.value,
-                "created_at": task.created_at.isoformat() if task.created_at else None,
-            })
-
-        logger.info(f"Found {len(user_tasks)} tasks for user {user_email}")
-        return user_tasks
-
+        return find_user_tasks_formatted(db_session, user_email, limit)
     except Exception as e:
         logger.error(f"Error finding user tasks: {e}")
         return []
@@ -122,9 +100,16 @@ class DeleteScheduledTasksTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, email_request: EmailRequest):
+    def __init__(self, context: RequestContext):
+        """
+        Initialize the DeleteScheduledTasksTool with request context.
+
+        Args:
+            context: The request context containing email data
+
+        """
         super().__init__()
-        self.email_request = email_request
+        self.context = context
 
     def forward(self, task_id: str) -> dict:
         """
@@ -145,9 +130,8 @@ class DeleteScheduledTasksTool(Tool):
 
             db_connection = init_db_connection()
             with db_connection.get_session() as session:
-                # Find the task by ID
-                statement = select(Tasks).where(Tasks.task_id == input_data.task_id)
-                task = session.exec(statement).first()
+                # Find the task by ID using CRUD
+                task = get_task_by_id(session, input_data.task_id)
 
                 if not task:
                     logger.warning(f"Task {task_id} not found")
@@ -185,7 +169,7 @@ class DeleteScheduledTasksTool(Tool):
                     task_email_request.get("from_email", "") or
                     task_email_request.get("from", "")
                 ).lower()
-                requesting_email = self.email_request.from_email.lower()
+                requesting_email = self.context.email_request.from_email.lower()
 
                 if task_owner_email != requesting_email:
                     logger.warning(f"Permission denied: {requesting_email} cannot delete task owned by {task_owner_email}")
@@ -212,11 +196,8 @@ class DeleteScheduledTasksTool(Tool):
                 else:
                     logger.info(f"Task {task_id} has no scheduler_job_id, skipping scheduler cleanup")
 
-                # Update task status to DELETED in database
-                task.status = TaskStatus.DELETED
-                task.updated_at = datetime.now(timezone.utc)
-                session.add(task)
-                session.commit()
+                                # Update task status to DELETED in database using CRUD
+                update_task_status(session, task_id, TaskStatus.DELETED)
 
                 logger.info(f"Task {task_id} successfully deleted")
 

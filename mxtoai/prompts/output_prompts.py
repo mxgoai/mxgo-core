@@ -93,7 +93,7 @@ Output Format Guidelines:
 2. Include document details:
    - **PDF Title**: Clear, descriptive document name
    - **Content Summary**: What was included in the export
-   - **File Size/Pages**: Approximate document metrics
+   - **Pages**: Approximate page count only (e.g., "Approximately 3 pages")
    - **Attachment Notice**: Confirmation that PDF is attached
 3. Content processing notes:
    - What content was included/excluded and why
@@ -101,6 +101,19 @@ Output Format Guidelines:
    - Quality of source material for export
 4. Professional tone acknowledging the export request
 5. Keep response concise - let the PDF be the main deliverable
+
+**CRITICAL: DO NOT INCLUDE:**
+- File paths or system directory locations
+- Technical file sizes in bytes
+- Phrases like "being sent to the user"
+- Temporary directory paths
+- Any technical system details
+
+**USE CLEAN, USER-FRIENDLY LANGUAGE:**
+- "The PDF is attached to this email"
+- "Your document has been generated"
+- "The PDF includes..."
+- Focus on content value, not technical details
 """
 
 # Future handler output guidelines

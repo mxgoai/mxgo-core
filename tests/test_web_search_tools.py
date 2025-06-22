@@ -1,10 +1,35 @@
+import json
 import os
 from unittest.mock import Mock, patch
 
 import pytest
 import requests
 
+from mxtoai.request_context import RequestContext
+from mxtoai.schemas import EmailRequest
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
+
+
+# Helper function to create mock context
+def create_mock_context():
+    email_request = EmailRequest(
+        from_email="test@example.com",
+        to="recipient@example.com",
+        subject="Test Subject",
+        textContent="Test content"
+    )
+    return RequestContext(email_request)
+
+
+def parse_tool_output(result):
+    """Parse tool output JSON and return content."""
+    if isinstance(result, str):
+        try:
+            parsed = json.loads(result)
+            return parsed.get("content", result)
+        except json.JSONDecodeError:
+            return result
+    return result
 
 
 class TestDDGSearchTool:
@@ -12,7 +37,8 @@ class TestDDGSearchTool:
 
     def test_initialization_default_max_results(self):
         """Test DDGSearchTool initialization with default parameters."""
-        tool = DDGSearchTool()
+        context = create_mock_context()
+        tool = DDGSearchTool(context)
 
         assert tool.max_results == 5
         assert tool.name == "ddg_search"
@@ -22,13 +48,15 @@ class TestDDGSearchTool:
 
     def test_initialization_custom_max_results(self):
         """Test DDGSearchTool initialization with custom max_results."""
-        tool = DDGSearchTool(max_results=10)
+        context = create_mock_context()
+        tool = DDGSearchTool(context, max_results=10)
 
         assert tool.max_results == 10
 
     def test_tool_interface_compliance(self):
         """Test that DDGSearchTool complies with Tool interface."""
-        tool = DDGSearchTool()
+        context = create_mock_context()
+        tool = DDGSearchTool(context)
 
         assert hasattr(tool, "name")
         assert hasattr(tool, "description")
@@ -38,7 +66,7 @@ class TestDDGSearchTool:
 
         assert "query" in tool.inputs
         assert tool.inputs["query"]["type"] == "string"
-        assert tool.output_type == "string"
+        assert tool.output_type == "object"
 
     @patch("mxtoai.tools.web_search.ddg_search.WebSearchTool")
     def test_forward_success(self, mock_web_search_tool):
@@ -47,10 +75,13 @@ class TestDDGSearchTool:
         mock_ddg_instance.forward.return_value = "DDG search results"
         mock_web_search_tool.return_value = mock_ddg_instance
 
-        tool = DDGSearchTool(max_results=3)
+        context = create_mock_context()
+        tool = DDGSearchTool(context, max_results=3)
         result = tool.forward("test query")
 
-        assert result == "DDG search results"
+        # Parse JSON output and check content
+        content = parse_tool_output(result)
+        assert "DDG search results" in content
         mock_web_search_tool.assert_called_once_with(engine="duckduckgo", max_results=3)
         mock_ddg_instance.forward.assert_called_once_with(query="test query")
 
@@ -61,7 +92,8 @@ class TestDDGSearchTool:
         mock_ddg_instance.forward.side_effect = Exception("DDG search failed")
         mock_web_search_tool.return_value = mock_ddg_instance
 
-        tool = DDGSearchTool()
+        context = create_mock_context()
+        tool = DDGSearchTool(context)
 
         with pytest.raises(Exception, match="DDG search failed"):
             tool.forward("test query")
@@ -74,11 +106,13 @@ class TestDDGSearchTool:
         mock_ddg_instance.forward.return_value = "Results"
         mock_web_search_tool.return_value = mock_ddg_instance
 
-        tool = DDGSearchTool()
+        context = create_mock_context()
+        tool = DDGSearchTool(context)
         tool.forward("test query")
 
         mock_logger.info.assert_any_call("Performing DDG search for: test query")
-        mock_logger.info.assert_any_call("DDG search completed successfully")
+        # Check for the updated log message that includes citation count
+        assert any("DDG search completed successfully" in str(call) for call in mock_logger.info.call_args_list)
 
 
 class TestBraveSearchTool:
@@ -87,7 +121,8 @@ class TestBraveSearchTool:
     def test_initialization_without_api_key(self):
         """Test BraveSearchTool initialization without API key."""
         with patch.dict(os.environ, {}, clear=True):
-            tool = BraveSearchTool()
+            context = create_mock_context()
+            tool = BraveSearchTool(context)
 
             assert tool.max_results == 5
             assert tool.api_key is None
@@ -97,7 +132,8 @@ class TestBraveSearchTool:
     @patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test_api_key"})
     def test_initialization_with_api_key(self):
         """Test BraveSearchTool initialization with API key."""
-        tool = BraveSearchTool(max_results=10)
+        context = create_mock_context()
+        tool = BraveSearchTool(context, max_results=10)
 
         assert tool.max_results == 10
         assert tool.api_key == "test_api_key"
@@ -105,7 +141,8 @@ class TestBraveSearchTool:
     def test_forward_without_api_key_raises_error(self):
         """Test that forward raises error when no API key is configured."""
         with patch.dict(os.environ, {}, clear=True):
-            tool = BraveSearchTool()
+            context = create_mock_context()
+            tool = BraveSearchTool(context)
 
             with pytest.raises(ValueError, match="Brave Search API key not configured"):
                 tool.forward("test query")
@@ -134,13 +171,16 @@ class TestBraveSearchTool:
         }
         mock_get.return_value = mock_response
 
-        tool = BraveSearchTool()
+        context = create_mock_context()
+        tool = BraveSearchTool(context)
         result = tool.forward("test query")
 
-        assert "Test Result 1" in result
-        assert "https://example1.com" in result
-        assert "First test result" in result
-        assert "Test Result 2" in result
+        # Parse JSON output and check content
+        content = parse_tool_output(result)
+        assert "Test Result 1" in content
+        assert "https://example1.com" in content
+        assert "First test result" in content
+        assert "Test Result 2" in content
 
         # Verify API call
         mock_get.assert_called_once()
@@ -158,7 +198,8 @@ class TestBraveSearchTool:
         mock_response.json.return_value = {"web": {"results": []}}
         mock_get.return_value = mock_response
 
-        tool = BraveSearchTool()
+        context = create_mock_context()
+        tool = BraveSearchTool(context)
         tool.forward(
             query="test query",
             country="GB",
@@ -186,10 +227,13 @@ class TestBraveSearchTool:
         mock_response.json.return_value = {"web": {"results": []}}
         mock_get.return_value = mock_response
 
-        tool = BraveSearchTool()
+        context = create_mock_context()
+        tool = BraveSearchTool(context)
         result = tool.forward("no results query")
 
-        assert "No results found for query: no results query" in result
+        # Parse JSON output and check content
+        content = parse_tool_output(result)
+        assert "No results found for query: no results query" in content
 
     @patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test_api_key"})
     @patch("requests.get")
@@ -199,7 +243,8 @@ class TestBraveSearchTool:
         mock_response.raise_for_status.side_effect = requests.HTTPError("API Error")
         mock_get.return_value = mock_response
 
-        tool = BraveSearchTool()
+        context = create_mock_context()
+        tool = BraveSearchTool(context)
 
         with pytest.raises(requests.HTTPError):
             tool.forward("test query")
@@ -210,7 +255,8 @@ class TestBraveSearchTool:
         """Test Brave search request exception handling."""
         mock_get.side_effect = requests.RequestException("Network error")
 
-        tool = BraveSearchTool()
+        context = create_mock_context()
+        tool = BraveSearchTool(context)
 
         with pytest.raises(requests.RequestException):
             tool.forward("test query")
@@ -235,7 +281,8 @@ class TestBraveSearchTool:
         }
         mock_get.return_value = mock_response
 
-        tool = BraveSearchTool()
+        context = create_mock_context()
+        tool = BraveSearchTool(context)
         tool.forward("test query")
 
         # Check that logging occurred - should be at least 1 call
@@ -251,7 +298,8 @@ class TestGoogleSearchTool:
     def test_initialization_without_api_keys(self):
         """Test GoogleSearchTool initialization without API keys."""
         with patch.dict(os.environ, {}, clear=True):
-            tool = GoogleSearchTool()
+            context = create_mock_context()
+            tool = GoogleSearchTool(context)
 
             assert tool.google_tool is None
             assert tool.name == "google_search"
@@ -264,7 +312,8 @@ class TestGoogleSearchTool:
         mock_instance = Mock()
         mock_google_tool.return_value = mock_instance
 
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
 
         assert tool.google_tool == mock_instance
         mock_google_tool.assert_called_once_with(provider="serpapi")
@@ -276,7 +325,8 @@ class TestGoogleSearchTool:
         mock_instance = Mock()
         mock_google_tool.return_value = mock_instance
 
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
 
         assert tool.google_tool == mock_instance
         mock_google_tool.assert_called_once_with(provider="serper")
@@ -288,7 +338,8 @@ class TestGoogleSearchTool:
         mock_instance = Mock()
         mock_google_tool.return_value = mock_instance
 
-        GoogleSearchTool()
+        context = create_mock_context()
+        GoogleSearchTool(context)
 
         # Should use SerpAPI first
         mock_google_tool.assert_called_once_with(provider="serpapi")
@@ -303,7 +354,8 @@ class TestGoogleSearchTool:
             side_effects = [ValueError("SerpAPI failed"), Mock()]
             mock_google_tool.side_effect = side_effects
 
-            GoogleSearchTool()
+            context = create_mock_context()
+            GoogleSearchTool(context)
 
             assert mock_google_tool.call_count == 2
             mock_google_tool.assert_any_call(provider="serpapi")
@@ -312,7 +364,8 @@ class TestGoogleSearchTool:
     def test_forward_without_api_configuration_raises_error(self):
         """Test that forward raises error when Google Search API is not configured."""
         with patch.dict(os.environ, {}, clear=True):
-            tool = GoogleSearchTool()
+            context = create_mock_context()
+            tool = GoogleSearchTool(context)
 
             with pytest.raises(ValueError, match="Google Search API not configured"):
                 tool.forward("test query")
@@ -325,10 +378,13 @@ class TestGoogleSearchTool:
         mock_instance.forward.return_value = "Google search results"
         mock_google_tool.return_value = mock_instance
 
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
         result = tool.forward("test query")
 
-        assert result == "Google search results"
+        # Parse JSON output and check content
+        content = parse_tool_output(result)
+        assert "Google search results" in content
         mock_instance.forward.assert_called_once_with(query="test query")
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
@@ -339,7 +395,8 @@ class TestGoogleSearchTool:
         mock_instance.forward.side_effect = Exception("Google search failed")
         mock_google_tool.return_value = mock_instance
 
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
 
         with pytest.raises(Exception, match="Google search failed"):
             tool.forward("test query")
@@ -353,11 +410,14 @@ class TestGoogleSearchTool:
         mock_instance.forward.return_value = "Results"
         mock_google_tool.return_value = mock_instance
 
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
         tool.forward("test query")
 
         mock_logger.info.assert_any_call("Performing Google search for: test query")
-        mock_logger.info.assert_any_call("Google search completed successfully")
+        # Should contain "Google search completed" (the actual message varies based on results)
+        completion_calls = [call for call in mock_logger.info.call_args_list if "Google search completed" in str(call)]
+        assert len(completion_calls) > 0, f"Expected 'Google search completed' message not found in calls: {mock_logger.info.call_args_list}"
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
     @patch("mxtoai.tools.web_search.google_search.logger")
@@ -368,7 +428,8 @@ class TestGoogleSearchTool:
         mock_instance.forward.side_effect = Exception("Search failed")
         mock_google_tool.return_value = mock_instance
 
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
 
         with pytest.raises(Exception):
             tool.forward("test query")
@@ -379,7 +440,8 @@ class TestGoogleSearchTool:
 
     def test_tool_interface_compliance(self):
         """Test that GoogleSearchTool complies with Tool interface."""
-        tool = GoogleSearchTool()
+        context = create_mock_context()
+        tool = GoogleSearchTool(context)
 
         assert hasattr(tool, "name")
         assert hasattr(tool, "description")
@@ -411,7 +473,7 @@ class TestIntegrationScenarios:
 
         fallback_tool = FallbackWebSearchTool(
             primary_tool=ddg_tool,
-            secondary_tool=brave_tool
+            secondary_tool=brave_tool,
         )
 
         result = fallback_tool.forward("integration test query")
@@ -424,8 +486,9 @@ class TestIntegrationScenarios:
     def test_error_resilience(self, mock_get):
         """Test error resilience across different search tools."""
         # Test that each tool handles various error scenarios
+        context = create_mock_context()
         tools = [
-            BraveSearchTool(),
+            BraveSearchTool(context),
         ]
 
         error_scenarios = [

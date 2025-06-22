@@ -12,6 +12,7 @@ from pydantic import ValidationError
 
 from mxtoai.db import init_db_connection
 from mxtoai.models import Tasks, TaskStatus
+from mxtoai.request_context import RequestContext
 from mxtoai.schemas import EmailRequest
 from mxtoai.tools.delete_scheduled_tasks_tool import (
     DeleteScheduledTasksTool,
@@ -135,7 +136,7 @@ class TestDeleteScheduledTasksTool:
         mock_remove_job.return_value = True
 
         email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
-        tool = DeleteScheduledTasksTool(email_request=email_request)
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
         result = tool.forward(task_id=task_id)
 
         assert result["success"] is True
@@ -149,7 +150,7 @@ class TestDeleteScheduledTasksTool:
         user_email = "user@example.com"
 
         email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
-        tool = DeleteScheduledTasksTool(email_request=email_request)
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
         result = tool.forward(task_id=task_id)
 
         assert result["success"] is False
@@ -167,7 +168,7 @@ class TestDeleteScheduledTasksTool:
         self.create_test_task(task_id, task_owner)
 
         email_request = EmailRequest(from_email=requesting_user, to="dummy@to.com")
-        tool = DeleteScheduledTasksTool(email_request=email_request)
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
         result = tool.forward(task_id=task_id)
 
         assert result["success"] is False
@@ -189,7 +190,7 @@ class TestDeleteScheduledTasksTool:
 
         # Create tool and execute
         email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
-        tool = DeleteScheduledTasksTool(email_request=email_request)
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
         result = tool.forward(task_id=task_id)
 
         # Verify result - should still succeed
@@ -200,7 +201,7 @@ class TestDeleteScheduledTasksTool:
     def test_invalid_task_id_format(self):
         """Test tool handles invalid task ID format."""
         email_request = EmailRequest(from_email="user@example.com", to="dummy@to.com")
-        tool = DeleteScheduledTasksTool(email_request=email_request)
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
         result = tool.forward(task_id="not-a-uuid")
         assert result["success"] is False
         assert "Invalid task ID format" in result["error"]

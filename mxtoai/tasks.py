@@ -106,7 +106,7 @@ def process_email_task(
     """
     email_request = EmailRequest(**email_data)
 
-        # Check for duplicate processing using Redis (idempotency check)
+    # Check for duplicate processing using Redis (idempotency check)
     message_id = email_request.messageId
 
     if check_task_idempotency(message_id):
@@ -141,29 +141,10 @@ def process_email_task(
         else:
             logger.info(f"Processing regular email for handle: {handle}")
 
-    now_iso = datetime.now().isoformat()  # Define now_iso earlier for use in error cases
+    now_iso = datetime.now().isoformat()
 
     try:
         email_instructions: Union[ProcessingInstructions, None] = processing_instructions_resolver(handle)
-        if not email_instructions:  # This case might be redundant if resolver always raises on not found
-            logger.error(f"Unsupported email handle (resolved to None): {handle}")
-            return DetailedEmailProcessingResult(
-                metadata=ProcessingMetadata(
-                    processed_at=now_iso,
-                    mode=handle,
-                    errors=[ProcessingError(message=f"Unsupported email handle (resolved to None): {handle}")],
-                    email_sent=EmailSentStatus(
-                        status="error",
-                        error=f"Unsupported email handle (resolved to None): {handle}",
-                        timestamp=now_iso,
-                    ),
-                ),
-                email_content=EmailContentDetails(text=None, html=None, enhanced=None),
-                attachments=AttachmentsProcessingResult(processed=[]),
-                calendar_data=None,
-                research=None,
-                pdf_export=None,
-            )
     except exceptions.UnspportedHandleException as e:  # Catch specific exception
         logger.error(f"Unsupported email handle: {handle}. Error: {e!s}")
         return DetailedEmailProcessingResult(
@@ -182,7 +163,7 @@ def process_email_task(
             pdf_export=None,
         )
 
-    email_agent = EmailAgent(email_request=email_request)
+    email_agent = EmailAgent(email_request=email_request, attachment_info=attachment_info)
 
     if email_instructions.deep_research_mandatory and email_agent.research_tool:
         email_agent.research_tool.enable_deep_research()

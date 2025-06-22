@@ -5,20 +5,19 @@ from typing import Optional
 from croniter import croniter
 from pydantic import BaseModel, Field, field_validator
 from smolagents import Tool
-from sqlmodel import select
 
 from mxtoai._logging import get_logger
 from mxtoai.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
+from mxtoai.crud import create_task, delete_task, update_task_status
 from mxtoai.db import init_db_connection
-from mxtoai.models import Tasks, TaskStatus
+from mxtoai.models import TaskStatus
+from mxtoai.request_context import RequestContext
 from mxtoai.scheduled_task_executor import execute_scheduled_task
 from mxtoai.scheduler import add_scheduled_job
-from mxtoai.schemas import EmailRequest, HandlerAlias
+from mxtoai.schemas import HandlerAlias
 from mxtoai.utils import round_to_nearest_minute, validate_datetime_field
 
 logger = get_logger("scheduled_tasks_tool")
-
-
 
 
 
@@ -207,16 +206,16 @@ class ScheduledTasksTool(Tool):
     }
     output_type = "object"
 
-    def __init__(self, email_request: EmailRequest):
+    def __init__(self, context: RequestContext):
         """
-        Initialize the ScheduledTasksTool with an optional email request.
+        Initialize the ScheduledTasksTool with request context.
 
         Args:
-            email_request: Optional email request data to reprocess
+            context: The request context containing email data
 
         """
         super().__init__()
-        self.email_request = email_request
+        self.context = context
 
     def forward(
         self,
@@ -244,14 +243,17 @@ class ScheduledTasksTool(Tool):
         """
         logger.info(f"Storing and scheduling task: {task_description}")
 
+        # Get email request from context
+        email_request = self.context.email_request
+
         # Check if this is already a scheduled task (prevent recursive scheduling)
-        if self.email_request.scheduled_task_id:
-            logger.info(f"Skipping recursive scheduling for task {self.email_request.scheduled_task_id}")
+        if email_request.scheduled_task_id:
+            logger.info(f"Skipping recursive scheduling for task {email_request.scheduled_task_id}")
             return {
                 "success": False,
                 "error": "Recursive scheduling not allowed",
                 "message": "This email is already being processed as a scheduled task",
-                "existing_task_id": self.email_request.scheduled_task_id,
+                "existing_task_id": email_request.scheduled_task_id,
             }
 
         try:
@@ -268,7 +270,7 @@ class ScheduledTasksTool(Tool):
             db_connection = init_db_connection()
             # Generate unique task ID
             task_id = str(uuid.uuid4())
-            email_id = self.email_request.from_email
+            email_id = email_request.from_email
 
             # Parse start_time and end_time if provided
             parsed_start_time = None
@@ -315,32 +317,28 @@ class ScheduledTasksTool(Tool):
             scheduler_job_id = f"task_{task_id}"
 
             # Save distilled instructions to email request
-            self.email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
+            email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
             # TODO: Need an AI driver logic here but for now we'll just redirect to ask
-            self.email_request.distilled_alias = HandlerAlias.ASK
+            email_request.distilled_alias = HandlerAlias.ASK
 
-            # Store task in database using ORM
+            # Store task in database using CRUD
             try:
                 with db_connection.get_session() as session:
-                    new_task = Tasks(
+                    create_task(
+                        session=session,
                         task_id=task_id,
                         email_id=email_id,
                         cron_expression=input_data.cron_expression,
-                        email_request=self.email_request.model_dump(),
+                        email_request=email_request.model_dump(),
                         scheduler_job_id=scheduler_job_id,
                         start_time=parsed_start_time,
                         expiry_time=parsed_end_time,
                         status=TaskStatus.INITIALISED,
-                        created_at=datetime.now(timezone.utc),
-                        updated_at=datetime.now(timezone.utc),
                     )
+                    logger.info(f"Task successfully stored with CRUD method, ID: {task_id}")
 
-                    session.add(new_task)
-                    session.commit()
-                    logger.info(f"Task successfully stored with ORM method, ID: {task_id}")
-
-            except Exception as orm_error:
-                logger.error(f"ORM method failed: {orm_error}")
+            except Exception as crud_error:
+                logger.error(f"CRUD method failed: {crud_error}")
                 raise
 
             # Schedule the task with APScheduler
@@ -353,26 +351,16 @@ class ScheduledTasksTool(Tool):
                 )
                 logger.info(f"Task {task_id} scheduled successfully with job ID: {scheduler_job_id}")
 
-                # Update task status to ACTIVE in database using ORM
+                # Update task status to ACTIVE in database using CRUD
                 with db_connection.get_session() as session:
-                    statement = select(Tasks).where(Tasks.task_id == task_id)
-                    task = session.exec(statement).first()
-                    if task:
-                        task.status = TaskStatus.ACTIVE
-                        task.updated_at = datetime.now(timezone.utc)
-                        session.add(task)
-                        session.commit()
+                    update_task_status(session, task_id, TaskStatus.ACTIVE, clear_email_data_if_terminal=False)
 
             except Exception as scheduler_error:
                 logger.error(f"Failed to schedule task {task_id}: {scheduler_error}")
-                # Mark task as failed in database using ORM
+                # Mark task as failed in database using CRUD
                 try:
                     with db_connection.get_session() as session:
-                        statement = select(Tasks).where(Tasks.task_id == task_id)
-                        task = session.exec(statement).first()
-                        if task:
-                            session.delete(task)
-                            session.commit()
+                        delete_task(session, task_id)
                 except Exception:
                     pass  # Ignore cleanup errors
                 raise scheduler_error

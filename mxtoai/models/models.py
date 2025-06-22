@@ -16,6 +16,30 @@ class TaskStatus(str, Enum):
     DELETED = "DELETED"
 
 
+# Task status categories
+ACTIVE_TASK_STATUSES = [TaskStatus.INITIALISED, TaskStatus.ACTIVE, TaskStatus.EXECUTING]
+TERMINAL_TASK_STATUSES = [TaskStatus.FINISHED, TaskStatus.DELETED]
+
+
+def is_active_status(status: TaskStatus) -> bool:
+    """Check if a task status is active (non-terminal)."""
+    return status in ACTIVE_TASK_STATUSES
+
+
+def is_terminal_status(status: TaskStatus) -> bool:
+    """Check if a task status is terminal."""
+    return status in TERMINAL_TASK_STATUSES
+
+
+def clear_task_data_if_terminal(task: "Tasks") -> None:
+    """
+    Clear sensitive email_request data if task has reached terminal status.
+    This should be called whenever a task status is updated.
+    """
+    if is_terminal_status(task.status) and task.email_request:
+        task.email_request = {}  # Clear the email data for privacy/cleanup
+
+
 class TaskRunStatus(str, Enum):
     INITIALISED = "INITIALISED"
     IN_PROGRESS = "IN_PROGRESS"
