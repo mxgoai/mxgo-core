@@ -53,7 +53,7 @@ from mxtoai.schemas import (
 
 # Import citation management and web search tools
 from mxtoai.scripts.report_formatter import ReportFormatter
-from mxtoai.scripts.visual_qa import azure_visualizer
+from mxtoai.scripts.visual_qa import azure_visualizer_from_content
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
@@ -94,7 +94,12 @@ class EmailAgent:
     """
 
     def __init__(
-        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False, attachment_info: list[dict] | None = None
+        self,
+        email_request: EmailRequest,
+        attachment_dir: str = "email_attachments",
+        verbose: bool = False,
+        enable_deep_research: bool = False,
+        attachment_info: list[dict] | None = None,
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -150,7 +155,7 @@ class EmailAgent:
             self.scheduled_tasks_tool,
             self.delete_scheduled_tasks_tool,
             self.references_generator_tool,
-            azure_visualizer,
+            azure_visualizer_from_content,
         ]
 
         # Add all available search tools
@@ -485,7 +490,9 @@ Raw Email Request Data (for tool use):
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
             distilled_section,
-            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory and self.enable_deep_research else RESEARCH_GUIDELINES["optional"],
+            RESEARCH_GUIDELINES["mandatory"]
+            if deep_research_mandatory and self.enable_deep_research
+            else RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
             output_template,
@@ -666,7 +673,11 @@ Raw Email Request Data (for tool use):
                             logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")
                         else:
                             error_msg = tool_output.get("message", "Scheduled task creation failed")
-                            error_type = "Scheduled Task Limit Exceeded" if tool_output.get("error") == "Task limit exceeded" else "Scheduled Task Error"
+                            error_type = (
+                                "Scheduled Task Limit Exceeded"
+                                if tool_output.get("error") == "Task limit exceeded"
+                                else "Scheduled Task Error"
+                            )
                             errors_list.append(ProcessingError(message=error_type, details=error_msg))
                             if tool_output.get("error") == "Task limit exceeded":
                                 logger.warning(f"Scheduled task limit exceeded: {error_msg}")
@@ -939,7 +950,9 @@ Raw Email Request Data (for tool use):
                 current_active_count = count_active_tasks_for_user(session, user_email)
 
                 if current_active_count >= max_calls:
-                    logger.warning(f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks.")
+                    logger.warning(
+                        f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks."
+                    )
                     return {
                         "success": False,
                         "error": "Task limit exceeded",
@@ -953,7 +966,6 @@ Raw Email Request Data (for tool use):
 
             # Call the original method
             return original_forward(*args, **kwargs)
-
 
         # Replace the forward method
         base_tool.forward = limited_forward
@@ -974,9 +986,12 @@ Raw Email Request Data (for tool use):
         if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
             import re
+
             existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
             if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
-                logger.warning("Content already contains a References/Sources section - skipping automatic references to avoid duplication")
+                logger.warning(
+                    "Content already contains a References/Sources section - skipping automatic references to avoid duplication"
+                )
                 return content
 
             references_section = self.context.get_references_section()
