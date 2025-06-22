@@ -45,6 +45,10 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             )
             raise exceptions.EnvironmentVariableNotFoundException(msg)
 
+        # Initialize token count attributes before calling super().__init__
+        self._last_input_token_count = 0
+        self._last_output_token_count = 0
+
         super().__init__(
             model_id=default_model_group,
             model_list=[model.model_dump() for model in model_list],
@@ -187,8 +191,15 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         response = self.client.completion(**completion_kwargs)
 
-        self._last_input_token_count = response.usage.prompt_tokens
-        self._last_output_token_count = response.usage.completion_tokens
+        # Safely handle response usage tracking
+        if response and hasattr(response, "usage") and response.usage:
+            self._last_input_token_count = response.usage.prompt_tokens
+            self._last_output_token_count = response.usage.completion_tokens
+        else:
+            # Set default values if usage information is not available
+            self._last_input_token_count = 0
+            self._last_output_token_count = 0
+
         return ChatMessage.from_dict(
             response.choices[0].message.model_dump(include={"role", "content", "tool_calls"}),
             raw=response,
@@ -245,3 +256,33 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
             msg = f"Failed to get completion from LiteLLM router: {e!s}"
             raise RuntimeError(msg) from e
+
+    @property
+    def last_input_token_count(self) -> int:
+        """Safely return the last input token count."""
+        return getattr(self, "_last_input_token_count", 0)
+
+    @last_input_token_count.setter
+    def last_input_token_count(self, value: int | None) -> None:
+        """Safely set the last input token count."""
+        self._last_input_token_count = value if value is not None else 0
+
+    @property
+    def last_output_token_count(self) -> int:
+        """Safely return the last output token count."""
+        return getattr(self, "_last_output_token_count", 0)
+
+    @last_output_token_count.setter
+    def last_output_token_count(self, value: int | None) -> None:
+        """Safely set the last output token count."""
+        self._last_output_token_count = value if value is not None else 0
+
+    def __getattr__(self, name: str):
+        """Handle any missing attribute access gracefully, especially for token-related properties."""
+        # Handle various token-related attribute names that might be accessed
+        if name in ("input_tokens", "output_tokens", "total_tokens",
+                   "prompt_tokens", "completion_tokens", "usage"):
+            return 0
+        # For other missing attributes, raise AttributeError as normal
+        msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"
+        raise AttributeError(msg)

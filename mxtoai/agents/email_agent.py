@@ -884,7 +884,7 @@ Raw Email Request Data (for tool use):
 
         except Exception as e:
             error_msg = f"Critical error in email processing: {e!s}"
-            logger.error(error_msg, exc_info=True)
+            logger.exception(error_msg)
 
             # Construct a DetailedEmailProcessingResult for error cases
             now_iso = datetime.now().isoformat()

@@ -62,7 +62,7 @@ class TestDeepResearchToolInitialization:
         assert tool.inputs["query"]["type"] == "string"
         assert "context" in tool.inputs
         assert tool.inputs["context"]["nullable"] is True
-        assert "attachments" in tool.inputs
+        assert "memory_attachments" in tool.inputs
         assert "thread_messages" in tool.inputs
         assert "stream" in tool.inputs
         assert "reasoning_effort" in tool.inputs
@@ -524,11 +524,15 @@ class TestIntegrationScenarios:
             mock_response.headers = {"date": "2024-01-15"}
             mock_post.return_value = mock_response
 
-            # Execute complete workflow
+            # Read file content into memory for the new memory_attachments parameter
+            with open(temp_path, "rb") as f:
+                file_content = f.read()
+
+            # Execute complete workflow using memory_attachments
             result = tool.forward(
                 query="Analyze the uploaded document and provide insights",
                 context="This is a research project about AI development",
-                attachments=[{"path": temp_path, "type": "text/plain", "filename": "research_notes.txt"}],
+                memory_attachments={"research_notes.txt": (file_content, "text/plain")},
                 thread_messages=[
                     {"role": "user", "content": "Previous question about AI"},
                     {"role": "assistant", "content": "Previous answer about AI"},
