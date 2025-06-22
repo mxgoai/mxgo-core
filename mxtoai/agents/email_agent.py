@@ -95,7 +95,7 @@ class EmailAgent:
     """
 
     def __init__(
-        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False
+        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False, attachment_info: list[dict] | None = None
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -105,6 +105,7 @@ class EmailAgent:
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
             enable_deep_research: Whether to enable deep research functionality
+            attachment_info: Optional list of attachment info to load into memory
 
         """
         # Set up logging
@@ -119,7 +120,7 @@ class EmailAgent:
         self.enable_deep_research = enable_deep_research
 
         # Create request context - this replaces the global citation manager
-        self.context = RequestContext(email_request)
+        self.context = RequestContext(email_request, attachment_info)
         logger.debug("Request context initialized with per-request citation manager")
 
         # Initialize tools with context

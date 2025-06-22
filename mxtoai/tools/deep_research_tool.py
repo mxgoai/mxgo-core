@@ -52,18 +52,18 @@ class DeepResearchTool(Tool):
                 "description": "Additional context from email thread or other sources",
                 "nullable": True,
             },
-            "attachments": {
-                "type": "array",
-                "description": "List of file attachments to include in research",
+
+            "memory_attachments": {
+                "type": "object",
+                "description": "Dict mapping filename to (content, mime_type) tuples for in-memory files - preferred method for attachment processing",
                 "nullable": True,
-                "items": {
+                "additionalProperties": {
                     "type": "object",
                     "properties": {
-                        "path": {"type": "string"},
-                        "type": {"type": "string"},
-                        "filename": {"type": "string"},
+                        "content": {"type": "string"},
+                        "mime_type": {"type": "string"},
                     },
-                    "required": ["path", "type", "filename"],
+                    "required": ["content", "mime_type"],
                 },
             },
             "thread_messages": {
@@ -129,39 +129,46 @@ class DeepResearchTool(Tool):
         self.deep_research_enabled = False
         logger.info("Deep research functionality disabled")
 
-    def _encode_file(self, file_path: str) -> Optional[dict[str, Any]]:
+    def _encode_content_from_memory(self, content: bytes, filename: str, mime_type: str | None = None) -> Optional[dict[str, Any]]:
         """
-        Encode a file to base64 data URI format for Jina API.
+        Encode file content from memory to base64 data URI format for Jina API.
 
         Args:
-            file_path: Path to the file
+            content: File content as bytes
+            filename: Name of the file for context
+            mime_type: MIME type of the content (will be guessed if not provided)
 
         Returns:
-            Dict containing file data in Jina API format or None if file is too large/invalid
+            Dict containing file data in Jina API format or None if content is too large/invalid
 
         """
         try:
-            # Check file size
-            file_size = os.path.getsize(file_path)
-            if file_size > self.max_file_size:
-                logger.warning(f"File {file_path} exceeds 10MB limit, skipping")
+            # Check content size
+            if len(content) > self.max_file_size:
+                logger.warning(f"Content for {filename} exceeds 10MB limit, skipping")
                 return None
 
-            # Get mime type
-            mime_type, _ = mimetypes.guess_type(file_path)
+            # Use provided mime type or guess from filename
             if not mime_type:
-                mime_type = "application/octet-stream"
+                mime_type, _ = mimetypes.guess_type(filename)
+                if not mime_type:
+                    mime_type = "application/octet-stream"
 
-            # Read and encode file
-            with open(file_path, "rb") as f:
-                file_data = f.read()
-                encoded = base64.b64encode(file_data).decode("utf-8")
-
+            # Encode content
+            encoded = base64.b64encode(content).decode("utf-8")
             return {"type": "file", "data": f"data:{mime_type};base64,{encoded}", "mimeType": mime_type}
 
         except Exception as e:
-            logger.error(f"Error encoding file {file_path}: {e!s}")
+            logger.error(f"Error encoding content for {filename}: {e!s}")
             return None
+
+    def _encode_file(self, file_path: str) -> Optional[dict[str, Any]]:
+        """
+        DEPRECATED: This method has been removed for security reasons.
+        Use memory_attachments with _encode_content_from_memory instead.
+        """
+        logger.warning(f"_encode_file is deprecated and removed for security. Skipping file: {file_path}")
+        return None
 
     def _encode_text(self, text: str) -> str:
         """
@@ -182,7 +189,7 @@ class DeepResearchTool(Tool):
         self,
         query: str,
         context: Optional[str] = None,
-        attachments: Optional[list[dict[str, Any]]] = None,
+        memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
     ) -> list[dict[str, Any]]:
         """
@@ -191,15 +198,15 @@ class DeepResearchTool(Tool):
         Args:
             query: The research query
             context: Additional context
-            attachments: List of file attachments
+            memory_attachments: Dict mapping filename to (content, mime_type) tuples for in-memory files
             thread_messages: Previous messages in thread
 
         Returns:
             List of messages in Jina API format with a single message containing all content
 
         """
-        # Ensure array parameters are properly initialized
-        attachments = attachments if isinstance(attachments, list) else []
+        # Ensure parameters are properly initialized
+        memory_attachments = memory_attachments if isinstance(memory_attachments, dict) else {}
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
 
         # Prepare content array for the single message
@@ -219,12 +226,13 @@ class DeepResearchTool(Tool):
         if context:
             message_content.append({"type": "text", "text": self._encode_text(f"\nAdditional Context:\n{context}")})
 
-        # Add encoded files
-        if attachments:
-            for attachment in attachments:
-                file_data = self._encode_file(attachment["path"])
+        # Process memory attachments
+        if memory_attachments:
+            for filename, (content, mime_type) in memory_attachments.items():
+                file_data = self._encode_content_from_memory(content, filename, mime_type)
                 if file_data:
                     message_content.append(file_data)
+                    logger.debug(f"Added attachment {filename} from memory for deep research")
 
         # Return a single message with all content
         return [{"role": "user", "content": message_content}]
@@ -446,7 +454,7 @@ class DeepResearchTool(Tool):
         self,
         query: str,
         context: Optional[str] = None,
-        attachments: Optional[list[dict[str, Any]]] = None,
+        memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
         stream: bool = False,
         reasoning_effort: str = "medium",
@@ -457,7 +465,7 @@ class DeepResearchTool(Tool):
         Args:
             query: The research query to investigate
             context: Optional additional context
-            attachments: Optional list of file attachments
+            memory_attachments: Dict mapping filename to (content, mime_type) tuples for in-memory files
             thread_messages: Optional list of previous messages
             stream: Whether to stream the response (default False)
             reasoning_effort: Level of reasoning effort ("low", "medium", "high")
@@ -466,9 +474,14 @@ class DeepResearchTool(Tool):
             Research results including findings, citations, and sources
 
         """
-        # Ensure array parameters are always treated as arrays
-        attachments = attachments if isinstance(attachments, list) else []
+        # Ensure parameters are properly initialized
+        memory_attachments = memory_attachments if isinstance(memory_attachments, dict) else {}
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
+
+        # Log memory attachment processing
+        if memory_attachments:
+            total_size = sum(len(content) for content, _ in memory_attachments.values())
+            logger.info(f"Processing {len(memory_attachments)} memory attachments, total size: {total_size} bytes")
 
         if not self.api_key and not self.use_mock_service:
             return {
@@ -527,7 +540,7 @@ class DeepResearchTool(Tool):
 
             # Prepare messages including files and context
             messages = self._prepare_messages(
-                query=query, context=context, attachments=attachments, thread_messages=thread_messages
+                query=query, context=context, memory_attachments=memory_attachments, thread_messages=thread_messages
             )
 
             # Prepare request data
@@ -651,6 +664,7 @@ class DeepResearchTool(Tool):
                     }
 
                 logger.info(f"Research complete for query: {query}")
+
                 return research_results
 
             except Exception as e:
@@ -663,5 +677,6 @@ class DeepResearchTool(Tool):
                 }
 
         except Exception as e:
-            logger.error(f"Error performing research: {e!s}")
+            error_msg = f"Error performing research: {e!s}"
+            logger.error(error_msg)
             return {"query": query, "findings": f"An error occurred during research: {e!s}", "error": str(e)}

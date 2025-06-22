@@ -122,3 +122,44 @@ def test_citation_manager_api_title_sanitization():
     assert _sanitize_api_title("") == "External Data Source"
     assert _sanitize_api_title("ab") == "External Data Source"  # Too short
     assert _sanitize_api_title("Normal Title") == "Normal Title"
+
+
+def test_request_context_attachment_service():
+    """Test attachment service loading functionality."""
+    email_request = EmailRequest(
+        from_email="test@example.com",
+        to="recipient@example.com",
+        subject="Test Subject",
+        textContent="Test content"
+    )
+
+    # Test attachment info
+    attachment_info = [
+        {
+            "filename": "test.txt",
+            "path": "/nonexistent/path",  # Won't actually load in test
+            "type": "text/plain",
+            "size": 100
+        }
+    ]
+
+    context = RequestContext(email_request, attachment_info)
+
+    # Verify attachment service is initialized
+    assert context.attachment_service is not None
+    assert isinstance(context.attachment_service.list_attachments(), list)
+
+
+def test_request_context_backward_compatibility():
+    """Test that RequestContext still works without attachment_info."""
+    email_request = EmailRequest(
+        from_email="test@example.com",
+        to="recipient@example.com",
+        subject="Test Subject",
+        textContent="Test content"
+    )
+
+    # Should work without attachment_info parameter
+    context = RequestContext(email_request)
+    assert context.attachment_service is not None
+    assert len(context.attachment_service.list_attachments()) == 0

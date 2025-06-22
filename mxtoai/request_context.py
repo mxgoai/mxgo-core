@@ -8,7 +8,10 @@ to provide clean architecture and request isolation.
 from datetime import datetime, timezone
 from typing import Any
 
+from mxtoai._logging import get_logger
 from mxtoai.schemas import CitationCollection, CitationSource, EmailRequest
+
+logger = get_logger(__name__)
 
 # Constants
 MIN_TITLE_LENGTH = 3
@@ -41,6 +44,49 @@ def _sanitize_api_title(title: str) -> str:
         sanitized = "External Data Source"
 
     return sanitized
+
+
+class AttachmentService:
+    """Service layer for attachment operations."""
+
+    def __init__(self):
+        self._content_store: dict[str, bytes] = {}
+        self._metadata_store: dict[str, dict] = {}
+
+    def load_attachment(self, filename: str, file_path: str, content_type: str, size: int) -> bool:
+        """Load attachment from disk into memory store."""
+        try:
+            with open(file_path, "rb") as f:
+                content = f.read()
+
+            self._content_store[filename] = content
+            self._metadata_store[filename] = {
+                "filename": filename,
+                "contentType": content_type,
+                "size": size,
+                "original_path": file_path
+            }
+            logger.debug(f"Loaded attachment into memory: {filename} ({size} bytes)")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to load attachment {filename}: {e}")
+            return False
+
+    def get_content(self, filename: str) -> bytes | None:
+        """Get attachment content by filename."""
+        return self._content_store.get(filename)
+
+    def get_metadata(self, filename: str) -> dict | None:
+        """Get attachment metadata by filename."""
+        return self._metadata_store.get(filename)
+
+    def list_attachments(self) -> list[dict]:
+        """List all available attachments."""
+        return list(self._metadata_store.values())
+
+    def has_attachment(self, filename: str) -> bool:
+        """Check if attachment exists."""
+        return filename in self._content_store
 
 
 class CitationManager:
@@ -198,17 +244,34 @@ class RequestContext:
     and other processing context in a clean, isolated manner.
     """
 
-    def __init__(self, email_request: EmailRequest):
+    def __init__(self, email_request: EmailRequest, attachment_info: list[dict] | None = None):
         """
         Initialize request context.
 
         Args:
             email_request: The email request being processed
+            attachment_info: Optional list of attachment info dicts to load into memory
 
         """
         self.email_request = email_request
         self.citation_manager = CitationManager()
         self.processing_metadata: dict[str, Any] = {}
+        self.attachment_service = AttachmentService()
+
+        if attachment_info:
+            self._load_attachments(attachment_info)
+
+    def _load_attachments(self, attachment_info: list[dict]):
+        """Load attachments from disk into memory store."""
+        for info in attachment_info:
+            success = self.attachment_service.load_attachment(
+                filename=info["filename"],
+                file_path=info["path"],
+                content_type=info["type"],
+                size=info["size"]
+            )
+            if success:
+                logger.debug(f"Successfully loaded attachment: {info['filename']}")
 
     def get_attachment_paths(self) -> list[str]:
         """Get paths to persisted attachments."""

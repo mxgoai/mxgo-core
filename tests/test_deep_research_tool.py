@@ -69,73 +69,68 @@ class TestDeepResearchToolInitialization:
         assert tool.inputs["reasoning_effort"]["enum"] == ["low", "medium", "high"]
 
 
-class TestFileEncoding:
-    """Test file encoding functionality."""
+class TestMemoryContentEncoding:
+    """Test memory-based content encoding functionality."""
 
-    def test_encode_file_success(self):
-        """Test successful file encoding."""
+    def test_encode_content_from_memory_success(self):
+        """Test successful content encoding from memory."""
         tool = DeepResearchTool()
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("Test file content")
-            temp_path = f.name
+        content = b"Test file content"
+        result = tool._encode_content_from_memory(content, "test.txt", "text/plain")
 
-        try:
-            result = tool._encode_file(temp_path)
+        assert result is not None
+        assert result["type"] == "file"
+        assert result["data"].startswith("data:text/plain;base64,")
+        assert result["mimeType"] == "text/plain"
 
-            assert result is not None
-            assert result["type"] == "file"
-            assert result["data"].startswith("data:text/plain;base64,")
-            assert result["mimeType"] == "text/plain"
+        # Decode and verify content
+        encoded_content = result["data"].split(",")[1]
+        decoded_content = base64.b64decode(encoded_content)
+        assert decoded_content == content
 
-            # Decode and verify content
-            encoded_content = result["data"].split(",")[1]
-            decoded_content = base64.b64decode(encoded_content).decode()
-            assert decoded_content == "Test file content"
-
-        finally:
-            os.unlink(temp_path)
-
-    def test_encode_file_large_file(self):
-        """Test encoding of file that exceeds size limit."""
+    def test_encode_content_from_memory_large_content(self):
+        """Test encoding of content that exceeds size limit."""
         tool = DeepResearchTool()
 
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            # Write more than 10MB
-            f.write(b"x" * (11 * 1024 * 1024))
-            temp_path = f.name
+        # Create content larger than 10MB
+        large_content = b"x" * (11 * 1024 * 1024)
+        result = tool._encode_content_from_memory(large_content, "large.bin", "application/octet-stream")
 
-        try:
-            result = tool._encode_file(temp_path)
-            assert result is None
-
-        finally:
-            os.unlink(temp_path)
-
-    def test_encode_file_nonexistent(self):
-        """Test encoding of non-existent file."""
-        tool = DeepResearchTool()
-
-        result = tool._encode_file("/nonexistent/file.txt")
         assert result is None
 
-    def test_encode_file_binary_content(self):
-        """Test encoding of binary file."""
+    def test_encode_content_from_memory_mime_type_guessing(self):
+        """Test MIME type guessing when not provided."""
         tool = DeepResearchTool()
 
-        with tempfile.NamedTemporaryFile(suffix=".bin", delete=False) as f:
-            f.write(b"\x00\x01\x02\x03")
-            temp_path = f.name
+        content = b"Test content"
+        result = tool._encode_content_from_memory(content, "test.txt")
 
-        try:
-            result = tool._encode_file(temp_path)
+        assert result is not None
+        assert result["mimeType"] == "text/plain"
 
-            assert result is not None
-            assert result["type"] == "file"
-            assert result["mimeType"] == "application/octet-stream"
+    def test_encode_content_from_memory_binary_content(self):
+        """Test encoding of binary content."""
+        tool = DeepResearchTool()
 
-        finally:
-            os.unlink(temp_path)
+        binary_content = b"\x00\x01\x02\x03"
+        result = tool._encode_content_from_memory(binary_content, "test.bin", "application/octet-stream")
+
+        assert result is not None
+        assert result["type"] == "file"
+        assert result["mimeType"] == "application/octet-stream"
+
+        # Decode and verify content
+        encoded_content = result["data"].split(",")[1]
+        decoded_content = base64.b64decode(encoded_content)
+        assert decoded_content == binary_content
+
+    def test_encode_file_deprecated(self):
+        """Test that the deprecated _encode_file method returns None."""
+        tool = DeepResearchTool()
+
+        result = tool._encode_file("/some/path/file.txt")
+        assert result is None
 
 
 class TestTextEncoding:
@@ -221,48 +216,38 @@ class TestMessagePreparation:
         assert "Previous%20Messages" in thread_content
         assert "Previous%20question" in thread_content
 
-    def test_prepare_messages_with_attachments(self):
-        """Test message preparation with file attachments."""
+    def test_prepare_messages_with_memory_attachments(self):
+        """Test message preparation with memory attachments."""
         tool = DeepResearchTool()
 
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("Test file content")
-            temp_path = f.name
+        # Test with memory attachments instead of file paths
+        memory_attachments = {
+            "test.txt": (b"Test file content", "text/plain")
+        }
 
-        try:
-            attachments = [{"path": temp_path, "type": "text/plain", "filename": "test.txt"}]
+        messages = tool._prepare_messages(query="Analyze this file", memory_attachments=memory_attachments)
 
-            messages = tool._prepare_messages(query="Analyze this file", attachments=attachments)
-
-            assert len(messages) == 1
-            assert len(messages[0]["content"]) == 2  # Query + file
-            # Check file data is included
-            file_content = messages[0]["content"][1]
-            assert file_content["type"] == "file"
-            assert "data:text/plain;base64," in file_content["data"]
-
-        finally:
-            os.unlink(temp_path)
+        assert len(messages) == 1
+        assert len(messages[0]["content"]) == 2  # Query + file
+        # Check file data is included
+        file_content = messages[0]["content"][1]
+        assert file_content["type"] == "file"
+        assert "data:text/plain;base64," in file_content["data"]
 
     def test_prepare_messages_attachment_size_limit(self):
         """Test that large attachments are skipped."""
         tool = DeepResearchTool()
 
-        with tempfile.NamedTemporaryFile(delete=False) as f:
-            # Write more than 10MB
-            f.write(b"x" * (11 * 1024 * 1024))
-            temp_path = f.name
+        # Create large content (more than 10MB)
+        large_content = b"x" * (11 * 1024 * 1024)
+        memory_attachments = {
+            "large.bin": (large_content, "application/octet-stream")
+        }
 
-        try:
-            attachments = [{"path": temp_path, "type": "application/octet-stream", "filename": "large.bin"}]
+        messages = tool._prepare_messages(query="Analyze this file", memory_attachments=memory_attachments)
 
-            messages = tool._prepare_messages(query="Analyze this file", attachments=attachments)
-
-            # Large file should be skipped - only query content should remain
-            assert len(messages[0]["content"]) == 1
-
-        finally:
-            os.unlink(temp_path)
+        # Large file should be skipped - only query content should remain
+        assert len(messages[0]["content"]) == 1
 
 
 class TestAPIIntegration:

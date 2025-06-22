@@ -9,6 +9,8 @@ from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import contextlib
+
 from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
@@ -46,15 +48,16 @@ class AttachmentProcessingTool(Tool):
     inputs = {
         "attachments": {
             "type": "array",
-            "description": "List of attachment dictionaries containing file information. Each dictionary must have 'filename', 'type', 'path', and 'size' keys. The path must point to a file in the attachments directory.",
+            "description": "List of attachment dictionaries containing file information. Each dictionary must have 'filename', 'type', and 'size' keys. The 'path' key is optional - attachments will be processed from memory when available, falling back to file path if needed.",
             "items": {
                 "type": "object",
                 "properties": {
                     "filename": {"type": "string", "description": "Name of the file"},
                     "type": {"type": "string", "description": "MIME type or content type of the file"},
-                    "path": {"type": "string", "description": "Full path to the file in the attachments directory"},
+                    "path": {"type": "string", "description": "Full path to the file (optional - used as fallback if memory content unavailable)"},
                     "size": {"type": "integer", "description": "Size of the file in bytes"},
                 },
+                "required": ["filename", "type", "size"]
             },
         },
         "mode": {
@@ -132,26 +135,58 @@ class AttachmentProcessingTool(Tool):
             logger.error(f"Error validating path {file_path}: {e!s}")
             raise
 
-    def _process_document(self, file_path: Path) -> str:
+    def _process_content_from_memory(self, content: bytes, filename: str, content_type: str) -> str:
         """
-        Process document using MarkdownConverter.
+        Process document content from memory using MarkdownConverter.
 
         Args:
-            file_path: Path to the document file.
+            content: The file content as bytes
+            filename: Name of the file for context
+            content_type: MIME type of the content
 
         Returns:
             str: The text content extracted from the document.
 
         """
+        import tempfile
+
         try:
-            result = self.converter.convert(str(file_path))
-            if not result or not hasattr(result, "text_content"):
-                msg = f"Failed to convert document: {file_path}"
-                raise ValueError(msg)
-            return result.text_content
+            # For text files, decode directly
+            if content_type.startswith("text/"):
+                try:
+                    return content.decode("utf-8")
+                except UnicodeDecodeError:
+                    return content.decode("utf-8", errors="ignore")
+
+            # For other file types, create a temporary file for the converter
+            with tempfile.NamedTemporaryFile(suffix=f"_{filename}", delete=False) as temp_file:
+                temp_file.write(content)
+                temp_file_path = temp_file.name
+
+            try:
+                result = self.converter.convert(temp_file_path)
+                if not result or not hasattr(result, "text_content"):
+                    msg = f"Failed to convert document: {filename}"
+                    raise ValueError(msg)
+                return result.text_content
+            finally:
+                # Clean up temporary file
+                import os
+                with contextlib.suppress(OSError):
+                    os.unlink(temp_file_path)
+
         except Exception as e:
-            logger.error(f"Error converting document {file_path}: {e!s}")
+            logger.error(f"Error converting document {filename} from memory: {e!s}")
             raise
+
+    def _process_document(self, file_path: Path) -> str:
+        """
+        DEPRECATED: This method has been removed for security reasons.
+        Use _process_content_from_memory instead.
+        """
+        logger.warning(f"_process_document is deprecated and removed for security. File path: {file_path}")
+        msg = "File path processing is deprecated for security. Use memory-based processing instead."
+        raise ValueError(msg)
 
     def forward(self, attachments: list[dict[str, Any]], mode: str = "basic") -> dict[str, Any]:
         """
@@ -167,28 +202,31 @@ class AttachmentProcessingTool(Tool):
         """
         processed_attachments = []
         citation_ids = []
+
         logger.info(f"Processing {len(attachments)} attachments in {mode} mode")
 
         for attachment in attachments:
             try:
                 # Validate required fields
-                required_fields = ["filename", "type", "path", "size"]
+                required_fields = ["filename", "type", "size"]
                 missing_fields = [field for field in required_fields if field not in attachment]
                 if missing_fields:
                     msg = f"Missing required fields in attachment: {missing_fields}"
                     raise ValueError(msg)
 
-                logger.info(f"Processing attachment: {attachment['filename']}")
+                filename = attachment["filename"]
+                content_type = attachment["type"]
+                logger.info(f"Processing attachment: {filename}")
 
                 # Add citation for this attachment
                 citation_id = self.context.add_attachment_citation(
-                    attachment["filename"],
-                    f"Email attachment ({attachment.get('type', 'unknown type')})"
+                    filename,
+                    f"Email attachment ({content_type})"
                 )
                 citation_ids.append(citation_id)
 
                 # Skip image files - they should be handled by azure_visualizer directly
-                if attachment["type"].startswith("image/"):
+                if content_type.startswith("image/"):
                     processed_attachments.append(
                         {
                             **attachment,
@@ -200,20 +238,42 @@ class AttachmentProcessingTool(Tool):
                             },
                         }
                     )
-                    logger.info(f"Skipped image file: {attachment['filename']} - use azure_visualizer tool instead")
+                    logger.info(f"Skipped image file: {filename} - use azure_visualizer tool instead")
                     continue
 
-                # Validate and resolve the file path
-                try:
-                    resolved_path = self._validate_attachment_path(attachment["path"])
-                    attachment["path"] = str(resolved_path)
-                except FileNotFoundError as e:
-                    logger.error(f"File not found: {e!s}")
-                    processed_attachments.append({**attachment, "error": f"File not found: {e!s}"})
+                # Try to get content from attachment service first
+                content = None
+                processing_source = "memory"
+
+                if self.context.attachment_service.has_attachment(filename):
+                    try:
+                        file_content = self.context.attachment_service.get_content(filename)
+                        if file_content:
+                            content = self._process_content_from_memory(file_content, filename, content_type)
+                            logger.debug(f"Processed {filename} from memory store")
+                        else:
+                            logger.warning(f"Attachment {filename} found in service but content is None")
+                    except Exception as e:
+                        logger.warning(f"Failed to process {filename} from memory: {e!s}, falling back to file path")
+                        processing_source = "fallback"
+
+                # Fall back to file path processing if memory processing failed or unavailable
+                if content is None and "path" in attachment:
+                    logger.warning(f"File path processing is deprecated for security. Skipping {filename}. "
+                                 f"Use memory-based processing instead.")
+                    processed_attachments.append({
+                        **attachment,
+                        "citation_id": citation_id,
+                        "error": "File path processing deprecated for security - use memory-based processing"
+                    })
                     continue
 
-                # Process non-image attachments
-                content = self._process_document(resolved_path)
+                # If we still don't have content, it's an error
+                if content is None:
+                    error_msg = f"Could not process {filename}: no content available in memory or file path"
+                    logger.error(error_msg)
+                    processed_attachments.append({**attachment, "citation_id": citation_id, "error": error_msg})
+                    continue
 
                 # If in full mode and model is available, generate a summary
                 summary = None
@@ -224,7 +284,7 @@ class AttachmentProcessingTool(Tool):
                             "content": [
                                 {
                                     "type": "text",
-                                    "text": f"Here is a file:\n### {attachment['filename']}\n\n{content[: self.text_limit]}",
+                                    "text": f"Here is a file:\n### {filename}\n\n{content[: self.text_limit]}",
                                 }
                             ],
                         },
@@ -244,6 +304,7 @@ class AttachmentProcessingTool(Tool):
                     {
                         **attachment,
                         "citation_id": citation_id,
+                        "processing_source": processing_source,
                         "content": {
                             "text": f"{content[: self.text_limit] if len(content) > self.text_limit else content} [#{citation_id}]",
                             "type": "text",
@@ -251,7 +312,7 @@ class AttachmentProcessingTool(Tool):
                         },
                     }
                 )
-                logger.info(f"Successfully processed: {attachment['filename']}")
+                logger.info(f"Successfully processed: {filename} (source: {processing_source})")
 
             except Exception as e:
                 logger.error(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
@@ -270,7 +331,7 @@ class AttachmentProcessingTool(Tool):
                 "processed_successfully": len([a for a in processed_attachments if "error" not in a]),
                 "failed": len([a for a in processed_attachments if "error" in a]),
                 "citation_ids": citation_ids,
-                "attachments": processed_attachments
+                "attachments": processed_attachments,
             }
         )
 
