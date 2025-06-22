@@ -16,7 +16,14 @@ from sqlmodel import select
 
 from mxtoai._logging import get_logger
 from mxtoai.db import init_db_connection
-from mxtoai.models import TaskRun, TaskRunStatus, Tasks, TaskStatus
+from mxtoai.models import (
+    TaskRun,
+    TaskRunStatus,
+    Tasks,
+    TaskStatus,
+    clear_task_data_if_terminal,
+    is_active_status,
+)
 
 logger = get_logger("scheduled_task_executor")
 
@@ -55,8 +62,19 @@ def execute_scheduled_task(task_id: str) -> None:
                 msg = f"Task {task_id} not found"
                 raise ValueError(msg)
 
-            if task.status == TaskStatus.DELETED:
-                logger.warning(f"Task {task_id} is marked as deleted, skipping execution")
+            if not is_active_status(task.status):
+                logger.warning(f"Task {task_id} has terminal status {task.status}, removing from scheduler and skipping execution")
+
+                # Remove the job from scheduler since we're in the scheduler process
+                if task.scheduler_job_id:
+                    from mxtoai.scheduler import get_scheduler
+                    scheduler = get_scheduler()
+                    try:
+                        scheduler.remove_job(task.scheduler_job_id)
+                        logger.info(f"Removed APScheduler job {task.scheduler_job_id} for terminal task {task_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to remove APScheduler job {task.scheduler_job_id}: {e}")
+
                 return
 
             # Check start_time and expiry_time constraints
@@ -73,6 +91,7 @@ def execute_scheduled_task(task_id: str) -> None:
                 # Mark task as finished
                 task.status = TaskStatus.FINISHED
                 task.updated_at = current_time
+                clear_task_data_if_terminal(task)  # Clear email data for terminal status
                 session.add(task)
                 session.commit()
                 return
@@ -131,6 +150,10 @@ def execute_scheduled_task(task_id: str) -> None:
                     task.status = TaskStatus.ACTIVE  # Keep active for retry
 
                 task.updated_at = datetime.now(timezone.utc)
+
+                # Clear email data if task reached terminal status
+                clear_task_data_if_terminal(task)
+
                 session.add(task)
 
             session.commit()
@@ -160,6 +183,7 @@ def execute_scheduled_task(task_id: str) -> None:
                     if task:
                         task.status = TaskStatus.ACTIVE
                         task.updated_at = datetime.now(timezone.utc)
+                        # Don't clear email data on error - keep it active
                         session.add(task)
 
                     session.commit()

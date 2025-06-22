@@ -20,7 +20,7 @@ from sqlmodel import select
 from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
 from mxtoai.db import init_db_connection
-from mxtoai.models.models import Tasks
+from mxtoai.models.models import ACTIVE_TASK_STATUSES, Tasks
 from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
     RESEARCH_GUIDELINES,
@@ -925,8 +925,6 @@ Raw Email Request Data (for tool use):
         # Create the base tool
         base_tool = ScheduledTasksTool(context=self.context)
 
-        # Create a counter to track calls
-        call_count = {"count": 0}
         max_calls = SCHEDULED_TASKS_MAX_PER_EMAIL
 
         # Store original forward method
@@ -934,29 +932,36 @@ Raw Email Request Data (for tool use):
 
         def limited_forward(*args, **kwargs):
             """Wrapper that limits scheduled task calls to 5 per email."""
-            if call_count["count"] >= max_calls:
-                logger.warning(f"Scheduled task limit reached ({max_calls} tasks per email). Rejecting additional task creation.")
-                return {
-                    "success": False,
-                    "error": "Task limit exceeded",
-                    "message": f"Maximum of {max_calls} scheduled tasks allowed per email. This limit helps prevent excessive automation.",
-                    "tasks_created": call_count["count"],
-                    "max_allowed": max_calls,
-                }
+            # Check current active task count for this user from database
+            db_connection = init_db_connection()
+            with db_connection.get_session() as session:
+                user_email = self.context.email_request.from_email
 
-            # Increment counter before calling
-            call_count["count"] += 1
-            logger.info(f"Creating scheduled task {call_count['count']}/{max_calls}")
+                # Count only active (non-terminal) tasks
+                statement = (
+                    select(Tasks)
+                    .where(Tasks.email_request.op("->>")("from") == user_email)
+                    .where(Tasks.status.in_(ACTIVE_TASK_STATUSES))
+                )
+                active_tasks = session.exec(statement).all()
+                current_active_count = len(active_tasks)
+
+                if current_active_count >= max_calls:
+                    logger.warning(f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks.")
+                    return {
+                        "success": False,
+                        "error": "Task limit exceeded",
+                        "message": f"Maximum of {max_calls} scheduled tasks allowed per email. You currently have {current_active_count} active tasks. Delete some tasks to create new ones.",
+                        "active_tasks": current_active_count,
+                        "max_allowed": max_calls,
+                    }
+
+            # If we're under the limit, proceed with task creation
+            logger.info(f"Creating scheduled task (user has {current_active_count}/{max_calls} active tasks)")
 
             # Call the original method
-            result = original_forward(*args, **kwargs)
+            return original_forward(*args, **kwargs)
 
-            # If the call failed, decrement the counter
-            if not result.get("success", False):
-                call_count["count"] -= 1
-                logger.info(f"Scheduled task creation failed, decremented counter to {call_count['count']}")
-
-            return result
 
         # Replace the forward method
         base_tool.forward = limited_forward

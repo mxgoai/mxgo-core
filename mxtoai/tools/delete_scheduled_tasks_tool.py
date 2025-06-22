@@ -17,7 +17,7 @@ from sqlmodel import Session, select
 
 from mxtoai._logging import get_logger
 from mxtoai.db import init_db_connection
-from mxtoai.models import Tasks, TaskStatus
+from mxtoai.models import ACTIVE_TASK_STATUSES, Tasks, TaskStatus, clear_task_data_if_terminal
 from mxtoai.request_context import RequestContext
 from mxtoai.scheduler import remove_scheduled_job
 
@@ -79,7 +79,7 @@ def find_user_tasks(db_session: Session, user_email: str, limit: int = 10) -> li
         statement = (
             select(Tasks)
             .where(Tasks.email_request.op("->>")("from") == user_email)
-            .where(Tasks.status.in_([TaskStatus.ACTIVE, TaskStatus.INITIALISED]))
+            .where(Tasks.status.in_(ACTIVE_TASK_STATUSES))
             .order_by(Tasks.created_at.desc())
             .limit(limit)
         )
@@ -222,6 +222,10 @@ class DeleteScheduledTasksTool(Tool):
                 # Update task status to DELETED in database
                 task.status = TaskStatus.DELETED
                 task.updated_at = datetime.now(timezone.utc)
+
+                # Clear email data since task is now terminal
+                clear_task_data_if_terminal(task)
+
                 session.add(task)
                 session.commit()
 
