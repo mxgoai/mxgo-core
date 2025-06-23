@@ -1,352 +1,458 @@
-# MXTOAI Email Processing System
+# 🤖 MXTOAI - Automate any email workflow with AI
 
-A robust email processing system that can handle, analyze, and respond to emails with advanced attachment processing capabilities.
+> MXTOAI processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
 
-## Features
+[![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-✓-brightgreen)]()
 
-- **Email Summarization**: Generate concise, structured summaries of email content including key points and action items.
-- **Smart Reply Generation**: Create context-aware email replies based on the email's purpose and content.
-- **Advanced Attachment Processing**: Analyze various types of attachments including:
-  - **Documents**: PDF, DOCX, XLSX, PPTX, TXT, HTML
-  - **Images**: JPG, PNG, GIF with Azure Vision-powered image captioning
-  - **Media**: Various media file types with basic metadata extraction
-- **Deep Research**: Optional integration with research APIs to provide deeper insights on email topics.
-- **Multiple Processing Modes**: Process emails in different modes depending on your needs:
-  - `summary`: Just generate a summary
-  - `reply`: Just generate a reply
-  - `research`: Perform research based on the email content
-  - `full`: Complete processing (summary, reply, and research)
-- **Rich Text Formatting**: Supports both HTML and plain text email responses with proper formatting
-- **Attachment Analysis**: Provides detailed summaries of attachment contents in the email response
-- **Error Resilience**: Graceful handling of processing errors with fallback responses
-- **Asynchronous Processing**: Uses Dramatiq for reliable background task processing
-- **Scalable Architecture**: Multiple workers can process emails concurrently
-
-## Directory Structure
-
-```
-mxtoai/
-├── agents/                 # Agent implementations for different tasks
-│   └── email_agent.py     # Main email processing agent implementation
-├── tools/                 # Individual tool implementations
-│   ├── attachment_processing_tool.py  # Attachment handling
-│   ├── email_reply_tool.py        # Email reply generation
-│   └── deep_research_tool.py      # Research capabilities
-├── scripts/              # Utility scripts and helpers
-│   ├── visual_qa.py     # Azure Vision integration for images
-│   ├── citation_tools.py # Citation and reference handling
-│   ├── text_web_browser.py # Web content retrieval
-│   └── report_formatter.py  # Email response formatting
-├── attachments/         # Temporary storage for attachments
-└── ai.py              # AI model configurations and utilities
-```
-
-## Architecture
-
-The system uses a message queue architecture with Dramatiq for reliable email processing:
-
-1. **API Layer**: Receives email requests and queues them for processing
-2. **Message Queue**: Uses Redis as the message broker
-3. **Worker Processes**: Multiple Dramatiq workers process emails concurrently
-4. **Error Handling**: Built-in retry mechanism for failed tasks
-
-## Setup and Installation
+## 🚀 Quick Start (5 minutes)
 
 ### Prerequisites
+- [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running
+- 4GB RAM available for Docker
+- 10GB free disk space
 
-- Python 3.12+
-- Redis server (for message queue)
-- Azure OpenAI API access
-- Azure Vision API access (for image processing)
+### One-Command Setup
 
-### Installation
-
-The project uses Poetry for dependency management. Here's how to set it up:
-
-1. First, install Poetry if you haven't already:
 ```bash
-# On macOS/Linux/WSL
-curl -sSL https://install.python-poetry.org | python3 -
-
-# On Windows (PowerShell)
-(Invoke-WebRequest -Uri https://install.python-poetry.org -UseBasicParsing).Content | py -
-```
-
-2. Clone and set up the project:
-```bash
-# Clone the repository
-git clone https://github.com/satwikkansal/mxtoai.git
+# Clone and start
+git clone https://github.com/your-org/mxtoai.git
 cd mxtoai
 
-# Install dependencies using Poetry
-poetry install
-
-# Activate the virtual environment
-poetry shell
+# Automated setup and start
+./scripts/setup-local.sh && ./scripts/start-local.sh
 ```
 
-3. Start RabbitMQ server:
-```bash
-brew services restart rabbitmq
-```
+**That's it!** 🎉
 
-4. Start the API server:
-```bash
-poetry run python run_api.py
-```
+- **API Server**: http://localhost:8000
+- **Health Check**: http://localhost:8000/health
+- **API Documentation**: http://localhost:8000/docs
+- **RabbitMQ Management**: http://localhost:15672 (guest/guest)
 
-5. Start the workers:
+### Configure Your AI Model
 
-Using only single process and couple of threads for local development:
-
-```bash
-poetry run dramatiq mxtoai.tasks --processes 1 --threads 2 --watch ./.
-```
-
-### Environment Variables
-
-Copy the `.env.example` file to `.env` and update with your specific configuration:
-
-```env
-LITELLM_CONFIG_PATH=model.config.toml
-
-# Redis configuration
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# Optional for research functionality
-JINA_API_KEY=your-jina-api-key
-
-# For image processing
-AZURE_VISION_ENDPOINT=your-azure-vision-endpoint
-AZURE_VISION_KEY=your-azure-vision-key
-
-# For web search functionality
-SERPAPI_API_KEY=your-serpapi-api-key
-```
-
-This project supports load balancing and routing across multiple models, so you can define as many models as you'd like. Copy `model.config.example.toml` to a toml file and update it with your preferred configuration. Update `.env` with the path your toml relative to root.
-
-A sample configuration looks like this:
+Edit the `model.config.toml` file with your AI service credentials:
 
 ```toml
+# For OpenAI
 [[model]]
 model_name = "gpt-4"
+litellm_params = {
+    model = "gpt-4",
+    api_key = "your_openai_api_key_here"
+}
 
-[model.litellm_params]
-model = "azure/gpt-4"
-base_url = "https://your-endpoint.openai.azure.com"
-api_key = "your-key"
-api_version = "2023-05-15"
-weight = 5
-```
-
-It is also recommended that you set router configuration. It will be defaulted to the below config if not set.
-
-```toml
-[router_config]
-routing_strategy = "simple-shuffle"
-
-[[router_config.fallbacks]]
-gpt-4 = ["gpt-4-reasoning"]
-
-[router_config.default_litellm_params]
-drop_params = true
-```
-
-## API Endpoints
-
-### Process Email
-
-```
-POST /process-email
-```
-
-#### Response Example
-
-```json
-{
-    "message": "Email received and queued for processing",
-    "email_id": "1743315736--3926735152910876943",
-    "attachments_saved": 1,
-    "status": "processing"
+# For Azure OpenAI
+[[model]]
+model_name = "azure-gpt-4"
+litellm_params = {
+    model = "azure/gpt-4",
+    api_key = "your_azure_openai_api_key",
+    base_url = "https://your-resource.openai.azure.com/",
+    api_version = "2023-05-15"
 }
 ```
 
-The email will be processed asynchronously by the workers. You can implement a status check endpoint to monitor the processing status.
+## 🎯 What is MXTOAI?
 
-## Email Processing Flow
+MXTOAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
+
+### ✨ **Core Features**
+
+- **🧠 Smart Email Processing**: Automatically summarize, reply to, and analyze emails
+- **📎 Advanced Attachment Handling**: Process PDFs, images, documents with AI-powered analysis
+- **🔍 Deep Research**: Optional integration with research APIs for comprehensive insights
+- **📧 Multiple Processing Modes**:
+  - `summary@`: Generate email summaries
+  - `reply@`: Create smart replies
+  - `research@`: Perform topic research
+  - `ask@`: Full processing with Q&A
+- **⚡ Scalable Architecture**: Background processing with multiple workers
+- **🔒 Privacy First**: Runs entirely on your infrastructure
+- **🎨 Rich Formatting**: HTML and plain text responses with professional styling
+
+### 🏗️ **Architecture**
+
+```
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
+│   API Server    │◄───┤   PostgreSQL │    │    RabbitMQ     │
+│   (Port 8000)   │    │  (Database)  │    │ (Message Queue) │
+└─────────────────┘    └──────────────┘    └─────────────────┘
+         │                                           │
+         ▼                                           ▼
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
+│      Redis      │    │    Worker    │    │   Scheduler     │
+│    (Cache)      │    │  (Background │    │ (Cron Tasks)    │
+└─────────────────┘    │   Tasks)     │    └─────────────────┘
+                       └──────────────┘
+```
+
+## 📧 Process Your First Email
+
+### Using the API
+
+```bash
+# Send an email for processing
+curl -X POST "http://localhost:8000/process-email" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from": "user@example.com",
+    "to": "ask@yourdomain.com",
+    "subject": "What is artificial intelligence?",
+    "body": "Can you explain AI in simple terms?"
+  }'
+```
+
+### Response Format
+
+```json
+{
+  "message": "Email received and queued for processing",
+  "email_id": "1743315736--3926735152910876943",
+  "status": "processing"
+}
+```
+
+The system processes emails asynchronously and can send responses via your configured email service.
+
+## 📊 Email Processing Flow
 
 ```mermaid
 graph TD
-    A[Incoming Email] --> B[Email Routing]
-    B --> C{Determine Mode}
+    A[📧 Incoming Email] --> B[🎯 Email Routing]
+    B --> C{🤔 Determine Mode}
 
-    C -->|summarize@| D[Summary Mode]
-    C -->|reply@| E[Reply Mode]
-    C -->|research@| F[Research Mode]
-    C -->|ask@| G[Full Mode]
+    C -->|summarize@| D[📝 Summary Mode]
+    C -->|reply@| E[💬 Reply Mode]
+    C -->|research@| F[🔍 Research Mode]
+    C -->|ask@| G[🎯 Full Mode]
 
-    %% Attachment Processing
-    A --> H[Attachment Detection]
-    H --> I{File Type}
-    I -->|Images| J[Azure Vision Analysis]
-    I -->|Documents| K[Document Processing]
-    I -->|Other| L[Metadata Extraction]
+    A --> H[📎 Attachment Detection]
+    H --> I{📄 File Type}
+    I -->|🖼️ Images| J[👁️ Vision Analysis]
+    I -->|📄 Documents| K[📖 Content Extract]
+    I -->|📊 Other| L[ℹ️ Metadata]
 
-    J --> M[Generate Captions]
-    K --> N[Extract Content]
-    L --> O[Basic Info]
+    D & E & F & G --> M[⚙️ AI Processing]
+    J & K & L --> M
 
-    M & N & O --> P[Attachment Summary]
-
-    %% Mode Processing
-    D & E & F & G --> Q[Process Request]
-    P --> Q
-
-    Q --> R[Format Response]
-    R --> S[Generate HTML]
-    R --> T[Generate Text]
-
-    %% Error Handling
-    Q --> U{Errors?}
-    U -->|Yes| V[Fallback Response]
-    U -->|No| R
-
-    %% Final Response
-    S & T --> W[Final Response]
-    V --> W
-
-    %% Styling
-    classDef email fill:#f9f,stroke:#333,stroke-width:2px
-    classDef process fill:#bbf,stroke:#333,stroke-width:2px
-    classDef error fill:#fbb,stroke:#333,stroke-width:2px
-
-    class A,B email
-    class D,E,F,G,Q,R process
-    class U,V error
+    M --> N[✨ Format Response]
+    N --> O[📤 Send Reply]
 ```
 
-## Running the API Server
+## 🛠️ Configuration
+
+### Environment Variables
+
+The system uses Docker defaults for local development. For customization, edit `.env`:
 
 ```bash
-# Start the FastAPI server
-uvicorn api:app --reload
+# AI Model (Required - add your API key)
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Email Service (Optional - for sending replies)
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret
+SENDER_EMAIL=assistant@yourdomain.com
+
+# Docker Services (Don't change for local development)
+DB_HOST=postgres
+REDIS_HOST=redis
+RABBITMQ_HOST=rabbitmq
 ```
 
-## Scheduler Setup & Running
+### Advanced Configuration
 
-The scheduler runs as a **separate process** from the API server and Dramatiq workers. This ensures clean separation and scalability.
+For production deployments and advanced features, see:
+- [📚 Docker Setup Guide](DOCKER_SETUP.md) - Complete deployment guide
+- [🔧 Development Setup](#development-setup) - Local development with Poetry
+- [🌐 Production Deployment](#production-deployment) - Production configuration
 
-### 1. Ensure Environment Variables
+## 🔄 Managing the System
 
-Add these to your `.env` (or set in your environment):
-
-```env
-# Database (PostgreSQL) settings
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=your_database
-DB_USER=your_user
-DB_PASSWORD=your_password
-
-# Scheduler settings
-SCHEDULER_API_BASE_URL=http://localhost:8000
-SCHEDULER_API_TIMEOUT=300
-```
-
-### 2. Run Database Migration
-
-Make sure your database is up to date:
+### Docker Commands
 
 ```bash
+# Check status
+docker compose ps
+
+# View logs
+docker compose logs api_server
+docker compose logs worker
+
+# Restart services
+docker compose restart
+
+# Stop everything
+docker compose down
+
+# Clean reset (removes data)
+docker compose down -v
+```
+
+### Health Monitoring
+
+- **API Health**: `curl http://localhost:8000/health`
+- **Service Status**: `docker compose ps`
+- **Resource Usage**: Docker Desktop Dashboard
+
+## 🚀 Production Deployment
+
+### Quick Production Setup
+
+1. **Use external databases** (recommended):
+```bash
+# In production .env
+DB_HOST=your.postgresql.host
+REDIS_HOST=your.redis.host
+```
+
+2. **Configure HTTPS** with reverse proxy (nginx/Traefik)
+
+3. **Set resource limits**:
+```yaml
+# docker-compose.prod.yml
+services:
+  api_server:
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '1.0'
+```
+
+4. **Scale workers for load**:
+```bash
+docker compose up --scale worker=3
+```
+
+See [DOCKER_SETUP.md](DOCKER_SETUP.md) for complete production guidance.
+
+## 🔧 Development Setup
+
+For contributors who want to develop using Poetry instead of Docker:
+
+### Prerequisites
+- Python 3.12+
+- Poetry
+- PostgreSQL
+- Redis
+- RabbitMQ
+
+### Setup Steps
+
+```bash
+# Install dependencies
+poetry install
+poetry shell
+
+# Setup services (macOS example)
+brew services start postgresql@14
+brew services start redis
+brew services start rabbitmq
+
+# Configure environment
+cp .env.example .env
+# Edit .env with local service settings
+
+# Run database migrations
+cd mxtoai/db
 poetry run alembic upgrade head
+cd ../..
+
+# Start services (3 separate terminals)
+poetry run python run_api.py                           # API Server
+poetry run dramatiq mxtoai.tasks --watch ./            # Worker
+poetry run python -m mxtoai.scheduler_runner          # Scheduler
 ```
 
-For detailed information about database migrations, see [mxtoai/db/README.md](mxtoai/db/README.md).
+## 📁 Repository Structure
 
-### 3. Start All Processes
+```mermaid
+graph TD
+    A[🤖 MXTOAI Repository] --> B[🐳 docker/]
+    A --> C[🤖 mxtoai/]
+    A --> D[📋 scripts/]
+    A --> E[🧪 tests/]
+    A --> F[📖 docusaurus-site/]
+    A --> G[📧 email-worker/]
+    A --> H[🔧 Config Files]
 
-You need to run **three separate processes**:
+    B --> B1[api_server.dockerfile]
+    B --> B2[worker.dockerfile]
+    B --> B3[scheduler.dockerfile]
+    B --> B4[startup scripts]
 
-```bash
-# Terminal 1: API Server
-poetry run python run_api.py
+    C --> C1[🤖 agents/]
+    C --> C2[🛠️ tools/]
+    C --> C3[📜 scripts/]
+    C --> C4[🗄️ db/]
+    C --> C5[📄 models/]
+    C --> C6[🔧 Core files]
 
-# Terminal 2: Dramatiq Workers (multiple processes)
-poetry run dramatiq mxtoai.tasks --processes 1 --threads 2 --watch ./
+    C1 --> C1A[email_agent.py]
+    C2 --> C2A[attachment_processing_tool.py]
+    C2 --> C2B[deep_research_tool.py]
+    C2 --> C2C[web_search/]
+    C2 --> C2D[external_data/]
 
-# Terminal 3: Scheduler Process (separate)
-poetry run python -m mxtoai.scheduler_runner
+    C3 --> C3A[visual_qa.py]
+    C3 --> C3B[text_web_browser.py]
+    C3 --> C3C[email_processor.py]
+    C3 --> C3D[report_formatter.py]
+
+    C4 --> C4A[alembic/]
+    C4 --> C4B[migration files]
+
+    D --> D1[setup-local.sh]
+    D --> D2[start-local.sh]
+
+    E --> E1[test_api.py]
+    E --> E2[test_agents.py]
+    E --> E3[load-test/]
+
+    F --> F1[docs/]
+    F --> F2[src/]
+    F --> F3[static/]
+
+    G --> G1[Node.js worker]
+    G --> G2[package.json]
+
+    H --> H1[docker-compose.yml]
+    H --> H2[.env.example]
+    H --> H3[model.config.example.toml]
+    H --> H4[pyproject.toml]
+    H --> H5[README.md]
+    H --> H6[DOCKER_SETUP.md]
+
+    classDef configFile fill:#f9f,stroke:#333,stroke-width:2px
+    classDef coreApp fill:#bbf,stroke:#333,stroke-width:2px
+    classDef docker fill:#e1f5fe,stroke:#333,stroke-width:2px
+    classDef docs fill:#f3e5f5,stroke:#333,stroke-width:2px
+
+    class H1,H2,H3,H4,H5,H6 configFile
+    class C,C1,C2,C3,C4,C5,C6 coreApp
+    class B,B1,B2,B3,B4 docker
+    class F,F1,F2,F3 docs
 ```
 
-**How it works:**
-- Dramatiq workers handle emails and write scheduled tasks to PostgreSQL
-- Scheduler process reads from PostgreSQL and executes tasks by calling the API
-- API server processes both regular and scheduled emails
+### 🗂️ Key Directories
 
-## Advanced Features
+| Directory | Purpose | Key Files |
+|-----------|---------|-----------|
+| `🐳 docker/` | Container configurations | Dockerfiles, startup scripts |
+| `🤖 mxtoai/` | Core application code | agents, tools, database models |
+| `📋 scripts/` | Setup & deployment | setup-local.sh, start-local.sh |
+| `🧪 tests/` | Test suite | Unit tests, load tests |
+| `📖 docusaurus-site/` | Documentation website | Docs, guides, examples |
+| `📧 email-worker/` | Cloudflare worker | Alternative email processor |
+| `🔧 Root configs` | Project configuration | Docker, environment, dependencies |
 
-### Attachment Processing
+## 🔧 Advanced Features
 
-The system now supports:
-- Automatic content extraction from documents
-- Azure Vision-powered image analysis and captioning
-- Fallback processing for unsupported file types
-- Size-aware content summarization
-- Error resilient processing
+### Attachment Processing Capabilities
 
-### Response Formatting
+- **📄 Documents**: PDF, DOCX, XLSX, PPTX, TXT, HTML
+- **🖼️ Images**: JPG, PNG, GIF with AI-powered captioning
+- **📊 Spreadsheets**: Automatic data analysis and summarization
+- **🎥 Media**: Basic metadata extraction
 
-- Rich text formatting with markdown support
-- Both HTML and plain text versions
-- Automatic signature handling
-- Attachment content integration
-- Professional formatting with sections and highlights
+### Multiple AI Model Support
 
-### Error Handling
+MXTOAI supports load balancing across multiple AI providers:
 
-- Graceful degradation on processing failures
-- Detailed error tracking and reporting
-- Fallback responses for partial failures
-- Comprehensive error logging
+- OpenAI GPT models
+- Azure OpenAI
+- AWS Bedrock (Claude)
+- Local models via Ollama
+- Custom API endpoints
 
-## Load Testing
+### Scheduled Tasks
 
-The project uses Locust for load testing various email processing scenarios.
+Create recurring email processing tasks:
 
-### Setup & Run
-
-1. Install and setup:
 ```bash
+# Send daily reports
+curl -X POST "http://localhost:8000/schedule-task" \
+  -d '{"cron": "0 9 * * *", "task": "daily_summary"}'
+```
+
+## 🧪 Testing
+
+### Load Testing
+
+Test system performance:
+
+```bash
+# Install and run load tests
 pip install locust
-mkdir -p test_files
-# Add 2-3 PDF files to test_files/ directory
-```
-
-2. Run tests:
-```bash
-# Interactive mode (Recommended)
 locust --host=http://localhost:8000
-
-# Or headless mode
-poetry run locust --host=http://localhost:9192 --users 10 --spawn-rate 2 --run-time 1m --headless
 ```
 
-### Test Scenarios
+### Unit Tests
 
-- Simple queries (50%): Complex questions to summarise@mxtoai.com
-- Translation requests (20%): Technical content to translate@mxtoai.com
-- Document analysis (30%): PDF attachments to ask@mxtoai.com
+```bash
+# Run test suite
+docker exec -it worker pytest
+```
 
-### Results & Monitoring
+## 🆘 Troubleshooting
 
-- Real-time stats in Web UI (http://localhost:8089)
-- System metrics in results/system_stats.csv
-- HTML report and logs in results/ directory
+### Common Issues
 
-For detailed configuration, check `locustfile.py`.
+**"Port already in use"**
+```bash
+# Find what's using the port
+lsof -i :8000
+# Change port in .env
+API_PORT=8080
+```
 
-## Contributing
+**"Out of memory"**
+- Increase Docker Desktop memory allocation to 6GB+
+- Close other applications
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+**"Service unhealthy"**
+```bash
+# Check service logs
+docker compose logs [service_name]
+
+# Restart specific service
+docker compose restart [service_name]
+```
+
+For more troubleshooting, see [DOCKER_SETUP.md](DOCKER_SETUP.md#troubleshooting).
+
+## 🤝 Contributing
+
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Setup** development environment: `./scripts/setup-local.sh`
+3. **Make** your changes
+4. **Test** thoroughly
+5. **Submit** a Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🌟 Support
+
+- **📖 Documentation**: [DOCKER_SETUP.md](DOCKER_SETUP.md)
+- **🐛 Issues**: [GitHub Issues](https://github.com/your-org/mxtoai/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/your-org/mxtoai/discussions)
+
+---
+
+<div align="center">
+
+**⭐ Star this repo if MXTOAI helps you!**
+
+Made with ❤️ for the open source community
+
+</div>
