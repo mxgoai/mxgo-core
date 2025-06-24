@@ -127,7 +127,7 @@ class TestDeleteScheduledTasksTool:
             return task
 
     @requires_database
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.remove_job")
     def test_successful_task_deletion(self, mock_remove_job):
         """Test successful task deletion."""
         task_id = str(uuid.uuid4())
@@ -178,7 +178,7 @@ class TestDeleteScheduledTasksTool:
         assert "own tasks" in result["message"]
 
     @requires_database
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.remove_job")
     def test_scheduler_removal_failure_continues_deletion(self, mock_remove_job):
         """Test that database deletion continues even if scheduling removal fails."""
         task_id = str(uuid.uuid4())

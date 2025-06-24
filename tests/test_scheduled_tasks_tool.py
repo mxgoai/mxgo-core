@@ -229,7 +229,7 @@ class TestScheduledTasksTool:
             textContent="Test content",
         )
 
-    @patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.add_job")
     @patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection")
     def test_successful_task_creation(self, mock_init_db_connection, mock_add_job):
         """Test successful scheduled task creation."""
@@ -264,7 +264,7 @@ class TestScheduledTasksTool:
         # Verify scheduling interaction
         mock_add_job.assert_called()
 
-    @patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.add_job")
     @patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection")
     def test_task_creation_with_start_and_end_times(self, mock_init_db_connection, mock_add_job):
         """Test task creation with start and end times."""
@@ -346,7 +346,7 @@ class TestScheduledTasksTool:
         # Mock the database and scheduling
         with (
             patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
-            patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job") as mock_add_job,
+            patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
         ):
             mock_session = MagicMock()
             mock_db_connection = MagicMock()
@@ -373,7 +373,7 @@ class TestScheduledTasksTool:
 
         with (
             patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
-            patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job") as mock_add_job,
+            patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
         ):
             mock_session = MagicMock()
             mock_db_connection = MagicMock()

@@ -159,7 +159,7 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
 
     with (
         patch("mxtoai.tasks.EmailSender") as MockEmailSender,
-        patch("mxtoai.scheduling.add_scheduled_job") as mock_add_scheduled_job,
+        patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_scheduled_job,
     ):
         mock_add_scheduled_job.return_value = None
         mock_sender_instance = MockEmailSender.return_value
@@ -780,7 +780,7 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
 
     # Mock only the scheduling removal and email sender
     with (
-        patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job", return_value=True),
+        patch("mxtoai.scheduling.scheduler.Scheduler.remove_job", return_value=True),
         patch("mxtoai.tasks.EmailSender") as mock_email_sender_class,
     ):
         mock_email_sender = MagicMock()

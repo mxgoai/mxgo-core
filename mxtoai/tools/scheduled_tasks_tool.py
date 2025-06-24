@@ -381,6 +381,7 @@ class ScheduledTasksTool(Tool):
             email_request.task_description = input_data.task_description
             # TODO: Need an AI driver logic here but for now we'll just redirect to ask
             email_request.distilled_alias = HandlerAlias.ASK
+            email_request.parent_message_id = email_request.messageId
 
             # Store task in database using CRUD
             try:
