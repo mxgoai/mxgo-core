@@ -97,37 +97,6 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
         raise ValueError(msg) from e
 
 
-def create_one_time_cron_expression(target_datetime: datetime) -> str:
-    """
-    Create a cron expression for a one-time execution at a specific datetime.
-
-    Args:
-        target_datetime: The datetime when the task should run
-
-    Returns:
-        str: A cron expression for one-time execution
-
-    """
-    return f"{target_datetime.minute} {target_datetime.hour} {target_datetime.day} {target_datetime.month} *"
-
-
-def create_cron_from_relative_time(relative_minutes: int) -> tuple[str, datetime]:
-    """
-    Create a cron expression for execution after a relative time from now.
-
-    Args:
-        relative_minutes: Minutes from now when the task should execute
-
-    Returns:
-        tuple: (cron_expression, target_datetime)
-
-    """
-    target_datetime = datetime.now(timezone.utc) + timedelta(minutes=relative_minutes)
-    target_datetime = round_to_nearest_minute(target_datetime)
-    cron_expression = create_one_time_cron_expression(target_datetime)
-    return cron_expression, target_datetime
-
-
 def validate_minimum_interval(cron_expression: str) -> None:
     """
     Validate that a recurring cron expression has a minimum interval of 1 hour.

@@ -250,7 +250,7 @@ def process_email_task(
                     logger.info(f"Prepared {processing_result.pdf_export.filename} for attachment in task.")
 
                     # Clean up the temporary PDF file
-                    os.unlink(processing_result.pdf_export.file_path)
+                    Path(processing_result.pdf_export.file_path).unlink()
                     logger.info(f"Cleaned up temporary PDF file: {processing_result.pdf_export.file_path}")
 
                     # Clean up the PDF tool's temporary directory using tracked temp_dir

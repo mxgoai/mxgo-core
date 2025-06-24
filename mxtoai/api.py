@@ -176,7 +176,7 @@ def create_error_response(summary: str, attachment_info: list[dict[str, Any]], e
 
 
 # Helper function to handle uploaded files
-async def handle_file_attachments(
+async def handle_file_attachments(  # noqa: PLR0912
     attachments: list[EmailAttachment], email_id: str, email_data: EmailRequest
 ) -> tuple[str, list[dict[str, Any]]]:
     """
@@ -232,7 +232,7 @@ async def handle_file_attachments(
             # Truncate filename if too long
             if len(safe_filename) > MAX_FILENAME_LENGTH:
                 ext = Path(safe_filename).suffix
-                safe_filename = safe_filename[:MAX_FILENAME_LENGTH - FILENAME_TRUNCATE_BUFFER] + ext
+                safe_filename = safe_filename[: MAX_FILENAME_LENGTH - FILENAME_TRUNCATE_BUFFER] + ext
                 logger.warning(f"Truncated long filename to: {safe_filename}")
 
             # Full path to save the attachment
@@ -275,7 +275,7 @@ async def handle_file_attachments(
         except ValueError as e:
             logger.error(f"Validation error for file {attachment.filename}: {e!s}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-        except Exception as e:
+        except Exception:
             logger.exception(f"Error processing file {attachment.filename}")
             # Try to clean up any partially saved file
             try:

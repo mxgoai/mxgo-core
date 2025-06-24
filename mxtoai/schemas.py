@@ -59,17 +59,17 @@ class EmailRequest(BaseModel):
     from_email: str = Field(..., alias="from")
     to: str
     subject: str | None = ""
-    rawContent: str | None = ""
+    rawContent: str | None = ""  # noqa: N815
     recipients: list[str] | None = []
-    messageId: str | None = None
+    messageId: str | None = None  # noqa: N815
     date: str | None = None
-    inReplyTo: str | None = None
+    inReplyTo: str | None = None  # noqa: N815
     references: str | None = None
     cc: list[str] | None = None
     bcc: str | None = None
-    replyTo: str | None = None
-    returnPath: str | None = None
-    textContent: str | None = ""
+    replyTo: str | None = None  # noqa: N815
+    returnPath: str | None = None  # noqa: N815
+    textContent: str | None = ""  # noqa: N815
     htmlContent: str | None = ""  # noqa: N815
     headers: dict[str, str] | None = {}
     attachments: list[EmailAttachment] | None = []

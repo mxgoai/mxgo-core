@@ -144,7 +144,7 @@ class EmailSender:
                 logger.exception(f"AWS SES error ({error_code}): {error_message}")
 
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Error sending email")
             raise
         else:
@@ -315,7 +315,7 @@ class EmailSender:
                 logger.exception(f"AWS SES error sending raw email ({error_code}): {error_message}")
 
             raise  # Re-raise the exception after logging
-        except Exception as e:
+        except Exception:
             logger.exception("Error sending raw reply")
             raise
         else:

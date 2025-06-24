@@ -25,6 +25,10 @@ ARCHIVE_REQUEST_TIMEOUT = 15  # seconds
 DOWNLOAD_REQUEST_TIMEOUT = 60  # seconds
 
 
+class WebBrowserError(Exception):
+    """Base exception for web browser errors."""
+
+
 class SimpleTextBrowser:
     """(In preview) An extremely simple text-based web browser comparable to Lynx. Suitable for Agentic use."""
 
@@ -219,7 +223,7 @@ class SimpleTextBrowser:
         self.page_title = f"{query} - Search"
         if "organic_results" not in results:
             msg = f"No results found for query: '{query}'. Use a less specific query."
-            raise Exception(msg)
+            raise WebBrowserError(msg)
         if len(results["organic_results"]) == 0:
             year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
             self._set_page_content(
@@ -388,7 +392,7 @@ class SearchInformationTool(Tool):
 
     def forward(self, query: str, filter_year: Optional[int] = None) -> str:
         self.browser.visit_page(f"google: {query}", filter_year=filter_year)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
@@ -406,7 +410,7 @@ class VisitTool(Tool):
 
     def forward(self, url: str) -> str:
         self.browser.visit_page(url)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
@@ -477,7 +481,7 @@ class ArchiveSearchTool(Tool):
             raise Exception(msg)
         target_url = closest["url"]
         self.browser.visit_page(target_url)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return (
             f"Web archive for url {url}, snapshot taken at date {closest['timestamp'][:8]}:\n"
             + header.strip()
@@ -498,7 +502,7 @@ class PageUpTool(Tool):
 
     def forward(self) -> str:
         self.browser.page_up()
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
@@ -514,7 +518,7 @@ class PageDownTool(Tool):
 
     def forward(self) -> str:
         self.browser.page_down()
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
@@ -535,7 +539,7 @@ class FinderTool(Tool):
 
     def forward(self, search_string: str) -> str:
         find_result = self.browser.find_on_page(search_string)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
 
         if find_result is None:
             return (
@@ -557,7 +561,7 @@ class FindNextTool(Tool):
 
     def forward(self) -> str:
         find_result = self.browser.find_next()
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
 
         if find_result is None:
             return header.strip() + "\n=======================\nThe search string was not found on this page."

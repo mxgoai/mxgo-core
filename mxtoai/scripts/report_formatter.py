@@ -425,7 +425,10 @@ class ReportFormatter:
 
             # --- FIX 5: Fix missing spaces after list markers ---
             # Skip lines that start with bold markers like "**Summary:**"
-            if not (modified_line.strip().startswith("**") and ("**:" in modified_line or modified_line.strip().endswith("**"))):
+            if not (
+                modified_line.strip().startswith("**")
+                and ("**:" in modified_line or modified_line.strip().endswith("**"))
+            ):
                 # Check for missing spaces after list markers
                 match = re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s].*)", modified_line)
                 if match:

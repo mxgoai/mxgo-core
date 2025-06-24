@@ -473,7 +473,7 @@ def test_pdf_export_tool_direct():
     assert pdf_content[:4] == b"%PDF", "File should start with PDF magic bytes"
 
     # Clean up
-    os.unlink(pdf_path)
+    Path(pdf_path).unlink()
 
 
 def test_pdf_export_tool_with_research_findings():
@@ -499,7 +499,7 @@ def test_pdf_export_tool_with_research_findings():
     assert Path(pdf_path).exists(), "PDF file should exist"
 
     # Clean up
-    os.unlink(pdf_path)
+    Path(pdf_path).unlink()
 
 
 def test_pdf_export_content_cleaning():
@@ -536,7 +536,7 @@ More important content here.
     # but we can verify the tool runs successfully
 
     # Clean up
-    os.unlink(result["file_path"])
+    Path(result["file_path"]).unlink()
 
 
 def test_pdf_handle_full_integration():
@@ -669,7 +669,7 @@ def test_pdf_export_error_handling():
 
     # Clean up if file was created
     if "file_path" in result and Path(result["file_path"]).exists():
-        os.unlink(result["file_path"])
+        Path(result["file_path"]).unlink()
 
     # Test with very long title
     long_title = "A" * 200  # Very long title
@@ -681,7 +681,7 @@ def test_pdf_export_error_handling():
 
     # Clean up
     if "file_path" in result and Path(result["file_path"]).exists():
-        os.unlink(result["file_path"])
+        Path(result["file_path"]).unlink()
 
 
 def test_pdf_export_cleanup():

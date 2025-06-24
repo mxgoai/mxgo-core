@@ -10,6 +10,7 @@ fake = faker.Faker()
 # Constants
 THINKING_MARKER_PROBABILITY = 0.2
 
+
 class MockJinaService:
     """
     Mock service to simulate Jina AI's DeepSearch API behavior for load testing.
@@ -36,7 +37,8 @@ class MockJinaService:
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
         all_urls = [
-            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}" for _ in range(num_urls)  # noqa: S311
+            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}"
+            for _ in range(num_urls)
         ]
 
         # Randomly select some URLs as "read"

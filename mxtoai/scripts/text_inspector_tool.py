@@ -10,15 +10,12 @@ class TextInspectorError(Exception):
     """Base exception for text inspector tool errors."""
 
 
-
 class ImageFileError(TextInspectorError):
     """Exception raised when trying to process image files."""
 
 
-
 class FileProcessingError(TextInspectorError):
     """Exception raised for general file processing errors."""
-
 
 
 class TextInspectorTool(Tool):

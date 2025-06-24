@@ -98,11 +98,12 @@ async def trigger_automatic_verification(email: str) -> bool:
 
         if hasattr(existing_response, "data") and len(existing_response.data) > 0:
             # Email exists, update with new verification token
-            update_response = supabase.table("whitelisted_emails").update({
-                "verification_token": verification_token,
-                "verified": False,
-                "updated_at": current_time
-            }).eq("email", email).execute()
+            update_response = (
+                supabase.table("whitelisted_emails")
+                .update({"verification_token": verification_token, "verified": False, "updated_at": current_time})
+                .eq("email", email)
+                .execute()
+            )
 
             if hasattr(update_response, "data") and len(update_response.data) > 0:
                 logger.info(f"Updated existing email {email} with new verification token")
@@ -111,13 +112,19 @@ async def trigger_automatic_verification(email: str) -> bool:
                 return False
         else:
             # Email doesn't exist, insert new record
-            insert_response = supabase.table("whitelisted_emails").insert({
-                "email": email,
-                "verified": False,
-                "verification_token": verification_token,
-                "created_at": current_time,
-                "updated_at": current_time
-            }).execute()
+            insert_response = (
+                supabase.table("whitelisted_emails")
+                .insert(
+                    {
+                        "email": email,
+                        "verified": False,
+                        "verification_token": verification_token,
+                        "created_at": current_time,
+                        "updated_at": current_time,
+                    }
+                )
+                .execute()
+            )
 
             if hasattr(insert_response, "data") and len(insert_response.data) > 0:
                 logger.info(f"Inserted new email {email} with verification token")
@@ -230,10 +237,7 @@ https://mxtoai.com"""
         # Initialize email sender and send verification email
         email_sender = EmailSender()
         response = await email_sender.send_email(
-            to_address=email,
-            subject=subject,
-            body_text=text_content,
-            body_html=html_content
+            to_address=email, subject=subject, body_text=text_content, body_html=html_content
         )
 
         logger.info(f"Verification email sent successfully to {email}: {response.get('MessageId', 'Unknown')}")

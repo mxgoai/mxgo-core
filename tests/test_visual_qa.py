@@ -1,6 +1,7 @@
 import base64
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
@@ -98,7 +99,7 @@ class TestResizeImage:
             resized_path = resize_image(temp_path)
 
             # Check that resized file was created
-            assert os.path.exists(resized_path)
+            assert Path(resized_path).exists()
             assert "resized_" in resized_path
 
             # Check dimensions are halved
@@ -107,7 +108,7 @@ class TestResizeImage:
 
         finally:
             os.unlink(temp_path)
-            if resized_path and os.path.exists(resized_path):
+            if resized_path and Path(resized_path).exists():
                 os.unlink(resized_path)
 
     def test_resize_nonexistent_file(self):
