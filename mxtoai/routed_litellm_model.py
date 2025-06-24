@@ -1,5 +1,6 @@
 import os
 import tomllib
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -64,12 +65,12 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             Dict[str, Any]: Configuration loaded from the TOML file.
 
         """
-        if not os.path.exists(self.config_path):
+        if not Path(self.config_path).exists():
             msg = f"Model config file not found at {self.config_path}. Please check the path."
             raise exceptions.ModelConfigFileNotFoundException(msg)
 
         try:
-            with open(self.config_path, "rb") as f:
+            with Path(self.config_path).open("rb") as f:
                 return tomllib.load(f)
         except Exception as e:
             logger.error(f"Failed to load TOML config: {e}")
@@ -250,12 +251,12 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             finally:
                 self.model_id = original_smol_model_id
 
-            return chat_message
-
         except Exception as e:
             logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
             msg = f"Failed to get completion from LiteLLM router: {e!s}"
             raise RuntimeError(msg) from e
+        else:
+            return chat_message
 
     @property
     def last_input_token_count(self) -> int:
@@ -280,8 +281,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
     def __getattr__(self, name: str):
         """Handle any missing attribute access gracefully, especially for token-related properties."""
         # Handle various token-related attribute names that might be accessed
-        if name in ("input_tokens", "output_tokens", "total_tokens",
-                   "prompt_tokens", "completion_tokens", "usage"):
+        if name in ("input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens", "usage"):
             return 0
         # For other missing attributes, raise AttributeError as normal
         msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"

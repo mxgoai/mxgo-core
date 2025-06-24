@@ -175,7 +175,7 @@ class EmailProcessingUser(HttpUser):
         # Verify test files exist
         for scenario in EMAIL_SCENARIOS:
             for file_path in scenario["data"].get("files", []):
-                if not os.path.exists(file_path):
+                if not Path(file_path).exists():
                     logger.warning(f"Test file not found: {file_path}")
 
     def _process_deep_research(self, data: dict) -> dict:

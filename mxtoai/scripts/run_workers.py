@@ -9,6 +9,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Constants
+DRAMATIQ_CONNECTION_ERROR_CODE = 3
+
 
 def find_tasks_modules():
     """Find all task modules in the project."""
@@ -55,7 +58,7 @@ if __name__ == "__main__":
     while True:
         try:
             result = subprocess.run(cmd, check=False)
-            if result.returncode == 3:  # Connection error
+            if result.returncode == DRAMATIQ_CONNECTION_ERROR_CODE:  # Connection error
                 subprocess.run(["sleep", str(delay)], check=False)
                 delay = min(delay * 2, 30)  # Exponential backoff, max 30 seconds
             else:

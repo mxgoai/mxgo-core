@@ -42,10 +42,7 @@ def get_task_by_id(session: Session, task_id: str | uuid.UUID) -> Optional[Tasks
 
 
 def get_tasks_by_user_email(
-    session: Session,
-    user_email: str,
-    statuses: Optional[list[TaskStatus]] = None,
-    limit: int = 10
+    session: Session, user_email: str, statuses: Optional[list[TaskStatus]] = None, limit: int = 10
 ) -> list[Tasks]:
     """
     Get tasks for a specific user email.
@@ -74,9 +71,7 @@ def get_tasks_by_user_email(
 
 
 def get_tasks_by_status(
-    session: Session,
-    statuses: list[TaskStatus],
-    has_scheduler_job_id: Optional[bool] = None
+    session: Session, statuses: list[TaskStatus], has_scheduler_job_id: Optional[bool] = None
 ) -> list[Tasks]:
     """
     Get tasks by their status.
@@ -111,7 +106,7 @@ def create_task(
     scheduler_job_id: Optional[str] = None,
     start_time: Optional[datetime] = None,
     expiry_time: Optional[datetime] = None,
-    status: TaskStatus = TaskStatus.INITIALISED
+    status: TaskStatus = TaskStatus.INITIALISED,
 ) -> Tasks:
     """
     Create a new task.
@@ -155,10 +150,7 @@ def create_task(
 
 
 def update_task_status(
-    session: Session,
-    task_id: str | uuid.UUID,
-    status: TaskStatus,
-    clear_email_data_if_terminal: bool = True
+    session: Session, task_id: str | uuid.UUID, status: TaskStatus, *, clear_email_data_if_terminal: bool = True
 ) -> Optional[Tasks]:
     """
     Update a task's status.
@@ -264,11 +256,7 @@ def get_latest_task_run(session: Session, task_id: str | uuid.UUID) -> Optional[
         Latest TaskRun object or None if no runs found
 
     """
-    statement = (
-        select(TaskRun)
-        .where(TaskRun.task_id == task_id)
-        .order_by(TaskRun.created_at.desc())
-    )
+    statement = select(TaskRun).where(TaskRun.task_id == task_id).order_by(TaskRun.created_at.desc())
     return session.exec(statement).first()
 
 
@@ -276,7 +264,7 @@ def create_task_run(
     session: Session,
     run_id: str | uuid.UUID,
     task_id: str | uuid.UUID,
-    status: TaskRunStatus = TaskRunStatus.INITIALISED
+    status: TaskRunStatus = TaskRunStatus.INITIALISED,
 ) -> TaskRun:
     """
     Create a new task run.
@@ -309,11 +297,7 @@ def create_task_run(
     return task_run
 
 
-def update_task_run_status(
-    session: Session,
-    run_id: str | uuid.UUID,
-    status: TaskRunStatus
-) -> Optional[TaskRun]:
+def update_task_run_status(session: Session, run_id: str | uuid.UUID, status: TaskRunStatus) -> Optional[TaskRun]:
     """
     Update a task run's status.
 
@@ -399,13 +383,15 @@ def find_user_tasks_formatted(session: Session, user_email: str, limit: int = 10
 
     user_tasks = []
     for task in tasks:
-        user_tasks.append({
-            "task_id": str(task.task_id),
-            "description": f"Cron: {task.cron_expression}",
-            "email_id": task.email_id,
-            "status": task.status.value,
-            "created_at": task.created_at.isoformat() if task.created_at else None,
-        })
+        user_tasks.append(
+            {
+                "task_id": str(task.task_id),
+                "description": f"Cron: {task.cron_expression}",
+                "email_id": task.email_id,
+                "status": task.status.value,
+                "created_at": task.created_at.isoformat() if task.created_at else None,
+            }
+        )
 
     logger.info(f"Found {len(user_tasks)} tasks for user {user_email}")
     return user_tasks

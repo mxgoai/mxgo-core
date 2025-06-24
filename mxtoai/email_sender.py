@@ -3,6 +3,7 @@ import hashlib
 import os
 import time
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Optional
 
 import boto3
@@ -124,8 +125,6 @@ class EmailSender:
 
             logger.info(f"Sending email from {source_email} to {to_address} with subject: {subject}")
             response = self.ses_client.send_email(**email_params)
-            logger.info(f"Email sent successfully: {response['MessageId']}")
-            return response
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
@@ -145,9 +144,12 @@ class EmailSender:
                 logger.exception(f"AWS SES error ({error_code}): {error_message}")
 
             raise
-        except Exception as e:
-            logger.exception(f"Error sending email: {e!s}")
+        except Exception:
+            logger.exception("Error sending email")
             raise
+        else:
+            logger.info(f"Email sent successfully: {response['MessageId']}")
+            return response
 
     async def send_reply(
         self,
@@ -293,8 +295,6 @@ class EmailSender:
             response = self.ses_client.send_raw_email(
                 Source=sender_email, Destinations=destinations, RawMessage={"Data": msg.as_string()}
             )
-            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
-            return response
 
         except ClientError as e:
             # Reuse existing detailed ClientError handling
@@ -315,9 +315,12 @@ class EmailSender:
                 logger.exception(f"AWS SES error sending raw email ({error_code}): {error_message}")
 
             raise  # Re-raise the exception after logging
-        except Exception as e:
-            logger.exception(f"Error sending raw reply: {e!s}")
+        except Exception:
+            logger.exception("Error sending raw reply")
             raise
+        else:
+            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
+            return response
 
 
 async def verify_sender_email(email_address: str) -> bool:
@@ -349,8 +352,6 @@ async def verify_sender_email(email_address: str) -> bool:
 
         # Request email verification
         ses_client.verify_email_identity(EmailAddress=email_address)
-        logger.info(f"Verification email sent to {email_address}")
-        return True
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
@@ -361,6 +362,9 @@ async def verify_sender_email(email_address: str) -> bool:
     except Exception as e:
         logger.exception(f"Error during email verification: {e!s}")
         return False
+    else:
+        logger.info(f"Verification email sent to {email_address}")
+        return True
 
 
 async def test_send_email(to_address, subject="Test from mxtoai", body_text="This is a test email"):
@@ -379,11 +383,12 @@ async def test_send_email(to_address, subject="Test from mxtoai", body_text="Thi
     try:
         sender = EmailSender()
         response = await sender.send_email(to_address=to_address, subject=subject, body_text=body_text)
-        logger.info(f"Test email sent successfully: {response['MessageId']}")
-        return True
     except Exception as e:
         logger.exception(f"Failed to send test email: {e!s}")
         return False
+    else:
+        logger.info(f"Test email sent successfully: {response['MessageId']}")
+        return True
 
 
 async def run_tests():
@@ -432,7 +437,9 @@ def log_received_email(email_data: EmailRequest) -> None:
     logger.info(f"Number of attachments: {len(email_data.attachments) if email_data.attachments else 0}")
 
 
-def generate_message_id(from_email: str, to: str, subject: str, date: str, html_content: str, text_content: str, files_count: int) -> str:
+def generate_message_id(
+    from_email: str, to: str, subject: str, date: str, html_content: str, text_content: str, files_count: int
+) -> str:
     """
     Generate a deterministic message ID based on email content.
 
@@ -487,22 +494,22 @@ def save_attachments(email_data: EmailRequest, email_id: str) -> tuple[str, list
         return ATTACHMENTS_DIR, []
 
     # Create directory for this email's attachments
-    email_dir = os.path.join(ATTACHMENTS_DIR, email_id)
-    os.makedirs(email_dir, exist_ok=True)
+    email_dir = Path(ATTACHMENTS_DIR) / email_id
+    email_dir.mkdir(exist_ok=True)
 
     attachment_info = []
     for attachment in email_data.attachments:
         try:
             # Generate a safe filename
             filename = attachment.filename
-            file_path = os.path.join(email_dir, filename)
+            file_path = email_dir / filename
 
             # Save the file
-            with open(file_path, "wb") as f:
+            with file_path.open("wb") as f:
                 f.write(base64.b64decode(attachment.content))
 
             # Get file metadata
-            file_size = os.path.getsize(file_path)
+            file_size = file_path.stat().st_size
             attachment_info.append(
                 {"filename": filename, "path": file_path, "size": file_size, "type": attachment.contentType}
             )

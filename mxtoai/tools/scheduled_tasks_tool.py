@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import ClassVar, Optional
 
 from croniter import croniter
 from pydantic import BaseModel, Field, field_validator
@@ -37,7 +37,8 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     try:
         # Parse the cron expression
         parts = cron_expression.strip().split()
-        if len(parts) != 5:
+        CRON_PARTS_COUNT = 5
+        if len(parts) != CRON_PARTS_COUNT:
             msg = "Cron expression must have exactly 5 parts"
             raise ValueError(msg)
 
@@ -94,37 +95,6 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     except Exception as e:
         msg = f"Could not calculate interval for cron expression '{cron_expression}': {e}"
         raise ValueError(msg) from e
-
-
-def create_one_time_cron_expression(target_datetime: datetime) -> str:
-    """
-    Create a cron expression for a one-time execution at a specific datetime.
-
-    Args:
-        target_datetime: The datetime when the task should run
-
-    Returns:
-        str: A cron expression for one-time execution
-
-    """
-    return f"{target_datetime.minute} {target_datetime.hour} {target_datetime.day} {target_datetime.month} *"
-
-
-def create_cron_from_relative_time(relative_minutes: int) -> tuple[str, datetime]:
-    """
-    Create a cron expression for execution after a relative time from now.
-
-    Args:
-        relative_minutes: Minutes from now when the task should execute
-
-    Returns:
-        tuple: (cron_expression, target_datetime)
-
-    """
-    target_datetime = datetime.now(timezone.utc) + timedelta(minutes=relative_minutes)
-    target_datetime = round_to_nearest_minute(target_datetime)
-    cron_expression = create_one_time_cron_expression(target_datetime)
-    return cron_expression, target_datetime
 
 
 def validate_minimum_interval(cron_expression: str) -> None:
@@ -221,9 +191,9 @@ class ScheduledTasksTool(Tool):
     using cron expressions. The tool integrates with APScheduler for robust scheduling.
     """
 
-    name = "scheduled_tasks"
-    description = "Create, schedule, and manage future email processing tasks using cron expressions"
-    inputs = {
+    name: ClassVar[str] = "scheduled_tasks"
+    description: ClassVar[str] = "Create, schedule, and manage future email processing tasks using cron expressions"
+    inputs: ClassVar[dict] = {
         "cron_expression": {"type": "string", "description": "Valid cron expression for task scheduling"},
         "distilled_future_task_instructions": {
             "type": "string",
@@ -246,7 +216,7 @@ class ScheduledTasksTool(Tool):
             "nullable": True,
         },
     }
-    output_type = "object"
+    output_type: ClassVar[str] = "object"
 
     def __init__(self, context: RequestContext):
         """

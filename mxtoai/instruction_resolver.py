@@ -31,7 +31,7 @@ class ProcessingInstructionsResolver:
         self.handle_map: dict[str, ProcessingInstructions] = {}
         self.register_handles(default_instructions)
 
-    def register_handles(self, instructions_list: list[ProcessingInstructions], overwrite: bool = False):
+    def register_handles(self, instructions_list: list[ProcessingInstructions], *, overwrite: bool = False):
         """
         Registers a list of handle instructions (including aliases).
 
@@ -51,7 +51,7 @@ class ProcessingInstructionsResolver:
                     raise exceptions.HandleAlreadyExistsException(msg)
                 self.handle_map[name] = instructions
 
-    def add_custom_handle(self, custom_instruction: ProcessingInstructions, overwrite: bool = False):
+    def add_custom_handle(self, custom_instruction: ProcessingInstructions, *, overwrite: bool = False):
         """
         Adds a single custom handle instruction.
 

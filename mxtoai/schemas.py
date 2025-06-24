@@ -29,9 +29,9 @@ class EmailAttachment(BaseModel):
     model_config = ConfigDict(validate_default=True)  # Ensure all fields are validated
 
     filename: str
-    contentType: str
-    contentDisposition: str | None = None
-    contentId: str | None = None
+    contentType: str  # noqa: N815
+    contentDisposition: str | None = None  # noqa: N815
+    contentId: str | None = None  # noqa: N815
     cid: str | None = None
     content: Union[str, bytes] | None = None  # Can be string (base64) or bytes
     size: int
@@ -59,22 +59,22 @@ class EmailRequest(BaseModel):
     from_email: str = Field(..., alias="from")
     to: str
     subject: str | None = ""
-    rawContent: str | None = ""
+    rawContent: str | None = ""  # noqa: N815
     recipients: list[str] | None = []
-    messageId: str | None = None
+    messageId: str | None = None  # noqa: N815
     date: str | None = None
-    inReplyTo: str | None = None
+    inReplyTo: str | None = None  # noqa: N815
     references: str | None = None
     cc: list[str] | None = None
     bcc: str | None = None
-    replyTo: str | None = None
-    returnPath: str | None = None
-    textContent: str | None = ""
-    htmlContent: str | None = ""
+    replyTo: str | None = None  # noqa: N815
+    returnPath: str | None = None  # noqa: N815
+    textContent: str | None = ""  # noqa: N815
+    htmlContent: str | None = ""  # noqa: N815
     headers: dict[str, str] | None = {}
     attachments: list[EmailAttachment] | None = []
 
-    rawHeaders: dict[str, Any] | None = None  # Raw email headers
+    rawHeaders: dict[str, Any] | None = None  # noqa: N815
     scheduled_task_id: str | None = None  # ID of scheduled task if this is a scheduled execution
     distilled_processing_instructions: str | None = None  # Processed instructions for the email
     distilled_alias: HandlerAlias | None = (

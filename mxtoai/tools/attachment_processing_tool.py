@@ -171,9 +171,8 @@ class AttachmentProcessingTool(Tool):
                 return result.text_content
             finally:
                 # Clean up temporary file
-                import os
                 with contextlib.suppress(OSError):
-                    os.unlink(temp_file_path)
+                    Path(temp_file_path).unlink()
 
         except Exception as e:
             logger.error(f"Error converting document {filename} from memory: {e!s}")

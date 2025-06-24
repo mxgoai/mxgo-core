@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from email.utils import getaddresses
 from pathlib import Path
 from typing import Annotated, Any, Optional
@@ -36,6 +36,10 @@ from mxtoai.validators import (
 load_dotenv()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# Constants
+MAX_FILENAME_LENGTH = 100
+FILENAME_TRUNCATE_BUFFER = 5
+
 # Configure logging
 logger = get_logger(__name__)
 
@@ -62,7 +66,7 @@ async def lifespan(app: FastAPI):
             domains_file_path = Path("mxtoai/email_provider_domains.txt")
 
         if domains_file_path.exists():
-            with open(domains_file_path) as f:
+            with Path(domains_file_path).open() as f:
                 validator_email_provider_domain_set.update([line.strip().lower() for line in f if line.strip()])
             logger.info(
                 f"Loaded {len(validator_email_provider_domain_set)} email provider domains for rate limit exclusion."
@@ -103,13 +107,14 @@ def cleanup_attachments(directory_path: str) -> bool:
 
     """
     try:
-        if os.path.exists(directory_path):
+        if Path(directory_path).exists():
             shutil.rmtree(directory_path)
             logger.info(f"Deleted attachment directory: {directory_path}")
-        return True
     except Exception as e:
         logger.error(f"Error deleting attachment directory {directory_path}: {e!s}")
         return False
+    else:
+        return True
 
 
 def create_success_response(
@@ -171,7 +176,7 @@ def create_error_response(summary: str, attachment_info: list[dict[str, Any]], e
 
 
 # Helper function to handle uploaded files
-async def handle_file_attachments(
+async def handle_file_attachments(  # noqa: PLR0912
     attachments: list[EmailAttachment], email_id: str, email_data: EmailRequest
 ) -> tuple[str, list[dict[str, Any]]]:
     """
@@ -224,10 +229,10 @@ async def handle_file_attachments(
                 safe_filename = f"attachment_{idx}.bin"
                 logger.warning(f"Using generated filename for attachment {idx}: {safe_filename}")
 
-            # Truncate filename if too long (max 100 chars)
-            if len(safe_filename) > 100:
+            # Truncate filename if too long
+            if len(safe_filename) > MAX_FILENAME_LENGTH:
                 ext = Path(safe_filename).suffix
-                safe_filename = safe_filename[:95] + ext
+                safe_filename = safe_filename[: MAX_FILENAME_LENGTH - FILENAME_TRUNCATE_BUFFER] + ext
                 logger.warning(f"Truncated long filename to: {safe_filename}")
 
             # Full path to save the attachment
@@ -270,8 +275,8 @@ async def handle_file_attachments(
         except ValueError as e:
             logger.error(f"Validation error for file {attachment.filename}: {e!s}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-        except Exception as e:
-            logger.exception(f"Error processing file {attachment.filename}: {e!s}")
+        except Exception:
+            logger.exception(f"Error processing file {attachment.filename}")
             # Try to clean up any partially saved file
             try:
                 if Path(storage_path).exists():
@@ -308,7 +313,11 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     """
     if not processing_result or "email_content" not in processing_result:
         logger.error("Invalid processing result format")
-        return {"status": "error", "error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
+        return {
+            "status": "error",
+            "error": "Invalid processing result format",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     # Skip email delivery for test emails
     if email_data.from_email in SKIP_EMAIL_DELIVERY:
@@ -316,7 +325,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
         return {
             "status": "skipped",
             "message": "Email delivery skipped for test email",
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     # Get email body content
@@ -327,7 +336,11 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     # Handle case where no content was generated
     if not text_content:
         logger.error("No email content was generated")
-        return {"status": "error", "error": "No email content was generated", "timestamp": datetime.now().isoformat()}
+        return {
+            "status": "error",
+            "error": "No email content was generated",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     # --- Prepare attachments ---
     attachments_to_send = []
@@ -373,7 +386,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
             "message_id": email_response.get("MessageId", ""),
             "to": ses_email_dict["from"],  # Who we're sending to
             "from": ses_email_dict["to"],  # Who it appears to be from
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
         logger.info(f"Email sent successfully with message ID: {reply_result['message_id']}")
@@ -381,7 +394,7 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
 
     except Exception as e:
         logger.error(f"Error sending email reply: {e!s}", exc_info=True)
-        return {"status": "error", "error": str(e), "timestamp": datetime.now().isoformat()}
+        return {"status": "error", "error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
 
 
 # Helper function to create sanitized response
@@ -397,7 +410,7 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
 
     """
     if not isinstance(processing_result, dict):
-        return {"error": "Invalid processing result format", "timestamp": datetime.now().isoformat()}
+        return {"error": "Invalid processing result format", "timestamp": datetime.now(timezone.utc).isoformat()}
 
     # Start with metadata which is already clean
     sanitized_result = {"metadata": processing_result.get("metadata", {})}
@@ -644,20 +657,6 @@ async def process_email(
             + (f" (scheduled task: {scheduled_task_id})" if scheduled_task_id else "")
         )
 
-        # Return immediate success response
-        return Response(
-            content=json.dumps(
-                {
-                    "message": "Email received and queued for processing",
-                    "email_id": email_id,
-                    "attachments_saved": len(attachment_info),
-                    "status": "processing",
-                }
-            ),
-            status_code=status.HTTP_200_OK,
-            media_type="application/json",
-        )
-
     except HTTPException as e:
         # Re-raise HTTPException to maintain the correct status code
         raise e
@@ -679,6 +678,20 @@ async def process_email(
                 }
             ),
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            media_type="application/json",
+        )
+    else:
+        # Return immediate success response
+        return Response(
+            content=json.dumps(
+                {
+                    "message": "Email received and queued for processing",
+                    "email_id": email_id,
+                    "attachments_saved": len(attachment_info),
+                    "status": "processing",
+                }
+            ),
+            status_code=status.HTTP_200_OK,
             media_type="application/json",
         )
 

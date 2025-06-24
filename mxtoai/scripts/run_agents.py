@@ -8,6 +8,7 @@ including images, documents, and archives for use in the research process.
 import os
 import shutil
 import textwrap
+from pathlib import Path
 
 
 def get_image_description(file_name: str, question: str, visual_inspection_tool) -> str:
@@ -78,7 +79,7 @@ def get_single_file_description(file_path: str, question: str, visual_inspection
     if file_extension in ["pdf", "xls", "xlsx", "docx", "doc", "xml"]:
         file_description = f" - Attached document: {file_path}"
         image_path = file_path.split(".")[0] + ".png"
-        if os.path.exists(image_path):
+        if Path(image_path).exists():
             description = get_image_description(image_path, question, visual_inspection_tool)
         else:
             description = get_document_description(file_path, question, document_inspection_tool)

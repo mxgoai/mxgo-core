@@ -151,7 +151,7 @@ def get_domain_from_email(email_address: str) -> str:
 
 
 async def send_rate_limit_rejection_email(
-    from_email: str, to: str, subject: Optional[str], messageId: Optional[str], limit_type: str
+    from_email: str, to: str, subject: Optional[str], message_id: Optional[str], limit_type: str
 ) -> None:
     """Send a rejection email for rate limit exceeded."""
     rejection_subject = f"Re: {subject}" if subject else "Usage Limit Exceeded"
@@ -168,9 +168,9 @@ MXtoAI Team"""
         "from": from_email,
         "to": to,
         "subject": rejection_subject,
-        "messageId": messageId,
+        "messageId": message_id,
         "references": None,
-        "inReplyTo": messageId,
+        "inReplyTo": message_id,
         "cc": None,
     }
     try:
@@ -181,7 +181,7 @@ MXtoAI Team"""
 
 
 async def validate_rate_limits(
-    from_email: str, to: str, subject: Optional[str], messageId: Optional[str], plan: RateLimitPlan
+    from_email: str, to: str, subject: Optional[str], message_id: Optional[str], plan: RateLimitPlan
 ) -> Optional[Response]:
     """
     Validate incoming email against defined rate limits based on the plan, using Redis.
@@ -208,7 +208,7 @@ async def validate_rate_limits(
         )
         if email_limit_exceeded_period:
             limit_type_msg = f"email {email_limit_exceeded_period} for {plan.value} plan"
-            await send_rate_limit_rejection_email(from_email, to, subject, messageId, limit_type_msg)
+            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg)
             return Response(
                 content=json.dumps(
                     {
@@ -231,7 +231,7 @@ async def validate_rate_limits(
         )
         if domain_limit_exceeded_period:  # This will be "hour" if exceeded
             limit_type_msg = f"domain {domain_limit_exceeded_period}"
-            await send_rate_limit_rejection_email(from_email, to, subject, messageId, limit_type_msg)
+            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg)
             return Response(
                 content=json.dumps(
                     {
@@ -247,7 +247,14 @@ async def validate_rate_limits(
 
 
 async def validate_idempotency(
-    from_email: str, to: str, subject: str, date: str, html_content: str, text_content: str, files_count: int, message_id: Optional[str] = None
+    from_email: str,
+    to: str,
+    subject: str,
+    date: str,
+    html_content: str,
+    text_content: str,
+    files_count: int,
+    message_id: Optional[str] = None,
 ) -> tuple[Optional[Response], str]:
     """
     Validate email idempotency and generate deterministic message ID if needed.
@@ -275,7 +282,7 @@ async def validate_idempotency(
             date=date or "",
             html_content=html_content or "",
             text_content=text_content or "",
-            files_count=files_count
+            files_count=files_count,
         )
         logger.info(f"Generated deterministic message ID: {message_id}")
 
@@ -289,11 +296,13 @@ async def validate_idempotency(
             if await redis_client.get(redis_key_queued):
                 logger.warning(f"Email with messageId {message_id} already queued for processing")
                 return Response(
-                    content=json.dumps({
-                        "message": "Email already queued for processing",
-                        "messageId": message_id,
-                        "status": "duplicate_queued"
-                    }),
+                    content=json.dumps(
+                        {
+                            "message": "Email already queued for processing",
+                            "messageId": message_id,
+                            "status": "duplicate_queued",
+                        }
+                    ),
                     status_code=status.HTTP_409_CONFLICT,
                     media_type="application/json",
                 ), message_id
@@ -302,11 +311,9 @@ async def validate_idempotency(
             if await redis_client.get(redis_key_processed):
                 logger.warning(f"Email with messageId {message_id} already processed")
                 return Response(
-                    content=json.dumps({
-                        "message": "Email already processed",
-                        "messageId": message_id,
-                        "status": "duplicate_processed"
-                    }),
+                    content=json.dumps(
+                        {"message": "Email already processed", "messageId": message_id, "status": "duplicate_processed"}
+                    ),
                     status_code=status.HTTP_409_CONFLICT,
                     media_type="application/json",
                 ), message_id
@@ -343,6 +350,7 @@ def check_task_idempotency(message_id: str) -> bool:
     try:
         # Check if already processed
         import asyncio
+
         if asyncio.run(redis_client.get(redis_key_processed)):
             logger.warning(f"Email with messageId {message_id} already processed, skipping duplicate processing")
             return True
@@ -370,10 +378,10 @@ def mark_email_as_processed(message_id: str) -> None:
     try:
         # Mark as processed (expires in 24 hours)
         import asyncio
-        asyncio.run(asyncio.gather(
-            redis_client.setex(redis_key_processed, 86400, "1"),
-            redis_client.delete(redis_key_queued)
-        ))
+
+        asyncio.run(
+            asyncio.gather(redis_client.setex(redis_key_processed, 86400, "1"), redis_client.delete(redis_key_queued))
+        )
         logger.info(f"Marked email {message_id} as processed in Redis")
     except Exception as redis_error:
         logger.error(f"Failed to mark email as processed in Redis: {redis_error}")
@@ -400,7 +408,7 @@ async def validate_api_key(api_key: str) -> Optional[Response]:
 
 
 async def validate_email_whitelist(
-    from_email: str, to: str, subject: str, messageId: Optional[str]
+    from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
     Validate if the sender's email is whitelisted and verified.
@@ -437,7 +445,9 @@ async def validate_email_whitelist(
 
     # For non-major providers that are not verified, trigger automatic verification
     # and STOP email processing until they verify
-    logger.info(f"Triggering automatic verification for {from_email} (exists={exists_in_whitelist}, verified={is_verified})")
+    logger.info(
+        f"Triggering automatic verification for {from_email} (exists={exists_in_whitelist}, verified={is_verified})"
+    )
 
     # Trigger automatic verification in the background
     verification_triggered = False
@@ -519,9 +529,9 @@ MXtoAI Team"""
         "from": from_email,  # Original sender becomes recipient
         "to": to,  # Original recipient becomes sender
         "subject": f"Re: {subject}",
-        "messageId": messageId,
+        "messageId": message_id,
         "references": None,
-        "inReplyTo": messageId,
+        "inReplyTo": message_id,
         "cc": None,
     }
 
@@ -551,7 +561,7 @@ MXtoAI Team"""
 
 
 async def validate_email_handle(
-    to: str, from_email: str, subject: str, messageId: Optional[str]
+    to: str, from_email: str, subject: str, message_id: Optional[str]
 ) -> tuple[Optional[Response], Optional[str]]:
     """
     Validate if the email handle/alias is supported.
@@ -577,9 +587,9 @@ async def validate_email_handle(
             "from": from_email,  # Original sender becomes recipient
             "to": to,  # Original recipient becomes sender
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 
@@ -599,7 +609,7 @@ async def validate_email_handle(
 
 
 async def validate_attachments(
-    attachments: list[dict], from_email: str, to: str, subject: str, messageId: Optional[str]
+    attachments: list[dict], from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
     Validate email attachments against size and count limits.
@@ -638,9 +648,9 @@ Number of attachments in your email: {len(attachments)}</p>
             "from": from_email,
             "to": to,
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 
@@ -688,9 +698,9 @@ Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p
                 "from": from_email,
                 "to": to,
                 "subject": f"Re: {subject}",
-                "messageId": messageId,
+                "messageId": message_id,
                 "references": None,
-                "inReplyTo": messageId,
+                "inReplyTo": message_id,
                 "cc": None,
             }
 
@@ -735,9 +745,9 @@ Total size of your attachments: {total_size_mb:.1f}MB</p>
             "from": from_email,
             "to": to,
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 

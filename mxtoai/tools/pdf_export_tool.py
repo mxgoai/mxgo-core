@@ -1,9 +1,9 @@
 import re
 import shutil
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from smolagents import Tool
 
@@ -15,40 +15,41 @@ logger = get_logger("pdf_export_tool")
 # Constants for filename handling
 MAX_FILENAME_LENGTH = 50  # Maximum length for filename before ".pdf" extension
 
+# Constants for title extraction
+MAX_TITLE_LENGTH = 100
+MIN_TITLE_LENGTH = 5
+MAX_SENTENCE_LENGTH = 80
+MIN_SENTENCE_LENGTH = 10
+
+
 class PDFExportTool(Tool):
     """Tool for exporting email content and research findings to PDF format."""
 
-    name = "pdf_export"
-    description = "Export email content, research findings, and attachment summaries to a professionally formatted PDF document"
+    name: ClassVar[str] = "pdf_export"
+    description: ClassVar[str] = (
+        "Export email content, research findings, and attachment summaries to a professionally formatted PDF document"
+    )
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "content": {
             "type": "string",
-            "description": "The main content to export (email body, research findings, etc.)"
+            "description": "The main content to export (email body, research findings, etc.)",
         },
-        "title": {
-            "type": "string",
-            "description": "Title for the PDF document",
-            "nullable": True
-        },
+        "title": {"type": "string", "description": "Title for the PDF document", "nullable": True},
         "research_findings": {
             "type": "string",
             "description": "Additional research findings to include",
-            "nullable": True
+            "nullable": True,
         },
-        "attachments_summary": {
-            "type": "string",
-            "description": "Summary of processed attachments",
-            "nullable": True
-        },
+        "attachments_summary": {"type": "string", "description": "Summary of processed attachments", "nullable": True},
         "include_attachments": {
             "type": "boolean",
             "description": "Whether to include attachment summaries in the PDF",
             "default": False,
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
-    output_type = "object"
+    output_type: ClassVar[str] = "object"
 
     def __init__(self):
         super().__init__()
@@ -81,7 +82,7 @@ class PDFExportTool(Tool):
         title: Optional[str] = None,
         research_findings: Optional[str] = None,
         attachments_summary: Optional[str] = None,
-        include_attachments: bool = False
+        include_attachments: bool = False,
     ) -> dict[str, Any]:
         """
         Export content to PDF format.
@@ -101,10 +102,7 @@ class PDFExportTool(Tool):
             from weasyprint import CSS, HTML
         except ImportError as e:
             logger.error(f"WeasyPrint not available: {e}")
-            return {
-                "error": "PDF generation library not available. Please install WeasyPrint.",
-                "details": str(e)
-            }
+            return {"error": "PDF generation library not available. Please install WeasyPrint.", "details": str(e)}
 
         try:
             # Clean and prepare content
@@ -116,7 +114,7 @@ class PDFExportTool(Tool):
                 content=cleaned_content,
                 title=doc_title,
                 research_findings=research_findings,
-                attachments_summary=attachments_summary if include_attachments else None
+                attachments_summary=attachments_summary if include_attachments else None,
             )
 
             # Convert to HTML using existing ReportFormatter
@@ -129,10 +127,7 @@ class PDFExportTool(Tool):
             filename = self._sanitize_filename(doc_title) + ".pdf"
             pdf_path = self.temp_dir / filename
 
-            HTML(string=pdf_html).write_pdf(
-                pdf_path,
-                stylesheets=[CSS(string=self._get_pdf_styles())]
-            )
+            HTML(string=pdf_html).write_pdf(pdf_path, stylesheets=[CSS(string=self._get_pdf_styles())])
 
             file_size = pdf_path.stat().st_size
 
@@ -144,15 +139,12 @@ class PDFExportTool(Tool):
                 "mimetype": "application/pdf",
                 "title": doc_title,
                 "pages_estimated": max(1, len(cleaned_content) // 2000),  # Rough estimate
-                "temp_dir": str(self.temp_dir)  # Include temp directory for cleanup
+                "temp_dir": str(self.temp_dir),  # Include temp directory for cleanup
             }
 
         except Exception as e:
             logger.error(f"PDF export failed: {e}")
-            return {
-                "error": f"PDF export failed: {e!s}",
-                "details": "Please check the content format and try again"
-            }
+            return {"error": f"PDF export failed: {e!s}", "details": "Please check the content format and try again"}
 
     def _clean_content(self, content: str) -> str:
         """
@@ -181,7 +173,7 @@ class PDFExportTool(Tool):
             r"^In-Reply-To:.*$",
             r"^References:.*$",
             r"^Received:.*$",
-            r"^Return-Path:.*$"
+            r"^Return-Path:.*$",
         ]
 
         lines = content.split("\n")
@@ -198,7 +190,6 @@ class PDFExportTool(Tool):
         # Remove excessive whitespace but preserve paragraph breaks
         cleaned_content = re.sub(r"\n\s*\n\s*\n+", "\n\n", cleaned_content)
         return re.sub(r"[ \t]+", " ", cleaned_content)
-
 
     def _extract_title(self, content: str) -> str:
         """
@@ -226,20 +217,22 @@ class PDFExportTool(Tool):
         # Look for lines that could be titles (short, meaningful lines)
         for line in lines[:5]:  # Check first 5 lines
             line = line.strip()
-            if line and len(line) < 100 and len(line) > 5:
+            if line and len(line) < MAX_TITLE_LENGTH and len(line) > MIN_TITLE_LENGTH:
                 # Check if it looks like a title (no common body text indicators)
-                if not any(indicator in line.lower() for indicator in
-                          ["the", "this", "that", "with", "from", "email", "message"]):
+                if not any(
+                    indicator in line.lower()
+                    for indicator in ["the", "this", "that", "with", "from", "email", "message"]
+                ):
                     return line[:60]
 
         # Fallback: use first meaningful sentence
         sentences = re.split(r"[.!?]+", content)
         for sentence in sentences[:3]:
             sentence = sentence.strip()
-            if 10 < len(sentence) < 80:
+            if MIN_SENTENCE_LENGTH < len(sentence) < MAX_SENTENCE_LENGTH:
                 return sentence[:60]
 
-        return f"Document - {datetime.now().strftime('%B %d, %Y')}"
+        return f"Document - {datetime.now(timezone.utc).strftime('%B %d, %Y')}"
 
     def _sanitize_filename(self, filename: str) -> str:
         """
@@ -263,7 +256,7 @@ class PDFExportTool(Tool):
         content: str,
         title: str,
         research_findings: Optional[str] = None,
-        attachments_summary: Optional[str] = None
+        attachments_summary: Optional[str] = None,
     ) -> str:
         """
         Build a complete markdown document for PDF conversion.
@@ -282,7 +275,7 @@ class PDFExportTool(Tool):
         markdown_parts = [f"# {title}\n"]
 
         # Add generation date
-        markdown_parts.append(f"*Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}*\n")
+        markdown_parts.append(f"*Generated on {datetime.now(timezone.utc).strftime('%B %d, %Y at %I:%M %p')}*\n")
 
         # Add main content
         if content:
@@ -329,6 +322,7 @@ class PDFExportTool(Tool):
         if "<body>" in html_content:
             # Extract content between body tags
             import re
+
             body_match = re.search(r"<body[^>]*>(.*?)</body>", html_content, re.DOTALL)
             body_content = body_match.group(1) if body_match else html_content
         else:
@@ -354,11 +348,13 @@ class PDFExportTool(Tool):
         """Escape HTML special characters."""
         if not text:
             return ""
-        return (text.replace("&", "&amp;")
-                   .replace("<", "&lt;")
-                   .replace(">", "&gt;")
-                   .replace('"', "&quot;")
-                   .replace("'", "&#x27;"))
+        return (
+            text.replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+            .replace("'", "&#x27;")
+        )
 
     def _get_pdf_styles(self) -> str:
         """

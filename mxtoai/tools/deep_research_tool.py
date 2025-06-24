@@ -3,7 +3,7 @@ import json
 import mimetypes
 import os
 import urllib.parse
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import requests
 from smolagents import Tool
@@ -20,13 +20,15 @@ class DeepResearchTool(Tool):
     Tool for conducting deep research based on email content using Jina AI's DeepSearch API.
     """
 
-    name = "deep_research"
-    description = "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
+    name: ClassVar[str] = "deep_research"
+    description: ClassVar[str] = (
+        "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
+    )
 
     # Define output type for the tool
-    output_type = "object"  # Returns a dictionary with research findings and sources
+    output_type: ClassVar[str] = "object"  # Returns a dictionary with research findings and sources
 
-    def __init__(self, use_mock_service: bool = False):
+    def __init__(self, *, use_mock_service: bool = False):
         """
         Initialize the deep research tool.
 
@@ -52,7 +54,6 @@ class DeepResearchTool(Tool):
                 "description": "Additional context from email thread or other sources",
                 "nullable": True,
             },
-
             "memory_attachments": {
                 "type": "object",
                 "description": "Dict mapping filename to (content, mime_type) tuples for in-memory files - preferred method for attachment processing",
@@ -129,7 +130,9 @@ class DeepResearchTool(Tool):
         self.deep_research_enabled = False
         logger.info("Deep research functionality disabled")
 
-    def _encode_content_from_memory(self, content: bytes, filename: str, mime_type: str | None = None) -> Optional[dict[str, Any]]:
+    def _encode_content_from_memory(
+        self, content: bytes, filename: str, mime_type: str | None = None
+    ) -> Optional[dict[str, Any]]:
         """
         Encode file content from memory to base64 data URI format for Jina API.
 
@@ -456,6 +459,7 @@ class DeepResearchTool(Tool):
         context: Optional[str] = None,
         memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
+        *,
         stream: bool = False,
         reasoning_effort: str = "medium",
     ) -> dict[str, Any]:

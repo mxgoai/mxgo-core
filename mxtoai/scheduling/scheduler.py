@@ -22,6 +22,9 @@ from mxtoai._logging import get_logger
 
 logger = get_logger("scheduling")
 
+# Constants
+CRON_EXPRESSION_PARTS = 5
+
 
 def is_one_time_task(cron_expression: str) -> bool:
     """
@@ -35,7 +38,7 @@ def is_one_time_task(cron_expression: str) -> bool:
 
     """
     parts = cron_expression.strip().split()
-    if len(parts) != 5:
+    if len(parts) != CRON_EXPRESSION_PARTS:
         return False
 
     minute, hour, day, month, dayofweek = parts
@@ -161,7 +164,7 @@ class Scheduler:
         """
         scheduler = self.get_scheduler()
         try:
-            jobstore = scheduler._jobstores["default"]
+            jobstore = scheduler._jobstores["default"]  # noqa: SLF001
             db_jobs = jobstore.get_all_jobs()
             logger.info(f"Refreshed job list - found {len(db_jobs)} jobs in database")
 
@@ -278,10 +281,11 @@ class Scheduler:
                     # Always stop the temporary scheduling
                     temp_scheduler.shutdown(wait=True)
 
-            return job_id
         except Exception as e:
             logger.error(f"Failed to add scheduled job {job_id}: {e}")
             raise
+        else:
+            return job_id
 
     def _create_temporary_scheduler(self) -> BackgroundScheduler:
         """Create a temporary scheduling for job addition when main scheduling is not running."""

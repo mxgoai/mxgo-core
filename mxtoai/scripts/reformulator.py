@@ -31,9 +31,9 @@ Your team then worked diligently to address that request. Read below a transcrip
         for message in inner_messages:
             if not message.get("content"):
                 continue
-            message = copy.deepcopy(message)
-            message["role"] = MessageRole.USER
-            messages.append(message)
+            copied_message = copy.deepcopy(message)
+            copied_message["role"] = MessageRole.USER
+            messages.append(copied_message)
     except Exception:
         messages += [{"role": MessageRole.ASSISTANT, "content": str(inner_messages)}]
 

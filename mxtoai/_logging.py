@@ -22,7 +22,7 @@ PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 # Create logs directory if it doesn't exist
-os.makedirs(LOGS_DIR, exist_ok=True)
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Get log level from environment or use default
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip()
@@ -58,7 +58,7 @@ COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SENSITIVE
 
 # Pre-compile scrubbing patterns for better performance
 PRECOMPILED_SCRUB_PATTERNS = []
-SCRUBBED_TOKEN = "***"
+SCRUBBED_TOKEN = "******"
 
 for pattern in COMPILED_PATTERNS:
     key_value_pattern = re.compile(rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)", re.IGNORECASE)
@@ -237,7 +237,7 @@ def setup_stdlib_logging_intercept():
     error_only_loggers = [
         "litellm",
         "httpx",
-        # "pika",  # RabbitMQ client # TOO VERBOSE
+        "pika",  # RabbitMQ client
         "azure",
         "openai",
         "transformers",  # HuggingFace transformers

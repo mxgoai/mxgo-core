@@ -6,7 +6,7 @@ import pathlib
 import re
 import time
 import uuid
-from typing import Any, Optional, Union
+from typing import Any, ClassVar, Optional, Union
 from urllib.parse import unquote, urljoin, urlparse
 
 import pathvalidate
@@ -18,6 +18,15 @@ from smolagents import Tool
 
 from .cookies import COOKIES
 from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
+
+# Constants
+DEFAULT_REQUEST_TIMEOUT = 30  # seconds
+ARCHIVE_REQUEST_TIMEOUT = 15  # seconds
+DOWNLOAD_REQUEST_TIMEOUT = 60  # seconds
+
+
+class WebBrowserError(Exception):
+    """Base exception for web browser errors."""
 
 
 class SimpleTextBrowser:
@@ -214,7 +223,7 @@ class SimpleTextBrowser:
         self.page_title = f"{query} - Search"
         if "organic_results" not in results:
             msg = f"No results found for query: '{query}'. Use a less specific query."
-            raise Exception(msg)
+            raise WebBrowserError(msg)
         if len(results["organic_results"]) == 0:
             year_filter_message = f" with filter year={filter_year}" if filter_year is not None else ""
             self._set_page_content(
@@ -270,6 +279,8 @@ class SimpleTextBrowser:
                 request_kwargs["stream"] = True
 
                 # Send a HTTP request to the URL
+                if "timeout" not in request_kwargs:
+                    request_kwargs["timeout"] = DEFAULT_REQUEST_TIMEOUT
                 response = requests.get(url, **request_kwargs)
                 response.raise_for_status()
 
@@ -291,7 +302,7 @@ class SimpleTextBrowser:
                         download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
 
                         suffix = 0
-                        while os.path.exists(download_path) and suffix < 1000:
+                        while pathlib.Path(download_path).exists() and suffix < 1000:
                             suffix += 1
                             base, ext = os.path.splitext(fname)
                             new_fname = f"{base}__{suffix}{ext}"
@@ -309,7 +320,7 @@ class SimpleTextBrowser:
                         download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
 
                     # Open a file for writing
-                    with open(download_path, "wb") as fh:
+                    with pathlib.Path(download_path).open("wb") as fh:
                         for chunk in response.iter_content(chunk_size=512):
                             fh.write(chunk)
 
@@ -367,28 +378,30 @@ class SimpleTextBrowser:
 class SearchInformationTool(Tool):
     name = "web_search"
     description = "Perform a web search query (think a google search) and returns the search results."
-    inputs = {"query": {"type": "string", "description": "The web search query to perform."}}
-    inputs["filter_year"] = {
-        "type": "string",
-        "description": "[Optional parameter]: filter the search results to only include pages from a specific year. For example, '2020' will only include pages from 2020. Make sure to use this parameter if you're trying to search for articles from a specific date!",
-        "nullable": True,
-    }
+    inputs: ClassVar[dict] = {"query": {"type": "string", "description": "The web search query to perform."}}
     output_type = "string"
 
     def __init__(self, browser):
         super().__init__()
         self.browser = browser
+        self.inputs["filter_year"] = {
+            "type": "string",
+            "description": "[Optional parameter]: filter the search results to only include pages from a specific year. For example, '2020' will only include pages from 2020. Make sure to use this parameter if you're trying to search for articles from a specific date!",
+            "nullable": True,
+        }
 
     def forward(self, query: str, filter_year: Optional[int] = None) -> str:
         self.browser.visit_page(f"google: {query}", filter_year=filter_year)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
 class VisitTool(Tool):
     name = "visit_page"
     description = "Visit a webpage at a given URL and return its text. Given a url to a YouTube video, this returns the transcript."
-    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
+    inputs: ClassVar[dict] = {
+        "url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}
+    }
     output_type = "string"
 
     def __init__(self, browser):
@@ -397,7 +410,7 @@ class VisitTool(Tool):
 
     def forward(self, url: str) -> str:
         self.browser.visit_page(url)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
@@ -407,7 +420,9 @@ class DownloadTool(Tool):
 Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".png", ".docx"]
 After using this tool, for further inspection of this page you should return the download path to your manager via final_answer, and they will be able to inspect it.
 DO NOT use this tool for .pdf or .txt or .htm files: for these types of files use visit_page with the file url instead."""
-    inputs = {"url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}}
+    inputs: ClassVar[dict] = {
+        "url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}
+    }
     output_type = "string"
 
     def __init__(self, browser):
@@ -417,7 +432,7 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
     def forward(self, url: str) -> str:
         if "arxiv" in url:
             url = url.replace("abs", "pdf")
-        response = requests.get(url)
+        response = requests.get(url, timeout=DOWNLOAD_REQUEST_TIMEOUT)
         content_type = response.headers.get("content-type", "")
         extension = mimetypes.guess_extension(content_type)
         if extension and isinstance(extension, str):
@@ -425,7 +440,7 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
         else:
             new_path = "./downloads/file.object"
 
-        with open(new_path, "wb") as f:
+        with pathlib.Path(new_path).open("wb") as f:
             f.write(response.content)
 
         if "pdf" in extension or "txt" in extension or "htm" in extension:
@@ -438,7 +453,7 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
 class ArchiveSearchTool(Tool):
     name = "find_archived_url"
     description = "Given a url, searches the Wayback Machine and returns the archived version of the url that's closest in time to the desired date."
-    inputs = {
+    inputs: ClassVar[dict] = {
         "url": {"type": "string", "description": "The url you need the archive for."},
         "date": {
             "type": "string",
@@ -454,8 +469,8 @@ class ArchiveSearchTool(Tool):
     def forward(self, url, date) -> str:
         no_timestamp_url = f"https://archive.org/wayback/available?url={url}"
         archive_url = no_timestamp_url + f"&timestamp={date}"
-        response = requests.get(archive_url).json()
-        response_notimestamp = requests.get(no_timestamp_url).json()
+        response = requests.get(archive_url, timeout=ARCHIVE_REQUEST_TIMEOUT).json()
+        response_notimestamp = requests.get(no_timestamp_url, timeout=ARCHIVE_REQUEST_TIMEOUT).json()
         if "archived_snapshots" in response and "closest" in response["archived_snapshots"]:
             closest = response["archived_snapshots"]["closest"]
 
@@ -466,7 +481,7 @@ class ArchiveSearchTool(Tool):
             raise Exception(msg)
         target_url = closest["url"]
         self.browser.visit_page(target_url)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return (
             f"Web archive for url {url}, snapshot taken at date {closest['timestamp'][:8]}:\n"
             + header.strip()
@@ -478,7 +493,7 @@ class ArchiveSearchTool(Tool):
 class PageUpTool(Tool):
     name = "page_up"
     description = "Scroll the viewport UP one page-length in the current webpage and return the new viewport content."
-    inputs = {}
+    inputs: ClassVar[dict] = {}
     output_type = "string"
 
     def __init__(self, browser):
@@ -487,14 +502,14 @@ class PageUpTool(Tool):
 
     def forward(self) -> str:
         self.browser.page_up()
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
 class PageDownTool(Tool):
     name = "page_down"
     description = "Scroll the viewport DOWN one page-length in the current webpage and return the new viewport content."
-    inputs = {}
+    inputs: ClassVar[dict] = {}
     output_type = "string"
 
     def __init__(self, browser):
@@ -503,14 +518,14 @@ class PageDownTool(Tool):
 
     def forward(self) -> str:
         self.browser.page_down()
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content
 
 
 class FinderTool(Tool):
     name = "find_on_page_ctrl_f"
     description = "Scroll the viewport to the first occurrence of the search string. This is equivalent to Ctrl+F."
-    inputs = {
+    inputs: ClassVar[dict] = {
         "search_string": {
             "type": "string",
             "description": "The string to search for on the page. This search string supports wildcards like '*'",
@@ -524,7 +539,7 @@ class FinderTool(Tool):
 
     def forward(self, search_string: str) -> str:
         find_result = self.browser.find_on_page(search_string)
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
 
         if find_result is None:
             return (
@@ -537,7 +552,7 @@ class FinderTool(Tool):
 class FindNextTool(Tool):
     name = "find_next"
     description = "Scroll the viewport to next occurrence of the search string. This is equivalent to finding the next match in a Ctrl+F search."
-    inputs = {}
+    inputs: ClassVar[dict] = {}
     output_type = "string"
 
     def __init__(self, browser):
@@ -546,7 +561,7 @@ class FindNextTool(Tool):
 
     def forward(self) -> str:
         find_result = self.browser.find_next()
-        header, content = self.browser._state()
+        header, content = self.browser._state()  # noqa: SLF001
 
         if find_result is None:
             return header.strip() + "\n=======================\nThe search string was not found on this page."

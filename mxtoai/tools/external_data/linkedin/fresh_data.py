@@ -122,6 +122,7 @@ class LinkedInFreshDataTool(Tool):
         self,
         action: str,
         linkedin_url: str,
+        *,
         include_skills: bool = False,
         include_certifications: bool = False,
         include_publications: bool = False,
@@ -206,7 +207,7 @@ class LinkedInFreshDataTool(Tool):
                 url=linkedin_url,
                 date_accessed="",  # Will be set by citation manager
                 source_type="web",
-                description="visited"
+                description="visited",
             )
             local_citations.add_source(citation_source)
 
@@ -220,8 +221,8 @@ class LinkedInFreshDataTool(Tool):
                     "action": action,
                     "linkedin_url": linkedin_url,
                     "citation_id": citation_id,
-                    "data_keys": list(data.keys()) if isinstance(data, dict) else []
-                }
+                    "data_keys": list(data.keys()) if isinstance(data, dict) else [],
+                },
             )
 
             logger.info(f"LinkedIn {action} completed successfully with citation [{citation_id}]")
@@ -239,6 +240,7 @@ class LinkedInFreshDataTool(Tool):
     def get_linkedin_profile(
         self,
         linkedin_url: str,
+        *,
         include_skills: bool = False,
         include_certifications: bool = False,
         include_publications: bool = False,
@@ -321,7 +323,9 @@ def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
     """
     api_key = os.getenv("RAPIDAPI_KEY")
     if api_key:
-        logger.info("RAPIDAPI_KEY found but LinkedInFreshDataTool requires context parameter. Tool initialization deferred to agent.")
+        logger.info(
+            "RAPIDAPI_KEY found but LinkedInFreshDataTool requires context parameter. Tool initialization deferred to agent."
+        )
         return None  # Return None since we need context from agent
     logger.info("RAPIDAPI_KEY not found. LinkedIn Fresh Data tool not initialized.")
     return None

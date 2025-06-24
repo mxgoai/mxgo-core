@@ -6,6 +6,7 @@ to provide clean architecture and request isolation.
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from mxtoai._logging import get_logger
@@ -56,7 +57,7 @@ class AttachmentService:
     def load_attachment(self, filename: str, file_path: str, content_type: str, size: int) -> bool:
         """Load attachment from disk into memory store."""
         try:
-            with open(file_path, "rb") as f:
+            with Path(file_path).open("rb") as f:
                 content = f.read()
 
             self._content_store[filename] = content
@@ -64,13 +65,14 @@ class AttachmentService:
                 "filename": filename,
                 "contentType": content_type,
                 "size": size,
-                "original_path": file_path
+                "original_path": file_path,
             }
-            logger.debug(f"Loaded attachment into memory: {filename} ({size} bytes)")
-            return True
         except Exception as e:
             logger.error(f"Failed to load attachment {filename}: {e}")
             return False
+        else:
+            logger.debug(f"Loaded attachment into memory: {filename} ({size} bytes)")
+            return True
 
     def get_content(self, filename: str) -> bytes | None:
         """Get attachment content by filename."""
@@ -125,7 +127,7 @@ class CitationManager:
             url=url,
             date_accessed=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             source_type="web",
-            description=description
+            description=description,
         )
 
         self._citations.add_source(source)
@@ -150,7 +152,7 @@ class CitationManager:
             filename=filename,
             date_accessed=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             source_type="attachment",
-            description=description or "processed attachment"
+            description=description or "processed attachment",
         )
 
         self._citations.add_source(source)
@@ -170,7 +172,7 @@ class CitationManager:
             title=sanitized_title,
             date_accessed=datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             source_type="api",
-            description=description or "API data"
+            description=description or "API data",
         )
 
         self._citations.add_source(source)
@@ -179,8 +181,7 @@ class CitationManager:
     def get_citations(self) -> CitationCollection:
         """Get a copy of the current citations."""
         return CitationCollection(
-            sources=self._citations.sources.copy(),
-            references_section=self._citations.references_section
+            sources=self._citations.sources.copy(), references_section=self._citations.references_section
         )
 
     def generate_references_section(self) -> str:
@@ -189,12 +190,7 @@ class CitationManager:
             return ""
 
         # Categorize sources
-        source_categories = {
-            "visited": [],
-            "search": [],
-            "attachment": [],
-            "api": []
-        }
+        source_categories = {"visited": [], "search": [], "attachment": [], "api": []}
 
         for source in self._citations.sources:
             if source.source_type == "web":
@@ -213,7 +209,7 @@ class CitationManager:
             ("visited", "#### Visited Pages", lambda s: f"{s.id}. [{s.title}]({s.url})"),
             ("search", "#### Search Results", lambda s: f"{s.id}. [{s.title}]({s.url})"),
             ("attachment", "#### Attachments", lambda s: f"{s.id}. {s.filename}"),
-            ("api", "#### Data Sources", lambda s: f"{s.id}. {s.title}")
+            ("api", "#### Data Sources", lambda s: f"{s.id}. {s.title}"),
         ]
 
         for category, header, formatter in section_configs:
@@ -265,10 +261,7 @@ class RequestContext:
         """Load attachments from disk into memory store."""
         for info in attachment_info:
             success = self.attachment_service.load_attachment(
-                filename=info["filename"],
-                file_path=info["path"],
-                content_type=info["type"],
-                size=info["size"]
+                filename=info["filename"], file_path=info["path"], content_type=info["type"], size=info["size"]
             )
             if success:
                 logger.debug(f"Successfully loaded attachment: {info['filename']}")

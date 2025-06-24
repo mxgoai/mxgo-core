@@ -15,6 +15,9 @@ from mxtoai.request_context import RequestContext
 
 logger = logging.getLogger(__name__)
 
+# Constants
+LINKEDIN_API_TIMEOUT = 30
+
 
 class LinkedInDataAPITool(Tool):
     """Tool for accessing LinkedIn data through LinkedIn Data API."""
@@ -346,7 +349,9 @@ class LinkedInDataAPITool(Tool):
                 if action in ["search_people", "search_companies"] and "citation_ids" in locals() and citation_ids:
                     # For search results, show all citation IDs
                     citation_refs = ", ".join([f"#{cid}" for cid in citation_ids])
-                    content = f"**LinkedIn Search Results with Citations** [{citation_refs}]\n\n{json.dumps(data, indent=2)}"
+                    content = (
+                        f"**LinkedIn Search Results with Citations** [{citation_refs}]\n\n{json.dumps(data, indent=2)}"
+                    )
                 else:
                     # Single citation for other actions
                     content = f"**LinkedIn Data Retrieved** [#{citation_id}]\n\n{json.dumps(data, indent=2)}"
@@ -369,13 +374,15 @@ class LinkedInDataAPITool(Tool):
                     "data_keys": list(data.keys()) if isinstance(data, dict) else [],
                     "has_citation": citation_id is not None,
                     "total_citations": total_citations,
-                    "citation_ids": citation_ids if "citation_ids" in locals() else []
-                }
+                    "citation_ids": citation_ids if "citation_ids" in locals() else [],
+                },
             )
 
             # Log completion with citation info
             if action in ["search_people", "search_companies"] and "citation_ids" in locals() and citation_ids:
-                logger.info(f"LinkedIn {action} completed successfully with {len(citation_ids)} citations: {citation_ids}")
+                logger.info(
+                    f"LinkedIn {action} completed successfully with {len(citation_ids)} citations: {citation_ids}"
+                )
             elif citation_id:
                 logger.info(f"LinkedIn {action} completed successfully with citation [{citation_id}]")
             else:
@@ -404,7 +411,9 @@ class LinkedInDataAPITool(Tool):
         """
         endpoint = "/get-profile-data"
         params = {"username": username}
-        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers)
+        response = requests.post(
+            f"{self.base_url}{endpoint}", params=params, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT
+        )
         response.raise_for_status()
         return response.json()
 
@@ -562,7 +571,9 @@ class LinkedInDataAPITool(Tool):
         if industries:
             payload["industries"] = industries
 
-        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
+        response = requests.post(
+            f"{self.base_url}{endpoint}", json=payload, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT
+        )
         response.raise_for_status()
         return response.json()
 
@@ -577,7 +588,9 @@ def initialize_linkedin_data_api_tool() -> Optional[LinkedInDataAPITool]:
     """
     api_key = os.getenv("RAPIDAPI_KEY")
     if api_key:
-        logger.info("RAPIDAPI_KEY found but LinkedInDataAPITool requires context parameter. Tool initialization deferred to agent.")
+        logger.info(
+            "RAPIDAPI_KEY found but LinkedInDataAPITool requires context parameter. Tool initialization deferred to agent."
+        )
         return None  # Return None since we need context from agent
     logger.info("RAPIDAPI_KEY not found. LinkedIn Data API tool not initialized.")
     return None

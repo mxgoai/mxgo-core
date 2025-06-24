@@ -2,7 +2,8 @@ import ast
 import json
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Union
 
 from dotenv import load_dotenv
@@ -94,7 +95,13 @@ class EmailAgent:
     """
 
     def __init__(
-        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", verbose: bool = False, enable_deep_research: bool = False, attachment_info: list[dict] | None = None
+        self,
+        email_request: EmailRequest,
+        attachment_dir: str = "email_attachments",
+        *,
+        verbose: bool = False,
+        enable_deep_research: bool = False,
+        attachment_info: list[dict] | None = None,
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -114,7 +121,7 @@ class EmailAgent:
 
         self.email_request = email_request
         self.attachment_dir = attachment_dir
-        os.makedirs(self.attachment_dir, exist_ok=True)
+        Path(self.attachment_dir).mkdir(parents=True, exist_ok=True)
 
         self.enable_deep_research = enable_deep_research
 
@@ -138,7 +145,7 @@ class EmailAgent:
 
         # Initialize independent search tools
         self.search_tools = self._initialize_independent_search_tools()
-        self.research_tool = self._initialize_deep_research_tool(self.enable_deep_research)
+        self.research_tool = self._initialize_deep_research_tool(enable_deep_research=self.enable_deep_research)
 
         self.available_tools: list[Tool] = [
             self.attachment_tool,
@@ -270,7 +277,7 @@ class EmailAgent:
             actions.append("Conduct research")
         return actions
 
-    def _initialize_deep_research_tool(self, enable_deep_research: bool) -> DeepResearchTool | None:
+    def _initialize_deep_research_tool(self, *, enable_deep_research: bool) -> DeepResearchTool | None:
         """
         Initializes the DeepResearchTool if API key is available.
 
@@ -451,6 +458,7 @@ Raw Email Request Data (for tool use):
         email_context: str,
         handle_specific_template: str = "",
         attachment_task: str = "",
+        *,
         deep_research_mandatory: bool = False,
         output_template: str = "",
         distilled_processing_instructions: str | None = None,
@@ -485,7 +493,9 @@ Raw Email Request Data (for tool use):
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
             distilled_section,
-            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory and self.enable_deep_research else RESEARCH_GUIDELINES["optional"],
+            RESEARCH_GUIDELINES["mandatory"]
+            if deep_research_mandatory and self.enable_deep_research
+            else RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
             output_template,
@@ -499,7 +509,7 @@ Raw Email Request Data (for tool use):
     def _process_agent_result(
         self, final_answer_obj: Any, agent_steps: list, current_email_handle: str
     ) -> DetailedEmailProcessingResult:
-        processed_at_time = datetime.now().isoformat()
+        processed_at_time = datetime.now(timezone.utc).isoformat()
 
         # Initialize schema components
         errors_list: list[ProcessingError] = []
@@ -666,7 +676,11 @@ Raw Email Request Data (for tool use):
                             logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")
                         else:
                             error_msg = tool_output.get("message", "Scheduled task creation failed")
-                            error_type = "Scheduled Task Limit Exceeded" if tool_output.get("error") == "Task limit exceeded" else "Scheduled Task Error"
+                            error_type = (
+                                "Scheduled Task Limit Exceeded"
+                                if tool_output.get("error") == "Task limit exceeded"
+                                else "Scheduled Task Error"
+                            )
                             errors_list.append(ProcessingError(message=error_type, details=error_msg))
                             if tool_output.get("error") == "Task limit exceeded":
                                 logger.warning(f"Scheduled task limit exceeded: {error_msg}")
@@ -690,7 +704,7 @@ Raw Email Request Data (for tool use):
                 final_answer_from_llm = final_answer_obj.strip()
                 logger.debug("Extracted final answer from string")
             elif hasattr(final_answer_obj, "_value"):  # Check for older AgentText structure
-                final_answer_from_llm = str(final_answer_obj._value).strip()
+                final_answer_from_llm = str(final_answer_obj._value).strip()  # noqa: SLF001
                 logger.debug("Extracted final answer from AgentText._value")
             elif hasattr(final_answer_obj, "answer"):  # Handle final_answer tool call argument
                 # Check if the argument itself is the content string
@@ -781,7 +795,7 @@ Raw Email Request Data (for tool use):
             )
 
         except Exception as e:
-            logger.exception(f"Critical error in _process_agent_result: {e!s}")
+            logger.exception("Critical error in _process_agent_result")
             # Ensure errors_list and email_sent_status are updated
             # If these were initialized outside and before this try-except, they might already exist.
             # Re-initialize or ensure they are correctly formed for the error state.
@@ -791,7 +805,7 @@ Raw Email Request Data (for tool use):
             if not errors_list:  # If the error happened before any specific error was added
                 errors_list.append(ProcessingError(message="Critical error in _process_agent_result", details=str(e)))
 
-            current_timestamp = datetime.now().isoformat()  # Use a fresh timestamp
+            current_timestamp = datetime.now(timezone.utc).isoformat()  # Use a fresh timestamp
             if email_sent_status.status != "error":  # If not already set to error by prior logic
                 email_sent_status.status = "error"
                 email_sent_status.error = f"Critical error in _process_agent_result: {e!s}"
@@ -867,25 +881,12 @@ Raw Email Request Data (for tool use):
 
             processed_result = self._process_agent_result(final_answer_obj, agent_steps, email_instructions.handle)
 
-            if not processed_result.email_content or not processed_result.email_content.text:
-                msg = "No reply text was generated by _process_agent_result"
-                logger.error(msg)
-                processed_result.metadata.errors.append(ProcessingError(message=msg))
-                processed_result.metadata.email_sent.status = "error"
-                processed_result.metadata.email_sent.error = msg
-
-                logger.info(f"Email processed (but no reply text generated) with handle: {email_instructions.handle}")
-                return processed_result
-
-            logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
-            return processed_result
-
         except Exception as e:
             error_msg = f"Critical error in email processing: {e!s}"
             logger.exception(error_msg)
 
             # Construct a DetailedEmailProcessingResult for error cases
-            now_iso = datetime.now().isoformat()
+            now_iso = datetime.now(timezone.utc).isoformat()
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
                     processed_at=now_iso,
@@ -911,6 +912,19 @@ Raw Email Request Data (for tool use):
                 research=None,
                 pdf_export=None,
             )
+        else:
+            if not processed_result.email_content or not processed_result.email_content.text:
+                msg = "No reply text was generated by _process_agent_result"
+                logger.error(msg)
+                processed_result.metadata.errors.append(ProcessingError(message=msg))
+                processed_result.metadata.email_sent.status = "error"
+                processed_result.metadata.email_sent.error = msg
+
+                logger.info(f"Email processed (but no reply text generated) with handle: {email_instructions.handle}")
+                return processed_result
+
+            logger.info(f"Email processed successfully with handle: {email_instructions.handle}")
+            return processed_result
 
     def _create_limited_scheduled_tasks_tool(self) -> Tool:
         """
@@ -939,7 +953,9 @@ Raw Email Request Data (for tool use):
                 current_active_count = count_active_tasks_for_user(session, user_email)
 
                 if current_active_count >= max_calls:
-                    logger.warning(f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks.")
+                    logger.warning(
+                        f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks."
+                    )
                     return {
                         "success": False,
                         "error": "Task limit exceeded",
@@ -953,7 +969,6 @@ Raw Email Request Data (for tool use):
 
             # Call the original method
             return original_forward(*args, **kwargs)
-
 
         # Replace the forward method
         base_tool.forward = limited_forward
@@ -974,9 +989,12 @@ Raw Email Request Data (for tool use):
         if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
             import re
+
             existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
             if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
-                logger.warning("Content already contains a References/Sources section - skipping automatic references to avoid duplication")
+                logger.warning(
+                    "Content already contains a References/Sources section - skipping automatic references to avoid duplication"
+                )
                 return content
 
             references_section = self.context.get_references_section()
