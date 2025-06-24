@@ -229,7 +229,7 @@ class TestScheduledTasksTool:
             textContent="Test content",
         )
 
-    @patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.add_job")
     @patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection")
     def test_successful_task_creation(self, mock_init_db_connection, mock_add_job):
         """Test successful scheduled task creation."""
@@ -261,10 +261,10 @@ class TestScheduledTasksTool:
         mock_session.add.assert_called()
         mock_session.commit.assert_called()
 
-        # Verify scheduler interaction
+        # Verify scheduling interaction
         mock_add_job.assert_called()
 
-    @patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.add_job")
     @patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection")
     def test_task_creation_with_start_and_end_times(self, mock_init_db_connection, mock_add_job):
         """Test task creation with start and end times."""
@@ -314,7 +314,7 @@ class TestScheduledTasksTool:
                 distilled_future_task_instructions="Test task",
                 task_description="Test",
                 start_time="2024-12-31T14:00:00Z",  # After end_time
-                end_time="2024-01-01T14:00:00Z",    # Before start_time
+                end_time="2024-01-01T14:00:00Z",  # Before start_time
             )
 
             assert result["success"] is False
@@ -343,10 +343,11 @@ class TestScheduledTasksTool:
         email_request = self.create_mock_email_request()
         tool = ScheduledTasksTool(context=RequestContext(email_request))
 
-        # Mock the database and scheduler
-        with patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db, \
-             patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job") as mock_add_job:
-
+        # Mock the database and scheduling
+        with (
+            patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
+            patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
+        ):
             mock_session = MagicMock()
             mock_db_connection = MagicMock()
             mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
@@ -370,9 +371,10 @@ class TestScheduledTasksTool:
         email_request = self.create_mock_email_request()
         tool = ScheduledTasksTool(context=RequestContext(email_request))
 
-        with patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db, \
-             patch("mxtoai.tools.scheduled_tasks_tool.add_scheduled_job") as mock_add_job:
-
+        with (
+            patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
+            patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
+        ):
             mock_session = MagicMock()
             mock_db_connection = MagicMock()
             mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
@@ -481,8 +483,8 @@ class TestScheduledTasksLimitEnforcement:
         for i in range(5):
             result = limited_forward_simulation(
                 "0 9 * * 1",
-                distilled_future_task_instructions=f"Task {i+1} instructions",
-                task_description=f"Task {i+1}",
+                distilled_future_task_instructions=f"Task {i + 1} instructions",
+                task_description=f"Task {i + 1}",
             )
             successful_tasks.append(result)
             assert result["success"] is True
@@ -557,8 +559,8 @@ class TestScheduledTasksLimitEnforcement:
         for i in range(5):
             result = limited_forward_with_failure_simulation(
                 "0 9 * * 1",
-                distilled_future_task_instructions=f"Task {i+2} instructions",
-                task_description=f"Task {i+2}",
+                distilled_future_task_instructions=f"Task {i + 2} instructions",
+                task_description=f"Task {i + 2}",
             )
             assert result["success"] is True
             assert "task_id" in result

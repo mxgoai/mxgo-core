@@ -13,29 +13,19 @@ from mxtoai._logging import get_logger
 from mxtoai.crud import get_tasks_by_status
 from mxtoai.db import init_db_connection
 from mxtoai.models import TERMINAL_TASK_STATUSES
-from mxtoai.scheduler import get_scheduler, reload_jobs_from_database, start_scheduler, stop_scheduler
+from mxtoai.scheduling.scheduler import Scheduler
 
 logger = get_logger("scheduler_runner")
+
+# Create dedicated scheduling instance for this process
+scheduler_instance = Scheduler()
 
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    logger.info("Received shutdown signal, stopping scheduler...")
-    stop_scheduler()
+    logger.info("Received shutdown signal, stopping scheduling...")
+    scheduler_instance.stop()
     sys.exit(0)
-
-
-def check_for_new_jobs():
-    """
-    Check for new jobs that may have been added by other processes.
-    """
-    try:
-        new_jobs_count = reload_jobs_from_database()
-        if new_jobs_count > 0:
-            logger.info(f"Loaded {new_jobs_count} new jobs from database")
-
-    except Exception as e:
-        logger.warning(f"Error checking for new jobs: {e}")
 
 
 def cleanup_terminal_task_jobs():
@@ -45,9 +35,8 @@ def cleanup_terminal_task_jobs():
     """
     try:
         db_connection = init_db_connection()
-        scheduler = get_scheduler()
 
-        if not scheduler.running:
+        if not scheduler_instance.is_running():
             return
 
         with db_connection.get_session() as session:
@@ -57,8 +46,10 @@ def cleanup_terminal_task_jobs():
             cleaned_count = 0
             for task in terminal_tasks:
                 try:
-                    scheduler.remove_job(task.scheduler_job_id)
-                    logger.info(f"Cleaned up APScheduler job {task.scheduler_job_id} for terminal task {task.task_id} (status: {task.status})")
+                    scheduler_instance.remove_job(task.scheduler_job_id)
+                    logger.info(
+                        f"Cleaned up APScheduler job {task.scheduler_job_id} for terminal task {task.task_id} (status: {task.status})"
+                    )
 
                     # Clear the scheduler_job_id to avoid future cleanup attempts
                     task.scheduler_job_id = None
@@ -76,8 +67,19 @@ def cleanup_terminal_task_jobs():
         logger.error(f"Error during terminal task cleanup: {e}")
 
 
+def refresh_jobs_from_database():
+    """
+    Refresh the scheduling's job list from the PostgreSQL jobstore.
+    This ensures the scheduling picks up new jobs added by other processes.
+    """
+    try:
+        scheduler_instance.refresh_jobs()
+    except Exception as e:
+        logger.error(f"Error refreshing jobs from database: {e}")
+
+
 def main():
-    """Main entry point for standalone scheduler process."""
+    """Main entry point for standalone scheduling process."""
     # Handle shutdown gracefully
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -85,22 +87,22 @@ def main():
     logger.info("Starting standalone APScheduler process...")
 
     try:
-        start_scheduler()
+        scheduler_instance.start()
         logger.info("APScheduler started successfully, ready to execute scheduled tasks")
 
         # Keep the process alive and periodically check for new jobs
-        job_check_interval = 10  # Check every 10 seconds for faster responsiveness
+        job_refresh_interval = 10  # Refresh jobs every 30 seconds
         cleanup_interval = 60  # Cleanup every 60 seconds
-        last_check = time.time()
+        last_refresh = time.time()
         last_cleanup = time.time()
 
         while True:
             current_time = time.time()
 
-            # Check for new jobs periodically
-            if current_time - last_check >= job_check_interval:
-                check_for_new_jobs()
-                last_check = current_time
+            # Refresh jobs from database periodically
+            if current_time - last_refresh >= job_refresh_interval:
+                refresh_jobs_from_database()
+                last_refresh = current_time
 
             # Cleanup terminal task jobs periodically
             if current_time - last_cleanup >= cleanup_interval:
@@ -115,8 +117,8 @@ def main():
         logger.error(f"Scheduler process error: {e}")
         raise
     finally:
-        logger.info("Shutting down scheduler...")
-        stop_scheduler()
+        logger.info("Shutting down scheduling...")
+        scheduler_instance.stop()
 
 
 if __name__ == "__main__":

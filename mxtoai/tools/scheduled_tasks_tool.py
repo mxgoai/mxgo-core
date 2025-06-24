@@ -12,13 +12,12 @@ from mxtoai.crud import create_task, delete_task, update_task_status
 from mxtoai.db import init_db_connection
 from mxtoai.models import TaskStatus
 from mxtoai.request_context import RequestContext
-from mxtoai.scheduled_task_executor import execute_scheduled_task
-from mxtoai.scheduler import add_scheduled_job
+from mxtoai.scheduling.scheduled_task_executor import execute_scheduled_task
+from mxtoai.scheduling.scheduler import Scheduler, is_one_time_task
 from mxtoai.schemas import HandlerAlias
 from mxtoai.utils import round_to_nearest_minute, validate_datetime_field
 
 logger = get_logger("scheduled_tasks_tool")
-
 
 
 def calculate_cron_interval(cron_expression: str) -> timedelta:
@@ -97,17 +96,53 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
         raise ValueError(msg) from e
 
 
+def create_one_time_cron_expression(target_datetime: datetime) -> str:
+    """
+    Create a cron expression for a one-time execution at a specific datetime.
+
+    Args:
+        target_datetime: The datetime when the task should run
+
+    Returns:
+        str: A cron expression for one-time execution
+
+    """
+    return f"{target_datetime.minute} {target_datetime.hour} {target_datetime.day} {target_datetime.month} *"
+
+
+def create_cron_from_relative_time(relative_minutes: int) -> tuple[str, datetime]:
+    """
+    Create a cron expression for execution after a relative time from now.
+
+    Args:
+        relative_minutes: Minutes from now when the task should execute
+
+    Returns:
+        tuple: (cron_expression, target_datetime)
+
+    """
+    target_datetime = datetime.now(timezone.utc) + timedelta(minutes=relative_minutes)
+    target_datetime = round_to_nearest_minute(target_datetime)
+    cron_expression = create_one_time_cron_expression(target_datetime)
+    return cron_expression, target_datetime
+
+
 def validate_minimum_interval(cron_expression: str) -> None:
     """
     Validate that a recurring cron expression has a minimum interval of 1 hour.
+    One-time tasks are exempt from this validation.
 
     Args:
         cron_expression: The cron expression to validate
 
     Raises:
-        ValueError: If the interval is less than 1 hour
+        ValueError: If the interval is less than 1 hour for recurring tasks
 
     """
+    # Skip validation for one-time tasks
+    if is_one_time_task(cron_expression):
+        return
+
     interval = calculate_cron_interval(cron_expression)
     minimum_interval = timedelta(hours=SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS)
 
@@ -124,11 +159,17 @@ class ScheduledTaskInput(BaseModel):
     """Input model for scheduled task creation"""
 
     cron_expression: str = Field(..., description="Valid cron expression for task scheduling")
-    distilled_future_task_instructions: str = Field(..., description="Distilled and detailed instructions about how the task will be processed in future")
+    distilled_future_task_instructions: str = Field(
+        ..., description="Distilled and detailed instructions about how the task will be processed in future"
+    )
     task_description: str = Field(..., description="Human-readable description of the task")
     next_run_time: Optional[str] = Field(None, description="Next execution time (ISO format)")
-    start_time: Optional[str] = Field(None, description="Start time for the task - task will not execute before this time (ISO format)")
-    end_time: Optional[str] = Field(None, description="End time for the task - task will not execute after this time (ISO format)")
+    start_time: Optional[str] = Field(
+        None, description="Start time for the task - task will not execute before this time (ISO format)"
+    )
+    end_time: Optional[str] = Field(
+        None, description="End time for the task - task will not execute after this time (ISO format)"
+    )
 
     @field_validator("cron_expression")
     @classmethod
@@ -136,7 +177,14 @@ class ScheduledTaskInput(BaseModel):
         """Validate that the cron expression is valid and meets minimum interval requirements"""
         try:
             # Test if cron expression is valid
-            croniter(v)
+            cron = croniter(v, datetime.now(timezone.utc))
+
+            # Check if this is a one-time task in the past
+            if is_one_time_task(v):
+                next_run = datetime.fromtimestamp(cron.get_next(), tz=timezone.utc)
+                if next_run < datetime.now(timezone.utc):
+                    msg = f"One-time task scheduled for the past: {next_run}"
+                    raise ValueError(msg)
 
             # Validate minimum interval for recurring tasks
             validate_minimum_interval(v)
@@ -176,33 +224,27 @@ class ScheduledTasksTool(Tool):
     name = "scheduled_tasks"
     description = "Create, schedule, and manage future email processing tasks using cron expressions"
     inputs = {
-        "cron_expression": {
-            "type": "string",
-            "description": "Valid cron expression for task scheduling"
-        },
+        "cron_expression": {"type": "string", "description": "Valid cron expression for task scheduling"},
         "distilled_future_task_instructions": {
             "type": "string",
-            "description": "Distilled and detailed instructions about how the task will be processed in future"
+            "description": "Distilled and detailed instructions about how the task will be processed in future",
         },
-        "task_description": {
-            "type": "string",
-            "description": "Human-readable description of the task"
-        },
+        "task_description": {"type": "string", "description": "Human-readable description of the task"},
         "next_run_time": {
             "type": "string",
             "description": "Optional next run time in ISO 8601 format",
-            "nullable": True
+            "nullable": True,
         },
         "start_time": {
             "type": "string",
             "description": "Optional start time for the task in ISO 8601 format - task will not execute before this time",
-            "nullable": True
+            "nullable": True,
         },
         "end_time": {
             "type": "string",
             "description": "Optional end time for the task in ISO 8601 format - task will not execute after this time",
-            "nullable": True
-        }
+            "nullable": True,
+        },
     }
     output_type = "object"
 
@@ -216,6 +258,8 @@ class ScheduledTasksTool(Tool):
         """
         super().__init__()
         self.context = context
+        # Create dedicated scheduling instance for this tool
+        self.scheduler = Scheduler()
 
     def forward(
         self,
@@ -242,6 +286,8 @@ class ScheduledTasksTool(Tool):
 
         """
         logger.info(f"Storing and scheduling task: {task_description}")
+        logger.info(f"Cron expression: {cron_expression}")
+        logger.info(f"Is one-time task: {is_one_time_task(cron_expression) if cron_expression else 'Unknown'}")
 
         # Get email request from context
         email_request = self.context.email_request
@@ -266,6 +312,20 @@ class ScheduledTasksTool(Tool):
                 start_time=start_time,
                 end_time=end_time,
             )
+
+            # Additional validation for potentially incorrect cron expressions
+            if is_one_time_task(cron_expression):
+                cron_iter = croniter(cron_expression, datetime.now(timezone.utc))
+                next_execution_time = datetime.fromtimestamp(cron_iter.get_next(), tz=timezone.utc)
+                time_until_execution = next_execution_time - datetime.now(timezone.utc)
+
+                # If the task description suggests a short-term reminder but the cron is far in the future
+                if "remind me" in task_description.lower() and time_until_execution > timedelta(hours=24):
+                    logger.warning(
+                        f"Potentially incorrect cron expression: {cron_expression} will execute in {time_until_execution}, but task description suggests short-term reminder: {task_description}"
+                    )
+
+                logger.info(f"One-time task will execute at: {next_execution_time} (in {time_until_execution})")
 
             db_connection = init_db_connection()
             # Generate unique task ID
@@ -313,13 +373,15 @@ class ScheduledTasksTool(Tool):
                 cron_iter = croniter(input_data.cron_expression, datetime.now(timezone.utc))
                 next_execution = round_to_nearest_minute(datetime.fromtimestamp(cron_iter.get_next(), tz=timezone.utc))
 
-            # Create scheduler job ID (APScheduler will use this)
+            # Create scheduling job ID (APScheduler will use this)
             scheduler_job_id = f"task_{task_id}"
 
-            # Save distilled instructions to email request
+            # Save distilled instructions and task description to email request
             email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
+            email_request.task_description = input_data.task_description
             # TODO: Need an AI driver logic here but for now we'll just redirect to ask
             email_request.distilled_alias = HandlerAlias.ASK
+            email_request.parent_message_id = email_request.messageId
 
             # Store task in database using CRUD
             try:
@@ -343,7 +405,7 @@ class ScheduledTasksTool(Tool):
 
             # Schedule the task with APScheduler
             try:
-                add_scheduled_job(
+                self.scheduler.add_job(
                     job_id=scheduler_job_id,
                     cron_expression=input_data.cron_expression,
                     func=execute_scheduled_task,

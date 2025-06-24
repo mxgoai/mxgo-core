@@ -24,9 +24,6 @@ from mxtoai.email_sender import (
 from mxtoai.schemas import EmailAttachment, EmailRequest, RateLimitPlan
 from mxtoai.tasks import process_email_task
 from mxtoai.validators import (
-    email_provider_domain_set as validator_email_provider_domain_set,
-)
-from mxtoai.validators import (
     validate_api_key,
     validate_attachments,
     validate_email_handle,
@@ -91,6 +88,7 @@ if os.environ["IS_PROD"].lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
+
 
 # Function to cleanup attachment files and directory
 def cleanup_attachments(directory_path: str) -> bool:
@@ -554,7 +552,7 @@ async def process_email(
         # Get handle configuration
         email_instructions = processing_instructions_resolver(handle)  # Safe to use direct access now
 
-                # Validate idempotency and generate deterministic messageId if needed
+        # Validate idempotency and generate deterministic messageId if needed
         if response := await validate_idempotency(
             from_email=from_email,
             to=to,
@@ -563,7 +561,7 @@ async def process_email(
             html_content=htmlContent or "",
             text_content=textContent or "",
             files_count=len(files),
-            message_id=messageId
+            message_id=messageId,
         ):
             response_obj, messageId = response
             if response_obj:
@@ -639,13 +637,12 @@ async def process_email(
 
         # Enqueue the task for async processing
         process_email_task.send(
-            email_request.model_dump(),
-            email_attachments_dir,
-            processed_attachment_info,
-            scheduled_task_id
+            email_request.model_dump(), email_attachments_dir, processed_attachment_info, scheduled_task_id
         )
-        logger.info(f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
-                   + (f" (scheduled task: {scheduled_task_id})" if scheduled_task_id else ""))
+        logger.info(
+            f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
+            + (f" (scheduled task: {scheduled_task_id})" if scheduled_task_id else "")
+        )
 
         # Return immediate success response
         return Response(

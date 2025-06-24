@@ -58,7 +58,7 @@ COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SENSITIVE
 
 # Pre-compile scrubbing patterns for better performance
 PRECOMPILED_SCRUB_PATTERNS = []
-SCRUBBED_TOKEN = "[SCRUBBED]"
+SCRUBBED_TOKEN = "***"
 
 for pattern in COMPILED_PATTERNS:
     key_value_pattern = re.compile(rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)", re.IGNORECASE)
@@ -118,7 +118,7 @@ def loguru_scrubbing_filter(record):
                     else:
                         # Also scrub the value if it contains key=value patterns
                         record["extra"][key] = scrub_sensitive_data(value)
-                elif isinstance(value, (int, float)):
+                elif isinstance(value, int | float):
                     # Preserve numeric values without scrubbing
                     continue
     except Exception:
@@ -230,13 +230,14 @@ def setup_stdlib_logging_intercept():
     verbose_loggers = [
         "smolagents",  # Capture smolagents verbose output
         "dramatiq",
+        "apscheduler",
     ]
 
     # Configure loggers that should only show ERROR level messages
     error_only_loggers = [
         "litellm",
         "httpx",
-        "pika",  # RabbitMQ client
+        # "pika",  # RabbitMQ client # TOO VERBOSE
         "azure",
         "openai",
         "transformers",  # HuggingFace transformers

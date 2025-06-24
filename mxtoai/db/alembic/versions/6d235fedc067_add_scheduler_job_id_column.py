@@ -1,11 +1,12 @@
 """
-Add scheduler job id column
+Add scheduling job id column
 
 Revision ID: 6d235fedc067
 Revises: 0e662a8d5f99
 Create Date: 2025-06-10 21:16:35.085684
 
 """
+
 from collections.abc import Sequence
 from typing import Union
 

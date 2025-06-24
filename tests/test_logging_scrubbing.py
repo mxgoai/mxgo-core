@@ -18,16 +18,16 @@ class TestSensitiveDataScrubbing:
     def test_scrub_basic_password_pattern(self):
         """Test scrubbing of basic password patterns."""
         test_cases = [
-            ("password=secret123", "password=[SCRUBBED]"),
-            ("PASSWORD=secret123", "PASSWORD=[SCRUBBED]"),
-            ("user_password=mypass", "user_password=[SCRUBBED]"),
-            ('"password": "secret123"', '"password": "[SCRUBBED]"'),
-            ("'passwd': 'secret123'", "'passwd': '[SCRUBBED]'"),
+            ("password=secret123", "password=[***]"),
+            ("PASSWORD=secret123", "PASSWORD=[***]"),
+            ("user_password=mypass", "user_password=[***]"),
+            ('"password": "secret123"', '"password": "[***]"'),
+            ("'passwd': 'secret123'", "'passwd': '[***]'"),
         ]
 
         for input_text, _expected in test_cases:
             result = scrub_sensitive_data(input_text)
-            assert "[SCRUBBED]" in result, f"Expected scrubbing in: {input_text}"
+            assert "***" in result, f"Expected scrubbing in: {input_text}"
 
     def test_scrub_email_patterns(self):
         """Test scrubbing of email-related sensitive data."""
@@ -42,7 +42,7 @@ class TestSensitiveDataScrubbing:
 
         for input_text in test_cases:
             result = scrub_sensitive_data(input_text)
-            assert "[SCRUBBED]" in result, f"Expected scrubbing in: {input_text}"
+            assert "***" in result, f"Expected scrubbing in: {input_text}"
 
     def test_scrub_api_keys_and_tokens(self):
         """Test scrubbing of API keys and authentication tokens."""
@@ -58,7 +58,7 @@ class TestSensitiveDataScrubbing:
 
         for input_text in test_cases:
             result = scrub_sensitive_data(input_text)
-            assert "[SCRUBBED]" in result, f"Expected scrubbing in: {input_text}"
+            assert "***" in result, f"Expected scrubbing in: {input_text}"
 
     def test_case_insensitive_matching(self):
         """Test that pattern matching is case-insensitive."""
@@ -73,7 +73,7 @@ class TestSensitiveDataScrubbing:
 
         for input_text in test_cases:
             result = scrub_sensitive_data(input_text)
-            assert "[SCRUBBED]" in result, f"Case-insensitive matching failed for: {input_text}"
+            assert "***" in result, f"Case-insensitive matching failed for: {input_text}"
 
     def test_non_string_input_handling(self):
         """Test handling of non-string inputs."""
@@ -84,7 +84,7 @@ class TestSensitiveDataScrubbing:
             assert isinstance(result, str), f"Expected string output for input: {input_value}"
 
     def test_safe_text_not_scrubbed(self):
-        """Test that safe text without sensitive patterns is not scrubbed."""
+        """Test that safe text without sensitive patterns is not ***."""
         safe_texts = [
             "This is a normal log message",
             "User logged in successfully",
@@ -97,7 +97,7 @@ class TestSensitiveDataScrubbing:
 
         for safe_text in safe_texts:
             result = scrub_sensitive_data(safe_text)
-            assert "[SCRUBBED]" not in result, f"Safe text was incorrectly scrubbed: {safe_text}"
+            assert "***" not in result, f"Safe text was incorrectly ***: {safe_text}"
             assert result == safe_text, f"Safe text was modified: {safe_text} -> {result}"
 
 
@@ -122,7 +122,7 @@ class TestLoguruScrubbingFilter:
             result = loguru_scrubbing_filter(record)
 
             assert result is True, "Filter should always return True"
-            assert "[SCRUBBED]" in record["message"], f"Message not scrubbed: {record['message']}"
+            assert "***" in record["message"], f"Message not ***: {record['message']}"
 
     def test_filter_scrubs_extra_data(self):
         """Test that the filter scrubs sensitive data from extra fields."""
@@ -139,10 +139,10 @@ class TestLoguruScrubbingFilter:
         assert result is True, "Filter should always return True"
         assert record["extra"]["safe_field"] == "normal_value", "Safe field should not be modified"
 
-        # Check that sensitive fields were scrubbed
+        # Check that sensitive fields were ***
         sensitive_fields = ["user_email", "password", "api_key"]
         for field in sensitive_fields:
-            assert "[SCRUBBED]" in str(record["extra"][field]), f"Extra field '{field}' not scrubbed"
+            assert "***" in str(record["extra"][field]), f"Extra field '{field}' not ***"
 
     def test_filter_handles_missing_attributes(self):
         """Test that the filter gracefully handles records missing expected attributes."""
@@ -176,8 +176,8 @@ class TestRichConsoleScrubbing:
 
     @patch("mxtoai._logging.scrub_sensitive_data")
     def test_rich_console_applies_scrubbing(self, mock_scrub):
-        """Test that Rich console output is scrubbed before logging."""
-        mock_scrub.return_value = "scrubbed content"
+        """Test that Rich console output is *** before logging."""
+        mock_scrub.return_value = "*** content"
 
         console = get_smolagents_console()
 
@@ -191,7 +191,7 @@ class TestRichConsoleScrubbing:
         # Verify scrubbing was called
         mock_scrub.assert_called_once_with(test_content)
 
-        # Verify the scrubbed content was logged
+        # Verify the *** content was logged
         console.rich_logger.log.assert_called_once()
 
 
@@ -240,7 +240,7 @@ class TestLoggingIntegration:
 
         for test_string in test_strings:
             result = scrub_sensitive_data(test_string)
-            assert "[SCRUBBED]" in result, f"Pattern '{pattern_name}' failed to match in: {test_string}"
+            assert "***" in result, f"Pattern '{pattern_name}' failed to match in: {test_string}"
 
 
 class TestEdgeCases:
@@ -252,7 +252,7 @@ class TestEdgeCases:
         result = scrub_sensitive_data(input_text)
 
         # Should scrub sensitive data
-        assert "[SCRUBBED]" in result, f"Expected scrubbing in: {result}"
+        assert "***" in result, f"Expected scrubbing in: {result}"
 
     def test_empty_and_whitespace_handling(self):
         """Test handling of empty strings and whitespace."""
@@ -268,7 +268,7 @@ class TestEdgeCases:
 
         for test_string in test_cases:
             result = scrub_sensitive_data(test_string)
-            assert "[SCRUBBED]" in result, f"Failed to scrub: {test_string}"
+            assert "***" in result, f"Failed to scrub: {test_string}"
 
 
 class TestActualLoggingIntegration:
@@ -293,10 +293,10 @@ class TestActualLoggingIntegration:
         test_data = "user_password=secret123 api_key=abc123 email=test@example.com"
         result = scrub_sensitive_data(test_data)
 
-        assert "[SCRUBBED]" in result, "Scrubbing function not working"
-        assert "secret123" not in result, "Password not scrubbed"
-        assert "abc123" not in result, "API key not scrubbed"
-        assert "test@example.com" not in result, "Email not scrubbed"
+        assert "***" in result, "Scrubbing function not working"
+        assert "secret123" not in result, "Password not ***"
+        assert "abc123" not in result, "API key not ***"
+        assert "test@example.com" not in result, "Email not ***"
 
     def test_logging_filter_integration(self):
         """Test that the logging filter is properly integrated."""
@@ -313,7 +313,7 @@ class TestActualLoggingIntegration:
 
         # Verify filter behavior
         assert result is True, "Filter should always return True"
-        assert "[SCRUBBED]" in test_record["message"], "Message not scrubbed"
-        assert test_record["extra"]["user_email"] == "[SCRUBBED]", "Email field not scrubbed"
-        assert test_record["extra"]["api_key"] == "[SCRUBBED]", "API key field not scrubbed"
+        assert "***" in test_record["message"], "Message not ***"
+        assert test_record["extra"]["user_email"] == "***", "Email field not ***"
+        assert test_record["extra"]["api_key"] == "***", "API key field not ***"
         assert test_record["extra"]["safe_field"] == "normal_value", "Safe field should not be modified"

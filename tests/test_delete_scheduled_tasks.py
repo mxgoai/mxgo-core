@@ -24,9 +24,11 @@ from mxtoai.tools.delete_scheduled_tasks_tool import (
 # Check if database is available for testing
 DATABASE_AVAILABLE = bool(os.environ.get("TEST_DB_URL"))
 
+
 def requires_database(func):
     """Decorator to skip tests that require database when database is not available."""
     return pytest.mark.skipif(not DATABASE_AVAILABLE, reason="Database not available for testing")(func)
+
 
 class TestDeleteTaskInput:
     """Test the input validation for delete task requests."""
@@ -117,7 +119,7 @@ class TestDeleteScheduledTasksTool:
                 scheduler_job_id=f"job_{task_id}",
                 cron_expression="0 9 * * 1",
                 email_id="test@example.com",
-                created_at=datetime.now(timezone.utc)
+                created_at=datetime.now(timezone.utc),
             )
             session.add(task)
             session.commit()
@@ -125,7 +127,7 @@ class TestDeleteScheduledTasksTool:
             return task
 
     @requires_database
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.remove_job")
     def test_successful_task_deletion(self, mock_remove_job):
         """Test successful task deletion."""
         task_id = str(uuid.uuid4())
@@ -176,16 +178,16 @@ class TestDeleteScheduledTasksTool:
         assert "own tasks" in result["message"]
 
     @requires_database
-    @patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job")
+    @patch("mxtoai.scheduling.scheduler.Scheduler.remove_job")
     def test_scheduler_removal_failure_continues_deletion(self, mock_remove_job):
-        """Test that database deletion continues even if scheduler removal fails."""
+        """Test that database deletion continues even if scheduling removal fails."""
         task_id = str(uuid.uuid4())
         user_email = "user@example.com"
 
         # Create a real task in the database
         self.create_test_task(task_id, user_email)
 
-        # Setup mock scheduler removal to raise exception
+        # Setup mock scheduling removal to raise exception
         mock_remove_job.side_effect = Exception("Scheduler error")
 
         # Create tool and execute

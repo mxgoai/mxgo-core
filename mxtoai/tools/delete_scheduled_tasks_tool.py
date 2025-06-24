@@ -20,7 +20,7 @@ from mxtoai.crud import find_user_tasks_formatted, get_task_by_id, update_task_s
 from mxtoai.db import init_db_connection
 from mxtoai.models import TaskStatus
 from mxtoai.request_context import RequestContext
-from mxtoai.scheduler import remove_scheduled_job
+from mxtoai.scheduling.scheduler import Scheduler
 
 logger = get_logger("delete_scheduled_tasks_tool")
 
@@ -92,12 +92,7 @@ class DeleteScheduledTasksTool(Tool):
 
     name = "delete_scheduled_tasks"
     description = "Delete scheduled email tasks by task ID with user verification"
-    inputs = {
-        "task_id": {
-            "type": "string",
-            "description": "UUID of the task to delete"
-        }
-    }
+    inputs = {"task_id": {"type": "string", "description": "UUID of the task to delete"}}
     output_type = "object"
 
     def __init__(self, context: RequestContext):
@@ -110,6 +105,8 @@ class DeleteScheduledTasksTool(Tool):
         """
         super().__init__()
         self.context = context
+        # Create dedicated scheduling instance for this tool
+        self.scheduler = Scheduler()
 
     def forward(self, task_id: str) -> dict:
         """
@@ -166,13 +163,14 @@ class DeleteScheduledTasksTool(Tool):
 
                 # Support both 'from' and 'from_email' field names
                 task_owner_email = (
-                    task_email_request.get("from_email", "") or
-                    task_email_request.get("from", "")
+                    task_email_request.get("from_email", "") or task_email_request.get("from", "")
                 ).lower()
                 requesting_email = self.context.email_request.from_email.lower()
 
                 if task_owner_email != requesting_email:
-                    logger.warning(f"Permission denied: {requesting_email} cannot delete task owned by {task_owner_email}")
+                    logger.warning(
+                        f"Permission denied: {requesting_email} cannot delete task owned by {task_owner_email}"
+                    )
                     return {
                         "success": False,
                         "error": "Permission denied",
@@ -180,23 +178,22 @@ class DeleteScheduledTasksTool(Tool):
                         "message": f"You can only delete your own tasks. This task belongs to {task_owner_email}",
                     }
 
-
                 # Remove from APScheduler if scheduler_job_id exists
                 scheduler_removed = False
                 scheduler_job_id = getattr(task, "scheduler_job_id", None)
 
                 if scheduler_job_id:
                     try:
-                        result = remove_scheduled_job(scheduler_job_id)
+                        result = self.scheduler.remove_job(scheduler_job_id)
                         scheduler_removed = True
                         logger.info(f"Task {task_id} removed from scheduler: {result}")
                     except Exception as e:
                         logger.warning(f"Failed to remove task from scheduler: {e}")
-                        # Continue with database cleanup even if scheduler fails
+                        # Continue with database cleanup even if scheduling fails
                 else:
                     logger.info(f"Task {task_id} has no scheduler_job_id, skipping scheduler cleanup")
 
-                                # Update task status to DELETED in database using CRUD
+                    # Update task status to DELETED in database using CRUD
                 update_task_status(session, task_id, TaskStatus.DELETED)
 
                 logger.info(f"Task {task_id} successfully deleted")
@@ -218,4 +215,3 @@ class DeleteScheduledTasksTool(Tool):
                 "task_id": task_id,
                 "message": f"Failed to delete task: {e}",
             }
-
