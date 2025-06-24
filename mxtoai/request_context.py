@@ -6,6 +6,7 @@ to provide clean architecture and request isolation.
 """
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from mxtoai._logging import get_logger
@@ -56,7 +57,7 @@ class AttachmentService:
     def load_attachment(self, filename: str, file_path: str, content_type: str, size: int) -> bool:
         """Load attachment from disk into memory store."""
         try:
-            with open(file_path, "rb") as f:
+            with Path(file_path).open("rb") as f:
                 content = f.read()
 
             self._content_store[filename] = content

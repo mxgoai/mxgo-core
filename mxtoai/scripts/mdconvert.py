@@ -17,6 +17,7 @@ import traceback
 import zipfile
 from typing import Any, Optional, Union
 from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
+from pathlib import Path
 
 import mammoth
 import markdownify
@@ -50,14 +51,14 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
         # Explicitly cast options to the expected type if necessary
         super().__init__(**options)
 
-    def convert_hn(self, n: int, el: Any, text: str, convert_as_inline: bool) -> str:
+    def convert_hn(self, n: int, el: Any, text: str, *, convert_as_inline: bool) -> str:
         """Same as usual, but be sure to start with a new line"""
         if not convert_as_inline and not re.search(r"^\n", text):
             return "\n" + super().convert_hn(n, el, text, convert_as_inline)  # type: ignore
 
         return super().convert_hn(n, el, text, convert_as_inline)  # type: ignore
 
-    def convert_a(self, el: Any, text: str, convert_as_inline: bool = False, **kwargs):
+    def convert_a(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs):
         """Same as usual converter, but removes Javascript links and escapes URIs."""
         prefix, suffix, text = markdownify.chomp(text)  # type: ignore
         if not text:
@@ -89,7 +90,7 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
         title_part = ' "{}"'.format(title.replace('"', r"\"")) if title else ""
         return f"{prefix}[{text}]({href}{title_part}){suffix}" if href else text
 
-    def convert_img(self, el: Any, text: str, convert_as_inline: bool = False, **kwargs) -> str:
+    def convert_img(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs) -> str:
         """Same as usual converter, but removes data URIs"""
         alt = el.attrs.get("alt", None) or ""
         src = el.attrs.get("src", None) or ""
@@ -136,7 +137,7 @@ class PlainTextConverter(DocumentConverter):
 
         # Try to detect if file is binary
         try:
-            with open(local_path, "rb") as file:
+            with Path(local_path).open("rb") as file:
                 # Read first chunk of the file
                 chunk = file.read(1024)
                 if b"\0" in chunk:  # Binary file detection
@@ -152,7 +153,7 @@ class PlainTextConverter(DocumentConverter):
 
         # If we got here, it's safe to read as text
         try:
-            with open(local_path, encoding="utf-8") as fh:
+            with Path(local_path).open(encoding="utf-8") as fh:
                 text_content = fh.read()
             return DocumentConverterResult(
                 title=None,
@@ -171,7 +172,7 @@ class HtmlConverter(DocumentConverter):
         if extension.lower() not in [".html", ".htm"]:
             return None
 
-        with open(local_path, encoding="utf-8") as fh:
+        with Path(local_path).open(encoding="utf-8") as fh:
             return self._convert(fh.read())
 
     def _convert(self, html_content: str) -> Union[None, DocumentConverterResult]:
@@ -212,7 +213,7 @@ class WikipediaConverter(DocumentConverter):
 
         # Parse the file
         soup = None
-        with open(local_path, encoding="utf-8") as fh:
+        with Path(local_path).open(encoding="utf-8") as fh:
             soup = BeautifulSoup(fh.read(), "html.parser")
 
         # Remove javascript and style blocks
@@ -257,7 +258,7 @@ class YouTubeConverter(DocumentConverter):
 
         # Parse the file
         soup = None
-        with open(local_path, encoding="utf-8") as fh:
+        with Path(local_path).open(encoding="utf-8") as fh:
             soup = BeautifulSoup(fh.read(), "html.parser")
 
         # Read the meta tags
@@ -391,7 +392,7 @@ class DocxConverter(HtmlConverter):
             return None
 
         result = None
-        with open(local_path, "rb") as docx_file:
+        with Path(local_path).open("rb") as docx_file:
             result = mammoth.convert_to_html(docx_file)
             html_content = result.value
             return self._convert(html_content)
@@ -733,7 +734,7 @@ class ImageConverter(MediaConverter):
         sys.stderr.write(f"MLM Prompt:\n{prompt}\n")
 
         data_uri = ""
-        with open(local_path, "rb") as image_file:
+        with Path(local_path).open("rb") as image_file:
             content_type, encoding = mimetypes.guess_type("_dummy" + extension)
             if content_type is None:
                 content_type = "image/jpeg"

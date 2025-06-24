@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import ClassVar, Optional
 from urllib.parse import urlencode
 
 import pytz
@@ -44,13 +44,13 @@ class MeetingTool(Tool):
     """
 
     # Add required attributes for Smol Gents
-    name = "meeting_creator"
-    description = (
+    name: ClassVar[str] = "meeting_creator"
+    description: ClassVar[str] = (
         "Generates iCalendar (.ics) file content and 'Add to Calendar' links (Google, Outlook) "
         "based on provided event details. Expects ISO 8601 date/time strings with timezone."
     )
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "title": {"type": "string", "description": "The title or summary of the event."},
         "start_time": {
             "type": "string",
@@ -78,7 +78,7 @@ class MeetingTool(Tool):
             "nullable": True,
         },
     }
-    output_type = "object"
+    output_type: ClassVar[str] = "object"
 
     def generate_ics_content(self, details: EventDetails) -> str:
         """

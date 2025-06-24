@@ -151,7 +151,7 @@ def get_domain_from_email(email_address: str) -> str:
 
 
 async def send_rate_limit_rejection_email(
-    from_email: str, to: str, subject: Optional[str], messageId: Optional[str], limit_type: str
+    from_email: str, to: str, subject: Optional[str], message_id: Optional[str], limit_type: str
 ) -> None:
     """Send a rejection email for rate limit exceeded."""
     rejection_subject = f"Re: {subject}" if subject else "Usage Limit Exceeded"
@@ -168,9 +168,9 @@ MXtoAI Team"""
         "from": from_email,
         "to": to,
         "subject": rejection_subject,
-        "messageId": messageId,
+        "messageId": message_id,
         "references": None,
-        "inReplyTo": messageId,
+        "inReplyTo": message_id,
         "cc": None,
     }
     try:
@@ -181,7 +181,7 @@ MXtoAI Team"""
 
 
 async def validate_rate_limits(
-    from_email: str, to: str, subject: Optional[str], messageId: Optional[str], plan: RateLimitPlan
+    from_email: str, to: str, subject: Optional[str], message_id: Optional[str], plan: RateLimitPlan
 ) -> Optional[Response]:
     """
     Validate incoming email against defined rate limits based on the plan, using Redis.
@@ -208,7 +208,7 @@ async def validate_rate_limits(
         )
         if email_limit_exceeded_period:
             limit_type_msg = f"email {email_limit_exceeded_period} for {plan.value} plan"
-            await send_rate_limit_rejection_email(from_email, to, subject, messageId, limit_type_msg)
+            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg)
             return Response(
                 content=json.dumps(
                     {
@@ -231,7 +231,7 @@ async def validate_rate_limits(
         )
         if domain_limit_exceeded_period:  # This will be "hour" if exceeded
             limit_type_msg = f"domain {domain_limit_exceeded_period}"
-            await send_rate_limit_rejection_email(from_email, to, subject, messageId, limit_type_msg)
+            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg)
             return Response(
                 content=json.dumps(
                     {
@@ -400,7 +400,7 @@ async def validate_api_key(api_key: str) -> Optional[Response]:
 
 
 async def validate_email_whitelist(
-    from_email: str, to: str, subject: str, messageId: Optional[str]
+    from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
     Validate if the sender's email is whitelisted and verified.
@@ -519,9 +519,9 @@ MXtoAI Team"""
         "from": from_email,  # Original sender becomes recipient
         "to": to,  # Original recipient becomes sender
         "subject": f"Re: {subject}",
-        "messageId": messageId,
+        "messageId": message_id,
         "references": None,
-        "inReplyTo": messageId,
+        "inReplyTo": message_id,
         "cc": None,
     }
 
@@ -551,7 +551,7 @@ MXtoAI Team"""
 
 
 async def validate_email_handle(
-    to: str, from_email: str, subject: str, messageId: Optional[str]
+    to: str, from_email: str, subject: str, message_id: Optional[str]
 ) -> tuple[Optional[Response], Optional[str]]:
     """
     Validate if the email handle/alias is supported.
@@ -577,9 +577,9 @@ async def validate_email_handle(
             "from": from_email,  # Original sender becomes recipient
             "to": to,  # Original recipient becomes sender
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 
@@ -599,7 +599,7 @@ async def validate_email_handle(
 
 
 async def validate_attachments(
-    attachments: list[dict], from_email: str, to: str, subject: str, messageId: Optional[str]
+    attachments: list[dict], from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
     Validate email attachments against size and count limits.
@@ -638,9 +638,9 @@ Number of attachments in your email: {len(attachments)}</p>
             "from": from_email,
             "to": to,
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 
@@ -688,9 +688,9 @@ Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p
                 "from": from_email,
                 "to": to,
                 "subject": f"Re: {subject}",
-                "messageId": messageId,
+                "messageId": message_id,
                 "references": None,
-                "inReplyTo": messageId,
+                "inReplyTo": message_id,
                 "cc": None,
             }
 
@@ -735,9 +735,9 @@ Total size of your attachments: {total_size_mb:.1f}MB</p>
             "from": from_email,
             "to": to,
             "subject": f"Re: {subject}",
-            "messageId": messageId,
+            "messageId": message_id,
             "references": None,
-            "inReplyTo": messageId,
+            "inReplyTo": message_id,
             "cc": None,
         }
 

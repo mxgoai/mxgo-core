@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import ClassVar, Optional
 
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
@@ -11,12 +11,12 @@ class TextInspectorTool(Tool):
     Tool to inspect files as text and ask questions about them.
     """
 
-    name = "inspect_file_as_text"
-    description = """
+    name: ClassVar[str] = "inspect_file_as_text"
+    description: ClassVar[str] = """
 You cannot load files yourself: instead call this tool to read a file as markdown text and ask questions about it.
 This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".flac", ".pdf", ".docx"], and all other types of text files. IT DOES NOT HANDLE IMAGES."""
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "file_path": {
             "description": "The path to the file you want to read as text. Must be a '.something' file, like '.pdf'. If it is an image, use the visualizer tool instead! DO NOT use this tool for an HTML webpage: use the web_search tool instead!",
             "type": "string",
@@ -27,8 +27,8 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             "nullable": True,
         },
     }
-    output_type = "string"
-    md_converter = MarkdownConverter()
+    output_type: ClassVar[str] = "string"
+    md_converter: ClassVar[MarkdownConverter] = MarkdownConverter()
 
     def __init__(self, model: Model, text_limit: int):
         """

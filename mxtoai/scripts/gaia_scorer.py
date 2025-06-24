@@ -104,7 +104,7 @@ def question_scorer(
         return all(comparisons)
 
     # if gt is a str
-    return normalize_str(model_answer) == normalize_str(ground_truth)
+    return normalize_str(model_answer, remove_punct=True) == normalize_str(ground_truth, remove_punct=True)
 
 
 def check_prediction_contains_answer_letters_in_order(prediction: str, true_answer: str) -> bool:
@@ -132,7 +132,7 @@ def check_prediction_contains_answer_letters_in_order(prediction: str, true_answ
     return True
 
 
-def check_close_call(prediction: str, true_answer: str, is_correct: bool) -> bool:
+def check_close_call(prediction: str, true_answer: str, *, is_correct: bool) -> bool:
     """
     Check if the prediction is a close call to the true answer.
 
@@ -155,7 +155,7 @@ def check_close_call(prediction: str, true_answer: str, is_correct: bool) -> boo
     )
 
 
-def normalize_str(input_str: str, remove_punct: bool = True) -> str:
+def normalize_str(input_str: str, *, remove_punct: bool = True) -> str:
     """
     Normalize a string by:
     - Removing all white spaces

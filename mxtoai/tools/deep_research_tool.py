@@ -3,7 +3,7 @@ import json
 import mimetypes
 import os
 import urllib.parse
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import requests
 from smolagents import Tool
@@ -20,13 +20,13 @@ class DeepResearchTool(Tool):
     Tool for conducting deep research based on email content using Jina AI's DeepSearch API.
     """
 
-    name = "deep_research"
-    description = "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
+    name: ClassVar[str] = "deep_research"
+    description: ClassVar[str] = "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
 
     # Define output type for the tool
-    output_type = "object"  # Returns a dictionary with research findings and sources
+    output_type: ClassVar[str] = "object"  # Returns a dictionary with research findings and sources
 
-    def __init__(self, use_mock_service: bool = False):
+    def __init__(self, *, use_mock_service: bool = False):
         """
         Initialize the deep research tool.
 
@@ -456,6 +456,7 @@ class DeepResearchTool(Tool):
         context: Optional[str] = None,
         memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
+        *,
         stream: bool = False,
         reasoning_effort: str = "medium",
     ) -> dict[str, Any]:

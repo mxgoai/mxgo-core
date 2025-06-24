@@ -278,7 +278,7 @@ def _is_recurring_cron_expression(cron_expression: str) -> bool:
     parts = cron_expression.strip().split()
     if len(parts) != 5:
         return False
-    
+
     # Use the centralized is_one_time_task function and invert the result
     return not is_one_time_task(cron_expression)
 

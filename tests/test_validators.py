@@ -139,7 +139,7 @@ class TestRateLimiting:
                 from_email="user@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id",
+                message_id="test-message-id",
                 limit_type="email hour"
             )
 
@@ -158,7 +158,7 @@ class TestRateLimiting:
                 from_email="test@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id",
+                message_id="test-message-id",
                 plan=RateLimitPlan.BETA
             )
 
@@ -172,7 +172,7 @@ class TestRateLimiting:
                 from_email="test@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id",
+                message_id="test-message-id",
                 plan=RateLimitPlan.BETA
             )
 
@@ -190,7 +190,7 @@ class TestValidationFunctions:
                 from_email="whitelisted@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id"
+                message_id="test-message-id"
             )
 
         assert result is None  # Whitelisted emails should pass
@@ -207,7 +207,7 @@ class TestValidationFunctions:
                 from_email="notlisted@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id"
+                message_id="test-message-id"
             )
 
             assert isinstance(result, Response)
@@ -224,7 +224,7 @@ class TestValidationFunctions:
                 to="ask@mxtoai.com",
                 from_email="user@example.com",
                 subject="Test Subject",
-                messageId="test-message-id"
+                message_id="test-message-id"
             )
 
             assert result is None
@@ -244,7 +244,7 @@ class TestValidationFunctions:
                 to="invalid@mxtoai.com",
                 from_email="user@example.com",
                 subject="Test Subject",
-                messageId="test-message-id"
+                message_id="test-message-id"
             )
 
             assert isinstance(result, Response)
@@ -269,7 +269,7 @@ class TestValidationFunctions:
             from_email="user@example.com",
             to="ask@mxtoai.com",
             subject="Test Subject",
-            messageId="test-message-id"
+            message_id="test-message-id"
         )
 
         assert result is None  # Valid attachments should pass
@@ -293,7 +293,7 @@ class TestValidationFunctions:
                 from_email="user@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id"
+                message_id="test-message-id"
             )
 
             assert isinstance(result, Response)
@@ -319,7 +319,7 @@ class TestValidationFunctions:
                 from_email="user@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                messageId="test-message-id"
+                message_id="test-message-id"
             )
 
             assert isinstance(result, Response)

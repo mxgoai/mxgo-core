@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import ClassVar, Optional
 
 from croniter import croniter
 from pydantic import BaseModel, Field, field_validator
@@ -37,7 +37,8 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     try:
         # Parse the cron expression
         parts = cron_expression.strip().split()
-        if len(parts) != 5:
+        CRON_PARTS_COUNT = 5
+        if len(parts) != CRON_PARTS_COUNT:
             msg = "Cron expression must have exactly 5 parts"
             raise ValueError(msg)
 
@@ -221,9 +222,9 @@ class ScheduledTasksTool(Tool):
     using cron expressions. The tool integrates with APScheduler for robust scheduling.
     """
 
-    name = "scheduled_tasks"
-    description = "Create, schedule, and manage future email processing tasks using cron expressions"
-    inputs = {
+    name: ClassVar[str] = "scheduled_tasks"
+    description: ClassVar[str] = "Create, schedule, and manage future email processing tasks using cron expressions"
+    inputs: ClassVar[dict] = {
         "cron_expression": {"type": "string", "description": "Valid cron expression for task scheduling"},
         "distilled_future_task_instructions": {
             "type": "string",
@@ -246,7 +247,7 @@ class ScheduledTasksTool(Tool):
             "nullable": True,
         },
     }
-    output_type = "object"
+    output_type: ClassVar[str] = "object"
 
     def __init__(self, context: RequestContext):
         """

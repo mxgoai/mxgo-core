@@ -32,7 +32,7 @@ class EmailProcessor:
             Dict containing email metadata, body, and attachment paths
 
         """
-        with open(email_file, "rb") as fp:
+        with Path(email_file).open("rb") as fp:
             msg = BytesParser(policy=policy.default).parse(fp)
 
         # Extract basic metadata
@@ -128,7 +128,7 @@ class EmailProcessor:
                     # Clean the filename
                     filename = Path(filename).name
                     filepath = os.path.join(attachment_dir, filename)
-                    with open(filepath, "wb") as fp:
+                    with Path(filepath).open("wb") as fp:
                         fp.write(part.get_payload(decode=True))
                     attachments.append(filepath)
 

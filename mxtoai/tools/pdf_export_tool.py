@@ -1,9 +1,9 @@
 import re
 import shutil
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 from smolagents import Tool
 
@@ -18,10 +18,10 @@ MAX_FILENAME_LENGTH = 50  # Maximum length for filename before ".pdf" extension
 class PDFExportTool(Tool):
     """Tool for exporting email content and research findings to PDF format."""
 
-    name = "pdf_export"
-    description = "Export email content, research findings, and attachment summaries to a professionally formatted PDF document"
+    name: ClassVar[str] = "pdf_export"
+    description: ClassVar[str] = "Export email content, research findings, and attachment summaries to a professionally formatted PDF document"
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "content": {
             "type": "string",
             "description": "The main content to export (email body, research findings, etc.)"
@@ -48,7 +48,7 @@ class PDFExportTool(Tool):
             "nullable": True
         }
     }
-    output_type = "object"
+    output_type: ClassVar[str] = "object"
 
     def __init__(self):
         super().__init__()
@@ -239,7 +239,7 @@ class PDFExportTool(Tool):
             if 10 < len(sentence) < 80:
                 return sentence[:60]
 
-        return f"Document - {datetime.now().strftime('%B %d, %Y')}"
+        return f"Document - {datetime.now(timezone.utc).strftime('%B %d, %Y')}"
 
     def _sanitize_filename(self, filename: str) -> str:
         """
@@ -282,7 +282,7 @@ class PDFExportTool(Tool):
         markdown_parts = [f"# {title}\n"]
 
         # Add generation date
-        markdown_parts.append(f"*Generated on {datetime.now().strftime('%B %d, %Y at %I:%M %p')}*\n")
+        markdown_parts.append(f"*Generated on {datetime.now(timezone.utc).strftime('%B %d, %Y at %I:%M %p')}*\n")
 
         # Add main content
         if content:

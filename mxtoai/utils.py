@@ -51,4 +51,4 @@ def validate_datetime_field(value: str, field_name: str) -> str:
         return dt.isoformat()
     except ValueError as e:
         msg = f"Invalid datetime format for {field_name}: {e}"
-        raise ValueError(msg)
+        raise ValueError(msg) from e

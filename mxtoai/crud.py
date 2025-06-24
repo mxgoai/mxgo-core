@@ -158,6 +158,7 @@ def update_task_status(
     session: Session,
     task_id: str | uuid.UUID,
     status: TaskStatus,
+    *,
     clear_email_data_if_terminal: bool = True
 ) -> Optional[Tasks]:
     """

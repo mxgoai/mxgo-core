@@ -1,5 +1,6 @@
 import os
 import tomllib
+from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
@@ -64,12 +65,12 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             Dict[str, Any]: Configuration loaded from the TOML file.
 
         """
-        if not os.path.exists(self.config_path):
+        if not Path(self.config_path).exists():
             msg = f"Model config file not found at {self.config_path}. Please check the path."
             raise exceptions.ModelConfigFileNotFoundException(msg)
 
         try:
-            with open(self.config_path, "rb") as f:
+            with Path(self.config_path).open("rb") as f:
                 return tomllib.load(f)
         except Exception as e:
             logger.error(f"Failed to load TOML config: {e}")

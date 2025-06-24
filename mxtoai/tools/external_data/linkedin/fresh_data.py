@@ -122,6 +122,7 @@ class LinkedInFreshDataTool(Tool):
         self,
         action: str,
         linkedin_url: str,
+        *,
         include_skills: bool = False,
         include_certifications: bool = False,
         include_publications: bool = False,
@@ -239,6 +240,7 @@ class LinkedInFreshDataTool(Tool):
     def get_linkedin_profile(
         self,
         linkedin_url: str,
+        *,
         include_skills: bool = False,
         include_certifications: bool = False,
         include_publications: bool = False,

@@ -3,6 +3,7 @@ import hashlib
 import os
 import time
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, Optional
 
 import boto3
@@ -124,8 +125,6 @@ class EmailSender:
 
             logger.info(f"Sending email from {source_email} to {to_address} with subject: {subject}")
             response = self.ses_client.send_email(**email_params)
-            logger.info(f"Email sent successfully: {response['MessageId']}")
-            return response
 
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "Unknown")
@@ -148,6 +147,9 @@ class EmailSender:
         except Exception as e:
             logger.exception(f"Error sending email: {e!s}")
             raise
+        else:
+            logger.info(f"Email sent successfully: {response['MessageId']}")
+            return response
 
     async def send_reply(
         self,
@@ -293,8 +295,6 @@ class EmailSender:
             response = self.ses_client.send_raw_email(
                 Source=sender_email, Destinations=destinations, RawMessage={"Data": msg.as_string()}
             )
-            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
-            return response
 
         except ClientError as e:
             # Reuse existing detailed ClientError handling
@@ -318,6 +318,9 @@ class EmailSender:
         except Exception as e:
             logger.exception(f"Error sending raw reply: {e!s}")
             raise
+        else:
+            logger.info(f"Raw reply sent successfully: {response['MessageId']}")
+            return response
 
 
 async def verify_sender_email(email_address: str) -> bool:
@@ -349,8 +352,6 @@ async def verify_sender_email(email_address: str) -> bool:
 
         # Request email verification
         ses_client.verify_email_identity(EmailAddress=email_address)
-        logger.info(f"Verification email sent to {email_address}")
-        return True
 
     except ClientError as e:
         error_code = e.response.get("Error", {}).get("Code", "Unknown")
@@ -361,6 +362,9 @@ async def verify_sender_email(email_address: str) -> bool:
     except Exception as e:
         logger.exception(f"Error during email verification: {e!s}")
         return False
+    else:
+        logger.info(f"Verification email sent to {email_address}")
+        return True
 
 
 async def test_send_email(to_address, subject="Test from mxtoai", body_text="This is a test email"):
@@ -498,7 +502,7 @@ def save_attachments(email_data: EmailRequest, email_id: str) -> tuple[str, list
             file_path = os.path.join(email_dir, filename)
 
             # Save the file
-            with open(file_path, "wb") as f:
+            with Path(file_path).open("wb") as f:
                 f.write(base64.b64decode(attachment.content))
 
             # Get file metadata
