@@ -159,7 +159,7 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
 
     with (
         patch("mxtoai.tasks.EmailSender") as MockEmailSender,
-        patch("mxtoai.scheduler.add_scheduled_job") as mock_add_scheduled_job,
+        patch("mxtoai.scheduling.add_scheduled_job") as mock_add_scheduled_job,
     ):
         mock_add_scheduled_job.return_value = None
         mock_sender_instance = MockEmailSender.return_value
@@ -178,7 +178,7 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
         _assert_basic_successful_processing(
             returned_result,
             expected_handle="schedule",  # Remind aliases to schedule in current implementation
-            attachments_cleaned_up_dir=email_attachments_dir_str if attachment_info else None
+            attachments_cleaned_up_dir=email_attachments_dir_str if attachment_info else None,
         )
 
         # Check the actual test database for the created task
@@ -200,13 +200,17 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
         has_task_reference = any(term in email_content_text for term in ["Task", "Scheduled", "scheduled", "task"])
         has_task_reference_html = any(term in email_content_html for term in ["Task", "Scheduled", "scheduled", "task"])
 
-        assert has_task_reference or has_task_reference_html, f"Email content doesn't mention task. Text: {email_content_text[:100]}..."
+        assert has_task_reference or has_task_reference_html, (
+            f"Email content doesn't mention task. Text: {email_content_text[:100]}..."
+        )
 
         # The response should include the original request
         has_appointment_reference = any(term in email_content_text.lower() for term in ["doctor", "appointment"])
         has_appointment_reference_html = any(term in email_content_html.lower() for term in ["doctor", "appointment"])
 
-        assert has_appointment_reference or has_appointment_reference_html, "Email content doesn't include original request"
+        assert has_appointment_reference or has_appointment_reference_html, (
+            "Email content doesn't include original request"
+        )
 
         # Check if Next Occurrence or similar timing info is in the response
         timing_terms = ["next occurrence", "scheduled for", "next run", "will be processed", "at the scheduled time"]
@@ -324,7 +328,9 @@ def test_process_email_task_for_handle(
 
     if is_schedule_handle:
         # Schedule handle should test future task scheduling, not meeting creation
-        text_content_for_test = "Please remind me every Monday at 9 AM to review the weekly sales report starting next week."
+        text_content_for_test = (
+            "Please remind me every Monday at 9 AM to review the weekly sales report starting next week."
+        )
         # Add a dummy file if process_attachments is True for schedule
         if handle_instructions.process_attachments:
             attachments_for_test = [("schedule_context.txt", b"Weekly report context.", "text/plain")]
@@ -753,7 +759,7 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
             cron_expression="0 9 * * 1",  # Every Monday at 9 AM
             scheduler_job_id=f"job_{task_id}",
             status=TaskStatus.ACTIVE,
-            email_request={"from_email": "sender.test@example.com", "subject": "Test Task"}
+            email_request={"from_email": "sender.test@example.com", "subject": "Test Task"},
         )
         session.add(test_task)
         session.commit()
@@ -772,7 +778,7 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
         text_content=delete_content,
     )
 
-    # Mock only the scheduler removal and email sender
+    # Mock only the scheduling removal and email sender
     with (
         patch("mxtoai.tools.delete_scheduled_tasks_tool.remove_scheduled_job", return_value=True),
         patch("mxtoai.tasks.EmailSender") as mock_email_sender_class,
@@ -809,6 +815,9 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
         # Verify the response mentions task deletion
         reply_text = result.email_content.text or ""
         reply_html = result.email_content.html or ""
-        assert ("delete" in reply_text.lower() or "removed" in reply_text.lower() or
-                "delete" in reply_html.lower() or "removed" in reply_html.lower()), "Response should mention task deletion"
-
+        assert (
+            "delete" in reply_text.lower()
+            or "removed" in reply_text.lower()
+            or "delete" in reply_html.lower()
+            or "removed" in reply_html.lower()
+        ), "Response should mention task deletion"

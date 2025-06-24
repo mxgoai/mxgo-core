@@ -1143,7 +1143,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **Every 2 weeks**: Use specific dates for bi-weekly patterns
 
 **MINIMUM INTERVAL REQUIREMENT:**
-- All recurring tasks must have a minimum interval of **1 hour** between executions
+- All recurring tasks must have a minimum interval of **1 hour** between executions, and one-off tasks should have a minium interval of 3 minutes.
 - Tasks that would run more frequently than once per hour will be rejected
 - For very frequent reminders, consider if the task really needs to be that frequent
 
@@ -1181,7 +1181,8 @@ Analyze email content to extract scheduling requirements for future or recurring
 - ALWAYS ensure the task ID from the tool's response is included in your final response
 - NEVER show the cron expression in the user-facing output
 - ALWAYS use the `scheduled_tasks` tool for this purpose
-- VALIDATE that recurring tasks have minimum 1-hour intervals
+- VALIDATE that recurring tasks have minimum 1-hour intervals (one-time tasks are exempt from this restriction)
+- **ONE-TIME TASKS CAN HAVE ANY INTERVAL** - Short-term reminders like "in 5 minutes" are perfectly valid for one-time tasks
 - INCLUDE start_time and end_time parameters when time bounds are specified
 
 ## STEP 4: Response Format
@@ -1279,6 +1280,33 @@ scheduled_tasks(
     cron_expression="0 9 [day] [month] *",
     distilled_future_task_instructions="Re-execute the research request from the original email. Use current data and updated sources to provide fresh insights on the topic.",
     task_description="One-time reprocessing of research request"
+)
+```
+
+## Example 2b: Short-term One-time Task
+**User Request**: "Remind me to have tea in 5 minutes"
+
+**Step 1: Analysis**
+- Task: Reminder to have tea
+- Schedule: One-time, 5 minutes from now
+- Recurrence: None (one-time)
+- Processing Instructions: Send reminder to have tea
+- Start Time: None specified
+- End Time: None specified (one-time task)
+- **Note**: This is a valid one-time task even though it's under 1 hour
+
+**Step 2: Cron Generation**
+- Current time: 2:42 PM
+- Target time: 2:47 PM (5 minutes later)
+- Convert to UTC
+- One-time cron expression: "47 14 24 6 *" (assuming current date is June 24th)
+
+**Step 3: Tool Usage**
+```
+scheduled_tasks(
+    cron_expression="47 14 24 6 *",
+    distilled_future_task_instructions="Send a reminder email to remind the user to have tea. The reminder should be friendly and timely.",
+    task_description="Tea reminder in 5 minutes"
 )
 ```
 

@@ -21,6 +21,7 @@ from mxtoai.schemas import (
     EmailContentDetails,
     EmailRequest,
     EmailSentStatus,
+    HandlerAlias,
     ProcessingError,
     ProcessingInstructions,
     ProcessingMetadata,
@@ -89,7 +90,7 @@ def process_email_task(
     email_data: dict[str, Any],
     email_attachments_dir: str,
     attachment_info: list[dict[str, Any]],
-    scheduled_task_id: Optional[str] = None
+    scheduled_task_id: Optional[str] = None,
 ) -> DetailedEmailProcessingResult:
     """
     Dramatiq task for processing emails asynchronously.
@@ -131,8 +132,8 @@ def process_email_task(
         )
 
     # For scheduled tasks, use distilled_alias if available, otherwise fall back to email handle
-    if scheduled_task_id and email_request.distilled_alias:
-        handle = email_request.distilled_alias.value
+    if scheduled_task_id:
+        handle = email_request.distilled_alias.value if email_request.distilled_alias else HandlerAlias.ASK.value
         logger.info(f"Processing scheduled task {scheduled_task_id} using distilled alias: {handle}")
     else:
         handle = email_request.to.split("@")[0].lower()

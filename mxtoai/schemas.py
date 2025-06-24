@@ -77,7 +77,11 @@ class EmailRequest(BaseModel):
     rawHeaders: dict[str, Any] | None = None  # Raw email headers
     scheduled_task_id: str | None = None  # ID of scheduled task if this is a scheduled execution
     distilled_processing_instructions: str | None = None  # Processed instructions for the email
-    distilled_alias: HandlerAlias | None = None  # Alias to use for processing this email (overrides the detaul to-email handle)
+    distilled_alias: HandlerAlias | None = (
+        None  # Alias to use for processing this email (overrides the detaul to-email handle)
+    )
+    task_description: str | None = None  # Human-readable description of the scheduled task
+    parent_message_id: str | None = None  # Original message ID when this is a scheduled task execution
 
 
 class ResearchResult(BaseModel):
@@ -159,7 +163,6 @@ class AttachmentsProcessingResult(BaseModel):
 
 class CalendarResult(BaseModel):
     ics_content: str
-
 
 
 class AgentResearchMetadata(BaseModel):

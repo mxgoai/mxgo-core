@@ -13,17 +13,17 @@ from mxtoai._logging import get_logger
 from mxtoai.crud import get_tasks_by_status
 from mxtoai.db import init_db_connection
 from mxtoai.models import TERMINAL_TASK_STATUSES
-from mxtoai.scheduling.scheduler import Scheduler
+from mxtoai.scheduler.scheduler import Scheduler
 
 logger = get_logger("scheduler_runner")
 
-# Create dedicated scheduling instance for this process
+# Create dedicated scheduler instance for this process
 scheduler_instance = Scheduler()
 
 
 def signal_handler(signum, frame):
     """Handle shutdown signals gracefully."""
-    logger.info("Received shutdown signal, stopping scheduling...")
+    logger.info("Received shutdown signal, stopping scheduler...")
     scheduler_instance.stop()
     sys.exit(0)
 
@@ -69,8 +69,8 @@ def cleanup_terminal_task_jobs():
 
 def refresh_jobs_from_database():
     """
-    Refresh the scheduling's job list from the PostgreSQL jobstore.
-    This ensures the scheduling picks up new jobs added by other processes.
+    Refresh the scheduler's job list from the PostgreSQL jobstore.
+    This ensures the scheduler picks up new jobs added by other processes.
     """
     try:
         scheduler_instance.refresh_jobs()
@@ -79,7 +79,7 @@ def refresh_jobs_from_database():
 
 
 def main():
-    """Main entry point for standalone scheduling process."""
+    """Main entry point for standalone scheduler process."""
     # Handle shutdown gracefully
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
@@ -91,7 +91,7 @@ def main():
         logger.info("APScheduler started successfully, ready to execute scheduled tasks")
 
         # Keep the process alive and periodically check for new jobs
-        job_refresh_interval = 10  # Refresh jobs every 30 seconds
+        job_refresh_interval = 30  # Refresh jobs every 30 seconds
         cleanup_interval = 60  # Cleanup every 60 seconds
         last_refresh = time.time()
         last_cleanup = time.time()
@@ -117,7 +117,7 @@ def main():
         logger.error(f"Scheduler process error: {e}")
         raise
     finally:
-        logger.info("Shutting down scheduling...")
+        logger.info("Shutting down scheduler...")
         scheduler_instance.stop()
 
 

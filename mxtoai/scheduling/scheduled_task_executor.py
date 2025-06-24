@@ -25,7 +25,7 @@ from mxtoai.crud import (
 )
 from mxtoai.db import init_db_connection
 from mxtoai.models import TaskRunStatus, TaskStatus, is_active_status
-from mxtoai.scheduler import get_scheduler
+from mxtoai.scheduling.scheduler import Scheduler, is_one_time_task
 
 logger = get_logger("scheduled_task_executor")
 
@@ -64,14 +64,23 @@ def execute_scheduled_task(task_id: str) -> None:
                 raise ValueError(msg)
 
             if not is_active_status(task.status):
-                logger.warning(f"Task {task_id} has terminal status {task.status}, removing from scheduler and skipping execution")
+                logger.warning(
+                    f"Task {task_id} has terminal status {task.status}, removing from scheduler and skipping execution"
+                )
 
-                # Remove the job from scheduler since we're in the scheduler process
+                # Remove the job from scheduling since we're in the scheduling process
                 if task.scheduler_job_id:
-                    scheduler = get_scheduler()
+                    # Create a temporary scheduling instance to remove the job
+                    temp_scheduler = Scheduler()
                     try:
-                        scheduler.remove_job(task.scheduler_job_id)
+                        temp_scheduler.remove_job(task.scheduler_job_id)
                         logger.info(f"Removed APScheduler job {task.scheduler_job_id} for terminal task {task_id}")
+
+                        # Clear the scheduler_job_id to avoid future cleanup attempts
+                        task.scheduler_job_id = None
+                        session.add(task)
+                        session.commit()
+
                     except Exception as e:
                         logger.warning(f"Failed to remove APScheduler job {task.scheduler_job_id}: {e}")
 
@@ -82,7 +91,9 @@ def execute_scheduled_task(task_id: str) -> None:
 
             # Check if task has not reached its start time yet
             if task.start_time and current_time < task.start_time:
-                logger.warning(f"Task {task_id} has not reached its start time yet ({task.start_time}), skipping execution")
+                logger.warning(
+                    f"Task {task_id} has not reached its start time yet ({task.start_time}), skipping execution"
+                )
                 return
 
             # Check if task has expired
@@ -110,6 +121,14 @@ def execute_scheduled_task(task_id: str) -> None:
                 logger.error(f"Failed to parse email_request for task {task_id}: {e}")
                 msg = f"Invalid email_request data: {e}"
                 raise ValueError(msg) from e
+
+            # Modify message ID for scheduled task execution to pass idempotency checks
+            current_ts = datetime.now(timezone.utc).isoformat()
+
+            # Generate a new unique message ID for this scheduled execution
+            new_message_id = f"<scheduled-{task_id}-{current_ts}@mxtoai.com>"
+            email_request["messageId"] = new_message_id
+            logger.info(f"Modified message ID for scheduled task {task_id}: {new_message_id}")
 
         # Make HTTP request to process-email endpoint
         success = _make_process_email_request(task_id, email_request)
@@ -178,7 +197,6 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
         # Map email_request fields to the expected form fields
         field_mapping = {
             "from_email": "from_email",
-            "from": "from_email",  # Handle both variations
             "to": "to",
             "subject": "subject",
             "textContent": "textContent",
@@ -186,7 +204,7 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             "htmlContent": "htmlContent",
             "html_content": "htmlContent",
             "messageId": "messageId",
-            "message_id": "messageId",
+            "parent_message_id": "parent_message_id",
             "date": "date",
             "rawHeaders": "rawHeaders",
             "raw_headers": "rawHeaders",
@@ -197,13 +215,15 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             if request_field in email_request:
                 value = email_request[request_field]
                 # Special handling for rawHeaders - convert dict to JSON string
-                if (request_field in ["rawHeaders", "raw_headers"] and isinstance(value, dict)) or isinstance(value, list | dict):
+                if (request_field in ["rawHeaders", "raw_headers"] and isinstance(value, dict)) or isinstance(
+                    value, list | dict
+                ):
                     form_data[form_field] = json.dumps(value)
                 else:
                     form_data[form_field] = str(value)
 
         # Handle attachments if present (not as form field but as files)
-        if email_request.get("attachments"):
+        if email_request.get("../attachments"):
             # Note: For now, we're not handling file attachments in scheduled tasks
             # This would require additional logic to handle file content
             logger.warning(f"Task {task_id} has attachments but file handling not implemented for scheduled tasks")
@@ -254,32 +274,8 @@ def _is_recurring_cron_expression(cron_expression: str) -> bool:
         bool: True if the expression represents a recurring schedule
 
     """
-    # This is a simple heuristic - in practice, most cron expressions are recurring
-    # unless they specify a specific date in the past or use specific date patterns
-
-    # Split cron expression into parts
-    parts = cron_expression.strip().split()
-
-    if len(parts) != 5:
-        # Invalid cron expression format, assume non-recurring for safety
-        return False
-
-    minute, hour, day, month, dayofweek = parts
-
-    # Check for specific date patterns that might be one-time
-    # If day and month are both specific numbers (not wildcards), it might be one-time
-    if (
-        day.isdigit()
-        and month.isdigit()
-        and dayofweek == "*"
-        and not any(char in cron_expression for char in ["/", "-", ","])
-    ):
-        # This looks like a specific date, might be one-time
-        # But we'll default to recurring for safety
-        return True
-
-    # Most other patterns are recurring
-    return True
+    # Use the centralized is_one_time_task function and invert the result
+    return not is_one_time_task(cron_expression)
 
 
 def get_task_execution_status(task_id: str) -> Optional[dict[str, Any]]:

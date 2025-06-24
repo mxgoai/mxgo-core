@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from mxtoai.models import TaskRunStatus, TaskStatus
-from mxtoai.scheduled_task_executor import (
+from mxtoai.scheduling.scheduled_task_executor import (
     _is_recurring_cron_expression,
     execute_scheduled_task,
     get_task_execution_status,
@@ -19,8 +19,14 @@ from mxtoai.scheduled_task_executor import (
 class TestScheduledTaskExecutor:
     """Test the scheduled task executor functionality."""
 
-    def create_mock_task(self, task_id: str, status: TaskStatus = TaskStatus.ACTIVE,
-                        start_time=None, expiry_time=None, cron_expression="0 9 * * 1"):
+    def create_mock_task(
+        self,
+        task_id: str,
+        status: TaskStatus = TaskStatus.ACTIVE,
+        start_time=None,
+        expiry_time=None,
+        cron_expression="0 9 * * 1",
+    ):
         """Helper to create mock task object."""
         mock_task = Mock()
         mock_task.task_id = task_id

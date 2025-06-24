@@ -163,7 +163,7 @@ Output Format Guidelines:
 2. Always include the task ID that was processed
 3. Provide task description/context for verification
 4. Include security confirmations (user verification)
-5. Explain cleanup actions taken (scheduler + database)
+5. Explain cleanup actions taken (scheduling + database)
 6. Add important warnings about irreversible nature
 7. For errors, provide helpful guidance and next steps
 8. Use consistent status symbols and formatting
@@ -180,7 +180,7 @@ Sample success format:
 ## What Was Removed
 **Scheduled Content**: [Summary of the task that was scheduled]
 **Schedule**: [What the timing/recurrence was]
-**Cleanup**: Both scheduler and database entries have been removed
+**Cleanup**: Both scheduling and database entries have been removed
 
 ## Important Notes
 - This action cannot be undone
