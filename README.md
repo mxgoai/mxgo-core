@@ -253,7 +253,6 @@ DB_PASSWORD=your_password
 # Scheduler settings
 SCHEDULER_API_BASE_URL=http://localhost:8000
 SCHEDULER_API_TIMEOUT=300
-SCHEDULER_MAX_WORKERS=5
 ```
 
 ### 2. Run Database Migration
