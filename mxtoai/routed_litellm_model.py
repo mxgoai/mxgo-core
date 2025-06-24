@@ -251,12 +251,12 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             finally:
                 self.model_id = original_smol_model_id
 
-            return chat_message
-
         except Exception as e:
             logger.error(f"Error in RoutedLiteLLMModel completion: {e!s}")
             msg = f"Failed to get completion from LiteLLM router: {e!s}"
             raise RuntimeError(msg) from e
+        else:
+            return chat_message
 
     @property
     def last_input_token_count(self) -> int:
@@ -281,8 +281,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
     def __getattr__(self, name: str):
         """Handle any missing attribute access gracefully, especially for token-related properties."""
         # Handle various token-related attribute names that might be accessed
-        if name in ("input_tokens", "output_tokens", "total_tokens",
-                   "prompt_tokens", "completion_tokens", "usage"):
+        if name in ("input_tokens", "output_tokens", "total_tokens", "prompt_tokens", "completion_tokens", "usage"):
             return 0
         # For other missing attributes, raise AttributeError as normal
         msg = f"'{self.__class__.__name__}' object has no attribute '{name}'"

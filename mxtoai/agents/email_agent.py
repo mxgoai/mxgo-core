@@ -95,7 +95,13 @@ class EmailAgent:
     """
 
     def __init__(
-        self, email_request: EmailRequest, attachment_dir: str = "email_attachments", *, verbose: bool = False, enable_deep_research: bool = False, attachment_info: list[dict] | None = None
+        self,
+        email_request: EmailRequest,
+        attachment_dir: str = "email_attachments",
+        *,
+        verbose: bool = False,
+        enable_deep_research: bool = False,
+        attachment_info: list[dict] | None = None,
     ):
         """
         Initialize the email agent with tools for different operations.
@@ -487,7 +493,9 @@ Raw Email Request Data (for tool use):
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
             distilled_section,
-            RESEARCH_GUIDELINES["mandatory"] if deep_research_mandatory and self.enable_deep_research else RESEARCH_GUIDELINES["optional"],
+            RESEARCH_GUIDELINES["mandatory"]
+            if deep_research_mandatory and self.enable_deep_research
+            else RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
             output_template,
@@ -668,7 +676,11 @@ Raw Email Request Data (for tool use):
                             logger.info(f"Scheduled task created successfully with ID: {tool_output['task_id']}")
                         else:
                             error_msg = tool_output.get("message", "Scheduled task creation failed")
-                            error_type = "Scheduled Task Limit Exceeded" if tool_output.get("error") == "Task limit exceeded" else "Scheduled Task Error"
+                            error_type = (
+                                "Scheduled Task Limit Exceeded"
+                                if tool_output.get("error") == "Task limit exceeded"
+                                else "Scheduled Task Error"
+                            )
                             errors_list.append(ProcessingError(message=error_type, details=error_msg))
                             if tool_output.get("error") == "Task limit exceeded":
                                 logger.warning(f"Scheduled task limit exceeded: {error_msg}")
@@ -692,7 +704,7 @@ Raw Email Request Data (for tool use):
                 final_answer_from_llm = final_answer_obj.strip()
                 logger.debug("Extracted final answer from string")
             elif hasattr(final_answer_obj, "_value"):  # Check for older AgentText structure
-                final_answer_from_llm = str(final_answer_obj._value).strip()
+                final_answer_from_llm = str(final_answer_obj._value).strip()  # noqa: SLF001
                 logger.debug("Extracted final answer from AgentText._value")
             elif hasattr(final_answer_obj, "answer"):  # Handle final_answer tool call argument
                 # Check if the argument itself is the content string
@@ -783,7 +795,7 @@ Raw Email Request Data (for tool use):
             )
 
         except Exception as e:
-            logger.exception(f"Critical error in _process_agent_result: {e!s}")
+            logger.exception("Critical error in _process_agent_result")
             # Ensure errors_list and email_sent_status are updated
             # If these were initialized outside and before this try-except, they might already exist.
             # Re-initialize or ensure they are correctly formed for the error state.
@@ -941,7 +953,9 @@ Raw Email Request Data (for tool use):
                 current_active_count = count_active_tasks_for_user(session, user_email)
 
                 if current_active_count >= max_calls:
-                    logger.warning(f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks.")
+                    logger.warning(
+                        f"Scheduled task limit reached ({max_calls} active tasks per email). User has {current_active_count} active tasks."
+                    )
                     return {
                         "success": False,
                         "error": "Task limit exceeded",
@@ -955,7 +969,6 @@ Raw Email Request Data (for tool use):
 
             # Call the original method
             return original_forward(*args, **kwargs)
-
 
         # Replace the forward method
         base_tool.forward = limited_forward
@@ -976,9 +989,12 @@ Raw Email Request Data (for tool use):
         if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
             import re
+
             existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
             if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
-                logger.warning("Content already contains a References/Sources section - skipping automatic references to avoid duplication")
+                logger.warning(
+                    "Content already contains a References/Sources section - skipping automatic references to avoid duplication"
+                )
                 return content
 
             references_section = self.context.get_references_section()

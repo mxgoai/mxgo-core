@@ -15,9 +15,9 @@ import sys
 import tempfile
 import traceback
 import zipfile
+from pathlib import Path
 from typing import Any, Optional, Union
 from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
-from pathlib import Path
 
 import mammoth
 import markdownify
@@ -621,7 +621,9 @@ class Mp3Converter(WavConverter):
                 md_content += "\n\n### Audio Transcript:\nError. Could not transcribe this audio."
 
         finally:
-            os.unlink(temp_path)
+            with contextlib.suppress(Exception):
+                fh.close()
+            Path(temp_path).unlink()
 
         # Return the result
         return DocumentConverterResult(
@@ -866,7 +868,7 @@ class MarkdownConverter:
         finally:
             with contextlib.suppress(Exception):
                 fh.close()
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
         return result
 
@@ -921,7 +923,7 @@ class MarkdownConverter:
         finally:
             with contextlib.suppress(Exception):
                 fh.close()
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
         return result
 

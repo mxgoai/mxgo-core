@@ -464,7 +464,7 @@ def test_pdf_export_tool_direct():
 
     # Verify the file actually exists and has content
     pdf_path = result["file_path"]
-    assert os.path.exists(pdf_path), "PDF file should exist"
+    assert Path(pdf_path).exists(), "PDF file should exist"
 
     # Read and verify PDF content
     with open(pdf_path, "rb") as f:
@@ -496,7 +496,7 @@ def test_pdf_export_tool_with_research_findings():
 
     # Verify the file exists
     pdf_path = result["file_path"]
-    assert os.path.exists(pdf_path), "PDF file should exist"
+    assert Path(pdf_path).exists(), "PDF file should exist"
 
     # Clean up
     os.unlink(pdf_path)
@@ -668,7 +668,7 @@ def test_pdf_export_error_handling():
     assert result["title"] == "Document"  # Should use default title
 
     # Clean up if file was created
-    if "file_path" in result and os.path.exists(result["file_path"]):
+    if "file_path" in result and Path(result["file_path"]).exists():
         os.unlink(result["file_path"])
 
     # Test with very long title
@@ -680,7 +680,7 @@ def test_pdf_export_error_handling():
     assert len(result["filename"]) <= max_filename_length
 
     # Clean up
-    if "file_path" in result and os.path.exists(result["file_path"]):
+    if "file_path" in result and Path(result["file_path"]).exists():
         os.unlink(result["file_path"])
 
 
@@ -708,7 +708,7 @@ def test_pdf_export_cleanup():
         # Verify temp directory was created
         assert len(created_temp_dirs) == 1, "Expected exactly one temp directory to be created"
         temp_dir_path = created_temp_dirs[0]
-        assert os.path.exists(temp_dir_path), "Temp directory should exist after tool initialization"
+        assert Path(temp_dir_path).exists(), "Temp directory should exist after tool initialization"
 
         # Generate a PDF
         result = tool.forward(
@@ -718,7 +718,7 @@ def test_pdf_export_cleanup():
 
         assert result["success"] is True, f"PDF generation failed: {result.get('error', 'Unknown error')}"
         pdf_file_path = result["file_path"]
-        assert os.path.exists(pdf_file_path), "PDF file should exist"
+        assert Path(pdf_file_path).exists(), "PDF file should exist"
 
         # Verify the PDF is in the temp directory
         assert pdf_file_path.startswith(temp_dir_path), "PDF should be in the temp directory"
@@ -727,15 +727,15 @@ def test_pdf_export_cleanup():
         tool.cleanup()
 
         # Verify temp directory is cleaned up
-        assert not os.path.exists(temp_dir_path), "Temp directory should be cleaned up after explicit cleanup"
-        assert not os.path.exists(pdf_file_path), "PDF file should be cleaned up with the temp directory"
+        assert not Path(temp_dir_path).exists(), "Temp directory should be cleaned up after explicit cleanup"
+        assert not Path(pdf_file_path).exists(), "PDF file should be cleaned up with the temp directory"
 
     finally:
         tempfile.mkdtemp = original_mkdtemp
 
         # Clean up any remaining directories
         for temp_dir in created_temp_dirs:
-            if os.path.exists(temp_dir):
+            if Path(temp_dir).exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)
 
 

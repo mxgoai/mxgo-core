@@ -36,6 +36,10 @@ from mxtoai.validators import (
 load_dotenv()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# Constants
+MAX_FILENAME_LENGTH = 100
+FILENAME_TRUNCATE_BUFFER = 5
+
 # Configure logging
 logger = get_logger(__name__)
 
@@ -225,10 +229,10 @@ async def handle_file_attachments(
                 safe_filename = f"attachment_{idx}.bin"
                 logger.warning(f"Using generated filename for attachment {idx}: {safe_filename}")
 
-            # Truncate filename if too long (max 100 chars)
-            if len(safe_filename) > 100:
+            # Truncate filename if too long
+            if len(safe_filename) > MAX_FILENAME_LENGTH:
                 ext = Path(safe_filename).suffix
-                safe_filename = safe_filename[:95] + ext
+                safe_filename = safe_filename[:MAX_FILENAME_LENGTH - FILENAME_TRUNCATE_BUFFER] + ext
                 logger.warning(f"Truncated long filename to: {safe_filename}")
 
             # Full path to save the attachment
@@ -272,7 +276,7 @@ async def handle_file_attachments(
             logger.error(f"Validation error for file {attachment.filename}: {e!s}")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception as e:
-            logger.exception(f"Error processing file {attachment.filename}: {e!s}")
+            logger.exception(f"Error processing file {attachment.filename}")
             # Try to clean up any partially saved file
             try:
                 if Path(storage_path).exists():
@@ -309,7 +313,11 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     """
     if not processing_result or "email_content" not in processing_result:
         logger.error("Invalid processing result format")
-        return {"status": "error", "error": "Invalid processing result format", "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {
+            "status": "error",
+            "error": "Invalid processing result format",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     # Skip email delivery for test emails
     if email_data.from_email in SKIP_EMAIL_DELIVERY:
@@ -328,7 +336,11 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
     # Handle case where no content was generated
     if not text_content:
         logger.error("No email content was generated")
-        return {"status": "error", "error": "No email content was generated", "timestamp": datetime.now(timezone.utc).isoformat()}
+        return {
+            "status": "error",
+            "error": "No email content was generated",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     # --- Prepare attachments ---
     attachments_to_send = []

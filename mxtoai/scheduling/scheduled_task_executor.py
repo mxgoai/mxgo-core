@@ -33,6 +33,10 @@ logger = get_logger("scheduled_task_executor")
 HTTP_TIMEOUT = int(os.environ.get("SCHEDULER_API_TIMEOUT", "300"))  # 5 minutes
 API_BASE_URL = os.environ.get("SCHEDULER_API_BASE_URL", "http://localhost:8000")
 
+# Constants
+HTTP_SUCCESS_STATUS = 200
+CRON_EXPRESSION_PARTS = 5
+
 
 def execute_scheduled_task(task_id: str) -> None:
     """
@@ -246,7 +250,7 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
 
             response = client.post(url, data=form_data, headers=headers)
 
-            if response.status_code == 200:
+            if response.status_code == HTTP_SUCCESS_STATUS:
                 logger.info(f"HTTP request successful for task {task_id}")
                 return True
             logger.error(f"HTTP request failed for task {task_id}: {response.status_code} - {response.text}")
@@ -276,7 +280,7 @@ def _is_recurring_cron_expression(cron_expression: str) -> bool:
     """
     # First validate that the cron expression is valid
     parts = cron_expression.strip().split()
-    if len(parts) != 5:
+    if len(parts) != CRON_EXPRESSION_PARTS:
         return False
 
     # Use the centralized is_one_time_task function and invert the result

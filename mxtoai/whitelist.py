@@ -58,14 +58,15 @@ async def is_email_whitelisted(email: str) -> tuple[bool, bool]:
         if hasattr(response, "data") and len(response.data) > 0:
             is_verified = response.data[0].get("verified", False)
             logger.info(f"Email whitelist check for {email}: exists=True, verified={is_verified}")
-            return True, is_verified
-
-        logger.info(f"Email whitelist check for {email}: exists=False, verified=False")
-        return False, False
+        else:
+            logger.info(f"Email whitelist check for {email}: exists=False, verified=False")
+            return False, False
 
     except Exception as e:
         logger.error(f"Error checking whitelist status for {email}: {e}")
         return False, False
+    else:
+        return True, is_verified
 
 
 async def trigger_automatic_verification(email: str) -> bool:
@@ -129,13 +130,14 @@ async def trigger_automatic_verification(email: str) -> bool:
 
         if verification_sent:
             logger.info(f"Successfully triggered automatic verification for {email}")
-            return True
-        logger.error(f"Failed to send verification email to {email}")
-        return False
+        else:
+            logger.error(f"Failed to send verification email to {email}")
 
     except Exception as e:
         logger.error(f"Error triggering automatic verification for {email}: {e}")
         return False
+    else:
+        return verification_sent
 
 
 async def send_verification_email(email: str, verification_token: str) -> bool:
@@ -240,6 +242,8 @@ https://mxtoai.com"""
     except Exception as e:
         logger.error(f"Error sending verification email to {email}: {e}")
         return False
+    else:
+        return True
 
 
 def get_whitelist_signup_url() -> str:

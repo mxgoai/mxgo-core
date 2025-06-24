@@ -21,7 +21,9 @@ class DeepResearchTool(Tool):
     """
 
     name: ClassVar[str] = "deep_research"
-    description: ClassVar[str] = "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
+    description: ClassVar[str] = (
+        "Conducts deep research based on email content and attachments to provide comprehensive answers with sources. Use medium reasoning effort for all queries unless user's intent is explicitly requesting for low or high effort."
+    )
 
     # Define output type for the tool
     output_type: ClassVar[str] = "object"  # Returns a dictionary with research findings and sources
@@ -52,7 +54,6 @@ class DeepResearchTool(Tool):
                 "description": "Additional context from email thread or other sources",
                 "nullable": True,
             },
-
             "memory_attachments": {
                 "type": "object",
                 "description": "Dict mapping filename to (content, mime_type) tuples for in-memory files - preferred method for attachment processing",
@@ -129,7 +130,9 @@ class DeepResearchTool(Tool):
         self.deep_research_enabled = False
         logger.info("Deep research functionality disabled")
 
-    def _encode_content_from_memory(self, content: bytes, filename: str, mime_type: str | None = None) -> Optional[dict[str, Any]]:
+    def _encode_content_from_memory(
+        self, content: bytes, filename: str, mime_type: str | None = None
+    ) -> Optional[dict[str, Any]]:
         """
         Encode file content from memory to base64 data URI format for Jina API.
 

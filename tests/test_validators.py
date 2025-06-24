@@ -91,7 +91,7 @@ class TestRateLimiting:
                 identifier="test@example.com",
                 plan_or_domain_limits={"hour": {"limit": 10}},
                 current_dt=datetime.now(timezone.utc),
-                plan_name_for_key="beta"
+                plan_name_for_key="beta",
             )
 
         assert result is None  # Within limits
@@ -112,7 +112,7 @@ class TestRateLimiting:
                 identifier="test@example.com",
                 plan_or_domain_limits={"hour": {"limit": 10}},
                 current_dt=datetime(2024, 1, 15, 14, 30, 45, tzinfo=timezone.utc),
-                plan_name_for_key="beta"
+                plan_name_for_key="beta",
             )
 
         assert result == "hour"  # Exceeded hourly limit
@@ -126,7 +126,7 @@ class TestRateLimiting:
                 identifier="test@example.com",
                 plan_or_domain_limits={"hour": {"limit": 10}},
                 current_dt=datetime.now(timezone.utc),
-                plan_name_for_key="beta"
+                plan_name_for_key="beta",
             )
 
         assert result is None  # No Redis, no rate limiting
@@ -140,7 +140,7 @@ class TestRateLimiting:
                 to="ask@mxtoai.com",
                 subject="Test Subject",
                 message_id="test-message-id",
-                limit_type="email hour"
+                limit_type="email hour",
             )
 
             mock_send.assert_called_once()
@@ -159,7 +159,7 @@ class TestRateLimiting:
                 to="ask@mxtoai.com",
                 subject="Test Subject",
                 message_id="test-message-id",
-                plan=RateLimitPlan.BETA
+                plan=RateLimitPlan.BETA,
             )
 
         assert result is None  # Within limits
@@ -173,7 +173,7 @@ class TestRateLimiting:
                 to="ask@mxtoai.com",
                 subject="Test Subject",
                 message_id="test-message-id",
-                plan=RateLimitPlan.BETA
+                plan=RateLimitPlan.BETA,
             )
 
         assert result is None  # No Redis, no rate limiting
@@ -190,7 +190,7 @@ class TestValidationFunctions:
                 from_email="whitelisted@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                message_id="test-message-id"
+                message_id="test-message-id",
             )
 
         assert result is None  # Whitelisted emails should pass
@@ -198,16 +198,17 @@ class TestValidationFunctions:
     @pytest.mark.asyncio
     async def test_validate_email_whitelist_not_whitelisted(self):
         """Test email whitelist validation for non-whitelisted email."""
-        with patch("mxtoai.validators.is_email_whitelisted", return_value=(False, False)), \
-             patch("mxtoai.validators.get_whitelist_signup_url", return_value="https://signup.url"), \
-             patch("mxtoai.validators.trigger_automatic_verification", return_value=True), \
-             patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
-
+        with (
+            patch("mxtoai.validators.is_email_whitelisted", return_value=(False, False)),
+            patch("mxtoai.validators.get_whitelist_signup_url", return_value="https://signup.url"),
+            patch("mxtoai.validators.trigger_automatic_verification", return_value=True),
+            patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
+        ):
             result = await validate_email_whitelist(
                 from_email="notlisted@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                message_id="test-message-id"
+                message_id="test-message-id",
             )
 
             assert isinstance(result, Response)
@@ -221,10 +222,7 @@ class TestValidationFunctions:
             mock_resolver.return_value = "some_instructions"
 
             result, handle = await validate_email_handle(
-                to="ask@mxtoai.com",
-                from_email="user@example.com",
-                subject="Test Subject",
-                message_id="test-message-id"
+                to="ask@mxtoai.com", from_email="user@example.com", subject="Test Subject", message_id="test-message-id"
             )
 
             assert result is None
@@ -235,16 +233,17 @@ class TestValidationFunctions:
         """Test email handle validation for invalid handle."""
         from mxtoai import exceptions
 
-        with patch("mxtoai.validators.processing_instructions_resolver") as mock_resolver, \
-             patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
-
+        with (
+            patch("mxtoai.validators.processing_instructions_resolver") as mock_resolver,
+            patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
+        ):
             mock_resolver.side_effect = exceptions.UnspportedHandleException("Invalid handle")
 
             result, handle = await validate_email_handle(
                 to="invalid@mxtoai.com",
                 from_email="user@example.com",
                 subject="Test Subject",
-                message_id="test-message-id"
+                message_id="test-message-id",
             )
 
             assert isinstance(result, Response)
@@ -260,7 +259,7 @@ class TestValidationFunctions:
                 "filename": "small.txt",
                 "content": "dGVzdA==",  # base64 encoded "test"
                 "contentType": "text/plain",
-                "size": 4
+                "size": 4,
             }
         ]
 
@@ -269,7 +268,7 @@ class TestValidationFunctions:
             from_email="user@example.com",
             to="ask@mxtoai.com",
             subject="Test Subject",
-            message_id="test-message-id"
+            message_id="test-message-id",
         )
 
         assert result is None  # Valid attachments should pass
@@ -283,7 +282,7 @@ class TestValidationFunctions:
                 "filename": "large.txt",
                 "content": "dGVzdA==",  # base64 encoded "test"
                 "contentType": "text/plain",
-                "size": 20 * 1024 * 1024  # 20MB
+                "size": 20 * 1024 * 1024,  # 20MB
             }
         ]
 
@@ -293,7 +292,7 @@ class TestValidationFunctions:
                 from_email="user@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                message_id="test-message-id"
+                message_id="test-message-id",
             )
 
             assert isinstance(result, Response)
@@ -306,12 +305,14 @@ class TestValidationFunctions:
         # Create 10 attachments (exceeds MAX_ATTACHMENTS_COUNT of 5)
         attachments = []
         for i in range(10):
-            attachments.append({
-                "filename": f"test{i}.txt",
-                "content": "dGVzdA==",  # base64 encoded "test"
-                "contentType": "text/plain",
-                "size": 4
-            })
+            attachments.append(
+                {
+                    "filename": f"test{i}.txt",
+                    "content": "dGVzdA==",  # base64 encoded "test"
+                    "contentType": "text/plain",
+                    "size": 4,
+                }
+            )
 
         with patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
             result = await validate_attachments(
@@ -319,7 +320,7 @@ class TestValidationFunctions:
                 from_email="user@example.com",
                 to="ask@mxtoai.com",
                 subject="Test Subject",
-                message_id="test-message-id"
+                message_id="test-message-id",
             )
 
             assert isinstance(result, Response)

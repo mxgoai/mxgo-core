@@ -19,6 +19,11 @@ from smolagents import Tool
 from .cookies import COOKIES
 from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
 
+# Constants
+DEFAULT_REQUEST_TIMEOUT = 30  # seconds
+ARCHIVE_REQUEST_TIMEOUT = 15  # seconds
+DOWNLOAD_REQUEST_TIMEOUT = 60  # seconds
+
 
 class SimpleTextBrowser:
     """(In preview) An extremely simple text-based web browser comparable to Lynx. Suitable for Agentic use."""
@@ -270,6 +275,8 @@ class SimpleTextBrowser:
                 request_kwargs["stream"] = True
 
                 # Send a HTTP request to the URL
+                if "timeout" not in request_kwargs:
+                    request_kwargs["timeout"] = DEFAULT_REQUEST_TIMEOUT
                 response = requests.get(url, **request_kwargs)
                 response.raise_for_status()
 
@@ -291,7 +298,7 @@ class SimpleTextBrowser:
                         download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
 
                         suffix = 0
-                        while os.path.exists(download_path) and suffix < 1000:
+                        while pathlib.Path(download_path).exists() and suffix < 1000:
                             suffix += 1
                             base, ext = os.path.splitext(fname)
                             new_fname = f"{base}__{suffix}{ext}"
@@ -388,7 +395,9 @@ class SearchInformationTool(Tool):
 class VisitTool(Tool):
     name = "visit_page"
     description = "Visit a webpage at a given URL and return its text. Given a url to a YouTube video, this returns the transcript."
-    inputs: ClassVar[dict] = {"url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}}
+    inputs: ClassVar[dict] = {
+        "url": {"type": "string", "description": "The relative or absolute url of the webpage to visit."}
+    }
     output_type = "string"
 
     def __init__(self, browser):
@@ -407,7 +416,9 @@ class DownloadTool(Tool):
 Download a file at a given URL. The file should be of this format: [".xlsx", ".pptx", ".wav", ".mp3", ".m4a", ".png", ".docx"]
 After using this tool, for further inspection of this page you should return the download path to your manager via final_answer, and they will be able to inspect it.
 DO NOT use this tool for .pdf or .txt or .htm files: for these types of files use visit_page with the file url instead."""
-    inputs: ClassVar[dict] = {"url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}}
+    inputs: ClassVar[dict] = {
+        "url": {"type": "string", "description": "The relative or absolute url of the file to be downloaded."}
+    }
     output_type = "string"
 
     def __init__(self, browser):
@@ -417,7 +428,7 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
     def forward(self, url: str) -> str:
         if "arxiv" in url:
             url = url.replace("abs", "pdf")
-        response = requests.get(url)
+        response = requests.get(url, timeout=DOWNLOAD_REQUEST_TIMEOUT)
         content_type = response.headers.get("content-type", "")
         extension = mimetypes.guess_extension(content_type)
         if extension and isinstance(extension, str):
@@ -454,8 +465,8 @@ class ArchiveSearchTool(Tool):
     def forward(self, url, date) -> str:
         no_timestamp_url = f"https://archive.org/wayback/available?url={url}"
         archive_url = no_timestamp_url + f"&timestamp={date}"
-        response = requests.get(archive_url).json()
-        response_notimestamp = requests.get(no_timestamp_url).json()
+        response = requests.get(archive_url, timeout=ARCHIVE_REQUEST_TIMEOUT).json()
+        response_notimestamp = requests.get(no_timestamp_url, timeout=ARCHIVE_REQUEST_TIMEOUT).json()
         if "archived_snapshots" in response and "closest" in response["archived_snapshots"]:
             closest = response["archived_snapshots"]["closest"]
 

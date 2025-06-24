@@ -15,6 +15,8 @@ from mxtoai.request_context import RequestContext
 
 logger = logging.getLogger(__name__)
 
+# Constants
+LINKEDIN_API_TIMEOUT = 30
 
 class LinkedInDataAPITool(Tool):
     """Tool for accessing LinkedIn data through LinkedIn Data API."""
@@ -404,7 +406,7 @@ class LinkedInDataAPITool(Tool):
         """
         endpoint = "/get-profile-data"
         params = {"username": username}
-        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers)
+        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT)
         response.raise_for_status()
         return response.json()
 
@@ -562,7 +564,7 @@ class LinkedInDataAPITool(Tool):
         if industries:
             payload["industries"] = industries
 
-        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
+        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT)
         response.raise_for_status()
         return response.json()
 

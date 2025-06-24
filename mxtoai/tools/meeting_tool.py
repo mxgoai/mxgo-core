@@ -224,7 +224,7 @@ class MeetingTool(Tool):
                 "message": "Successfully generated calendar data. The 'ics_content' should be used to create an email attachment.",
             }
             logger.info(f"{self.name} completed successfully.")
-            return result
+
         except Exception as e:
             logger.error(f"Error in {self.name}: {e}", exc_info=True)
             # Provide specific error feedback for the LLM
@@ -232,6 +232,8 @@ class MeetingTool(Tool):
                 "status": "error",
                 "message": f"Failed to generate calendar data using {self.name}: {e}. Check input format, especially date/time (must be ISO 8601 with timezone).",
             }
+        else:
+            return result
 
 
 # Example usage (for testing)

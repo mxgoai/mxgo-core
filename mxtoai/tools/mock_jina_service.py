@@ -7,6 +7,8 @@ import faker
 
 fake = faker.Faker()
 
+# Constants
+THINKING_MARKER_PROBABILITY = 0.2
 
 class MockJinaService:
     """
@@ -34,11 +36,11 @@ class MockJinaService:
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
         all_urls = [
-            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}" for _ in range(num_urls)
+            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}" for _ in range(num_urls)  # noqa: S311
         ]
 
         # Randomly select some URLs as "read"
-        read_urls = random.sample(all_urls, random.randint(3, len(all_urls)))
+        read_urls = random.sample(all_urls, random.randint(3, len(all_urls)))  # noqa: S311
 
         return {"visitedURLs": all_urls, "readURLs": read_urls}
 
@@ -92,13 +94,13 @@ class MockJinaService:
             content_parts.append(f"### {section}")
 
             # Generate 2-3 paragraphs for each section
-            for _ in range(random.randint(2, 3)):
+            for _ in range(random.randint(2, 3)):  # noqa: S311
                 paragraph = fake.paragraph()
 
                 # Add 1-2 random citations to each paragraph
-                for _ in range(random.randint(1, 2)):
+                for _ in range(random.randint(1, 2)):  # noqa: S311
                     if annotations:
-                        citation = random.choice(annotations)
+                        citation = random.choice(annotations)  # noqa: S311
                         citation_id = citation["url_citation"]["id"]
                         paragraph += f" |^{citation_id}]"
 
@@ -130,9 +132,9 @@ class MockJinaService:
             "choices": [{"message": {"role": "assistant", "content": content, "annotations": annotations}}],
             **urls,
             "usage": {
-                "prompt_tokens": random.randint(100, 500),
-                "completion_tokens": random.randint(1000, 3000),
-                "total_tokens": random.randint(1500, 4000),
+                "prompt_tokens": random.randint(100, 500),  # noqa: S311
+                "completion_tokens": random.randint(1000, 3000),  # noqa: S311
+                "total_tokens": random.randint(1500, 4000),  # noqa: S311
             },
             "numURLs": len(urls["visitedURLs"]),
         }
@@ -152,7 +154,7 @@ class MockJinaService:
 
         # Split content into chunks
         chunks = content.split("\n")
-        chunk_delay = random.uniform(0.5, 2.0)  # Delay between chunks
+        chunk_delay = random.uniform(0.5, 2.0)  # Delay between chunks  # noqa: S311
 
         # Stream the role first
         yield {"choices": [{"delta": {"role": "assistant"}}]}
@@ -164,7 +166,7 @@ class MockJinaService:
                 continue
 
             # Occasionally add thinking markers
-            if random.random() < 0.2:
+            if random.random() < THINKING_MARKER_PROBABILITY:  # noqa: S311
                 yield {"choices": [{"delta": {"type": "think", "content": "<think>Analyzing sources...</think>"}}]}
                 time.sleep(chunk_delay)
 
@@ -196,7 +198,7 @@ class MockJinaService:
         # Calculate delay based on reasoning effort
         effort_multipliers = {"low": 0.7, "medium": 1.0, "high": 1.3}
 
-        base_delay = random.uniform(self.min_delay, self.max_delay)
+        base_delay = random.uniform(self.min_delay, self.max_delay)  # noqa: S311
         total_delay = base_delay * effort_multipliers[reasoning_effort]
 
         # Generate mock response

@@ -256,7 +256,7 @@ def process_email_task(
                     # Clean up the PDF tool's temporary directory using tracked temp_dir
                     if processing_result.pdf_export.temp_dir:
                         pdf_temp_dir = processing_result.pdf_export.temp_dir
-                        if pdf_temp_dir and os.path.exists(pdf_temp_dir):
+                        if pdf_temp_dir and Path(pdf_temp_dir).exists():
                             shutil.rmtree(pdf_temp_dir, ignore_errors=True)
                             logger.info(f"Cleaned up PDF tool temp directory: {pdf_temp_dir}")
                     else:

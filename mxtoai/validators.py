@@ -247,7 +247,14 @@ async def validate_rate_limits(
 
 
 async def validate_idempotency(
-    from_email: str, to: str, subject: str, date: str, html_content: str, text_content: str, files_count: int, message_id: Optional[str] = None
+    from_email: str,
+    to: str,
+    subject: str,
+    date: str,
+    html_content: str,
+    text_content: str,
+    files_count: int,
+    message_id: Optional[str] = None,
 ) -> tuple[Optional[Response], str]:
     """
     Validate email idempotency and generate deterministic message ID if needed.
@@ -275,7 +282,7 @@ async def validate_idempotency(
             date=date or "",
             html_content=html_content or "",
             text_content=text_content or "",
-            files_count=files_count
+            files_count=files_count,
         )
         logger.info(f"Generated deterministic message ID: {message_id}")
 
@@ -289,11 +296,13 @@ async def validate_idempotency(
             if await redis_client.get(redis_key_queued):
                 logger.warning(f"Email with messageId {message_id} already queued for processing")
                 return Response(
-                    content=json.dumps({
-                        "message": "Email already queued for processing",
-                        "messageId": message_id,
-                        "status": "duplicate_queued"
-                    }),
+                    content=json.dumps(
+                        {
+                            "message": "Email already queued for processing",
+                            "messageId": message_id,
+                            "status": "duplicate_queued",
+                        }
+                    ),
                     status_code=status.HTTP_409_CONFLICT,
                     media_type="application/json",
                 ), message_id
@@ -302,11 +311,9 @@ async def validate_idempotency(
             if await redis_client.get(redis_key_processed):
                 logger.warning(f"Email with messageId {message_id} already processed")
                 return Response(
-                    content=json.dumps({
-                        "message": "Email already processed",
-                        "messageId": message_id,
-                        "status": "duplicate_processed"
-                    }),
+                    content=json.dumps(
+                        {"message": "Email already processed", "messageId": message_id, "status": "duplicate_processed"}
+                    ),
                     status_code=status.HTTP_409_CONFLICT,
                     media_type="application/json",
                 ), message_id
@@ -343,6 +350,7 @@ def check_task_idempotency(message_id: str) -> bool:
     try:
         # Check if already processed
         import asyncio
+
         if asyncio.run(redis_client.get(redis_key_processed)):
             logger.warning(f"Email with messageId {message_id} already processed, skipping duplicate processing")
             return True
@@ -370,10 +378,10 @@ def mark_email_as_processed(message_id: str) -> None:
     try:
         # Mark as processed (expires in 24 hours)
         import asyncio
-        asyncio.run(asyncio.gather(
-            redis_client.setex(redis_key_processed, 86400, "1"),
-            redis_client.delete(redis_key_queued)
-        ))
+
+        asyncio.run(
+            asyncio.gather(redis_client.setex(redis_key_processed, 86400, "1"), redis_client.delete(redis_key_queued))
+        )
         logger.info(f"Marked email {message_id} as processed in Redis")
     except Exception as redis_error:
         logger.error(f"Failed to mark email as processed in Redis: {redis_error}")
@@ -437,7 +445,9 @@ async def validate_email_whitelist(
 
     # For non-major providers that are not verified, trigger automatic verification
     # and STOP email processing until they verify
-    logger.info(f"Triggering automatic verification for {from_email} (exists={exists_in_whitelist}, verified={is_verified})")
+    logger.info(
+        f"Triggering automatic verification for {from_email} (exists={exists_in_whitelist}, verified={is_verified})"
+    )
 
     # Trigger automatic verification in the background
     verification_triggered = False

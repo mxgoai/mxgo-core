@@ -394,11 +394,11 @@ class ReportFormatter:
 
             # --- FIX 1.5: Ensure consecutive bold text lines are separated ---
             # This handles cases like **Field**: value followed immediately by **Field2**: value2
-            current_is_bold_field = (line.strip().startswith("**") and "**:" in line)
+            current_is_bold_field = line.strip().startswith("**") and "**:" in line
             if current_is_bold_field and i > 0 and result_lines:
                 # Check if the previous line was also a bold field
                 prev_line = result_lines[-1].strip()
-                prev_is_bold_field = (prev_line.startswith("**") and "**:" in prev_line)
+                prev_is_bold_field = prev_line.startswith("**") and "**:" in prev_line
                 if prev_is_bold_field:
                     # Insert blank line between consecutive bold fields
                     result_lines.append("")
@@ -407,35 +407,35 @@ class ReportFormatter:
             if line.strip().startswith(("*", "-")) and "**[" in line and "](" in line and ")**" in line:
                 # This is a very specific pattern, so we can be confident in this replacement
                 # Replace **[text](url)** with [**text**](url)
-                line = re.sub(r"\*\*\[(.*?)\]\((.*?)\)\*\*", r"[**\1**](\2)", line)
+                modified_line = re.sub(r"\*\*\[(.*?)\]\((.*?)\)\*\*", r"[**\1**](\2)", line)
+            else:
+                modified_line = line
 
             # --- FIX 3: Convert letter-based lists to numbers ---
             # e.g., a. Item -> 1. Item
-            match = re.match(r"^(\s*)([a-z])\.\s+(.*)$", line)
+            match = re.match(r"^(\s*)([a-z])\.\s+(.*)$", modified_line)
             if match:
                 indent, letter, text = match.groups()
                 number = ord(letter) - ord("a") + 1
-                line = f"{indent}{number}. {text}"
+                modified_line = f"{indent}{number}. {text}"
 
             # --- FIX 4: Fix mixed list formatting ---
             # e.g., - 1. Item -> 1. Item
-            line = re.sub(r"^(\s*)[*-]\s+(\d+\.\s+.*)", r"\1\2", line)
+            modified_line = re.sub(r"^(\s*)[*-]\s+(\d+\.\s+.*)", r"\1\2", modified_line)
 
             # --- FIX 5: Fix missing spaces after list markers ---
             # Skip lines that start with bold markers like "**Summary:**"
-            if not (line.strip().startswith("**") and ("**:" in line or line.strip().endswith("**"))):
+            if not (modified_line.strip().startswith("**") and ("**:" in modified_line or modified_line.strip().endswith("**"))):
                 # Check for missing spaces after list markers
-                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s].*)", line)
+                match = re.match(r"^(\s*)(\d+\.|\*|-|\+)([^\s].*)", modified_line)
                 if match:
                     indent, marker, rest_of_line = match.groups()
                     # It's a real list item, just missing a space
-                    line = f"{indent}{marker} {rest_of_line.lstrip()}"
+                    modified_line = f"{indent}{marker} {rest_of_line.lstrip()}"
 
-            result_lines.append(line)
+            result_lines.append(modified_line)
 
         return "\n".join(result_lines)
-
-
 
     def _basic_html_render(self, html_content: str) -> str:
         """
