@@ -73,22 +73,6 @@ MXTOAI is a powerful, self-hostable email processing system that acts as your in
 - **🔒 Privacy First**: Runs entirely on your infrastructure
 - **🎨 Rich Formatting**: HTML and plain text responses with professional styling
 
-### 🏗️ **Architecture**
-
-```
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│   API Server    │◄───┤   PostgreSQL │    │    RabbitMQ     │
-│   (Port 8000)   │    │  (Database)  │    │ (Message Queue) │
-└─────────────────┘    └──────────────┘    └─────────────────┘
-         │                                           │
-         ▼                                           ▼
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│      Redis      │    │    Worker    │    │   Scheduler     │
-│    (Cache)      │    │  (Background │    │ (Cron Tasks)    │
-└─────────────────┘    │   Tasks)     │    └─────────────────┘
-                       └──────────────┘
-```
-
 ## 📧 Process Your First Email
 
 ### Using the API
@@ -241,7 +225,7 @@ For contributors who want to develop using Poetry instead of Docker:
 - Redis
 - RabbitMQ
 
-### Setup Steps
+### Local Development Setup
 
 ```bash
 # Install dependencies
@@ -249,7 +233,7 @@ poetry install
 poetry shell
 
 # Setup services (macOS example)
-brew services start postgresql@14
+brew services start postgresql@16
 brew services start redis
 brew services start rabbitmq
 
@@ -272,77 +256,49 @@ poetry run python -m mxtoai.scheduler_runner          # Scheduler
 
 ```mermaid
 graph TD
-    A[🤖 MXTOAI Repository] --> B[🐳 docker/]
-    A --> C[🤖 mxtoai/]
-    A --> D[📋 scripts/]
-    A --> E[🧪 tests/]
-    A --> F[📖 docusaurus-site/]
-    A --> G[📧 email-worker/]
-    A --> H[🔧 Config Files]
+    A["MXTOAI Repository"] --> B["docker/"]
+    A --> C["mxtoai/"]
+    A --> D["scripts/"]
+    A --> E["tests/"]
+    A --> F["docusaurus-site/"]
+    A --> G["email-worker/"]
 
-    B --> B1[api_server.dockerfile]
-    B --> B2[worker.dockerfile]
-    B --> B3[scheduler.dockerfile]
-    B --> B4[startup scripts]
+    B --> B1["Dockerfiles"]
+    B --> B2["Docker Configuration"]
 
-    C --> C1[🤖 agents/]
-    C --> C2[🛠️ tools/]
-    C --> C3[📜 scripts/]
-    C --> C4[🗄️ db/]
-    C --> C5[📄 models/]
-    C --> C6[🔧 Core files]
+    C --> C1["agents/"]
+    C --> C2["tools/"]
+    C --> C3["db/"]
+    C --> C4["models/"]
 
-    C1 --> C1A[email_agent.py]
-    C2 --> C2A[attachment_processing_tool.py]
-    C2 --> C2B[deep_research_tool.py]
-    C2 --> C2C[web_search/]
-    C2 --> C2D[external_data/]
+    C1 --> C1A["email_agent.py"]
+    C2 --> C2A["web_search/"]
+    C2 --> C2B["deep_research_tool.py"]
+    C3 --> C3A["alembic/"]
 
-    C3 --> C3A[visual_qa.py]
-    C3 --> C3B[text_web_browser.py]
-    C3 --> C3C[email_processor.py]
-    C3 --> C3D[report_formatter.py]
+    D --> D1["setup-local.sh"]
+    D --> D2["start-local.sh"]
 
-    C4 --> C4A[alembic/]
-    C4 --> C4B[migration files]
+    E --> E1["Unit Tests"]
+    E --> E2["Load Tests"]
 
-    D --> D1[setup-local.sh]
-    D --> D2[start-local.sh]
+    F --> F1["Documentation"]
+    G --> G1["Cloudflare Worker"]
 
-    E --> E1[test_api.py]
-    E --> E2[test_agents.py]
-    E --> E3[load-test/]
+    classDef config fill:#f96,stroke:#333,stroke-width:2px
+    classDef core fill:#bbf,stroke:#333,stroke-width:2px
+    classDef docker fill:#e1f,stroke:#333,stroke-width:2px
 
-    F --> F1[docs/]
-    F --> F2[src/]
-    F --> F3[static/]
-
-    G --> G1[Node.js worker]
-    G --> G2[package.json]
-
-    H --> H1[docker-compose.yml]
-    H --> H2[.env.example]
-    H --> H3[model.config.example.toml]
-    H --> H4[pyproject.toml]
-    H --> H5[README.md]
-    H --> H6[DOCKER_SETUP.md]
-
-    classDef configFile fill:#f9f,stroke:#333,stroke-width:2px
-    classDef coreApp fill:#bbf,stroke:#333,stroke-width:2px
-    classDef docker fill:#e1f5fe,stroke:#333,stroke-width:2px
-    classDef docs fill:#f3e5f5,stroke:#333,stroke-width:2px
-
-    class H1,H2,H3,H4,H5,H6 configFile
-    class C,C1,C2,C3,C4,C5,C6 coreApp
-    class B,B1,B2,B3,B4 docker
-    class F,F1,F2,F3 docs
+    class B,B1,B2 docker
+    class C,C1,C2,C3,C4 core
+    class D,E,F,G config
 ```
 
 ### 🗂️ Key Directories
 
 | Directory | Purpose | Key Files |
 |-----------|---------|-----------|
-| `🐳 docker/` | Container configurations | Dockerfiles, startup scripts |
+| `🐳 docker/` | Container configurations | Dockerfiles, init scripts |
 | `🤖 mxtoai/` | Core application code | agents, tools, database models |
 | `📋 scripts/` | Setup & deployment | setup-local.sh, start-local.sh |
 | `🧪 tests/` | Test suite | Unit tests, load tests |
@@ -380,16 +336,6 @@ curl -X POST "http://localhost:8000/schedule-task" \
 ```
 
 ## 🧪 Testing
-
-### Load Testing
-
-Test system performance:
-
-```bash
-# Install and run load tests
-pip install locust
-locust --host=http://localhost:8000
-```
 
 ### Unit Tests
 

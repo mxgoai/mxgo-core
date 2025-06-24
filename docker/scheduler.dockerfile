@@ -25,13 +25,12 @@ RUN poetry config virtualenvs.create false && poetry install --no-root --no-inte
 # Copy application code
 COPY mxtoai ./mxtoai
 
-# Create startup script
-COPY docker/start-scheduler.sh /app/start-scheduler.sh
-RUN chmod +x /app/start-scheduler.sh
+# Set Python path
+ENV PYTHONPATH=/app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import psutil; exit(0 if any('scheduler_runner' in ' '.join(p.info['cmdline'] or []) for p in psutil.process_iter(['cmdline'])) else 1)"
 
-# Run the startup script
-CMD ["/app/start-scheduler.sh"]
+# Start the scheduler
+CMD ["poetry", "run", "python", "-m", "mxtoai.scheduler_runner"]

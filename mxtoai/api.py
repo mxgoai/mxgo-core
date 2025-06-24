@@ -12,17 +12,19 @@ import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
+from sqlalchemy import text
 
 from mxtoai import validators
 from mxtoai._logging import get_logger
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
+from mxtoai.db import init_db_connection
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
 from mxtoai.schemas import EmailAttachment, EmailRequest, RateLimitPlan
-from mxtoai.tasks import process_email_task
+from mxtoai.tasks import process_email_task, rabbitmq_broker
 from mxtoai.validators import (
     validate_api_key,
     validate_attachments,
@@ -107,7 +109,6 @@ async def health_check():
 
     # Check RabbitMQ/Dramatiq broker connection
     try:
-        from mxtoai.tasks import rabbitmq_broker
         # Try to get broker connection info - this will fail if RabbitMQ is unreachable
         connection_info = rabbitmq_broker.connection
         if connection_info:
@@ -122,9 +123,6 @@ async def health_check():
 
     # Check database connection
     try:
-        from sqlalchemy import text
-
-        from mxtoai.db import init_db_connection
         db_connection = init_db_connection()
         with db_connection.get_session() as session:
             # Simple query to test connection

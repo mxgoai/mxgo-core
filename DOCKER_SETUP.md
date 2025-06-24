@@ -1,6 +1,8 @@
-# 🐳 Docker Setup Guide
+# Docker Setup Guide
 
 This guide will help you set up MXTOAI using Docker for easy self-hosting.
+
+MXTOAI uses a simplified Docker architecture with health checks and dependency management built into docker-compose.yml.
 
 ## Prerequisites
 
@@ -25,28 +27,7 @@ chmod +x scripts/setup-local.sh
 ### 2. Configure Environment
 
 #### Environment Variables (.env)
-Edit the `.env` file that was created and configure your settings:
-
-```bash
-# Database settings (can leave as default for local development)
-DB_NAME=mxtoai
-DB_USER=mxtoai
-DB_PASSWORD=changeme
-
-# Redis settings (can leave as default for local development)
-REDIS_PASSWORD=changeme
-
-# RabbitMQ settings (can leave as default for local development)
-RABBITMQ_USER=guest
-RABBITMQ_PASSWORD=guest
-
-# Required: Configure at least one AI service
-OPENAI_API_KEY=your_api_key_here
-# OR
-AZURE_OPENAI_API_KEY=your_azure_key_here
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2023-05-15
-```
+Add the new `.env` file that was created and configure your settings.
 
 #### AI Model Configuration (model.config.toml)
 Edit the `model.config.toml` file to configure your AI models:
@@ -84,7 +65,9 @@ This will start:
 - **RabbitMQ** - Message queue (port 5672, management UI on port 15672)
 - **API Server** - Main application (port 8000)
 - **Worker** - Background task processor
-- **Scheduler** - Scheduled task manager
+- **Scheduler** - Scheduled task manager (depends on worker health)
+
+The services start in order based on health checks, with the scheduler waiting for the worker to be healthy before starting.
 
 ### 4. Verify Setup
 
@@ -94,58 +77,9 @@ Once all services are running:
 2. **RabbitMQ Management**: Visit http://localhost:15672 (guest/guest)
 3. **API Documentation**: Visit http://localhost:8000/docs
 
-## Service Architecture
-
-```
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│   API Server    │◄───┤   PostgreSQL │    │    RabbitMQ     │
-│   (Port 8000)   │    │  (Port 5432) │    │  (Port 5672)    │
-└─────────────────┘    └──────────────┘    └─────────────────┘
-         │                                           │
-         ▼                                           ▼
-┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
-│      Redis      │    │    Worker    │    │   Scheduler     │
-│   (Port 6379)   │    │  (Background │    │  (APScheduler)  │
-└─────────────────┘    │   Tasks)     │    └─────────────────┘
-                       └──────────────┘
-```
-
-## Production Configuration
-
-### Environment Variables for Production
-
-```bash
-# Production settings
-ENVIRONMENT=production
-IS_PROD=true
-DEBUG=false
-
-# Security
-SECRET_KEY=your_very_secure_secret_key_here
-
-# Database (use external managed database in production)
-DB_HOST=your.database.host
-DB_PORT=5432
-DB_NAME=mxtoai_production
-DB_USER=mxtoai_production_user
-DB_PASSWORD=secure_password_here
-
-# Redis (use external managed Redis in production)
-REDIS_HOST=your.redis.host
-REDIS_PORT=6379
-REDIS_PASSWORD=secure_redis_password
-
-# Email (for sending replies)
-SMTP_HOST=smtp.yourprovider.com
-SMTP_PORT=587
-SMTP_USERNAME=your_email@domain.com
-SMTP_PASSWORD=your_app_specific_password
-FROM_EMAIL=your_email@domain.com
-```
-
 ### Production Deployment
 
-1. **Use external databases**: Don't run PostgreSQL and Redis in containers in production
+1. **Use external databases**: Evaluate if it's okay to run PostgreSQL and Redis in containers as per task workload, else use external services.
 2. **Configure HTTPS**: Use a reverse proxy like nginx or Traefik
 3. **Set resource limits**: Configure Docker memory and CPU limits
 4. **Enable monitoring**: Set up logging and monitoring
@@ -219,37 +153,6 @@ docker-compose down --rmi all -v
 docker-compose up --build
 ```
 
-## Scaling
-
-### Horizontal Scaling
-
-```yaml
-# Scale workers for higher throughput
-services:
-  worker:
-    deploy:
-      replicas: 3
-```
-
-### Load Balancing
-
-For multiple API server instances:
-
-```yaml
-services:
-  api_server:
-    deploy:
-      replicas: 2
-
-  nginx:
-    image: nginx:alpine
-    ports:
-      - "80:80"
-    # Configure nginx for load balancing
-```
-
-## Monitoring
-
 ### Health Checks
 
 All services include health checks:
@@ -257,25 +160,3 @@ All services include health checks:
 - **PostgreSQL**: Built-in `pg_isready`
 - **Redis**: Built-in ping
 - **RabbitMQ**: Built-in diagnostics
-
-### Metrics
-
-Consider adding:
-- Prometheus metrics
-- Grafana dashboards
-- Log aggregation (ELK stack)
-- APM (Application Performance Monitoring)
-
-## Security Considerations
-
-1. **Change default passwords**: Update all default passwords in `.env`
-2. **API keys**: Secure your AI service API keys
-3. **Network isolation**: Use Docker networks for service isolation
-4. **Firewall rules**: Restrict access to only necessary ports
-5. **Regular updates**: Keep Docker images and dependencies updated
-
-For production deployments, also consider:
-- Container scanning for vulnerabilities
-- Secrets management (Docker secrets, Kubernetes secrets)
-- Certificate management for HTTPS
-- Regular security audits

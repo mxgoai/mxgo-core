@@ -29,16 +29,12 @@ COPY run_api.py .
 # Create directories
 RUN mkdir -p /app/attachments
 
-# Create startup script
-COPY docker/start-api.sh /app/start-api.sh
-RUN chmod +x /app/start-api.sh
+# Set Python path
+ENV PYTHONPATH=/app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
-# Expose port
-EXPOSE 8000
-
-# Run the startup script
-CMD ["/app/start-api.sh"]
+# Run migrations then start the API server
+CMD ["sh", "-c", "cd /app/mxtoai/db && poetry run alembic upgrade head && exec poetry run uvicorn mxtoai.api:app --host 0.0.0.0 --port 8000 --workers 4"]

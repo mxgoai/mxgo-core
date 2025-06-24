@@ -51,22 +51,6 @@ services:
       timeout: 10s
       retries: 5
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: ollama
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-    profiles:
-      - ollama
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   api_server:
     build:
       context: .
@@ -83,23 +67,6 @@ services:
         condition: service_healthy
     ports:
       - "${API_PORT:-8000}:8000"
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-mxtoai}
-      - DB_PASSWORD=${DB_PASSWORD:-docker_changeme_123}
-      - DB_NAME=${DB_NAME:-mxtoai}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-docker_redis_123}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-docker_redis_123}@redis:6379/0
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER:-docker_guest}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-docker_guest_123}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-docker_guest}:${RABBITMQ_PASSWORD:-docker_guest_123}@rabbitmq:5672/
-      - OLLAMA_URL=http://ollama:${OLLAMA_PORT:-11434}
-      - LITELLM_CONFIG_PATH=/app/model.config.toml
     volumes:
       - ./model.config.toml:/app/model.config.toml:ro
       - ./attachments:/app/attachments
@@ -124,23 +91,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-mxtoai}
-      - DB_PASSWORD=${DB_PASSWORD:-docker_changeme_123}
-      - DB_NAME=${DB_NAME:-mxtoai}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-docker_redis_123}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-docker_redis_123}@redis:6379/0
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER:-docker_guest}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-docker_guest_123}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-docker_guest}:${RABBITMQ_PASSWORD:-docker_guest_123}@rabbitmq:5672/
-      - OLLAMA_URL=http://ollama:${OLLAMA_PORT:-11434}
-      - LITELLM_CONFIG_PATH=/app/model.config.toml
     volumes:
       - ./model.config.toml:/app/model.config.toml:ro
       - ./attachments:/app/attachments
@@ -159,30 +109,8 @@ services:
     env_file:
       - .env
     depends_on:
-      postgres:
+      worker:
         condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=${DB_USER:-mxtoai}
-      - DB_PASSWORD=${DB_PASSWORD:-docker_changeme_123}
-      - DB_NAME=${DB_NAME:-mxtoai}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-docker_redis_123}
-      - REDIS_URL=redis://:${REDIS_PASSWORD:-docker_redis_123}@redis:6379/0
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=${RABBITMQ_USER:-docker_guest}
-      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD:-docker_guest_123}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-docker_guest}:${RABBITMQ_PASSWORD:-docker_guest_123}@rabbitmq:5672/
-      - LITELLM_CONFIG_PATH=/app/model.config.toml
-    volumes:
-      - ./model.config.toml:/app/model.config.toml:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import psutil; exit(0 if any('scheduler_runner' in ' '.join(p.info['cmdline'] or []) for p in psutil.process_iter(['cmdline'])) else 1)"]
@@ -193,7 +121,6 @@ services:
 volumes:
   postgres_data:
   rabbitmq_data:
-  ollama_data:
   redis_data:
 
 networks:

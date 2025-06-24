@@ -29,13 +29,12 @@ COPY mxtoai ./mxtoai
 # Create directories
 RUN mkdir -p /app/attachments
 
-# Create startup script
-COPY docker/start-worker.sh /app/start-worker.sh
-RUN chmod +x /app/start-worker.sh
+# Set Python path
+ENV PYTHONPATH=/app
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import psutil; exit(0 if any('dramatiq' in ' '.join(p.info['cmdline'] or []) for p in psutil.process_iter(['cmdline'])) else 1)"
 
-# Run the startup script
-CMD ["/app/start-worker.sh"]
+# Start the worker
+CMD ["poetry", "run", "dramatiq", "mxtoai.tasks"]
