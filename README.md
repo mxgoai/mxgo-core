@@ -130,22 +130,42 @@ graph TD
 
 ### Environment Variables
 
-The system uses Docker defaults for local development. For customization, edit `.env`:
+MXTOAI uses a clean, organized environment configuration system:
+
+#### 🚀 **Quick Setup**
+1. **Copy the template**: `cp .env.example .env`
+2. **Configure AI models**: Edit `model.config.toml` with your AI provider credentials
+3. **Set security key**: Generate a secure `X_API_KEY`
+4. **Configure email service**: Add AWS SES credentials for sending responses
+
+#### 📝 **Configuration Files**
+- **`.env`** - Environment variables (copy from `.env.example`)
+- **`model.config.toml`** - AI model configurations (copy from `model.config.example.toml`)
+
+#### ⚡ **Essential Variables**
 
 ```bash
-# AI Model (Required - add your API key)
-OPENAI_API_KEY=your_openai_api_key_here
+# Security (Required)
+X_API_KEY=your_secure_random_key_here
 
-# Email Service (Optional - for sending replies)
-AWS_ACCESS_KEY_ID=your_aws_key
-AWS_SECRET_ACCESS_KEY=your_aws_secret
+# AI Models (Required)
+LITELLM_DEFAULT_MODEL_GROUP=gpt-4
+
+# Email Service (Required for sending responses)
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 SENDER_EMAIL=assistant@yourdomain.com
 
-# Docker Services (Don't change for local development)
-DB_HOST=postgres
-REDIS_HOST=redis
-RABBITMQ_HOST=rabbitmq
+# Docker uses built-in defaults for databases and queues
 ```
+
+#### 🔗 **Optional Services**
+Enable additional functionality by adding API keys:
+- **Search**: `SERPAPI_API_KEY`, `SERPER_API_KEY`, `BRAVE_SEARCH_API_KEY`
+- **Research**: `JINA_API_KEY` for deep research features
+
+📚 **Full Documentation**: See [Environment Variables Reference](ENV_VARIABLES.md) for complete configuration options.
 
 ### Advanced Configuration
 

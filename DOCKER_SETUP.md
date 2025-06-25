@@ -27,7 +27,27 @@ chmod +x scripts/setup-local.sh
 ### 2. Configure Environment
 
 #### Environment Variables (.env)
-Add the new `.env` file that was created and configure your settings.
+
+**Quick Setup:**
+```bash
+# Copy the template
+cp .env.example .env
+
+# Edit with your values
+nano .env  # or your preferred editor
+```
+
+**Required Configuration:**
+- `X_API_KEY` - Set to a secure random string (32+ characters)
+- `LITELLM_DEFAULT_MODEL_GROUP` - Default AI model group (usually "gpt-4")
+- AWS SES credentials for email sending (if needed)
+
+**Docker Defaults:**
+The Docker setup provides secure defaults for all infrastructure services:
+- PostgreSQL, Redis, RabbitMQ are preconfigured
+- Only external services need your API keys
+
+📚 **Complete Reference**: See [ENV_VARIABLES.md](ENV_VARIABLES.md) for all configuration options.
 
 #### AI Model Configuration (model.config.toml)
 Edit the `model.config.toml` file to configure your AI models:
