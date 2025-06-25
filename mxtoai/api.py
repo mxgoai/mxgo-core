@@ -12,17 +12,19 @@ import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
+from sqlalchemy import text
 
 from mxtoai import validators
 from mxtoai._logging import get_logger
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
+from mxtoai.db import init_db_connection
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
 from mxtoai.schemas import EmailAttachment, EmailRequest, RateLimitPlan
-from mxtoai.tasks import process_email_task
+from mxtoai.tasks import process_email_task, rabbitmq_broker
 from mxtoai.validators import (
     validate_api_key,
     validate_attachments,
@@ -88,10 +90,54 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-if os.environ["IS_PROD"].lower() == "true":
+if os.getenv("IS_PROD", "false").lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker and load balancers."""
+    health_status = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "services": {}
+    }
+
+    overall_healthy = True
+
+    # Check RabbitMQ/Dramatiq broker connection
+    try:
+        # Try to get broker connection info - this will fail if RabbitMQ is unreachable
+        connection_info = rabbitmq_broker.connection
+        if connection_info:
+            health_status["services"]["rabbitmq"] = "connected"
+        else:
+            health_status["services"]["rabbitmq"] = "not connected"
+            overall_healthy = False
+    except Exception as e:
+        logger.error(f"RabbitMQ health check failed: {e}")
+        health_status["services"]["rabbitmq"] = f"error: {str(e)}"
+        overall_healthy = False
+
+    # Check database connection
+    try:
+        db_connection = init_db_connection()
+        with db_connection.get_session() as session:
+            # Simple query to test connection
+            session.execute(text("SELECT 1"))
+        health_status["services"]["database"] = "connected"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_status["services"]["database"] = f"error: {str(e)}"
+        overall_healthy = False
+
+    # Update overall status
+    if not overall_healthy:
+        health_status["status"] = "unhealthy"
+
+    return health_status
 
 
 # Function to cleanup attachment files and directory
