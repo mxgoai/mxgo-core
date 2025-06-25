@@ -100,8 +100,8 @@ def setup_test_database(monkeypatch_session):
         alembic_dir = alembic_cfg_path.parent
         os.chdir(alembic_dir)
 
-        result = subprocess.run(
-            ["alembic", "-c", "alembic.ini", "upgrade", "head"],
+        result = subprocess.run(  # noqa: S603
+            ["alembic", "-c", "alembic.ini", "upgrade", "head"],  # noqa: S607
             check=True,
             capture_output=True,
             text=True

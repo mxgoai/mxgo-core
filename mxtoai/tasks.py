@@ -1,7 +1,7 @@
 import asyncio
 import os
 import shutil
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, Union
 
@@ -45,6 +45,7 @@ rabbitmq_broker = RabbitmqBroker(
 )
 dramatiq.set_broker(rabbitmq_broker)
 
+MAX_RETRIES = 3
 
 def cleanup_attachments(email_attachments_dir: str) -> None:
     """
@@ -71,18 +72,18 @@ def cleanup_attachments(email_attachments_dir: str) -> None:
 
 def should_retry(retries_so_far: int, exception: Exception) -> bool:
     """
-    Determine whether to retry the task based on the exception and retry count.
+    Determine if a task should be retried based on the number of retries and exception type.
 
     Args:
-        retries_so_far: Number of retries attempted
-        exception: Exception raised during task execution
+        retries_so_far: Number of retries attempted so far
+        exception: The exception that caused the failure
 
     Returns:
         bool: True if the task should be retried, False otherwise
 
     """
     logger.warning(f"Retrying task after exception: {exception!s}, retries so far: {retries_so_far}")
-    return retries_so_far < 3
+    return retries_so_far < MAX_RETRIES
 
 
 @dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
@@ -112,7 +113,7 @@ def process_email_task(
 
     if check_task_idempotency(message_id):
         # Return a minimal result indicating it was already processed
-        now_iso = datetime.now().isoformat()
+        now_iso = datetime.now(timezone.utc).isoformat()
         return DetailedEmailProcessingResult(
             metadata=ProcessingMetadata(
                 processed_at=now_iso,
@@ -142,7 +143,7 @@ def process_email_task(
         else:
             logger.info(f"Processing regular email for handle: {handle}")
 
-    now_iso = datetime.now().isoformat()
+    now_iso = datetime.now(timezone.utc).isoformat()
 
     try:
         email_instructions: Union[ProcessingInstructions, None] = processing_instructions_resolver(handle)
@@ -237,7 +238,7 @@ def process_email_task(
             if processing_result.pdf_export and processing_result.pdf_export.file_path:
                 try:
                     # Read the PDF file content
-                    with open(processing_result.pdf_export.file_path, "rb") as pdf_file:
+                    with Path(processing_result.pdf_export.file_path).open("rb") as pdf_file:
                         pdf_content = pdf_file.read()
 
                     attachments_to_send.append(
@@ -299,7 +300,7 @@ def process_email_task(
                     mark_email_as_processed(message_id)
 
             except Exception as send_err:
-                logger.error(f"Error initializing EmailSender or sending reply: {send_err!s}", exc_info=True)
+                logger.exception("Error initializing EmailSender or sending reply")
                 processing_result.metadata.email_sent.status = "error"
                 processing_result.metadata.email_sent.error = str(send_err)
                 processing_result.metadata.email_sent.message_id = "error"

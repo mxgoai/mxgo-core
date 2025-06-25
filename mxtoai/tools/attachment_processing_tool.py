@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any, ClassVar
@@ -8,7 +7,7 @@ from urllib.parse import unquote
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 import contextlib
 
 from scripts.mdconvert import MarkdownConverter
@@ -20,6 +19,8 @@ from mxtoai.schemas import ToolOutputWithCitations
 # Configure logger
 logger = get_logger("attachment_tool")
 
+CONTENT_SUMMARY_THRESHOLD = 4000
+PREVIEW_TEXT_LENGTH = 200
 
 class AttachmentProcessingTool(Tool):
     """
@@ -275,7 +276,7 @@ class AttachmentProcessingTool(Tool):
 
                 # If in full mode and model is available, generate a summary
                 summary = None
-                if mode == "full" and self.model and len(content) > 4000:
+                if mode == "full" and self.model and len(content) > CONTENT_SUMMARY_THRESHOLD:
                     messages = [
                         {
                             "role": MessageRole.SYSTEM,
@@ -372,7 +373,7 @@ class AttachmentProcessingTool(Tool):
                         summary_parts.append(f"Summary: {content['summary']}")
                     else:
                         text = content.get("text", "")
-                        preview = text[:200] + "..." if len(text) > 200 else text
+                        preview = text[:PREVIEW_TEXT_LENGTH] + "..." if len(text) > PREVIEW_TEXT_LENGTH else text
                         summary_parts.append(f"Preview: {preview}")
 
         status = f"Processed {successful} documents, {images} images pending visual processing"

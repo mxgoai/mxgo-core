@@ -87,7 +87,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         model_entries = self.config.get("models", [])
         if not model_entries:
             msg = "No models found in config toml. Please check the configuration."
-            raise exceptions.ModelListNotFoundException(msg)
+            raise exceptions.ModelListNotFoundError(msg)
 
         if isinstance(model_entries, dict):
             # In case there's only one model (TOML parser returns dict)
@@ -103,7 +103,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         if not model_list:
             msg = "No model list found in config toml. Please check the configuration."
-            raise exceptions.ModelListNotFoundException(msg)
+            raise exceptions.ModelListNotFoundError(msg)
 
         return model_list
 

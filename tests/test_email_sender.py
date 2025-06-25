@@ -35,7 +35,7 @@ class TestEmailSender:
             "ses",
             region_name="us-east-1",
             aws_access_key_id="test_key",
-            aws_secret_access_key="test_secret",
+            aws_secret_access_key="test_secret",  # noqa: S106
         )
 
     @patch.dict(os.environ, {}, clear=True)

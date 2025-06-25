@@ -75,7 +75,7 @@ class ReportFormatter:
             logger.error(f"Failed to load themes: {e}")
 
     def format_report(
-        self, content: str, format_type: str = "markdown", include_signature: bool = True, theme: str = "default"
+        self, content: str, format_type: str = "markdown", *, include_signature: bool = True, theme: str = "default"
     ) -> str:
         """
         Format the research report in the specified format.

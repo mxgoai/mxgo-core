@@ -107,13 +107,13 @@ def encode_image(image_path: str) -> str:
         download_path = Path("downloads") / fname
         download_path = download_path.resolve()
 
-        with open(download_path, "wb") as fh:
+        with download_path.open("wb") as fh:
             for chunk in response.iter_content(chunk_size=512):
                 fh.write(chunk)
 
         image_path = download_path
 
-    with open(image_path, "rb") as image_file:
+    with Path(image_path).open("rb") as image_file:
         return base64.b64encode(image_file.read()).decode("utf-8")
 
 
@@ -142,16 +142,18 @@ def resize_image(image_path: str) -> str:
 
 
 class VisualQATool(Tool):
-    name = "visualizer"
-    description = "A tool that can answer questions about attached images."
-    inputs = {
+    """Tool for visual question answering on images."""
+
+    name: ClassVar[str] = "visualizer"
+    description: ClassVar[str] = "A tool that can answer questions about attached images."
+    inputs: ClassVar[dict] = {
         "image_path": {
             "description": "The path to the image on which to answer the question",
             "type": "string",
         },
         "question": {"description": "the question to answer", "type": "string", "nullable": True},
     }
-    output_type = "string"
+    output_type: ClassVar[str] = "string"
 
     client: ClassVar[InferenceClient] = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
@@ -201,7 +203,7 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
         question = "Please write a detailed caption for this image."
     if not isinstance(image_path, str):
         msg = "You should provide at least `image_path` string argument to this tool!"
-        raise Exception(msg)
+        raise TypeError(msg)
 
     mime_type, _ = mimetypes.guess_type(image_path)
     base64_image = encode_image(image_path)
@@ -219,12 +221,12 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
         ],
         "max_tokens": 1000,
     }
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload, timeout=30)
     try:
         output = response.json()["choices"][0]["message"]["content"]
-    except Exception:
+    except Exception as e:
         msg = f"Response format unexpected: {response.json()}"
-        raise Exception(msg)
+        raise ValueError(msg) from e
 
     if add_note:
         output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
@@ -292,23 +294,66 @@ def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
 
         if not output:
             msg = "Empty response from Azure OpenAI"
-            raise Exception(msg)
+            raise ValueError(msg)
 
         # Add note if no question was provided
         if add_note:
             output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
 
-        return output
-
     except Exception as e:
-        logger.error(f"Error in azure_visualizer: {e!s}")
-
-        # Try resizing the image if it might be too large
-        if "too large" in str(e).lower() or "payload" in str(e).lower():
+        # Handle image too large error by resizing and retrying
+        if "image too large" in str(e).lower():
             try:
-                new_image_path = resize_image(image_path)
-                return azure_visualizer(new_image_path, question)
-            except Exception as resize_error:
-                logger.error(f"Error resizing image: {resize_error!s}")
+                logger.info("Image too large, resizing and retrying...")
+                resized_image_path = resize_image(image_path)
 
+                # Retry with resized image
+                mime_type, _ = mimetypes.guess_type(resized_image_path)
+                if not mime_type:
+                    mime_type = "image/jpeg"
+
+                base64_image = encode_image(resized_image_path)
+                content = [
+                    {"type": "text", "text": question},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
+                ]
+
+                model = f"azure/{os.getenv('MODEL_NAME', 'gpt-4o')}"
+                api_key = os.getenv("MODEL_API_KEY")
+                api_base = os.getenv("MODEL_ENDPOINT")
+                api_version = os.getenv("MODEL_API_VERSION")
+
+                response = completion(
+                    model=model,
+                    messages=[{"role": "user", "content": content}],
+                    api_key=api_key,
+                    api_base=api_base,
+                    api_version=api_version,
+                    max_tokens=1000,
+                )
+
+                if hasattr(response, "choices") and response.choices:
+                    if hasattr(response.choices[0], "message") and hasattr(response.choices[0].message, "content"):
+                        output = response.choices[0].message.content
+                    else:
+                        output = response.choices[0].get("message", {}).get("content", "")
+                else:
+                    output = str(response)
+
+                if not output:
+                    msg = "Empty response from Azure OpenAI after resize"
+                    raise ValueError(msg)
+
+                if add_note:
+                    output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
+
+            except Exception as retry_e:
+                logger.error(f"Error in azure_visualizer retry: {retry_e}")
+                return f"Error processing image: {retry_e!s}"
+            else:
+                return output
+
+        logger.error(f"Error in azure_visualizer: {e}")
         return f"Error processing image: {e!s}"
+    else:
+        return output

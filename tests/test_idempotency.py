@@ -36,7 +36,8 @@ class TestIdempotency:
         )
 
         assert msg_id_1 == msg_id_2, "Same inputs should produce same message ID"
-        assert msg_id_1.startswith("<") and msg_id_1.endswith("@mxtoai.com>"), "Should be in email format"
+        assert msg_id_1.startswith("<"), "Should start with <"
+        assert msg_id_1.endswith("@mxtoai.com>"), "Should end with @mxtoai.com>"
 
         # Test with different inputs
         msg_id_3 = generate_message_id(

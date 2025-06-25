@@ -57,9 +57,9 @@ if __name__ == "__main__":
     delay = 1
     while True:
         try:
-            result = subprocess.run(cmd, check=False)
+            result = subprocess.run(cmd, check=False)  # noqa: S603
             if result.returncode == DRAMATIQ_CONNECTION_ERROR_CODE:  # Connection error
-                subprocess.run(["sleep", str(delay)], check=False)
+                subprocess.run(["sleep", str(delay)], check=False)  # noqa: S603, S607
                 delay = min(delay * 2, 30)  # Exponential backoff, max 30 seconds
             else:
                 sys.exit(result.returncode)

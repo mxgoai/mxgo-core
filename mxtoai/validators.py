@@ -411,19 +411,16 @@ async def validate_email_whitelist(
     from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
-    Validate if the sender's email is whitelisted and verified.
-
-    Major email providers are allowed, OR emails that exist and are verified in the Supabase whitelist.
-    For non-whitelisted emails, automatic verification is triggered and email processing is stopped.
+    Validate email whitelist to ensure only authorized senders can use the service.
 
     Args:
-        from_email: Sender's email address
-        to: Recipient's email address
-        subject: Email subject
-        messageId: Email message ID
+        from_email: The sender's email address
+        to: The recipient's email address
+        subject: The email subject
+        message_id: Optional message ID for tracking
 
     Returns:
-        Response if validation fails, None if validation succeeds
+        Optional[Response]: Error response if validation fails, None if validation passes
 
     """
     # Extract domain from sender's email
@@ -435,7 +432,7 @@ async def validate_email_whitelist(
     # Check Supabase whitelist for all emails
     exists_in_whitelist, is_verified = await is_email_whitelisted(from_email)
 
-    # Allow if email is from major provider OR exists and is verified in whitelist
+    # Allow if email is from major provider OR exists and is verified in the Supabase whitelist.
     if is_major_provider:
         logger.info(f"Email allowed from major email provider: {from_email} (domain: {email_domain})")
         return None
@@ -564,16 +561,16 @@ async def validate_email_handle(
     to: str, from_email: str, subject: str, message_id: Optional[str]
 ) -> tuple[Optional[Response], Optional[str]]:
     """
-    Validate if the email handle/alias is supported.
+    Validate the email handle to ensure it's supported and extract the handle.
 
     Args:
         to: Recipient's email address
         from_email: Sender's email address
         subject: Email subject
-        messageId: Email message ID
+        message_id: Optional message ID for tracking
 
     Returns:
-        Tuple of (Response if validation fails, handle if validation succeeds)
+        tuple[Optional[Response], Optional[str]]: (Error response if validation fails, extracted handle)
 
     """
     handle = to.split("@")[0].lower()
@@ -612,17 +609,17 @@ async def validate_attachments(
     attachments: list[dict], from_email: str, to: str, subject: str, message_id: Optional[str]
 ) -> Optional[Response]:
     """
-    Validate email attachments against size and count limits.
+    Validate email attachments for security and size constraints.
 
     Args:
-        attachments: List of attachment dictionaries with size information
+        attachments: List of attachment dictionaries
         from_email: Sender's email address
         to: Recipient's email address
         subject: Email subject
-        messageId: Email message ID
+        message_id: Optional message ID for tracking
 
     Returns:
-        Response if validation fails, None if validation succeeds
+        Optional[Response]: Error response if validation fails, None if validation passes
 
     """
     from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB

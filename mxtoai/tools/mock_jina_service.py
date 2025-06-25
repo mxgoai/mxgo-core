@@ -37,7 +37,7 @@ class MockJinaService:
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
         all_urls = [
-            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}"
+            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}"  # noqa: S311
             for _ in range(num_urls)
         ]
 
@@ -183,7 +183,7 @@ class MockJinaService:
         yield {**{k: v for k, v in response.items() if k not in ["choices"]}, "choices": [{"delta": {}}]}
 
     def process_request(
-        self, query: str, stream: bool = False, reasoning_effort: str = "medium"
+        self, query: str, *, stream: bool = False, reasoning_effort: str = "medium"
     ) -> dict[str, Any] | Generator[dict[str, Any]]:
         """
         Process a mock request with realistic delays.

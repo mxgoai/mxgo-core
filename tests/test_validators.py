@@ -237,7 +237,7 @@ class TestValidationFunctions:
             patch("mxtoai.validators.processing_instructions_resolver") as mock_resolver,
             patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
         ):
-            mock_resolver.side_effect = exceptions.UnspportedHandleException("Invalid handle")
+            mock_resolver.side_effect = exceptions.UnspportedHandleError("Invalid handle")
 
             result, handle = await validate_email_handle(
                 to="invalid@mxtoai.com",

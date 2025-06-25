@@ -226,7 +226,7 @@ class MeetingTool(Tool):
             logger.info(f"{self.name} completed successfully.")
 
         except Exception as e:
-            logger.error(f"Error in {self.name}: {e}", exc_info=True)
+            logger.exception(f"Error in {self.name}")
             # Provide specific error feedback for the LLM
             return {
                 "status": "error",

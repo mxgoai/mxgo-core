@@ -281,8 +281,8 @@ class EmailSender:
                         logger.error(
                             f"Skipping attachment {attachment.get('filename', '(unknown)')} due to missing key: {ke}"
                         )
-                    except Exception as e:
-                        logger.exception(f"Error attaching file '{attachment.get('filename', '(unknown)')}': {e}")
+                    except Exception:
+                        logger.exception(f"Error attaching file '{attachment.get('filename', '(unknown)')}'")
 
             # --- Prepare destinations & Send ---
             destinations = [to_address]

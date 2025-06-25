@@ -53,14 +53,15 @@ class TestEncodeImage:
         mock_get.return_value = mock_response
 
         # Mock file operations - provide binary data for base64 encoding
-        with patch("builtins.open", mock_open(read_data=b"fake_jpeg_data")) as mock_file, patch("os.path.abspath") as mock_abspath:
+        with patch("builtins.open", mock_open(read_data=b"fake_jpeg_data")), \
+             patch("os.path.abspath") as mock_abspath, \
+             patch("pathlib.Path.open", mock_open(read_data=b"fake_jpeg_data")):
             mock_abspath.return_value = "/downloads/test.jpg"
 
             result = encode_image("http://example.com/image.jpg")
 
             assert isinstance(result, str)
             mock_get.assert_called_once()
-            mock_file.assert_called()
 
     @patch("requests.get")
     def test_encode_remote_image_no_extension(self, mock_get):
@@ -71,11 +72,15 @@ class TestEncodeImage:
         mock_response.iter_content.return_value = [b"data"]
         mock_get.return_value = mock_response
 
-        with patch("builtins.open", mock_open(read_data=b"data")):
-            with patch("os.path.abspath", return_value="/downloads/test.download"):
-                # Should handle unknown content types
-                result = encode_image("http://example.com/unknown")
-                assert isinstance(result, str)
+        with (
+            patch("builtins.open", mock_open(read_data=b"data")),
+            patch("os.path.abspath", return_value="/downloads/test.download"),
+            patch("pathlib.Path.mkdir"),
+            patch("pathlib.Path.open", mock_open(read_data=b"data")),
+        ):
+            # Should handle unknown content types
+            result = encode_image("http://example.com/unknown")
+            assert isinstance(result, str)
 
     def test_encode_nonexistent_file(self):
         """Test encoding a file that doesn't exist."""

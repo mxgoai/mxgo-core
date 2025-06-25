@@ -44,54 +44,51 @@ def client_with_patched_redis():
     test_provider_domains = {TEST_KNOWN_PROVIDER_DOMAIN}
 
     # Use a context manager for the app to handle startup/shutdown
-    with TestClient(app) as test_client:
+    with (
+        TestClient(app) as test_client,
         # Patch after the app's lifespan has initialized the real client
-        with patch("mxtoai.validators.redis_client", new=fake_redis_instance), \
-             patch("mxtoai.validators.email_provider_domain_set", new=test_provider_domains):
+        patch("mxtoai.validators.redis_client", new=fake_redis_instance),
+        patch("mxtoai.validators.email_provider_domain_set", new=test_provider_domains),
+    ):
 
-            # It's important that the fake_redis_instance is used by the application.
-            # The lifespan manager in api.py sets mxtoai.validators.redis_client.
-            # We are effectively replacing it here for the test's scope.
-            # To ensure our mock is used, we might need to ensure this patching happens
-            # *after* the app's startup sequence or that the app's startup uses a
-            # reference that we can control.
-            # A simpler way if the app is re-initialized per test or test session for TestClient:
-            # we can assume the patch takes effect before request handling.
+        # It's important that the fake_redis_instance is used by the application.
+        # The lifespan manager in api.py sets mxtoai.validators.redis_client.
+        # We are effectively replacing it here for the test's scope.
+        # To ensure our mock is used, we might need to ensure this patching happens
+        # *after* the app's startup sequence or that the app's startup uses a
+        # reference that we can control.
+        # A simpler way if the app is re-initialized per test or test session for TestClient:
+        # we can assume the patch takes effect before request handling.
 
-            # Forcing the global in validators to be our fake instance
-            import mxtoai.validators
-            original_redis_client = mxtoai.validators.redis_client
-            original_domain_set = mxtoai.validators.email_provider_domain_set
+        # Forcing the global in validators to be our fake instance
+        import mxtoai.validators
+        original_redis_client = mxtoai.validators.redis_client
+        original_domain_set = mxtoai.validators.email_provider_domain_set
 
-            mxtoai.validators.redis_client = fake_redis_instance
-            mxtoai.validators.email_provider_domain_set = test_provider_domains
+        mxtoai.validators.redis_client = fake_redis_instance
+        mxtoai.validators.email_provider_domain_set = test_provider_domains
 
-            yield test_client # Test runs here
+        yield test_client # Test runs here
 
-            # Teardown: clear fake redis and restore original globals
+        # Teardown: clear fake redis and restore original globals
 
-            # For FakeAsyncRedis, usually it's per-instance, so just letting it go out of scope is fine.
-            # Or, if it's a singleton from fakeredis, you might need fake_redis_instance.client.flushall()
-            # For now, assume FakeAsyncRedis instances are independent.
+        # For FakeAsyncRedis, usually it's per-instance, so just letting it go out of scope is fine.
+        # Or, if it's a singleton from fakeredis, you might need fake_redis_instance.client.flushall()
+        # For now, assume FakeAsyncRedis instances are independent.
 
-            mxtoai.validators.redis_client = original_redis_client
-            mxtoai.validators.email_provider_domain_set = original_domain_set
+        mxtoai.validators.redis_client = original_redis_client
+        mxtoai.validators.email_provider_domain_set = original_domain_set
 
 
 def prepare_form_data(**kwargs):
-    form_data = {
+    return {
         "from_email": "test@example.com",
         "to": "ask@mxtoai.com",
         "subject": "Test Subject",
-        "textContent": "Test text content",
-        "htmlContent": "<p>Test HTML content</p>",
-        "messageId": f"test-message-id-{os.urandom(4).hex()}",
-        "date": "2023-10-26T10:00:00Z",
-        "rawHeaders": '{"cc": "cc@example.com"}',
+        "textContent": "Test content",
+        "htmlContent": "<p>Test content</p>",
+        **dict(kwargs.items()),
     }
-    for key, value in kwargs.items():
-        form_data[key] = value
-    return form_data
 
 def make_post_request_with_client(test_client, form_data, endpoint, files=None, headers=None):
     request_headers = {"x-api-key": API_KEY}

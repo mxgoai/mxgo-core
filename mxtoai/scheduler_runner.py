@@ -21,7 +21,7 @@ logger = get_logger("scheduler_runner")
 scheduler_instance = Scheduler()
 
 
-def signal_handler(signum, frame):
+def signal_handler(_signum, _frame):
     """Handle shutdown signals gracefully."""
     logger.info("Received shutdown signal, stopping scheduling...")
     scheduler_instance.stop()

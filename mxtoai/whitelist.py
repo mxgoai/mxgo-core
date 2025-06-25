@@ -17,7 +17,7 @@ def init_supabase():
     """
     Initialize Supabase client
     """
-    global supabase
+    global supabase  # noqa: PLW0603
     if supabase is None:
         try:
             supabase_url = os.getenv("SUPABASE_URL")

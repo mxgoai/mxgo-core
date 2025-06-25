@@ -17,12 +17,11 @@ from .text_web_browser import VisitTool
 _all_visited_urls = []
 
 
-def reset_citation_counter():
+def reset_url_store():
     """
     Reset the global URL store
     """
-    global _all_visited_urls
-    _all_visited_urls = []
+    _all_visited_urls.clear()
 
 
 def add_url_to_references(url: str, title: Optional[str] = None, date: Optional[str] = None) -> None:
@@ -35,8 +34,6 @@ def add_url_to_references(url: str, title: Optional[str] = None, date: Optional[
         date: Publication date (optional)
 
     """
-    global _all_visited_urls
-
     # Don't add duplicates
     if url not in [u.get("url") for u in _all_visited_urls]:
         _all_visited_urls.append(
@@ -108,13 +105,13 @@ class CitationAwareVisitTool(VisitTool):
         return original_content
 
 
-def extract_citations(text: str) -> dict[str, dict[str, str]]:
+def extract_citations(_text: str) -> dict[str, dict[str, str]]:
     """
-    This function is maintained for backward compatibility.
+    Maintained for backward compatibility.
     It no longer extracts citations but returns an empty dict.
 
     Args:
-        text: Text to analyze
+        _text: Text to analyze (unused)
 
     Returns:
         Empty dictionary
@@ -149,3 +146,12 @@ def create_references_section() -> str:
         references.append(reference)
 
     return "\n\n".join(references)
+
+
+def add_visited_url(url: str) -> None:
+    """
+    Add a URL to the global visited URLs list.
+    """
+    # Don't add duplicates
+    if url not in _all_visited_urls:
+        _all_visited_urls.append(url)

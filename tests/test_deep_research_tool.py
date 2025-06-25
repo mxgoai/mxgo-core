@@ -526,7 +526,7 @@ class TestIntegrationScenarios:
             mock_post.return_value = mock_response
 
             # Read file content into memory for the new memory_attachments parameter
-            with open(temp_path, "rb") as f:
+            with Path(temp_path).open("rb") as f:
                 file_content = f.read()
 
             # Execute complete workflow using memory_attachments

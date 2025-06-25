@@ -431,7 +431,7 @@ class TestGoogleSearchTool:
         context = create_mock_context()
         tool = GoogleSearchTool(context)
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="Search failed"):
             tool.forward("test query")
 
         mock_logger.error.assert_called_once()
