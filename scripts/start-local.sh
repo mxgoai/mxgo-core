@@ -28,6 +28,20 @@ if [ ! -d attachments ]; then
 fi
 
 echo "✅ Environment setup complete!"
+
+# Quick validation (optional)
+if [ -f scripts/validate-env.sh ]; then
+    echo ""
+    echo "🔍 Running quick environment validation..."
+    if ./scripts/validate-env.sh > /dev/null 2>&1; then
+        echo "✅ Environment validation passed!"
+    else
+        echo "⚠️  Environment validation found issues."
+        echo "   Run './scripts/validate-env.sh' for details."
+        echo "   Continuing anyway..."
+    fi
+fi
+
 echo ""
 echo "Starting services with Docker Compose..."
 echo "This will start:"
