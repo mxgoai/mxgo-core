@@ -50,6 +50,10 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         self._last_input_token_count = 0
         self._last_output_token_count = 0
 
+        # Set environment variables for Azure OpenAI models before initializing the parent class
+        # This is required because LiteLLM's Azure provider looks for specific environment variables
+        self._set_azure_environment_variables(model_list)
+
         super().__init__(
             model_id=default_model_group,
             model_list=[model.model_dump() for model in model_list],
@@ -123,6 +127,34 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
                 default_litellm_params={"drop_params": True},
             )
         return router_config
+
+    def _set_azure_environment_variables(self, model_list: list[mxtoai.schemas.ModelConfig]) -> None:
+        """
+        Set Azure OpenAI environment variables from model configurations.
+
+        This is required because LiteLLM's Azure provider checks for specific environment variables
+        like AZURE_OPENAI_API_KEY even when API keys are provided in the model configuration.
+
+        Args:
+            model_list: List of model configurations from TOML
+        """
+        for model_config in model_list:
+            if model_config.litellm_params.model and model_config.litellm_params.model.startswith("azure/"):
+                # Set Azure OpenAI environment variables if they're not already set
+                if model_config.litellm_params.api_key and not os.getenv("AZURE_OPENAI_API_KEY"):
+                    os.environ["AZURE_OPENAI_API_KEY"] = model_config.litellm_params.api_key
+                    logger.debug("Set AZURE_OPENAI_API_KEY from model configuration")
+
+                if model_config.litellm_params.base_url and not os.getenv("AZURE_OPENAI_ENDPOINT"):
+                    os.environ["AZURE_OPENAI_ENDPOINT"] = model_config.litellm_params.base_url
+                    logger.debug("Set AZURE_OPENAI_ENDPOINT from model configuration")
+
+                if model_config.litellm_params.api_version and not os.getenv("AZURE_OPENAI_API_VERSION"):
+                    os.environ["AZURE_OPENAI_API_VERSION"] = model_config.litellm_params.api_version
+                    logger.debug("Set AZURE_OPENAI_API_VERSION from model configuration")
+
+                # We only need to set these once for Azure OpenAI
+                break
 
     def _get_target_model(self) -> str:
         """
