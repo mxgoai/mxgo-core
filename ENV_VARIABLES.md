@@ -20,6 +20,7 @@ For a basic working installation, you need:
 | `HOST` | No | `0.0.0.0` | API server host |
 | `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `IS_PROD` | No | `false` | Production mode flag |
+| `WHITELIST_ENABLED` | No | - | Whether or not to enable whitelist feature, requires supabase |
 | `X_API_KEY` | **Yes** | - | API authentication key |
 
 ### 🤖 **AI Model Configuration**
