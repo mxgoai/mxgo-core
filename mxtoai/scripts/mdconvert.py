@@ -40,6 +40,7 @@ from mxtoai._logging import get_logger
 
 logger = get_logger(__name__)
 
+
 class _CustomMarkdownify(markdownify.MarkdownConverter):
     """
     A custom version of markdownify's MarkdownConverter. Changes include:
@@ -62,7 +63,7 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
 
         return super().convert_hn(n, el, text, convert_as_inline)  # type: ignore
 
-    def convert_a(self, el: Any, text: str, *, _convert_as_inline: bool = False, **_kwargs):
+    def convert_a(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs):
         """Same as usual converter, but removes Javascript links and escapes URIs."""
         prefix, suffix, text = markdownify.chomp(text)  # type: ignore
         if not text:
@@ -94,7 +95,7 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
         title_part = ' "{}"'.format(title.replace('"', r"\"")) if title else ""
         return f"{prefix}[{text}]({href}{title_part}){suffix}" if href else text
 
-    def convert_img(self, el: Any, _text: str, *, convert_as_inline: bool = False, **_kwargs) -> str:
+    def convert_img(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs) -> str:
         """Same as usual converter, but removes data URIs"""
         alt = el.attrs.get("alt", None) or ""
         src = el.attrs.get("src", None) or ""
@@ -665,9 +666,7 @@ class ZipConverter(DocumentConverter):
             zip_ref.extractall(self.extract_dir)
             # Get list of all files
             extracted_files = [
-                self.extract_dir + "/" + file_path
-                for file_path in zip_ref.namelist()
-                if not file_path.endswith("/")
+                self.extract_dir + "/" + file_path for file_path in zip_ref.namelist() if not file_path.endswith("/")
             ]
 
         # Sort files for consistent output

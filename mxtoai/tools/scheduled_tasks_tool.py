@@ -37,8 +37,8 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     try:
         # Parse the cron expression
         parts = cron_expression.strip().split()
-        cron_parts_count = 5
-        if len(parts) != cron_parts_count:
+        CRON_PARTS_COUNT = 5
+        if len(parts) != CRON_PARTS_COUNT:
             msg = "Cron expression must have exactly 5 parts"
             raise ValueError(msg)
 

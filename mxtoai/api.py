@@ -11,17 +11,19 @@ import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
 from fastapi.security import APIKeyHeader
+from sqlalchemy import text
 
 from mxtoai import validators
 from mxtoai._logging import get_logger
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
+from mxtoai.db import init_db_connection
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
 from mxtoai.schemas import EmailAttachment, EmailRequest, RateLimitPlan
-from mxtoai.tasks import process_email_task
+from mxtoai.tasks import process_email_task, rabbitmq_broker
 from mxtoai.validators import (
     validate_api_key,
     validate_attachments,
@@ -66,7 +68,9 @@ async def lifespan(_app: FastAPI):
         if domains_file_path.exists():
             async with aiofiles.open(domains_file_path) as f:
                 content = await f.read()
-                validators.email_provider_domain_set.update([line.strip().lower() for line in content.splitlines() if line.strip()])
+                validators.email_provider_domain_set.update(
+                    [line.strip().lower() for line in content.splitlines() if line.strip()]
+                )
             logger.info(
                 f"Loaded {len(validators.email_provider_domain_set)} email provider domains for rate limit exclusion."
             )
@@ -87,10 +91,50 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-if os.environ["IS_PROD"].lower() == "true":
+if os.getenv("IS_PROD", "false").lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint for Docker and load balancers."""
+    health_status = {"status": "healthy", "timestamp": datetime.now().isoformat(), "services": {}}
+
+    overall_healthy = True
+
+    # Check RabbitMQ/Dramatiq broker connection
+    try:
+        # Try to get broker connection info - this will fail if RabbitMQ is unreachable
+        connection_info = rabbitmq_broker.connection
+        if connection_info:
+            health_status["services"]["rabbitmq"] = "connected"
+        else:
+            health_status["services"]["rabbitmq"] = "not connected"
+            overall_healthy = False
+    except Exception as e:
+        logger.error(f"RabbitMQ health check failed: {e}")
+        health_status["services"]["rabbitmq"] = f"error: {e!s}"
+        overall_healthy = False
+
+    # Check database connection
+    try:
+        db_connection = init_db_connection()
+        with db_connection.get_session() as session:
+            # Simple query to test connection
+            session.execute(text("SELECT 1"))
+        health_status["services"]["database"] = "connected"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        health_status["services"]["database"] = f"error: {e!s}"
+        overall_healthy = False
+
+    # Update overall status
+    if not overall_healthy:
+        health_status["status"] = "unhealthy"
+
+    return health_status
 
 
 # Function to cleanup attachment files and directory
@@ -273,7 +317,7 @@ async def handle_file_attachments(  # noqa: PLR0912
 
         except ValueError as e:
             logger.error(f"Validation error for file {attachment.filename}: {e!s}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
         except Exception:
             logger.exception(f"Error processing file {attachment.filename}")
             # Try to clean up any partially saved file
@@ -521,7 +565,9 @@ async def process_email(  # noqa: PLR0912
             media_type="application/json",
         )
     # Validate API key
-    elif (response := await validate_api_key(api_key)) or (response := await validate_rate_limits(from_email, to, subject, message_id, plan=RateLimitPlan.BETA)):
+    elif (response := await validate_api_key(api_key)) or (
+        response := await validate_rate_limits(from_email, to, subject, message_id, plan=RateLimitPlan.BETA)
+    ):
         pass  # response already set
     else:
         # Initialize variables
@@ -539,12 +585,14 @@ async def process_email(  # noqa: PLR0912
                     # Continue processing even if headers are malformed
 
             # Validate email whitelist
-            if (response := await validate_email_whitelist(from_email, to, subject, message_id)) or (response := await validate_email_handle(to, from_email, subject, message_id)):
+            if response := await validate_email_whitelist(from_email, to, subject, message_id):
+                pass  # response already set
+            # Validate email handle
+            handle_result = await validate_email_handle(to, from_email, subject, message_id)
+            response, handle = handle_result
+            if response:
                 pass  # response already set
             else:
-                # Extract handle from validate_email_handle result
-                _, handle = await validate_email_handle(to, from_email, subject, message_id)
-
                 # Extract CC list from headers if available
                 if parsed_headers:
                     cc_list = extract_cc_from_headers(parsed_headers)
@@ -565,7 +613,9 @@ async def process_email(  # noqa: PLR0912
                         )
 
                 # Validate attachments
-                if response := await validate_attachments(attachments_for_validation, from_email, to, subject, message_id):
+                if response := await validate_attachments(
+                    attachments_for_validation, from_email, to, subject, message_id
+                ):
                     pass  # response already set
                 else:
                     # Check for idempotency (duplicate processing)
@@ -621,7 +671,9 @@ async def process_email(  # noqa: PLR0912
                         email_attachments_dir = ""
                         attachment_info = []
                         if email_instructions.process_attachments and files:
-                            email_attachments_dir, attachment_info = await handle_file_attachments(files, email_id, email_request)
+                            email_attachments_dir, attachment_info = await handle_file_attachments(
+                                files, email_id, email_request
+                            )
                             logger.info(f"Processed {len(attachment_info)} attachments successfully")
                             logger.info(f"Attachments directory: {email_attachments_dir}")
 
@@ -642,24 +694,28 @@ async def process_email(  # noqa: PLR0912
 
                         # Enqueue the task for async processing
                         process_email_task.send(
-                            email_request.model_dump(), email_attachments_dir, processed_attachment_info, scheduled_task_id
+                            email_request.model_dump(),
+                            email_attachments_dir,
+                            processed_attachment_info,
+                            scheduled_task_id,
                         )
                         logger.info(
                             f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
                             f"{f' (scheduled task: {scheduled_task_id})' if scheduled_task_id else ''}"
                         )
 
-                        # Return success response
-                        response = create_success_response(
-                            summary="Email queued for processing",
-                            email_response={
-                                "email_id": email_id,
-                                "handle": handle,
-                                "status": "queued",
-                                "message": "Email has been queued for processing",
-                                "timestamp": datetime.now(timezone.utc).isoformat(),
-                            },
-                            attachment_info=processed_attachment_info,
+                        # Return success response (always dict, not list)
+                        return Response(
+                            content=json.dumps(
+                                {
+                                    "message": "Email received and queued for processing",
+                                    "email_id": email_id,
+                                    "attachments_saved": len(processed_attachment_info),
+                                    "status": "processing",
+                                }
+                            ),
+                            status_code=status.HTTP_200_OK,
+                            media_type="application/json",
                         )
 
         except Exception as e:
@@ -670,7 +726,19 @@ async def process_email(  # noqa: PLR0912
                 error=str(e),
             )
 
-    return response
+    # At the end of the function, always return a Response object
+    if isinstance(response, Response):
+        return response
+    return Response(
+        content=json.dumps(
+            {
+                "message": "Internal server error: No response generated.",
+                "status": "error",
+            }
+        ),
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        media_type="application/json",
+    )
 
 
 if __name__ == "__main__":

@@ -383,8 +383,8 @@ async def test_send_email(to_address, subject="Test from mxtoai", body_text="Thi
     try:
         sender = EmailSender()
         response = await sender.send_email(to_address=to_address, subject=subject, body_text=body_text)
-    except Exception:
-        logger.exception("Failed to send test email")
+    except Exception as e:
+        logger.exception(f"Failed to send test email: {e!s}")
         return False
     else:
         logger.info(f"Test email sent successfully: {response['MessageId']}")
@@ -602,7 +602,9 @@ def create_reply_content(summary: str, attachment_info: list[dict[str, Any]]) ->
         "<ul>",
     ]
 
-    html_content.extend([f"<li>{attachment['filename']} ({attachment['size']} bytes)</li>" for attachment in attachment_info])
+    html_content.extend(
+        [f"<li>{attachment['filename']} ({attachment['size']} bytes)</li>" for attachment in attachment_info]
+    )
 
     html_content.extend(["</ul>", "<p>Best regards,<br>AI Assistant</p>", "</body></html>"])
 

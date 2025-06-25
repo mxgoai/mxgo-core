@@ -21,3 +21,8 @@ class ModelListNotFoundError(Exception):
 class ModelConfigFileNotFoundError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
+
+
+class EmailProcessingError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)

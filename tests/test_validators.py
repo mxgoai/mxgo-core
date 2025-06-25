@@ -5,6 +5,7 @@ import pytest
 from fakeredis.aioredis import FakeRedis
 from starlette.responses import Response
 
+from mxtoai import exceptions
 from mxtoai.schemas import RateLimitPlan
 from mxtoai.validators import (
     check_rate_limit_redis,
@@ -231,8 +232,6 @@ class TestValidationFunctions:
     @pytest.mark.asyncio
     async def test_validate_email_handle_invalid_handle(self):
         """Test email handle validation for invalid handle."""
-        from mxtoai import exceptions
-
         with (
             patch("mxtoai.validators.processing_instructions_resolver") as mock_resolver,
             patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send,

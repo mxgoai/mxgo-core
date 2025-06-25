@@ -112,13 +112,13 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         except FileConversionException as e:
             result_text = f"Error converting file: {e!s}"
         except UnsupportedFormatException as e:
-            result_text = f"Unsupported file format: {e!s}"
+            return f"Unsupported file format: {e!s}"
         except ImageFileError as e:
-            result_text = f"Image file error: {e!s}"
+            return f"Image file error: {e!s}"
         except FileProcessingError as e:
-            result_text = f"Error processing file: {e!s}"
+            return f"Error processing file: {e!s}"
         except Exception as e:
-            result_text = f"Unexpected error processing file: {e!s}"
+            return f"Unexpected error processing file: {e!s}"
 
         return result_text
 
@@ -183,12 +183,12 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
         except FileConversionException as e:
             result_text = f"Error converting file: {e!s}"
         except UnsupportedFormatException as e:
-            result_text = f"Unsupported file format: {e!s}"
+            return f"Unsupported file format: {e!s}"
         except ImageFileError as e:
-            result_text = f"Image file error: {e!s}"
+            return f"Image file error: {e!s}"
         except FileProcessingError as e:
-            result_text = f"Error processing file: {e!s}"
+            return f"Error processing file: {e!s}"
         except Exception as e:
-            result_text = f"Unexpected error processing file: {e!s}"
+            return f"Unexpected error processing file: {e!s}"
 
         return result_text
