@@ -5,7 +5,7 @@ Brave search tool - Better quality results with moderate API cost.
 import json
 import logging
 import os
-from typing import Optional
+from typing import ClassVar, Optional
 
 from smolagents import Tool
 
@@ -27,7 +27,7 @@ class BraveSearchTool(Tool):
         "It might give better results than DuckDuckGo but has moderate API costs. Use this when DDG results are insufficient "
         "or when you need more detailed, current, or specialized information. Good for research and detailed queries."
     )
-    inputs = {
+    inputs: ClassVar[dict] = {
         "query": {"type": "string", "description": "The user's search query term. Max 400 chars, 50 words."},
         "country": {"type": "string", "description": "2-char country code for results (e.g., 'US', 'DE'). Default: 'US'.", "nullable": True},
         "search_lang": {"type": "string", "description": "Language code for search results (e.g., 'en', 'es'). Default: 'en'.", "nullable": True},
@@ -57,7 +57,7 @@ class BraveSearchTool(Tool):
         else:
             logger.debug(f"BraveSearchTool initialized with max_results={max_results}")
 
-    def forward(
+    def forward(  # noqa: PLR0912
         self,
         query: str,
         country: str = "US",

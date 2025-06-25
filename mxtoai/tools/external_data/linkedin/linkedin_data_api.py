@@ -19,6 +19,18 @@ logger = logging.getLogger(__name__)
 LINKEDIN_API_TIMEOUT = 30
 
 
+class LinkedInDataAPIError(Exception):
+    """Base exception for LinkedIn Data API errors."""
+
+
+class LinkedInDataAPIRequestError(LinkedInDataAPIError):
+    """Exception for LinkedIn Data API request failures."""
+
+
+class LinkedInDataAPIProcessingError(LinkedInDataAPIError):
+    """Exception for LinkedIn Data API processing failures."""
+
+
 class LinkedInDataAPITool(Tool):
     """Tool for accessing LinkedIn data through LinkedIn Data API."""
 
@@ -392,11 +404,11 @@ class LinkedInDataAPITool(Tool):
         except requests.exceptions.RequestException as e:
             logger.error(f"LinkedIn Data API request failed: {e}")
             msg = f"LinkedIn Data API request failed: {e}"
-            raise Exception(msg) from e
+            raise LinkedInDataAPIRequestError(msg) from e
         except Exception as e:
             logger.error(f"Error processing LinkedIn Data API request: {e}")
             msg = f"Failed to process LinkedIn Data API request: {e}"
-            raise Exception(msg) from e
+            raise LinkedInDataAPIProcessingError(msg) from e
 
     def get_profile_data(self, username: str) -> dict:
         """
@@ -431,7 +443,7 @@ class LinkedInDataAPITool(Tool):
         endpoint = "/get-profile-data-by-url"
         payload = {"url": profile_url}
 
-        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
+        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT)
         response.raise_for_status()
         return response.json()
 
@@ -488,7 +500,7 @@ class LinkedInDataAPITool(Tool):
         if company:
             params["company"] = company
 
-        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params)
+        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params, timeout=LINKEDIN_API_TIMEOUT)
         response.raise_for_status()
         return response.json()
 
@@ -511,7 +523,7 @@ class LinkedInDataAPITool(Tool):
         endpoint = "/search-people-by-url"
         payload = {"url": search_url}
 
-        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers)
+        response = requests.post(f"{self.base_url}{endpoint}", json=payload, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT)
         response.raise_for_status()
         return response.json()
 
@@ -529,7 +541,7 @@ class LinkedInDataAPITool(Tool):
         endpoint = "/get-company-details"
         params = {"username": username}
 
-        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers)
+        response = requests.post(f"{self.base_url}{endpoint}", params=params, headers=self.headers, timeout=LINKEDIN_API_TIMEOUT)
         response.raise_for_status()
         return response.json()
 

@@ -5,6 +5,7 @@ DuckDuckGo search tool - Free and fast search option.
 import json
 import logging
 import re
+from typing import ClassVar
 
 from smolagents import Tool
 from smolagents.default_tools import WebSearchTool
@@ -27,7 +28,7 @@ class DDGSearchTool(Tool):
         "and should be tried first for most queries. It's free but may have limited or less comprehensive results "
         "compared to premium search engines. Good for general information and quick searches."
     )
-    inputs = {
+    inputs: ClassVar[dict] = {
         "query": {"type": "string", "description": "The search query to perform."},
     }
     output_type = "object"
@@ -64,17 +65,17 @@ class DDGSearchTool(Tool):
             citations_added = 0
 
             # Process each markdown link found
-            for i, (title, url) in enumerate(matches[:self.max_results], 1):
-                title = title.strip()
-                url = url.strip()
+            for i, (link_title, link_url) in enumerate(matches[:self.max_results], 1):
+                clean_title = link_title.strip()
+                clean_url = link_url.strip()
 
                 # Add citation for this result
-                if url:
-                    citation_id = self.context.add_web_citation(url, title, visited=False)
-                    formatted_result = f"{i}. **{title}** [#{citation_id}]\n   URL: {url}\n"
+                if clean_url:
+                    citation_id = self.context.add_web_citation(clean_url, clean_title, visited=False)
+                    formatted_result = f"{i}. **{clean_title}** [#{citation_id}]\n   URL: {clean_url}\n"
                     citations_added += 1
                 else:
-                    formatted_result = f"{i}. **{title}**\n"
+                    formatted_result = f"{i}. **{clean_title}**\n"
 
                 formatted_results.append(formatted_result)
 

@@ -65,8 +65,8 @@ def cleanup_attachments(email_attachments_dir: str) -> None:
                     logger.error(f"Failed to delete file {file}: {e!s}")
             dir_path.rmdir()
             logger.info(f"Cleaned up attachments directory: {email_attachments_dir}")
-    except Exception as e:
-        logger.exception(f"Error cleaning up attachments: {e!s}")
+    except Exception:
+        logger.exception("Error cleaning up attachments")
 
 
 def should_retry(retries_so_far: int, exception: Exception) -> bool:
@@ -146,7 +146,7 @@ def process_email_task(
 
     try:
         email_instructions: Union[ProcessingInstructions, None] = processing_instructions_resolver(handle)
-    except exceptions.UnspportedHandleException as e:  # Catch specific exception
+    except exceptions.UnspportedHandleError as e:  # Catch specific exception
         logger.error(f"Unsupported email handle: {handle}. Error: {e!s}")
         return DetailedEmailProcessingResult(
             metadata=ProcessingMetadata(

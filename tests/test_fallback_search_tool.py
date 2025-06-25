@@ -192,7 +192,7 @@ class TestFallbackWebSearchTool:
         tool = FallbackWebSearchTool(primary_tool=primary_tool, secondary_tool=secondary_tool)
 
         with patch("mxtoai.tools.fallback_search_tool.logger") as mock_logger:
-            with pytest.raises(Exception):
+            with pytest.raises(Exception, match="Both primary and secondary search tools failed"):
                 tool.forward("test query")
 
             mock_logger.error.assert_called_once()

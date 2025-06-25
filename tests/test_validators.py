@@ -303,16 +303,15 @@ class TestValidationFunctions:
     async def test_validate_attachments_too_many(self):
         """Test attachment validation for too many attachments."""
         # Create 10 attachments (exceeds MAX_ATTACHMENTS_COUNT of 5)
-        attachments = []
-        for i in range(10):
-            attachments.append(
-                {
-                    "filename": f"test{i}.txt",
-                    "content": "dGVzdA==",  # base64 encoded "test"
-                    "contentType": "text/plain",
-                    "size": 4,
-                }
-            )
+        attachments = [
+            {
+                "filename": f"test{i}.txt",
+                "content": "dGVzdA==",  # base64 encoded "test"
+                "contentType": "text/plain",
+                "size": 4,
+            }
+            for i in range(10)
+        ]
 
         with patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
             result = await validate_attachments(

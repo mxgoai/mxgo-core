@@ -120,8 +120,9 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
     assert Path(email_attachments_dir_str).exists()
     assert (Path(email_attachments_dir_str) / f"0_{attachment_content[0]}").exists()  # Check specific file
 
-    with patch("mxtoai.tasks.EmailSender") as MockEmailSender:
-        mock_sender_instance = MockEmailSender.return_value
+    with patch("mxtoai.tasks.EmailSender") as MockEmailSender,  # noqa: N806
+    ):
+        mock_sender_instance = MockEmailSender.return_value  # noqa: N806
 
         async def mock_async_send_reply(*args, **kwargs):
             return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}
@@ -158,11 +159,11 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
     )
 
     with (
-        patch("mxtoai.tasks.EmailSender") as MockEmailSender,
+        patch("mxtoai.tasks.EmailSender") as MockEmailSender,  # noqa: N806
         patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_scheduled_job,
     ):
         mock_add_scheduled_job.return_value = None
-        mock_sender_instance = MockEmailSender.return_value
+        mock_sender_instance = MockEmailSender.return_value  # noqa: N806
 
         async def mock_async_send_reply(*args, **kwargs):
             return {"MessageId": "mocked_message_id_happy_path", "status": "sent"}

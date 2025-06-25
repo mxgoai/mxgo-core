@@ -5,6 +5,9 @@ from smolagents.models import MessageRole, Model
 
 from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
 
+# Constants
+SHORT_CONTENT_THRESHOLD = 4000
+
 
 class TextInspectorError(Exception):
     """Base exception for text inspector tool errors."""
@@ -80,7 +83,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             if not question:
                 return result.text_content
 
-            if len(result.text_content) < 4000:
+            if len(result.text_content) < SHORT_CONTENT_THRESHOLD:
                 return "Document content: " + result.text_content
 
             messages = [

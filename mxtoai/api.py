@@ -390,11 +390,12 @@ async def send_agent_email_reply(email_data: EmailRequest, processing_result: di
         }
 
         logger.info(f"Email sent successfully with message ID: {reply_result['message_id']}")
-        return reply_result
 
     except Exception as e:
         logger.error(f"Error sending email reply: {e!s}", exc_info=True)
         return {"status": "error", "error": str(e), "timestamp": datetime.now(timezone.utc).isoformat()}
+    else:
+        return reply_result
 
 
 # Helper function to create sanitized response
@@ -441,7 +442,7 @@ def sanitize_processing_result(processing_result: dict[str, Any]) -> dict[str, A
 
 
 @app.post("/process-email")
-async def process_email(
+async def process_email(  # noqa: PLR0912
     from_email: Annotated[str, Form()] = ...,
     to: Annotated[str, Form()] = ...,
     subject: Annotated[Optional[str], Form()] = "",
@@ -576,12 +577,12 @@ async def process_email(
             files_count=len(files),
             message_id=messageId,
         ):
-            response_obj, messageId = response
+            response_obj, messageId = response  # noqa: N806
             if response_obj:
                 return response_obj
         else:
             # If validate_idempotency returns None, extract messageId from the tuple
-            _, messageId = response
+            _, messageId = response  # noqa: N806
 
         # Log initial email details
         logger.info("Received new email request:")

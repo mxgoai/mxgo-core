@@ -23,6 +23,7 @@ from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFo
 DEFAULT_REQUEST_TIMEOUT = 30  # seconds
 ARCHIVE_REQUEST_TIMEOUT = 15  # seconds
 DOWNLOAD_REQUEST_TIMEOUT = 60  # seconds
+MAX_SUFFIX_ATTEMPTS = 1000
 
 
 class WebBrowserError(Exception):
@@ -299,14 +300,16 @@ class SimpleTextBrowser:
                     download_path = None
                     try:
                         fname = pathvalidate.sanitize_filename(os.path.basename(urlparse(url).path)).strip()
-                        download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
+                        download_path = Path(self.downloads_folder) / fname
+                        download_path = download_path.resolve()
 
                         suffix = 0
-                        while pathlib.Path(download_path).exists() and suffix < 1000:
+                        while pathlib.Path(download_path).exists() and suffix < MAX_SUFFIX_ATTEMPTS:
                             suffix += 1
                             base, ext = os.path.splitext(fname)
                             new_fname = f"{base}__{suffix}{ext}"
-                            download_path = os.path.abspath(os.path.join(self.downloads_folder, new_fname))
+                            download_path = Path(self.downloads_folder) / new_fname
+                            download_path = download_path.resolve()
 
                     except NameError:
                         pass
@@ -317,7 +320,8 @@ class SimpleTextBrowser:
                         if extension is None:
                             extension = ".download"
                         fname = str(uuid.uuid4()) + extension
-                        download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
+                        download_path = Path(self.downloads_folder) / fname
+                        download_path = download_path.resolve()
 
                     # Open a file for writing
                     with pathlib.Path(download_path).open("wb") as fh:

@@ -1,4 +1,3 @@
-import os
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
@@ -19,7 +18,7 @@ class EmailProcessor:
 
         """
         self.temp_dir = temp_dir
-        os.makedirs(temp_dir, exist_ok=True)
+        Path(temp_dir).mkdir(parents=True, exist_ok=True)
 
     def process_email_file(self, email_file: str) -> dict[str, Any]:
         """
@@ -52,7 +51,7 @@ class EmailProcessor:
             "body": body,
             "attachments": attachments,
             "research_instructions": research_instructions,
-            "attachment_dir": os.path.join(self.temp_dir, Path(email_file).stem) if attachments else None,
+            "attachment_dir": Path(self.temp_dir) / Path(email_file).stem if attachments else None,
         }
 
     def _extract_body(self, msg) -> str:
@@ -118,8 +117,8 @@ class EmailProcessor:
 
         """
         attachments = []
-        attachment_dir = os.path.join(self.temp_dir, Path(email_file).stem)
-        os.makedirs(attachment_dir, exist_ok=True)
+        attachment_dir = Path(self.temp_dir) / Path(email_file).stem
+        attachment_dir.mkdir(exist_ok=True)
 
         if msg.is_multipart():
             for _, part in enumerate(msg.iter_parts()):
@@ -127,7 +126,7 @@ class EmailProcessor:
                 if filename:
                     # Clean the filename
                     filename = Path(filename).name
-                    filepath = os.path.join(attachment_dir, filename)
+                    filepath = attachment_dir / filename
                     with Path(filepath).open("wb") as fp:
                         fp.write(part.get_payload(decode=True))
                     attachments.append(filepath)

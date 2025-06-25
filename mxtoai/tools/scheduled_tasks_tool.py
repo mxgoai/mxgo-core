@@ -37,8 +37,8 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     try:
         # Parse the cron expression
         parts = cron_expression.strip().split()
-        CRON_PARTS_COUNT = 5
-        if len(parts) != CRON_PARTS_COUNT:
+        cron_parts_count = 5
+        if len(parts) != cron_parts_count:
             msg = "Cron expression must have exactly 5 parts"
             raise ValueError(msg)
 
@@ -288,13 +288,6 @@ class ScheduledTasksTool(Tool):
                 cron_iter = croniter(cron_expression, datetime.now(timezone.utc))
                 next_execution_time = datetime.fromtimestamp(cron_iter.get_next(), tz=timezone.utc)
                 time_until_execution = next_execution_time - datetime.now(timezone.utc)
-
-                # If the task description suggests a short-term reminder but the cron is far in the future
-                if "remind me" in task_description.lower() and time_until_execution > timedelta(hours=24):
-                    logger.warning(
-                        f"Potentially incorrect cron expression: {cron_expression} will execute in {time_until_execution}, but task description suggests short-term reminder: {task_description}"
-                    )
-
                 logger.info(f"One-time task will execute at: {next_execution_time} (in {time_until_execution})")
 
             db_connection = init_db_connection()

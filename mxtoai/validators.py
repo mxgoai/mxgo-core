@@ -579,7 +579,7 @@ async def validate_email_handle(
     handle = to.split("@")[0].lower()
     try:
         _ = processing_instructions_resolver(handle)
-    except exceptions.UnspportedHandleException:
+    except exceptions.UnspportedHandleError:
         rejection_msg = "This email alias is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
 
         # Create email dict with proper format

@@ -138,7 +138,7 @@ def get_system_stats() -> dict:
 class SystemStatsWriter:
     def __init__(self, filename: str):
         self.filename = filename
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
         self.file = open(filename, "w", newline="")
         self.writer = csv.writer(self.file)
         self.writer.writerow(["timestamp", "cpu_percent", "memory_percent", "num_threads", "connections"])
@@ -198,11 +198,11 @@ class EmailProcessingUser(HttpUser):
                 query=query, context=context, attachments=attachments, stream=stream
             )
 
-            return {"status": "success", "message": "Research completed successfully", "data": result}
-
         except Exception as e:
-            logger.exception(f"Error in deep research processing: {e!s}")
+            logger.exception("Error in deep research processing")
             return {"status": "error", "message": str(e)}
+        else:
+            return {"status": "success", "message": "Research completed successfully", "data": result}
 
     @task
     def process_email(self):
@@ -247,15 +247,13 @@ class EmailProcessingUser(HttpUser):
 
         # Prepare the request data for regular email processing
         data = scenario["data"].copy()
-        files = []
 
         # Add files if present in scenario
-        for file_path in data.pop("files", []):
-            try:
-                files.append(("files", (os.path.basename(file_path), open(file_path, "rb"), "application/pdf")))
-            except FileNotFoundError:
-                logger.error(f"File not found: {file_path}")
-                continue
+        files = [
+            ("files", (os.path.basename(file_path), open(file_path, "rb"), "application/pdf"))
+            for file_path in data.pop("files", [])
+            if Path(file_path).exists()
+        ]
 
         try:
             # Send the request
@@ -310,4 +308,4 @@ def on_test_stop(environment, **kwargs):
 
 if __name__ == "__main__":
     # Create test_files directory if it doesn't exist
-    os.makedirs(TEST_FILES_DIR, exist_ok=True)
+    Path(TEST_FILES_DIR).mkdir(parents=True, exist_ok=True)

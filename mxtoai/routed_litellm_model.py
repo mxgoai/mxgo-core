@@ -78,26 +78,28 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
     def _load_model_config(self) -> list[mxtoai.schemas.ModelConfig]:
         """
-        Load model configuration from environment variables.
+        Load model configuration from TOML file.
 
         Returns:
-            List[Dict[str, Any]]: List of model configurations.
+            list[mxtoai.schemas.ModelConfig]: List of model configurations
 
         """
-        model_entries = self.config.get("model", [])
-        model_list = []
+        model_entries = self.config.get("models", [])
+        if not model_entries:
+            msg = "No models found in config toml. Please check the configuration."
+            raise exceptions.ModelListNotFoundException(msg)
 
         if isinstance(model_entries, dict):
             # In case there's only one model (TOML parser returns dict)
             model_entries = [model_entries]
 
-        for entry in model_entries:
-            model_list.append(
-                mxtoai.schemas.ModelConfig(
-                    model_name=entry.get("model_name"),
-                    litellm_params=mxtoai.schemas.LiteLLMParams(**entry.get("litellm_params")),
-                )
+        model_list = [
+            mxtoai.schemas.ModelConfig(
+                model_name=entry.get("model_name"),
+                litellm_params=mxtoai.schemas.LiteLLMParams(**entry.get("litellm_params")),
             )
+            for entry in model_entries
+        ]
 
         if not model_list:
             msg = "No model list found in config toml. Please check the configuration."

@@ -1,9 +1,13 @@
 import logging
-from typing import Optional
+from typing import ClassVar, Optional
 
 from smolagents import Tool
 
 logger = logging.getLogger(__name__)
+
+
+class FallbackSearchError(Exception):
+    """Base exception for fallback search tool errors."""
 
 
 class FallbackWebSearchTool(Tool):
@@ -14,7 +18,7 @@ class FallbackWebSearchTool(Tool):
 
     name = "web_search"
     description = "Performs a web search for your query then returns a string of the top search results. Attempts Google Search first if available, falling back to DuckDuckGo."
-    inputs = {
+    inputs: ClassVar[dict] = {
         "query": {"type": "string", "description": "The search query to perform."},
     }
     output_type = "string"
@@ -57,22 +61,24 @@ class FallbackWebSearchTool(Tool):
                 logger.debug(f"Attempting search with primary tool: {self.primary_tool.name}")
                 result = self.primary_tool.forward(query=query)
                 logger.debug("Primary search tool succeeded.")
-                return result
             except Exception as e:
                 logger.warning(f"Primary search tool ({self.primary_tool.name}) failed: {e!s}. Attempting fallback.")
+            else:
+                return result
 
         if self.secondary_tool:
             try:
                 logger.debug(f"Attempting search with secondary tool: {self.secondary_tool.name}")
                 result = self.secondary_tool.forward(query=query)
                 logger.debug("Secondary search tool succeeded.")
-                return result
             except Exception as e:
                 logger.error(f"Secondary search tool ({self.secondary_tool.name}) also failed: {e!s}")
                 msg = f"Both primary and secondary search tools failed. Last error: {e!s}"
-                raise Exception(msg) from e
+                raise FallbackSearchError(msg) from e
+            else:
+                return result
         else:
             # This case should ideally not be reached if primary failed and secondary doesn't exist
             logger.error("Primary search tool failed and no secondary tool is available.")
             msg = "Primary search tool failed and no fallback tool is configured."
-            raise Exception(msg)
+            raise FallbackSearchError(msg)

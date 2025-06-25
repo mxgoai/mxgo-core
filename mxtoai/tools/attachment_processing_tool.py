@@ -2,7 +2,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import unquote
 
 from smolagents import Tool
@@ -45,7 +45,7 @@ class AttachmentProcessingTool(Tool):
     - size: File size in bytes
     """
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "attachments": {
             "type": "array",
             "description": "List of attachment dictionaries containing file information. Each dictionary must have 'filename', 'type', and 'size' keys. The 'path' key is optional - attachments will be processed from memory when available, falling back to file path if needed.",
@@ -92,9 +92,8 @@ class AttachmentProcessingTool(Tool):
         logger.debug(f"AttachmentProcessingTool initialized with text_limit={text_limit}")
 
         # Set up attachments directory path
-        self.attachments_dir = Path(
-            os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments"))
-        )
+        self.attachments_dir = Path(__file__).parent.parent / "attachments"
+        self.attachments_dir = self.attachments_dir.resolve()
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_attachment_path(self, file_path: str) -> Path:

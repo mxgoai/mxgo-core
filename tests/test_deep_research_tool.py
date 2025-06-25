@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
@@ -549,7 +550,7 @@ class TestIntegrationScenarios:
             assert "Comprehensive research results" in result["findings"]
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     @patch.dict(os.environ, {"JINA_API_KEY": "test_api_key"})
     @patch("requests.post")

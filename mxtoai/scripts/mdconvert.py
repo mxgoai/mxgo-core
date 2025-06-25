@@ -1,3 +1,4 @@
+# ruff: noqa: S101
 # This is copied from Magentic-one's great repo: https://github.com/microsoft/autogen/blob/v0.4.4/python/packages/autogen-magentic-one/src/autogen_magentic_one/markdown_browser/mdconvert.py
 # Thanks to Microsoft researchers for open-sourcing this!
 # type: ignore
@@ -192,7 +193,7 @@ class HtmlConverter(DocumentConverter):
         else:
             webpage_text = _CustomMarkdownify().convert_soup(soup)
 
-        assert isinstance(webpage_text, str)
+        assert isinstance(webpage_text, str)  # ruff: noqa: S101
 
         return DocumentConverterResult(
             title=None if soup.title is None else soup.title.string, text_content=webpage_text
@@ -231,7 +232,7 @@ class WikipediaConverter(DocumentConverter):
             # What's the title
             if title_elm and len(title_elm) > 0:
                 main_title = title_elm.string  # type: ignore
-                assert isinstance(main_title, str)
+                assert isinstance(main_title, str)  # ruff: noqa: S101
 
             # Convert the page
             webpage_text = f"# {main_title}\n\n" + _CustomMarkdownify().convert_soup(body_elm)
@@ -262,8 +263,8 @@ class YouTubeConverter(DocumentConverter):
             soup = BeautifulSoup(fh.read(), "html.parser")
 
         # Read the meta tags
-        assert soup.title is not None
-        assert soup.title.string is not None
+        assert soup.title is not None  # ruff: noqa: S101
+        assert soup.title.string is not None  # ruff: noqa: S101
         metadata: dict[str, str] = {"title": soup.title.string}
         for meta in soup(["meta"]):
             for a in meta.attrs:
@@ -292,7 +293,7 @@ class YouTubeConverter(DocumentConverter):
         webpage_text = "# YouTube\n"
 
         title = self._get(metadata, ["title", "og:title", "name"])  # type: ignore
-        assert isinstance(title, str)
+        assert isinstance(title, str)  # ruff: noqa: S101
 
         if title:
             webpage_text += f"\n## {title}\n"
@@ -321,7 +322,7 @@ class YouTubeConverter(DocumentConverter):
         parsed_url = urlparse(url)  # type: ignore
         params = parse_qs(parsed_url.query)  # type: ignore
         if "v" in params:
-            assert isinstance(params["v"][0], str)
+            assert isinstance(params["v"][0], str)  # ruff: noqa: S101
             video_id = str(params["v"][0])
             try:
                 # Must be a single transcript.
@@ -334,7 +335,7 @@ class YouTubeConverter(DocumentConverter):
             webpage_text += f"\n### Transcript\n{transcript_text}\n"
 
         title = title if title else soup.title.string
-        assert isinstance(title, str)
+        assert isinstance(title, str)  # ruff: noqa: S101
 
         return DocumentConverterResult(
             title=title,
@@ -621,8 +622,6 @@ class Mp3Converter(WavConverter):
                 md_content += "\n\n### Audio Transcript:\nError. Could not transcribe this audio."
 
         finally:
-            with contextlib.suppress(Exception):
-                fh.close()
             Path(temp_path).unlink()
 
         # Return the result
@@ -647,7 +646,7 @@ class ZipConverter(DocumentConverter):
         """
         self.extract_dir = extract_dir
         # Create the extraction directory if it doesn't exist
-        os.makedirs(self.extract_dir, exist_ok=True)
+        Path(self.extract_dir).mkdir(parents=True, exist_ok=True)
 
     def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
         # Bail if not a ZIP file
@@ -659,16 +658,16 @@ class ZipConverter(DocumentConverter):
         if not zipfile.is_zipfile(local_path):
             return None
 
-        # Extract all files and build list
-        extracted_files = []
+        # Extract all files
         with zipfile.ZipFile(local_path, "r") as zip_ref:
             # Extract all files
             zip_ref.extractall(self.extract_dir)
             # Get list of all files
-            for file_path in zip_ref.namelist():
-                # Skip directories
-                if not file_path.endswith("/"):
-                    extracted_files.append(self.extract_dir + "/" + file_path)
+            extracted_files = [
+                self.extract_dir + "/" + file_path
+                for file_path in zip_ref.namelist()
+                if not file_path.endswith("/")
+            ]
 
         # Sort files for consistent output
         extracted_files.sort()
@@ -762,11 +761,11 @@ class ImageConverter(MediaConverter):
         return response.choices[0].message.content
 
 
-class FileConversionException(Exception):
+class FileConversionError(Exception):
     pass
 
 
-class UnsupportedFormatException(Exception):
+class UnsupportedFormatError(Exception):
     pass
 
 
@@ -965,11 +964,11 @@ class MarkdownConverter:
         # If we got this far without success, report any exceptions
         if len(error_trace) > 0:
             msg = f"Could not convert '{local_path}' to Markdown. File type was recognized as {extensions}. While converting the file, the following error was encountered:\n\n{error_trace}"
-            raise FileConversionException(msg)
+            raise FileConversionError(msg)
 
         # Nothing can handle it!
         msg = f"Could not convert '{local_path}' to Markdown. The formats {extensions} are not supported."
-        raise UnsupportedFormatException(msg)
+        raise UnsupportedFormatError(msg)
 
     def _append_ext(self, extensions, ext):
         """Append a unique non-None, non-empty extension to a list of extensions."""

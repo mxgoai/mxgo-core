@@ -502,5 +502,5 @@ class TestIntegrationScenarios:
             for error in error_scenarios:
                 mock_get.side_effect = error
 
-                with pytest.raises(type(error)):
+                with pytest.raises(type(error), match=str(error)):
                     tool.forward("error test query")

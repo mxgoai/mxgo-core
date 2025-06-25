@@ -5,7 +5,7 @@ import os
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -95,7 +95,7 @@ def encode_image(image_path: str) -> str:
         }
 
         # Send a HTTP request to the URL
-        response = requests.get(image_path, **request_kwargs)
+        response = requests.get(image_path, **request_kwargs, timeout=30)
         response.raise_for_status()
         content_type = response.headers.get("content-type", "")
 
@@ -104,7 +104,8 @@ def encode_image(image_path: str) -> str:
             extension = ".download"
 
         fname = str(uuid.uuid4()) + extension
-        download_path = os.path.abspath(os.path.join("downloads", fname))
+        download_path = Path("downloads") / fname
+        download_path = download_path.resolve()
 
         with open(download_path, "wb") as fh:
             for chunk in response.iter_content(chunk_size=512):
@@ -152,7 +153,7 @@ class VisualQATool(Tool):
     }
     output_type = "string"
 
-    client = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
+    client: ClassVar[InferenceClient] = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
     def forward(self, image_path: str, question: Optional[str] = None) -> str:
         """

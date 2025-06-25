@@ -58,7 +58,7 @@ COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SENSITIVE
 
 # Pre-compile scrubbing patterns for better performance
 PRECOMPILED_SCRUB_PATTERNS = []
-SCRUBBED_TOKEN = "******"
+SCRUBBED_TOKEN = "******"  # noqa: S105
 
 for pattern in COMPILED_PATTERNS:
     key_value_pattern = re.compile(rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)", re.IGNORECASE)
@@ -121,9 +121,9 @@ def loguru_scrubbing_filter(record):
                 elif isinstance(value, int | float):
                     # Preserve numeric values without scrubbing
                     continue
-    except Exception:
-        # If scrubbing fails, keep the original record to avoid breaking logging
-        pass
+    except Exception as e:
+        # If scrubbing fails, log the error and keep the original record to avoid breaking logging
+        logger.warning(f"Failed to scrub sensitive data from log record: {e}")
 
     return True
 

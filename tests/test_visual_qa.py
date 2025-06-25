@@ -40,7 +40,7 @@ class TestEncodeImage:
             assert len(decoded) > 0
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     @patch("requests.get")
     def test_encode_remote_image_url(self, mock_get):
@@ -107,9 +107,9 @@ class TestResizeImage:
             assert resized_img.size == (100, 100)
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
             if resized_path and Path(resized_path).exists():
-                os.unlink(resized_path)
+                Path(resized_path).unlink()
 
     def test_resize_nonexistent_file(self):
         """Test resizing a file that doesn't exist."""
@@ -449,7 +449,7 @@ class TestIntegrationScenarios:
                 )
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     def test_error_handling_chain(self):
         """Test error handling across different visual processing functions."""
@@ -460,5 +460,5 @@ class TestIntegrationScenarios:
         with pytest.raises(FileNotFoundError):
             resize_image("nonexistent_file.jpg")
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="You should provide at least"):
             visualizer(None)  # Invalid input type

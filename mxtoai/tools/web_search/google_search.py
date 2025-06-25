@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import Optional
+from typing import ClassVar, Optional
 
 from smolagents import Tool
 from smolagents.default_tools import GoogleSearchTool as SmolagentsGoogleSearchTool
@@ -29,7 +29,7 @@ class GoogleSearchTool(Tool):
         "and most comprehensive search results but also has the highest cost. Use this when you need "
         "the most authoritative, current, or specialized information that might not be found with other search engines."
     )
-    inputs = {
+    inputs: ClassVar[dict] = {
         "query": {"type": "string", "description": "The search query to perform."},
     }
     output_type = "string"
