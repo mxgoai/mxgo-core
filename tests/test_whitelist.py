@@ -89,6 +89,7 @@ class TestEmailWhitelistCheck:
     """Test email whitelist checking functionality."""
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {"WHITELIST_ENABLED": "true"})
     async def test_is_email_whitelisted_exists_verified(self):
         """Test email that exists and is verified."""
         mock_supabase = Mock()
@@ -107,6 +108,7 @@ class TestEmailWhitelistCheck:
         mock_table.select.assert_called_once_with("*")
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {"WHITELIST_ENABLED": "true"})
     async def test_is_email_whitelisted_exists_not_verified(self):
         """Test email that exists but is not verified."""
         mock_supabase = Mock()
@@ -123,6 +125,7 @@ class TestEmailWhitelistCheck:
         assert verified is False
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {"WHITELIST_ENABLED": "true"})
     async def test_is_email_whitelisted_not_exists(self):
         """Test email that does not exist in whitelist."""
         mock_supabase = Mock()
@@ -139,6 +142,7 @@ class TestEmailWhitelistCheck:
         assert verified is False
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {"WHITELIST_ENABLED": "true"})
     async def test_is_email_whitelisted_supabase_not_initialized(self):
         """Test email whitelist check when Supabase is not initialized."""
         with patch("mxtoai.whitelist.supabase", None), patch("mxtoai.whitelist.init_supabase") as mock_init:
@@ -164,6 +168,7 @@ class TestEmailWhitelistCheck:
         mock_init.assert_called_once()
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {"WHITELIST_ENABLED": "true"})
     async def test_is_email_whitelisted_database_error(self):
         """Test email whitelist check with database error."""
         mock_supabase = Mock()
