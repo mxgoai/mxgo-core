@@ -1,4 +1,5 @@
-*.toml
+model.config.toml
+mcp.toml
 attachments/**
 
 results/**

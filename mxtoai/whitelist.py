@@ -12,6 +12,8 @@ logger = get_logger(__name__)
 # Initialize Supabase client
 supabase: Optional[Client] = None
 
+def is_whitelist_enabled() -> bool:
+    return os.getenv("WHITELIST_ENABLED", "false").strip().lower() == "true"
 
 def init_supabase():
     """
@@ -48,6 +50,10 @@ async def is_email_whitelisted(email: str) -> tuple[bool, bool]:
 
     """
     try:
+        if not is_whitelist_enabled():
+            logger.info(f"Whitelist feature is disabled. All emails treated as whitelisted: {email}")
+            return True, True
+
         if not supabase:
             init_supabase()
 
