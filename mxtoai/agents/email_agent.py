@@ -506,7 +506,7 @@ Raw Email Request Data (for tool use):
 
         return "\n\n".join(filter(None, sections))
 
-    def _process_agent_result(  # noqa: PLR0912
+    def _process_agent_result(  # noqa: PLR0912, PLR0915
         self, final_answer_obj: Any, agent_steps: list, current_email_handle: str
     ) -> DetailedEmailProcessingResult:
         processed_at_time = datetime.now(timezone.utc).isoformat()
@@ -604,7 +604,11 @@ Raw Email Request Data (for tool use):
                                             details=pa_detail.error,
                                         )
                                     )
-                                if "content" in attachment_data and isinstance(attachment_data["content"], dict) and attachment_data["content"].get("caption"):
+                                if (
+                                    "content" in attachment_data
+                                    and isinstance(attachment_data["content"], dict)
+                                    and attachment_data["content"].get("caption")
+                                ):
                                     pa_detail.caption = attachment_data["content"]["caption"]
                                 processed_attachment_details.append(pa_detail)
                         else:
@@ -624,7 +628,11 @@ Raw Email Request Data (for tool use):
                                             details=pa_detail.error,
                                         )
                                     )
-                                if "content" in attachment_data and isinstance(attachment_data["content"], dict) and attachment_data["content"].get("caption"):
+                                if (
+                                    "content" in attachment_data
+                                    and isinstance(attachment_data["content"], dict)
+                                    and attachment_data["content"].get("caption")
+                                ):
                                     pa_detail.caption = attachment_data["content"]["caption"]
                                 processed_attachment_details.append(pa_detail)
 

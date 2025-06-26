@@ -20,7 +20,7 @@ from mxtoai.utils import round_to_nearest_minute, validate_datetime_field
 logger = get_logger("scheduled_tasks_tool")
 
 
-def calculate_cron_interval(cron_expression: str) -> timedelta:
+def calculate_cron_interval(cron_expression: str) -> timedelta:  # noqa: PLR0912
     """
     Calculate the minimum interval between executions for a cron expression.
 
@@ -37,8 +37,8 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     try:
         # Parse the cron expression
         parts = cron_expression.strip().split()
-        CRON_PARTS_COUNT = 5
-        if len(parts) != CRON_PARTS_COUNT:
+        cron_parts_count = 5
+        if len(parts) != cron_parts_count:
             msg = "Cron expression must have exactly 5 parts"
             raise ValueError(msg)
 
@@ -84,11 +84,11 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
             # Default to daily if we can't determine the pattern
             interval = timedelta(days=1)
 
-        return interval
-
     except Exception as e:
         msg = f"Could not calculate interval for cron expression '{cron_expression}': {e}"
         raise ValueError(msg) from e
+    else:
+        return interval
 
 
 def validate_minimum_interval(cron_expression: str) -> None:
@@ -225,7 +225,7 @@ class ScheduledTasksTool(Tool):
         # Create dedicated scheduling instance for this tool
         self.scheduler = Scheduler()
 
-    def forward(
+    def forward(  # noqa: PLR0912
         self,
         cron_expression: str,
         distilled_future_task_instructions: str,

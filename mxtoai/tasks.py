@@ -47,6 +47,7 @@ dramatiq.set_broker(rabbitmq_broker)
 
 MAX_RETRIES = 3
 
+
 def cleanup_attachments(email_attachments_dir: str) -> None:
     """
     Clean up attachments after processing.
@@ -87,7 +88,7 @@ def should_retry(retries_so_far: int, exception: Exception) -> bool:
 
 
 @dramatiq.actor(retry_when=should_retry, min_backoff=60 * 1000, time_limit=600000)
-def process_email_task(
+def process_email_task(  # noqa: PLR0912, PLR0915
     email_data: dict[str, Any],
     email_attachments_dir: str,
     attachment_info: list[dict[str, Any]],

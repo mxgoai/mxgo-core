@@ -235,7 +235,7 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
 
 
 @tool
-def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:
+def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:  # noqa: PLR0912
     """
     A tool that can answer questions about attached images using Azure OpenAI.
 

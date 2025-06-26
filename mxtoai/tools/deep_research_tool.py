@@ -241,7 +241,7 @@ class DeepResearchTool(Tool):
         # Return a single message with all content
         return [{"role": "user", "content": message_content}]
 
-    def _process_stream_response(self, response):
+    def _process_stream_response(self, response):  # noqa: PLR0912
         """
         Process a streaming response from the API.
 
@@ -353,7 +353,7 @@ class DeepResearchTool(Tool):
         logger.debug("Skipping TOC generation, returning raw content structure.")
         return content
 
-    def _format_research_content(
+    def _format_research_content(  # noqa: PLR0912
         self, content: str, annotations: list[dict[str, Any]], visited_urls: list[str], read_urls: list[str]
     ) -> str:
         """
@@ -453,16 +453,16 @@ class DeepResearchTool(Tool):
         else:
             return result
 
-    def forward(
+    def forward(  # noqa: PLR0912, PLR0915
         self,
         query: str,
-        context: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
         memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
         *,
         stream: bool = False,
         reasoning_effort: str = "medium",
-    ) -> dict[str, Any]:
+    ) -> Any:
         """
         Perform deep research on a query with context and attachments.
 
@@ -470,15 +470,16 @@ class DeepResearchTool(Tool):
             query: The research query to investigate
             context: Optional additional context
             memory_attachments: Dict mapping filename to (content, mime_type) tuples for in-memory files
-            thread_messages: Optional list of previous messages
+            thread_messages: Previous messages in thread
             stream: Whether to stream the response (default False)
-            reasoning_effort: Level of reasoning effort ("low", "medium", "high")
+            reasoning_effort: Level of reasoning effort ('low', 'medium', 'high')
 
         Returns:
             Research results including findings, citations, and sources
 
         """
         # Ensure parameters are properly initialized
+        context = context if isinstance(context, dict) else {}
         memory_attachments = memory_attachments if isinstance(memory_attachments, dict) else {}
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
 
@@ -547,7 +548,10 @@ class DeepResearchTool(Tool):
                 else:
                     # Prepare messages including files and context
                     messages = self._prepare_messages(
-                        query=query, context=context, memory_attachments=memory_attachments, thread_messages=thread_messages
+                        query=query,
+                        context=context.get("context"),
+                        memory_attachments=memory_attachments,
+                        thread_messages=thread_messages,
                     )
 
                     # Prepare request data
@@ -562,7 +566,9 @@ class DeepResearchTool(Tool):
                     # Log the complete request data
                     logger.info("Request data being sent to Jina AI:")
                     logger.info(f"URL: {self.api_url}")
-                    logger.info(f"Headers: {json.dumps({k: v for k, v in self.headers.items() if k != 'Authorization'})}")
+                    logger.info(
+                        f"Headers: {json.dumps({k: v for k, v in self.headers.items() if k != 'Authorization'})}"
+                    )
                     logger.info(f"Request Body: {json.dumps(data, indent=2)}")
 
                     logger.info(f"Sending research query to Jina AI: {query}")
@@ -598,7 +604,9 @@ class DeepResearchTool(Tool):
                                     response_data.get("choices")
                                     and response_data["choices"][0].get("message", {}).get("type") == "error"
                                 ):
-                                    error_msg = response_data["choices"][0]["message"].get("content", "Unknown error from API")
+                                    error_msg = response_data["choices"][0]["message"].get(
+                                        "content", "Unknown error from API"
+                                    )
                                     logger.error(f"API returned error in response: {error_msg}")
                                     result = {
                                         "query": query,
@@ -635,7 +643,9 @@ class DeepResearchTool(Tool):
                                         "read_urls": response_data.get("readURLs", []),
                                         "timestamp": response.headers.get("date"),
                                         "usage": response_data.get("usage", {}),
-                                        "num_urls": response_data.get("numURLs", len(response_data.get("visitedURLs", []))),
+                                        "num_urls": response_data.get(
+                                            "numURLs", len(response_data.get("visitedURLs", []))
+                                        ),
                                     }
                             else:
                                 # Process streaming response

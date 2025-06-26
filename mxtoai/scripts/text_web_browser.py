@@ -267,7 +267,7 @@ class SimpleTextBrowser:
 
         self._set_page_content(content)
 
-    def _fetch_page(self, url: str) -> None:
+    def _fetch_page(self, url: str) -> None:  # noqa: PLR0912
         download_path = ""
         try:
             if url.startswith("file://"):

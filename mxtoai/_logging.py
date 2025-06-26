@@ -58,7 +58,7 @@ COMPILED_PATTERNS = [re.compile(pattern, re.IGNORECASE) for pattern in SENSITIVE
 
 # Pre-compile scrubbing patterns for better performance
 PRECOMPILED_SCRUB_PATTERNS = []
-SCRUBBED_TOKEN = "******"
+SCRUBBED_TOKEN = "******"  # noqa: S105
 
 for pattern in COMPILED_PATTERNS:
     key_value_pattern = re.compile(rf"(\b\w*{pattern.pattern}\w*\s*[:=]\s*)([^\s,}}\]]+)", re.IGNORECASE)

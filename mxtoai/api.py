@@ -100,7 +100,7 @@ api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Docker and load balancers."""
-    health_status = {"status": "healthy", "timestamp": datetime.now().isoformat(), "services": {}}
+    health_status = {"status": "healthy", "timestamp": datetime.now(timezone.utc).isoformat(), "services": {}}
 
     overall_healthy = True
 
@@ -317,7 +317,7 @@ async def handle_file_attachments(  # noqa: PLR0912
 
         except ValueError as e:
             logger.error(f"Validation error for file {attachment.filename}: {e!s}")
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
         except Exception:
             logger.exception(f"Error processing file {attachment.filename}")
             # Try to clean up any partially saved file
@@ -496,7 +496,7 @@ def extract_cc_from_headers(headers: dict) -> list[str]:
 
 
 @app.post("/process-email")
-async def process_email(  # noqa: PLR0912
+async def process_email(  # noqa: PLR0912, PLR0915
     from_email: Annotated[str, Form()] = ...,
     to: Annotated[str, Form()] = ...,
     subject: Annotated[Optional[str], Form()] = "",

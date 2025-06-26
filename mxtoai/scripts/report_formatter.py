@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -68,9 +67,9 @@ class ReportFormatter:
         self.themes = {"default": {}}  # Always have a default theme
 
         try:
-            themes_file = os.path.join(self.template_dir, "themes.json")
-            if Path(themes_file).exists():
-                with Path(themes_file).open() as f:
+            themes_file = self.template_dir / "themes.json"
+            if themes_file.exists():
+                with themes_file.open() as f:
                     self.themes.update(json.load(f))
         except Exception as e:
             logger.error(f"Failed to load themes: {e}")

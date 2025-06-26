@@ -37,7 +37,8 @@ class MockJinaService:
         domains = ["arxiv.org", "wikipedia.org", "github.com", "research-papers.org", "academic-journals.com"]
 
         all_urls = [
-            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}" for _ in range(num_urls)
+            f"https://{random.choice(domains)}/{fake.slug()}-{fake.random_int(1000, 9999)}"  # noqa: S311
+            for _ in range(num_urls)
         ]
 
         # Randomly select some URLs as "read"
