@@ -151,7 +151,7 @@ class EmailSender:
             logger.info(f"Email sent successfully: {response['MessageId']}")
             return response
 
-    async def send_reply(
+    async def send_reply(  # noqa: PLR0912, PLR0915
         self,
         original_email: dict[str, Any],
         reply_text: str,
@@ -281,8 +281,8 @@ class EmailSender:
                         logger.error(
                             f"Skipping attachment {attachment.get('filename', '(unknown)')} due to missing key: {ke}"
                         )
-                    except Exception as attach_err:
-                        logger.error(f"Error attaching file '{attachment.get('filename', '(unknown)')}': {attach_err}")
+                    except Exception:
+                        logger.exception(f"Error attaching file '{attachment.get('filename', '(unknown)')}'")
 
             # --- Prepare destinations & Send ---
             destinations = [to_address]
@@ -359,8 +359,8 @@ async def verify_sender_email(email_address: str) -> bool:
         logger.error(f"Failed to verify email ({error_code}): {error_message}")
         return False
 
-    except Exception as e:
-        logger.exception(f"Error during email verification: {e!s}")
+    except Exception:
+        logger.exception("Error during email verification")
         return False
     else:
         logger.info(f"Verification email sent to {email_address}")
@@ -383,8 +383,8 @@ async def test_send_email(to_address, subject="Test from mxtoai", body_text="Thi
     try:
         sender = EmailSender()
         response = await sender.send_email(to_address=to_address, subject=subject, body_text=body_text)
-    except Exception as e:
-        logger.exception(f"Failed to send test email: {e!s}")
+    except Exception:
+        logger.exception("Failed to send test email")
         return False
     else:
         logger.info(f"Test email sent successfully: {response['MessageId']}")
@@ -415,9 +415,9 @@ async def run_tests():
             result = await test_func()
             results.append((test_name, result))
             logger.info(f"Test '{test_name}' {'passed' if result else 'failed'}")
-        except Exception as e:
+        except Exception:
             results.append((test_name, False))
-            logger.exception(f"Test '{test_name}' failed with error: {e!s}")
+            logger.exception(f"Test '{test_name}' failed with error")
 
     return all(result for _, result in results)
 
@@ -516,8 +516,8 @@ def save_attachments(email_data: EmailRequest, email_id: str) -> tuple[str, list
 
             logger.info(f"Saved attachment: {filename} ({file_size} bytes)")
 
-        except Exception as e:
-            logger.exception(f"Error saving attachment {attachment.filename}: {e!s}")
+        except Exception:
+            logger.exception(f"Error saving attachment {attachment.filename}")
             # Continue with other attachments even if one fails
             continue
 
@@ -589,8 +589,7 @@ def create_reply_content(summary: str, attachment_info: list[dict[str, Any]]) ->
         "Attachments processed:",
     ]
 
-    for attachment in attachment_info:
-        text_content.append(f"- {attachment['filename']} ({attachment['size']} bytes)")
+    text_content.extend([f"- {attachment['filename']} ({attachment['size']} bytes)" for attachment in attachment_info])
 
     text_content.extend(["", "Best regards,", "AI Assistant"])
 
@@ -603,8 +602,9 @@ def create_reply_content(summary: str, attachment_info: list[dict[str, Any]]) ->
         "<ul>",
     ]
 
-    for attachment in attachment_info:
-        html_content.append(f"<li>{attachment['filename']} ({attachment['size']} bytes)</li>")
+    html_content.extend(
+        [f"<li>{attachment['filename']} ({attachment['size']} bytes)</li>" for attachment in attachment_info]
+    )
 
     html_content.extend(["</ul>", "<p>Best regards,<br>AI Assistant</p>", "</body></html>"])
 
@@ -627,6 +627,6 @@ async def send_email_reply(email_dict: dict[str, Any], reply_text: str, reply_ht
     try:
         sender = EmailSender()
         return await sender.send_reply(original_email=email_dict, reply_text=reply_text, reply_html=reply_html)
-    except Exception as e:
-        logger.exception(f"Error sending reply: {e!s}")
+    except Exception:
+        logger.exception("Error sending reply")
         raise

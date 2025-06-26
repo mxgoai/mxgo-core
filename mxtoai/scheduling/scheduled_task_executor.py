@@ -38,7 +38,7 @@ HTTP_SUCCESS_STATUS = 200
 CRON_EXPRESSION_PARTS = 5
 
 
-def execute_scheduled_task(task_id: str) -> None:
+def execute_scheduled_task(task_id: str) -> None:  # noqa: PLR0912
     """
     Execute a scheduled task by making an HTTP request to the /process-email endpoint.
 

@@ -6,6 +6,7 @@ import pathlib
 import re
 import time
 import uuid
+from pathlib import Path
 from typing import Any, ClassVar, Optional, Union
 from urllib.parse import unquote, urljoin, urlparse
 
@@ -23,6 +24,7 @@ from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFo
 DEFAULT_REQUEST_TIMEOUT = 30  # seconds
 ARCHIVE_REQUEST_TIMEOUT = 15  # seconds
 DOWNLOAD_REQUEST_TIMEOUT = 60  # seconds
+MAX_SUFFIX_ATTEMPTS = 1000
 
 
 class WebBrowserError(Exception):
@@ -265,7 +267,7 @@ class SimpleTextBrowser:
 
         self._set_page_content(content)
 
-    def _fetch_page(self, url: str) -> None:
+    def _fetch_page(self, url: str) -> None:  # noqa: PLR0912
         download_path = ""
         try:
             if url.startswith("file://"):
@@ -281,7 +283,7 @@ class SimpleTextBrowser:
                 # Send a HTTP request to the URL
                 if "timeout" not in request_kwargs:
                     request_kwargs["timeout"] = DEFAULT_REQUEST_TIMEOUT
-                response = requests.get(url, **request_kwargs)
+                response = requests.get(url, **request_kwargs)  # noqa: S113
                 response.raise_for_status()
 
                 # If the HTTP request was successful
@@ -298,15 +300,18 @@ class SimpleTextBrowser:
                     fname = None
                     download_path = None
                     try:
-                        fname = pathvalidate.sanitize_filename(os.path.basename(urlparse(url).path)).strip()
-                        download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
+                        fname = pathvalidate.sanitize_filename(Path(urlparse(url).path).name).strip()
+                        download_path = Path(self.downloads_folder) / fname
+                        download_path = download_path.resolve()
 
                         suffix = 0
-                        while pathlib.Path(download_path).exists() and suffix < 1000:
+                        while pathlib.Path(download_path).exists() and suffix < MAX_SUFFIX_ATTEMPTS:
                             suffix += 1
-                            base, ext = os.path.splitext(fname)
+                            fname_path = Path(fname)
+                            base, ext = fname_path.stem, fname_path.suffix
                             new_fname = f"{base}__{suffix}{ext}"
-                            download_path = os.path.abspath(os.path.join(self.downloads_folder, new_fname))
+                            download_path = Path(self.downloads_folder) / new_fname
+                            download_path = download_path.resolve()
 
                     except NameError:
                         pass
@@ -317,7 +322,8 @@ class SimpleTextBrowser:
                         if extension is None:
                             extension = ".download"
                         fname = str(uuid.uuid4()) + extension
-                        download_path = os.path.abspath(os.path.join(self.downloads_folder, fname))
+                        download_path = pathlib.Path(self.downloads_folder) / fname
+                        download_path = download_path.resolve()
 
                     # Open a file for writing
                     with pathlib.Path(download_path).open("wb") as fh:
@@ -445,7 +451,7 @@ DO NOT use this tool for .pdf or .txt or .htm files: for these types of files us
 
         if "pdf" in extension or "txt" in extension or "htm" in extension:
             msg = "Do not use this tool for pdf or txt or html files: use visit_page instead."
-            raise Exception(msg)
+            raise ValueError(msg)
 
         return f"File was downloaded and saved under path {new_path}."
 
@@ -478,7 +484,7 @@ class ArchiveSearchTool(Tool):
             closest = response_notimestamp["archived_snapshots"]["closest"]
         else:
             msg = f"Your {url=} was not archived on Wayback Machine, try a different url."
-            raise Exception(msg)
+            raise ValueError(msg)
         target_url = closest["url"]
         self.browser.visit_page(target_url)
         header, content = self.browser._state()  # noqa: SLF001

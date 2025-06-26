@@ -5,6 +5,9 @@ from smolagents.models import MessageRole, Model
 
 from .mdconvert import FileConversionException, MarkdownConverter, UnsupportedFormatException
 
+# Constants
+SHORT_CONTENT_THRESHOLD = 4000
+
 
 class TextInspectorError(Exception):
     """Base exception for text inspector tool errors."""
@@ -67,6 +70,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             str: The generated caption or the text content of the file.
 
         """
+        result_text = ""
         try:
             if file_path[-4:] in [".png", ".jpg"]:
                 msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
@@ -74,43 +78,39 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
             result = self.md_converter.convert(file_path)
 
-            if ".zip" in file_path:
-                return result.text_content
-
-            if not question:
-                return result.text_content
-
-            if len(result.text_content) < 4000:
-                return "Document content: " + result.text_content
-
-            messages = [
-                {
-                    "role": MessageRole.SYSTEM,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Here is a file:\n### "
-                            + str(result.title)
-                            + "\n\n"
-                            + result.text_content[: self.text_limit],
-                        }
-                    ],
-                },
-                {
-                    "role": MessageRole.USER,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Now please write a short, 5 sentence caption for this document, that could help someone asking this question: "
-                            + question
-                            + "\n\nDon't answer the question yourself! Just provide useful notes on the document",
-                        }
-                    ],
-                },
-            ]
-            return self.model(messages).content
+            if ".zip" in file_path or not question:
+                result_text = result.text_content
+            elif len(result.text_content) < SHORT_CONTENT_THRESHOLD:
+                result_text = "Document content: " + result.text_content
+            else:
+                messages = [
+                    {
+                        "role": MessageRole.SYSTEM,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Here is a file:\n### "
+                                + str(result.title)
+                                + "\n\n"
+                                + result.text_content[: self.text_limit],
+                            }
+                        ],
+                    },
+                    {
+                        "role": MessageRole.USER,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Now please write a short, 5 sentence caption for this document, that could help someone asking this question: "
+                                + question
+                                + "\n\nDon't answer the question yourself! Just provide useful notes on the document",
+                            }
+                        ],
+                    },
+                ]
+                result_text = self.model(messages).content
         except FileConversionException as e:
-            return f"Error converting file: {e!s}"
+            result_text = f"Error converting file: {e!s}"
         except UnsupportedFormatException as e:
             return f"Unsupported file format: {e!s}"
         except ImageFileError as e:
@@ -119,6 +119,8 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             return f"Error processing file: {e!s}"
         except Exception as e:
             return f"Unexpected error processing file: {e!s}"
+
+        return result_text
 
     def forward(self, file_path, question: Optional[str] = None) -> str:
         """
@@ -132,6 +134,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             str: The generated response or the text content of the file.
 
         """
+        result_text = ""
         try:
             if file_path[-4:] in [".png", ".jpg"]:
                 msg = "Cannot use inspect_file_as_text tool with images: use visualizer instead!"
@@ -139,49 +142,46 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
             result = self.md_converter.convert(file_path)
 
-            if ".zip" in file_path:
-                return result.text_content
-
-            if not question:
-                return result.text_content
-
-            messages = [
-                {
-                    "role": MessageRole.SYSTEM,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "You will have to write a short caption for this file, then answer this question:"
-                            + question,
-                        }
-                    ],
-                },
-                {
-                    "role": MessageRole.USER,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Here is the complete file:\n### "
-                            + str(result.title)
-                            + "\n\n"
-                            + result.text_content[: self.text_limit],
-                        }
-                    ],
-                },
-                {
-                    "role": MessageRole.USER,
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "Now answer the question below. Use these three headings: '1. Short answer', '2. Extremely detailed answer', '3. Additional Context on the document and question asked'."
-                            + question,
-                        }
-                    ],
-                },
-            ]
-            return self.model(messages).content
+            if ".zip" in file_path or not question:
+                result_text = result.text_content
+            else:
+                messages = [
+                    {
+                        "role": MessageRole.SYSTEM,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "You will have to write a short caption for this file, then answer this question:"
+                                + question,
+                            }
+                        ],
+                    },
+                    {
+                        "role": MessageRole.USER,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Here is the complete file:\n### "
+                                + str(result.title)
+                                + "\n\n"
+                                + result.text_content[: self.text_limit],
+                            }
+                        ],
+                    },
+                    {
+                        "role": MessageRole.USER,
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": "Now answer the question below. Use these three headings: '1. Short answer', '2. Extremely detailed answer', '3. Additional Context on the document and question asked'."
+                                + question,
+                            }
+                        ],
+                    },
+                ]
+                result_text = self.model(messages).content
         except FileConversionException as e:
-            return f"Error converting file: {e!s}"
+            result_text = f"Error converting file: {e!s}"
         except UnsupportedFormatException as e:
             return f"Unsupported file format: {e!s}"
         except ImageFileError as e:
@@ -190,3 +190,5 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
             return f"Error processing file: {e!s}"
         except Exception as e:
             return f"Unexpected error processing file: {e!s}"
+
+        return result_text

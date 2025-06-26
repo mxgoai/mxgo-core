@@ -2,6 +2,7 @@ import base64
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 import requests
@@ -525,7 +526,7 @@ class TestIntegrationScenarios:
             mock_post.return_value = mock_response
 
             # Read file content into memory for the new memory_attachments parameter
-            with open(temp_path, "rb") as f:
+            with Path(temp_path).open("rb") as f:
                 file_content = f.read()
 
             # Execute complete workflow using memory_attachments
@@ -549,7 +550,7 @@ class TestIntegrationScenarios:
             assert "Comprehensive research results" in result["findings"]
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     @patch.dict(os.environ, {"JINA_API_KEY": "test_api_key"})
     @patch("requests.post")

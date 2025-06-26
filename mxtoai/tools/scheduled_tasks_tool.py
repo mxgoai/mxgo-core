@@ -20,7 +20,7 @@ from mxtoai.utils import round_to_nearest_minute, validate_datetime_field
 logger = get_logger("scheduled_tasks_tool")
 
 
-def calculate_cron_interval(cron_expression: str) -> timedelta:
+def calculate_cron_interval(cron_expression: str) -> timedelta:  # noqa: PLR0912
     """
     Calculate the minimum interval between executions for a cron expression.
 
@@ -37,64 +37,58 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:
     try:
         # Parse the cron expression
         parts = cron_expression.strip().split()
-        CRON_PARTS_COUNT = 5
-        if len(parts) != CRON_PARTS_COUNT:
+        cron_parts_count = 5
+        if len(parts) != cron_parts_count:
             msg = "Cron expression must have exactly 5 parts"
             raise ValueError(msg)
 
         minute, hour, day, month, weekday = parts
+        interval = None
 
         # Check for every minute execution (* in minute field)
         if minute == "*":
-            return timedelta(minutes=1)
-
+            interval = timedelta(minutes=1)
         # Check for specific minute intervals (*/n in minute field)
-        if minute.startswith("*/"):
+        elif minute.startswith("*/"):
             interval_minutes = int(minute[2:])
-            return timedelta(minutes=interval_minutes)
-
+            interval = timedelta(minutes=interval_minutes)
         # Check for minute ranges or lists
-        if "," in minute or "-" in minute:
+        elif "," in minute or "-" in minute:
             # For complex minute patterns, assume worst case of every minute
-            return timedelta(minutes=1)
-
+            interval = timedelta(minutes=1)
         # Check for every hour execution (* in hour field with specific minute)
-        if hour == "*":
-            return timedelta(hours=1)
-
+        elif hour == "*":
+            interval = timedelta(hours=1)
         # Check for specific hour intervals (*/n in hour field)
-        if hour.startswith("*/"):
+        elif hour.startswith("*/"):
             interval_hours = int(hour[2:])
-            return timedelta(hours=interval_hours)
-
+            interval = timedelta(hours=interval_hours)
         # Check for hour ranges or lists
-        if "," in hour or "-" in hour:
+        elif "," in hour or "-" in hour:
             # For complex hour patterns, assume worst case of every hour
-            return timedelta(hours=1)
-
+            interval = timedelta(hours=1)
         # If we get here, it's likely a daily, weekly, monthly, or yearly pattern
         # Daily pattern (specific hour and minute, every day)
-        if day == "*" and month == "*" and (weekday in {"*", "?"}):
-            return timedelta(days=1)
-
+        elif day == "*" and month == "*" and (weekday in {"*", "?"}):
+            interval = timedelta(days=1)
         # Weekly pattern (specific weekday)
-        if day == "*" and month == "*" and weekday not in {"*", "?"}:
-            return timedelta(weeks=1)
-
+        elif day == "*" and month == "*" and weekday not in {"*", "?"}:
+            interval = timedelta(weeks=1)
         # Monthly pattern (specific day of month)
-        if day != "*" and month == "*":
-            return timedelta(days=30)  # Approximate monthly interval
-
+        elif day != "*" and month == "*":
+            interval = timedelta(days=30)  # Approximate monthly interval
         # Yearly pattern (specific month and day)
-        if day != "*" and month != "*":
-            return timedelta(days=365)  # Yearly interval
-
-        # Default to daily if we can't determine the pattern
-        return timedelta(days=1)
+        elif day != "*" and month != "*":
+            interval = timedelta(days=365)  # Yearly interval
+        else:
+            # Default to daily if we can't determine the pattern
+            interval = timedelta(days=1)
 
     except Exception as e:
         msg = f"Could not calculate interval for cron expression '{cron_expression}': {e}"
         raise ValueError(msg) from e
+    else:
+        return interval
 
 
 def validate_minimum_interval(cron_expression: str) -> None:
@@ -231,7 +225,7 @@ class ScheduledTasksTool(Tool):
         # Create dedicated scheduling instance for this tool
         self.scheduler = Scheduler()
 
-    def forward(
+    def forward(  # noqa: PLR0912
         self,
         cron_expression: str,
         distilled_future_task_instructions: str,
@@ -288,13 +282,6 @@ class ScheduledTasksTool(Tool):
                 cron_iter = croniter(cron_expression, datetime.now(timezone.utc))
                 next_execution_time = datetime.fromtimestamp(cron_iter.get_next(), tz=timezone.utc)
                 time_until_execution = next_execution_time - datetime.now(timezone.utc)
-
-                # If the task description suggests a short-term reminder but the cron is far in the future
-                if "remind me" in task_description.lower() and time_until_execution > timedelta(hours=24):
-                    logger.warning(
-                        f"Potentially incorrect cron expression: {cron_expression} will execute in {time_until_execution}, but task description suggests short-term reminder: {task_description}"
-                    )
-
                 logger.info(f"One-time task will execute at: {next_execution_time} (in {time_until_execution})")
 
             db_connection = init_db_connection()
@@ -393,8 +380,8 @@ class ScheduledTasksTool(Tool):
                 try:
                     with db_connection.get_session() as session:
                         delete_task(session, task_id)
-                except Exception:
-                    pass  # Ignore cleanup errors
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to cleanup task {task_id} after scheduler error: {cleanup_error}")
                 raise scheduler_error
 
             # Return success response

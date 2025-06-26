@@ -381,17 +381,16 @@ def find_user_tasks_formatted(session: Session, user_email: str, limit: int = 10
     """
     tasks = get_tasks_by_user_email(session, user_email, limit=limit)
 
-    user_tasks = []
-    for task in tasks:
-        user_tasks.append(
-            {
-                "task_id": str(task.task_id),
-                "description": f"Cron: {task.cron_expression}",
-                "email_id": task.email_id,
-                "status": task.status.value,
-                "created_at": task.created_at.isoformat() if task.created_at else None,
-            }
-        )
+    user_tasks = [
+        {
+            "task_id": str(task.task_id),
+            "description": f"Cron: {task.cron_expression}",
+            "email_id": task.email_id,
+            "status": task.status.value,
+            "created_at": task.created_at.isoformat() if task.created_at else None,
+        }
+        for task in tasks
+    ]
 
     logger.info(f"Found {len(user_tasks)} tasks for user {user_email}")
     return user_tasks

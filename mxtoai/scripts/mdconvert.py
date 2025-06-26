@@ -1,3 +1,4 @@
+# ruff: noqa: S101
 # This is copied from Magentic-one's great repo: https://github.com/microsoft/autogen/blob/v0.4.4/python/packages/autogen-magentic-one/src/autogen_magentic_one/markdown_browser/mdconvert.py
 # Thanks to Microsoft researchers for open-sourcing this!
 # type: ignore
@@ -35,6 +36,10 @@ from bs4 import BeautifulSoup
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api.formatters import SRTFormatter
 
+from mxtoai._logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class _CustomMarkdownify(markdownify.MarkdownConverter):
     """
@@ -58,7 +63,7 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
 
         return super().convert_hn(n, el, text, convert_as_inline)  # type: ignore
 
-    def convert_a(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs):
+    def convert_a(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs):  # noqa: ARG002
         """Same as usual converter, but removes Javascript links and escapes URIs."""
         prefix, suffix, text = markdownify.chomp(text)  # type: ignore
         if not text:
@@ -90,7 +95,7 @@ class _CustomMarkdownify(markdownify.MarkdownConverter):
         title_part = ' "{}"'.format(title.replace('"', r"\"")) if title else ""
         return f"{prefix}[{text}]({href}{title_part}){suffix}" if href else text
 
-    def convert_img(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs) -> str:
+    def convert_img(self, el: Any, text: str, *, convert_as_inline: bool = False, **kwargs) -> str:  # noqa: ARG002
         """Same as usual converter, but removes data URIs"""
         alt = el.attrs.get("alt", None) or ""
         src = el.attrs.get("src", None) or ""
@@ -247,7 +252,7 @@ class WikipediaConverter(DocumentConverter):
 class YouTubeConverter(DocumentConverter):
     """Handle YouTube specially, focusing on the video title, description, and transcript."""
 
-    def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
+    def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:  # noqa: PLR0912
         # Bail if not YouTube
         extension = kwargs.get("file_extension", "")
         if extension.lower() not in [".html", ".htm"]:
@@ -281,12 +286,12 @@ class YouTubeConverter(DocumentConverter):
                     obj_end = lines[0].rfind("}")
                     if obj_start >= 0 and obj_end >= 0:
                         data = json.loads(lines[0][obj_start : obj_end + 1])
-                        attrdesc = self._findKey(data, "attributedDescriptionBodyText")  # type: ignore
+                        attrdesc = self._find_key(data, "attributedDescriptionBodyText")  # type: ignore
                         if attrdesc:
                             metadata["description"] = str(attrdesc["content"])
                     break
         except Exception:
-            pass
+            logger.warning("Could not extract video description from metadata")
 
         # Start preparing the page
         webpage_text = "# YouTube\n"
@@ -327,9 +332,12 @@ class YouTubeConverter(DocumentConverter):
                 # Must be a single transcript.
                 transcript = YouTubeTranscriptApi.get_transcript(video_id)  # type: ignore
                 # Alternative formatting:
-                transcript_text = SRTFormatter().format_transcript(transcript)
+                try:
+                    transcript_text = SRTFormatter().format_transcript(transcript)
+                except Exception:
+                    logger.warning("Could not format transcript using SRTFormatter")
             except Exception:
-                pass
+                logger.warning("Could not get YouTube transcript")
         if transcript_text:
             webpage_text += f"\n### Transcript\n{transcript_text}\n"
 
@@ -347,17 +355,17 @@ class YouTubeConverter(DocumentConverter):
                 return metadata[k]
         return default
 
-    def _findKey(self, json: Any, key: str) -> Union[str, None]:  # TODO: Fix json type
+    def _find_key(self, json: Any, key: str) -> Union[str, None]:  # TODO: Fix json type
         if isinstance(json, list):
             for elm in json:
-                ret = self._findKey(elm, key)
+                ret = self._find_key(elm, key)
                 if ret is not None:
                     return ret
         elif isinstance(json, dict):
             for k in json:
                 if k == key:
                     return json[k]
-                ret = self._findKey(json[k], key)
+                ret = self._find_key(json[k], key)
                 if ret is not None:
                     return ret
         return None
@@ -427,7 +435,7 @@ class PptxConverter(HtmlConverter):
     Converts PPTX files to Markdown. Supports heading, tables and images with alt text.
     """
 
-    def convert(self, local_path, **kwargs) -> Union[None, DocumentConverterResult]:
+    def convert(self, local_path, **kwargs) -> Union[None, DocumentConverterResult]:  # noqa: PLR0912
         # Bail if not a PPTX
         extension = kwargs.get("file_extension", "")
         if extension.lower() != ".pptx":
@@ -436,10 +444,7 @@ class PptxConverter(HtmlConverter):
         md_content = ""
 
         presentation = pptx.Presentation(local_path)
-        slide_num = 0
-        for slide in presentation.slides:
-            slide_num += 1
-
+        for slide_num, slide in enumerate(presentation.slides, 1):
             md_content += f"\n\n<!-- Slide number: {slide_num} -->\n"
 
             title = slide.shapes.title
@@ -447,9 +452,7 @@ class PptxConverter(HtmlConverter):
                 # Pictures
                 if self._is_picture(shape):
                     # https://github.com/scanny/python-pptx/pull/512#issuecomment-1713100069
-                    alt_text = ""
-                    with contextlib.suppress(Exception):
-                        alt_text = shape._element._nvXxPr.cNvPr.attrib.get("descr", "")
+                    alt_text = shape._element._nvXxPr.cNvPr.attrib.get("descr", "")  # noqa: SLF001
 
                     # A placeholder name
                     filename = re.sub(r"\W", "", shape.name) + ".jpg"
@@ -511,7 +514,7 @@ class MediaConverter(DocumentConverter):
         if not exiftool:
             return None
         try:
-            result = subprocess.run([exiftool, "-json", local_path], capture_output=True, text=True, check=False).stdout
+            result = subprocess.run([exiftool, "-json", local_path], capture_output=True, text=True, check=False).stdout  # noqa: S603
             return json.loads(result)[0]
         except Exception:
             return None
@@ -621,8 +624,6 @@ class Mp3Converter(WavConverter):
                 md_content += "\n\n### Audio Transcript:\nError. Could not transcribe this audio."
 
         finally:
-            with contextlib.suppress(Exception):
-                fh.close()
             Path(temp_path).unlink()
 
         # Return the result
@@ -647,7 +648,7 @@ class ZipConverter(DocumentConverter):
         """
         self.extract_dir = extract_dir
         # Create the extraction directory if it doesn't exist
-        os.makedirs(self.extract_dir, exist_ok=True)
+        Path(self.extract_dir).mkdir(parents=True, exist_ok=True)
 
     def convert(self, local_path: str, **kwargs: Any) -> Union[None, DocumentConverterResult]:
         # Bail if not a ZIP file
@@ -659,16 +660,14 @@ class ZipConverter(DocumentConverter):
         if not zipfile.is_zipfile(local_path):
             return None
 
-        # Extract all files and build list
-        extracted_files = []
+        # Extract all files
         with zipfile.ZipFile(local_path, "r") as zip_ref:
             # Extract all files
             zip_ref.extractall(self.extract_dir)
             # Get list of all files
-            for file_path in zip_ref.namelist():
-                # Skip directories
-                if not file_path.endswith("/"):
-                    extracted_files.append(self.extract_dir + "/" + file_path)
+            extracted_files = [
+                self.extract_dir + "/" + file_path for file_path in zip_ref.namelist() if not file_path.endswith("/")
+            ]
 
         # Sort files for consistent output
         extracted_files.sort()
@@ -762,11 +761,11 @@ class ImageConverter(MediaConverter):
         return response.choices[0].message.content
 
 
-class FileConversionException(Exception):
+class FileConversionError(Exception):
     pass
 
 
-class UnsupportedFormatException(Exception):
+class UnsupportedFormatError(Exception):
     pass
 
 
@@ -812,9 +811,14 @@ class MarkdownConverter:
         self, source: Union[str, requests.Response], **kwargs: Any
     ) -> DocumentConverterResult:  # TODO: deal with kwargs
         """
+        Convert a document from various sources to markdown.
+
         Args:
-            - source: can be a string representing a path or url, or a requests.response object
-            - extension: specifies the file extension to use when interpreting the file. If None, infer from source (path, uri, content-type, etc.)
+            source: The source to convert (file path or HTTP response)
+            **kwargs: Additional conversion options
+
+        Returns:
+            DocumentConverterResult: The converted document result
 
         """
         # Local path or url
@@ -833,14 +837,14 @@ class MarkdownConverter:
         extensions = [ext] if ext is not None else []
 
         # Get extension alternatives from the path and puremagic
-        base, ext = os.path.splitext(path)
+        path_obj = Path(path)
+        ext = path_obj.suffix
         self._append_ext(extensions, ext)
-        self._append_ext(extensions, self._guess_ext_magic(path))
 
         # Convert
         return self._convert(path, extensions, **kwargs)
 
-    # TODO what should stream's type be?
+    # TODO: what should stream's type be?
     def convert_stream(self, stream: Any, **kwargs: Any) -> DocumentConverterResult:  # TODO: deal with kwargs
         # Prepare a list of extensions to try (in order of priority)
         ext = kwargs.get("file_extension")
@@ -881,7 +885,7 @@ class MarkdownConverter:
 
     def convert_response(
         self, response: requests.Response, **kwargs: Any
-    ) -> DocumentConverterResult:  # TODO fix kwargs type
+    ) -> DocumentConverterResult:  # TODO: fix kwargs type
         # Prepare a list of extensions to try (in order of priority)
         ext = kwargs.get("file_extension")
         extensions = [ext] if ext is not None else []
@@ -894,11 +898,11 @@ class MarkdownConverter:
         content_disposition = response.headers.get("content-disposition", "")
         m = re.search(r"filename=([^;]+)", content_disposition)
         if m:
-            base, ext = os.path.splitext(m.group(1).strip("\"'"))
+            ext = Path(m.group(1).strip("\"' ")).suffix
             self._append_ext(extensions, ext)
 
         # Read from the extension from the path
-        base, ext = os.path.splitext(urlparse(response.url).path)
+        ext = Path(urlparse(response.url).path).suffix
         self._append_ext(extensions, ext)
 
         # Save the file locally to a temporary file. It will be deleted before this method exits
@@ -917,7 +921,7 @@ class MarkdownConverter:
             # Convert
             result = self._convert(temp_path, extensions, url=response.url)
         except Exception:
-            pass
+            logger.warning(f"Could not convert document from URL: {response.url}")
 
         # Clean up
         finally:
@@ -959,17 +963,17 @@ class MarkdownConverter:
                     res.text_content = "\n".join([line.rstrip() for line in re.split(r"\r?\n", res.text_content)])
                     res.text_content = re.sub(r"\n{3,}", "\n\n", res.text_content)
 
-                    # TODO
+                    # TODO: implement proper text processing
                     return res
 
         # If we got this far without success, report any exceptions
         if len(error_trace) > 0:
             msg = f"Could not convert '{local_path}' to Markdown. File type was recognized as {extensions}. While converting the file, the following error was encountered:\n\n{error_trace}"
-            raise FileConversionException(msg)
+            raise FileConversionError(msg)
 
         # Nothing can handle it!
         msg = f"Could not convert '{local_path}' to Markdown. The formats {extensions} are not supported."
-        raise UnsupportedFormatException(msg)
+        raise UnsupportedFormatError(msg)
 
     def _append_ext(self, extensions, ext):
         """Append a unique non-None, non-empty extension to a list of extensions."""

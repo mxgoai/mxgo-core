@@ -14,7 +14,7 @@ from freezegun import freeze_time  # For controlling time in tests
 from mxtoai._logging import get_logger
 from mxtoai.api import app
 
-client = TestClient(app) # This client might be overridden by fixtures for specific tests
+client = TestClient(app)  # This client might be overridden by fixtures for specific tests
 API_KEY = os.environ["X_API_KEY"]
 
 logger = get_logger(__name__)
@@ -38,60 +38,58 @@ def client_with_patched_redis():
     # before we patch, so we patch the actual client instance.
 
     # Initialize a fake Redis client for async operations
-    fake_redis_instance = FakeAsyncRedis() # Use the corrected import
+    fake_redis_instance = FakeAsyncRedis()  # Use the corrected import
 
     # Define a set of known provider domains for testing
     test_provider_domains = {TEST_KNOWN_PROVIDER_DOMAIN}
 
     # Use a context manager for the app to handle startup/shutdown
-    with TestClient(app) as test_client:
+    with (
+        TestClient(app) as test_client,
         # Patch after the app's lifespan has initialized the real client
-        with patch("mxtoai.validators.redis_client", new=fake_redis_instance), \
-             patch("mxtoai.validators.email_provider_domain_set", new=test_provider_domains):
+        patch("mxtoai.validators.redis_client", new=fake_redis_instance),
+        patch("mxtoai.validators.email_provider_domain_set", new=test_provider_domains),
+    ):
+        # It's important that the fake_redis_instance is used by the application.
+        # The lifespan manager in api.py sets mxtoai.validators.redis_client.
+        # We are effectively replacing it here for the test's scope.
+        # To ensure our mock is used, we might need to ensure this patching happens
+        # *after* the app's startup sequence or that the app's startup uses a
+        # reference that we can control.
+        # A simpler way if the app is re-initialized per test or test session for TestClient:
+        # we can assume the patch takes effect before request handling.
 
-            # It's important that the fake_redis_instance is used by the application.
-            # The lifespan manager in api.py sets mxtoai.validators.redis_client.
-            # We are effectively replacing it here for the test's scope.
-            # To ensure our mock is used, we might need to ensure this patching happens
-            # *after* the app's startup sequence or that the app's startup uses a
-            # reference that we can control.
-            # A simpler way if the app is re-initialized per test or test session for TestClient:
-            # we can assume the patch takes effect before request handling.
+        # Forcing the global in validators to be our fake instance
+        import mxtoai.validators
 
-            # Forcing the global in validators to be our fake instance
-            import mxtoai.validators
-            original_redis_client = mxtoai.validators.redis_client
-            original_domain_set = mxtoai.validators.email_provider_domain_set
+        original_redis_client = mxtoai.validators.redis_client
+        original_domain_set = mxtoai.validators.email_provider_domain_set
 
-            mxtoai.validators.redis_client = fake_redis_instance
-            mxtoai.validators.email_provider_domain_set = test_provider_domains
+        mxtoai.validators.redis_client = fake_redis_instance
+        mxtoai.validators.email_provider_domain_set = test_provider_domains
 
-            yield test_client # Test runs here
+        yield test_client  # Test runs here
 
-            # Teardown: clear fake redis and restore original globals
+        # Teardown: clear fake redis and restore original globals
 
-            # For FakeAsyncRedis, usually it's per-instance, so just letting it go out of scope is fine.
-            # Or, if it's a singleton from fakeredis, you might need fake_redis_instance.client.flushall()
-            # For now, assume FakeAsyncRedis instances are independent.
+        # For FakeAsyncRedis, usually it's per-instance, so just letting it go out of scope is fine.
+        # Or, if it's a singleton from fakeredis, you might need fake_redis_instance.client.flushall()
+        # For now, assume FakeAsyncRedis instances are independent.
 
-            mxtoai.validators.redis_client = original_redis_client
-            mxtoai.validators.email_provider_domain_set = original_domain_set
+        mxtoai.validators.redis_client = original_redis_client
+        mxtoai.validators.email_provider_domain_set = original_domain_set
 
 
 def prepare_form_data(**kwargs):
-    form_data = {
+    return {
         "from_email": "test@example.com",
         "to": "ask@mxtoai.com",
         "subject": "Test Subject",
-        "textContent": "Test text content",
-        "htmlContent": "<p>Test HTML content</p>",
-        "messageId": f"test-message-id-{os.urandom(4).hex()}",
-        "date": "2023-10-26T10:00:00Z",
-        "rawHeaders": '{"cc": "cc@example.com"}',
+        "textContent": "Test content",
+        "htmlContent": "<p>Test content</p>",
+        **dict(kwargs.items()),
     }
-    for key, value in kwargs.items():
-        form_data[key] = value
-    return form_data
+
 
 def make_post_request_with_client(test_client, form_data, endpoint, files=None, headers=None):
     request_headers = {"x-api-key": API_KEY}
@@ -102,7 +100,7 @@ def make_post_request_with_client(test_client, form_data, endpoint, files=None, 
     return test_client.post(endpoint, data=form_data, files=files, headers=request_headers)
 
 
-def make_post_request(form_data, endpoint, files=None, headers=None): # Keep for non-rate-limit tests
+def make_post_request(form_data, endpoint, files=None, headers=None):  # Keep for non-rate-limit tests
     request_headers = {"x-api-key": API_KEY}
     if headers is not None:
         request_headers.update(headers)
@@ -110,6 +108,7 @@ def make_post_request(form_data, endpoint, files=None, headers=None): # Keep for
         del request_headers["x-api-key"]
 
     return client.post(endpoint, data=form_data, files=files, headers=request_headers)
+
 
 def assert_successful_response(response, expected_attachments_saved=0):
     assert response.status_code == 200, f"Expected status 200, got {response.status_code}. Response: {response.text}"
@@ -120,6 +119,7 @@ def assert_successful_response(response, expected_attachments_saved=0):
     assert response_json["email_id"] != ""
     assert response_json["attachments_saved"] == expected_attachments_saved
     assert response_json["status"] == "processing"
+
 
 def assert_rate_limit_exceeded_response(response, expected_message_part):
     assert response.status_code == 429, f"Expected status 429, got {response.status_code}. Response: {response.text}"
@@ -184,12 +184,15 @@ def validate_send_task(
     else:
         assert email_attachments_dir_arg == "", f"Expected no attachment directory, but got {email_attachments_dir_arg}"
 
+
 # --- Existing Tests (should mostly work, may need client_with_patched_redis if they trigger rate limits unintentionally) ---
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
-def test_process_email_success_no_attachments_ask_handle(mock_task_send, mock_validate_email_whitelist, client_with_patched_redis):
+def test_process_email_success_no_attachments_ask_handle(
+    mock_task_send, mock_validate_email_whitelist, client_with_patched_redis
+):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(to="ask@mxtoai.com", from_email="pass@example.com") # Use unique email
+    form_data = prepare_form_data(to="ask@mxtoai.com", from_email="pass@example.com")  # Use unique email
 
     response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
     assert_successful_response(response, expected_attachments_saved=0)
@@ -201,12 +204,15 @@ def test_process_email_success_no_attachments_ask_handle(mock_task_send, mock_va
 
 # --- New Rate Limiting Tests ---
 
+
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock) # Still mock this
-@patch("mxtoai.api.process_email_task.send") # And this
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) # Mock rejection email
-def test_email_hourly_rate_limit_exceeded(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
-    mock_validate_whitelist.return_value = None # Assume email is whitelisted
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)  # Still mock this
+@patch("mxtoai.api.process_email_task.send")  # And this
+@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)  # Mock rejection email
+def test_email_hourly_rate_limit_exceeded(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
+    mock_validate_whitelist.return_value = None  # Assume email is whitelisted
     test_email = f"hourly_limited_{os.urandom(2).hex()}@test.com"
     form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
 
@@ -214,7 +220,7 @@ def test_email_hourly_rate_limit_exceeded(mock_rejection_email, mock_task_send, 
         form_data = {**form_data_template, "messageId": f"hourly-ok-{i}-{os.urandom(2).hex()}"}
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
         assert_successful_response(response)
-        mock_task_send.reset_mock() # Reset for next call in loop
+        mock_task_send.reset_mock()  # Reset for next call in loop
 
     # Next request should exceed
     form_data = {**form_data_template, "messageId": f"hourly-exceed-{os.urandom(2).hex()}"}
@@ -233,7 +239,9 @@ def test_email_hourly_rate_limit_exceeded(mock_rejection_email, mock_task_send, 
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 @patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
-def test_email_daily_rate_limit_exceeded(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
+def test_email_daily_rate_limit_exceeded(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
     mock_validate_whitelist.return_value = None
     test_email = f"daily_limited_{os.urandom(2).hex()}@test.com"
     form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
@@ -243,14 +251,16 @@ def test_email_daily_rate_limit_exceeded(mock_rejection_email, mock_task_send, m
         with freeze_time(datetime(2024, 1, 15, 10 + (i // TEST_EMAIL_LIMIT_HOUR), i % 60, 0, tzinfo=timezone.utc)):
             form_data = {**form_data_template, "messageId": f"daily-ok-{i}-{os.urandom(2).hex()}"}
             response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
-            if response.status_code != 200: # If it hits hourly limit before daily, that's also a valid intermediate state for this test setup
+            if (
+                response.status_code != 200
+            ):  # If it hits hourly limit before daily, that's also a valid intermediate state for this test setup
                 assert_rate_limit_exceeded_response(response, "email hour")
                 mock_rejection_email.assert_called()
                 mock_rejection_email.reset_mock()
-                mock_task_send.assert_not_called() # Should not proceed if rate limited
+                mock_task_send.assert_not_called()  # Should not proceed if rate limited
             else:
                 assert_successful_response(response)
-            mock_task_send.reset_mock() # Reset for next call
+            mock_task_send.reset_mock()  # Reset for next call
 
     # Next request on the same day should exceed daily limit
     with freeze_time(datetime(2024, 1, 15, 23, 0, 0, tzinfo=timezone.utc)):
@@ -258,14 +268,16 @@ def test_email_daily_rate_limit_exceeded(mock_rejection_email, mock_task_send, m
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
         assert_rate_limit_exceeded_response(response, "email day for beta plan")
         mock_task_send.assert_not_called()
-        mock_rejection_email.assert_called() # Should have been called at least once for the daily limit
+        mock_rejection_email.assert_called()  # Should have been called at least once for the daily limit
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 @patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
-def test_email_monthly_rate_limit_exceeded(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
+def test_email_monthly_rate_limit_exceeded(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
     mock_validate_whitelist.return_value = None
     test_email = f"monthly_limited_{os.urandom(2).hex()}@test.com"
     form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
@@ -274,7 +286,7 @@ def test_email_monthly_rate_limit_exceeded(mock_rejection_email, mock_task_send,
         # Simulate requests spread over different days and hours within the same month
         day_of_month = 1 + (i // TEST_EMAIL_LIMIT_DAY)
         hour_of_day = 10 + ((i % TEST_EMAIL_LIMIT_DAY) // TEST_EMAIL_LIMIT_HOUR)
-        day_of_month = min(day_of_month, 28) # Keep it simple for test month
+        day_of_month = min(day_of_month, 28)  # Keep it simple for test month
         hour_of_day = min(hour_of_day, 23)
 
         with freeze_time(datetime(2024, 1, day_of_month, hour_of_day, i % 60, 0, tzinfo=timezone.utc)):
@@ -302,21 +314,27 @@ def test_email_monthly_rate_limit_exceeded(mock_rejection_email, mock_task_send,
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 @patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
-def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
+def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
     mock_validate_whitelist.return_value = None
 
     for i in range(TEST_DOMAIN_LIMIT_HOUR):
         # Use different emails from the same unknown domain
         test_email = f"user{i}_{os.urandom(1).hex()}@{TEST_UNKNOWN_DOMAIN}"
-        form_data = prepare_form_data(from_email=test_email, to="ask@mxtoai.com", messageId=f"domain-ok-{i}-{os.urandom(2).hex()}")
+        form_data = prepare_form_data(
+            from_email=test_email, to="ask@mxtoai.com", messageId=f"domain-ok-{i}-{os.urandom(2).hex()}"
+        )
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
         assert_successful_response(response)
         mock_task_send.reset_mock()
-        mock_validate_whitelist.reset_mock() # Reset for next distinct email call
+        mock_validate_whitelist.reset_mock()  # Reset for next distinct email call
 
     # Next request from any user on this domain should exceed
     test_email_exceed = f"user_exceed_{os.urandom(1).hex()}@{TEST_UNKNOWN_DOMAIN}"
-    form_data_exceed = prepare_form_data(from_email=test_email_exceed, to="ask@mxtoai.com", messageId=f"domain-exceed-{os.urandom(2).hex()}")
+    form_data_exceed = prepare_form_data(
+        from_email=test_email_exceed, to="ask@mxtoai.com", messageId=f"domain-exceed-{os.urandom(2).hex()}"
+    )
     response = make_post_request_with_client(client_with_patched_redis, form_data_exceed, "/process-email")
     assert_rate_limit_exceeded_response(response, "domain hour")
     mock_task_send.assert_not_called()
@@ -329,14 +347,18 @@ def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(mock_rejection_ema
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 @patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
-def test_domain_limit_not_applied_for_known_provider(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
+def test_domain_limit_not_applied_for_known_provider(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
     mock_validate_whitelist.return_value = None
 
     # Send more than TEST_DOMAIN_LIMIT_HOUR requests from a known provider domain
     # These should only be limited by their per-email limits, not the general domain limit.
-    for i in range(TEST_DOMAIN_LIMIT_HOUR + 5): # Go over the general domain limit
+    for i in range(TEST_DOMAIN_LIMIT_HOUR + 5):  # Go over the general domain limit
         test_email = f"user{i}_{os.urandom(1).hex()}@{TEST_KNOWN_PROVIDER_DOMAIN}"
-        form_data = prepare_form_data(from_email=test_email, to="ask@mxtoai.com", messageId=f"known-domain-{i}-{os.urandom(2).hex()}")
+        form_data = prepare_form_data(
+            from_email=test_email, to="ask@mxtoai.com", messageId=f"known-domain-{i}-{os.urandom(2).hex()}"
+        )
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
 
         # It might hit per-email hour limit if user{i} is repeated many times by chance of os.urandom(1)
@@ -346,28 +368,34 @@ def test_domain_limit_not_applied_for_known_provider(mock_rejection_email, mock_
         mock_task_send.reset_mock()
         mock_validate_whitelist.reset_mock()
 
-    mock_rejection_email.assert_not_called() # No domain rate limit rejection
+    mock_rejection_email.assert_not_called()  # No domain rate limit rejection
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 @patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
-def test_email_normalization_for_rate_limiting(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
+def test_email_normalization_for_rate_limiting(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
     mock_validate_whitelist.return_value = None
     base_email = f"normalized_user_{os.urandom(2).hex()}"
     domain = "testnorm.com"
 
     email1 = f"{base_email}@{domain}"
     email2 = f"{base_email}+alias1@{domain}"
-    email3 = f"{base_email}+another.alias@{domain.upper()}" # Test domain case insensitivity too
+    email3 = f"{base_email}+another.alias@{domain.upper()}"  # Test domain case insensitivity too
 
     form_data_template = prepare_form_data(to="ask@mxtoai.com")
 
     # Send up to the hourly limit using variations of the same base email
     for i in range(TEST_EMAIL_LIMIT_HOUR):
         current_email = [email1, email2, email3][i % 3]
-        form_data = {**form_data_template, "from_email": current_email, "messageId": f"norm-ok-{i}-{os.urandom(2).hex()}"}
+        form_data = {
+            **form_data_template,
+            "from_email": current_email,
+            "messageId": f"norm-ok-{i}-{os.urandom(2).hex()}",
+        }
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
         assert_successful_response(response)
         mock_task_send.reset_mock()
@@ -384,7 +412,9 @@ def test_email_normalization_for_rate_limiting(mock_rejection_email, mock_task_s
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.process_email_task.send")
 @patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
-def test_rate_limits_cleared_after_time_period(mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis):
+def test_rate_limits_cleared_after_time_period(
+    mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
+):
     mock_validate_whitelist.return_value = None
     test_email = f"time_cleared_{os.urandom(2).hex()}@test.com"
     form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
@@ -408,8 +438,13 @@ def test_rate_limits_cleared_after_time_period(mock_rejection_email, mock_task_s
         frozen_time.move_to("2024-01-15 11:05:00 UTC")
 
         # Request should now be successful as the hourly bucket has changed
-        form_data_success_next_hour = {**form_data_template, "messageId": f"clear-success-next-hour-{os.urandom(2).hex()}"}
-        response = make_post_request_with_client(client_with_patched_redis, form_data_success_next_hour, "/process-email")
+        form_data_success_next_hour = {
+            **form_data_template,
+            "messageId": f"clear-success-next-hour-{os.urandom(2).hex()}",
+        }
+        response = make_post_request_with_client(
+            client_with_patched_redis, form_data_success_next_hour, "/process-email"
+        )
         assert_successful_response(response)
-        mock_task_send.assert_called_once() # Should be processed
-        mock_rejection_email.assert_not_called() # No rejection this time
+        mock_task_send.assert_called_once()  # Should be processed
+        mock_rejection_email.assert_not_called()  # No rejection this time

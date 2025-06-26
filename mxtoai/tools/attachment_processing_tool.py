@@ -1,24 +1,25 @@
 import json
-import os
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 from urllib.parse import unquote
 
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(str(Path(__file__).parent.parent.resolve()))
 import contextlib
-
-from scripts.mdconvert import MarkdownConverter
 
 from mxtoai._logging import get_logger
 from mxtoai.request_context import RequestContext
 from mxtoai.schemas import ToolOutputWithCitations
+from scripts.mdconvert import MarkdownConverter
 
 # Configure logger
 logger = get_logger("attachment_tool")
+
+CONTENT_SUMMARY_THRESHOLD = 4000
+PREVIEW_TEXT_LENGTH = 200
 
 
 class AttachmentProcessingTool(Tool):
@@ -45,7 +46,7 @@ class AttachmentProcessingTool(Tool):
     - size: File size in bytes
     """
 
-    inputs = {
+    inputs: ClassVar[dict] = {
         "attachments": {
             "type": "array",
             "description": "List of attachment dictionaries containing file information. Each dictionary must have 'filename', 'type', and 'size' keys. The 'path' key is optional - attachments will be processed from memory when available, falling back to file path if needed.",
@@ -54,10 +55,13 @@ class AttachmentProcessingTool(Tool):
                 "properties": {
                     "filename": {"type": "string", "description": "Name of the file"},
                     "type": {"type": "string", "description": "MIME type or content type of the file"},
-                    "path": {"type": "string", "description": "Full path to the file (optional - used as fallback if memory content unavailable)"},
+                    "path": {
+                        "type": "string",
+                        "description": "Full path to the file (optional - used as fallback if memory content unavailable)",
+                    },
                     "size": {"type": "integer", "description": "Size of the file in bytes"},
                 },
-                "required": ["filename", "type", "size"]
+                "required": ["filename", "type", "size"],
             },
         },
         "mode": {
@@ -92,9 +96,8 @@ class AttachmentProcessingTool(Tool):
         logger.debug(f"AttachmentProcessingTool initialized with text_limit={text_limit}")
 
         # Set up attachments directory path
-        self.attachments_dir = Path(
-            os.path.abspath(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "attachments"))
-        )
+        self.attachments_dir = Path(__file__).parent.parent / "attachments"
+        self.attachments_dir = self.attachments_dir.resolve()
         self.attachments_dir.mkdir(parents=True, exist_ok=True)
 
     def _validate_attachment_path(self, file_path: str) -> Path:
@@ -218,10 +221,7 @@ class AttachmentProcessingTool(Tool):
                 logger.info(f"Processing attachment: {filename}")
 
                 # Add citation for this attachment
-                citation_id = self.context.add_attachment_citation(
-                    filename,
-                    f"Email attachment ({content_type})"
-                )
+                citation_id = self.context.add_attachment_citation(filename, f"Email attachment ({content_type})")
                 citation_ids.append(citation_id)
 
                 # Skip image files - they should be handled by azure_visualizer directly
@@ -258,13 +258,17 @@ class AttachmentProcessingTool(Tool):
 
                 # Fall back to file path processing if memory processing failed or unavailable
                 if content is None and "path" in attachment:
-                    logger.warning(f"File path processing is deprecated for security. Skipping {filename}. "
-                                 f"Use memory-based processing instead.")
-                    processed_attachments.append({
-                        **attachment,
-                        "citation_id": citation_id,
-                        "error": "File path processing deprecated for security - use memory-based processing"
-                    })
+                    logger.warning(
+                        f"File path processing is deprecated for security. Skipping {filename}. "
+                        f"Use memory-based processing instead."
+                    )
+                    processed_attachments.append(
+                        {
+                            **attachment,
+                            "citation_id": citation_id,
+                            "error": "File path processing deprecated for security - use memory-based processing",
+                        }
+                    )
                     continue
 
                 # If we still don't have content, it's an error
@@ -276,7 +280,7 @@ class AttachmentProcessingTool(Tool):
 
                 # If in full mode and model is available, generate a summary
                 summary = None
-                if mode == "full" and self.model and len(content) > 4000:
+                if mode == "full" and self.model and len(content) > CONTENT_SUMMARY_THRESHOLD:
                     messages = [
                         {
                             "role": MessageRole.SYSTEM,
@@ -316,7 +320,11 @@ class AttachmentProcessingTool(Tool):
             except Exception as e:
                 logger.error(f"Error processing attachment {attachment.get('filename', 'unknown')}: {e!s}")
                 processed_attachments.append(
-                    {**{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]}, "citation_id": citation_id, "error": str(e)}
+                    {
+                        **{k: v for k, v in attachment.items() if k in ["filename", "type", "size"]},
+                        "citation_id": citation_id,
+                        "error": str(e),
+                    }
                 )
 
         # Create structured output with citations
@@ -331,7 +339,7 @@ class AttachmentProcessingTool(Tool):
                 "failed": len([a for a in processed_attachments if "error" in a]),
                 "citation_ids": citation_ids,
                 "attachments": processed_attachments,
-            }
+            },
         )
 
         return json.dumps(result.model_dump())
@@ -373,7 +381,7 @@ class AttachmentProcessingTool(Tool):
                         summary_parts.append(f"Summary: {content['summary']}")
                     else:
                         text = content.get("text", "")
-                        preview = text[:200] + "..." if len(text) > 200 else text
+                        preview = text[:PREVIEW_TEXT_LENGTH] + "..." if len(text) > PREVIEW_TEXT_LENGTH else text
                         summary_parts.append(f"Preview: {preview}")
 
         status = f"Processed {successful} documents, {images} images pending visual processing"

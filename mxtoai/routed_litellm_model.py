@@ -82,30 +82,32 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
     def _load_model_config(self) -> list[mxtoai.schemas.ModelConfig]:
         """
-        Load model configuration from environment variables.
+        Load model configuration from TOML file.
 
         Returns:
-            List[Dict[str, Any]]: List of model configurations.
+            list[mxtoai.schemas.ModelConfig]: List of model configurations
 
         """
         model_entries = self.config.get("model", [])
-        model_list = []
+        if not model_entries:
+            msg = "No models found in config toml. Please check the configuration."
+            raise exceptions.ModelListNotFoundError(msg)
 
         if isinstance(model_entries, dict):
             # In case there's only one model (TOML parser returns dict)
             model_entries = [model_entries]
 
-        for entry in model_entries:
-            model_list.append(
-                mxtoai.schemas.ModelConfig(
-                    model_name=entry.get("model_name"),
-                    litellm_params=mxtoai.schemas.LiteLLMParams(**entry.get("litellm_params")),
-                )
+        model_list = [
+            mxtoai.schemas.ModelConfig(
+                model_name=entry.get("model_name"),
+                litellm_params=mxtoai.schemas.LiteLLMParams(**entry.get("litellm_params")),
             )
+            for entry in model_entries
+        ]
 
         if not model_list:
             msg = "No model list found in config toml. Please check the configuration."
-            raise exceptions.ModelListNotFoundException(msg)
+            raise exceptions.ModelListNotFoundError(msg)
 
         return model_list
 
@@ -137,6 +139,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
         Args:
             model_list: List of model configurations from TOML
+
         """
         for model_config in model_list:
             if model_config.litellm_params.model and model_config.litellm_params.model.startswith("azure/"):

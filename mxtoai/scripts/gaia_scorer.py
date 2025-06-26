@@ -57,9 +57,10 @@ def is_float(element: any) -> bool:
     """
     try:
         float(element)
-        return True
     except ValueError:
         return False
+    else:
+        return True
 
 
 def question_scorer(

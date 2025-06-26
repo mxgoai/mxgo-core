@@ -107,13 +107,13 @@ def get_zip_description(file_path: str, question: str, visual_inspection_tool, d
 
     """
     folder_path = file_path.replace(".zip", "")
-    os.makedirs(folder_path, exist_ok=True)
+    Path(folder_path).mkdir(parents=True, exist_ok=True)
     shutil.unpack_archive(file_path, folder_path)
 
     prompt_use_files = ""
     for root, _, files in os.walk(folder_path):
         for file in files:
-            file_path = os.path.join(root, file)
+            file_path = Path(root) / file
             description = get_single_file_description(
                 file_path, question, visual_inspection_tool, document_inspection_tool
             )

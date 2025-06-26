@@ -1,5 +1,4 @@
 import json
-import os
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -27,7 +26,7 @@ class ReportFormatter:
         """
         # Set up template directory
         if template_dir is None:
-            self.template_dir = os.path.join(os.path.dirname(__file__), "templates")
+            self.template_dir = Path(__file__).parent / "templates"
         else:
             self.template_dir = template_dir
 
@@ -68,15 +67,15 @@ class ReportFormatter:
         self.themes = {"default": {}}  # Always have a default theme
 
         try:
-            themes_file = os.path.join(self.template_dir, "themes.json")
-            if Path(themes_file).exists():
-                with Path(themes_file).open() as f:
+            themes_file = self.template_dir / "themes.json"
+            if themes_file.exists():
+                with themes_file.open() as f:
                     self.themes.update(json.load(f))
         except Exception as e:
             logger.error(f"Failed to load themes: {e}")
 
     def format_report(
-        self, content: str, format_type: str = "markdown", include_signature: bool = True, theme: str = "default"
+        self, content: str, format_type: str = "markdown", *, include_signature: bool = True, theme: str = "default"
     ) -> str:
         """
         Format the research report in the specified format.
@@ -171,8 +170,8 @@ class ReportFormatter:
             # Add the formatted references section at the end
             return content.strip() + "\n\n" + "\n".join(formatted_refs)
 
-        except Exception as e:
-            logger.exception(f"Error processing citations: {e!s}")
+        except Exception:
+            logger.exception("Error processing citations")
             return content
 
     def _remove_existing_signatures(self, content: str) -> str:
@@ -325,9 +324,7 @@ class ReportFormatter:
 
             # Add separator after header
             if row_idx == 0:
-                separator_parts = []
-                for width in col_widths:
-                    separator_parts.append("-" * width)
+                separator_parts = ["-" * width for width in col_widths]
                 result.append("  ".join(separator_parts))
 
         return result

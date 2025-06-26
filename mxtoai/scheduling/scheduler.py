@@ -325,10 +325,11 @@ class Scheduler:
         try:
             scheduler.remove_job(job_id)
             logger.info(f"Removed scheduled job {job_id}")
-            return True
         except Exception as e:
             logger.warning(f"Failed to remove job {job_id}: {e}")
             return False
+        else:
+            return True
 
     def get_jobs(self) -> list:
         """
@@ -355,6 +356,7 @@ class Scheduler:
         scheduler = self.get_scheduler()
         try:
             job = scheduler.get_job(job_id)
-            return job is not None
         except Exception:
             return False
+        else:
+            return job is not None

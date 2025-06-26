@@ -9,7 +9,7 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
+from typing import ClassVar, Optional
 
 from pydantic import BaseModel, Field, field_validator
 from smolagents import Tool
@@ -92,7 +92,7 @@ class DeleteScheduledTasksTool(Tool):
 
     name = "delete_scheduled_tasks"
     description = "Delete scheduled email tasks by task ID with user verification"
-    inputs = {"task_id": {"type": "string", "description": "UUID of the task to delete"}}
+    inputs: ClassVar[dict] = {"task_id": {"type": "string", "description": "UUID of the task to delete"}}
     output_type = "object"
 
     def __init__(self, context: RequestContext):

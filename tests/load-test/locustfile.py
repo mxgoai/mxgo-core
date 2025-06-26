@@ -1,9 +1,8 @@
 import csv
-import glob
 import json
 import os
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import psutil
@@ -22,8 +21,9 @@ STATS_FILE = SCRIPT_DIR / "system_stats.csv"
 
 def get_random_test_files(num_files: int = 2) -> list[str]:
     """Get random PDF files from test_files directory"""
-    pdf_files = glob.glob(str(TEST_FILES_DIR / "*.pdf"))
-    return random.sample(pdf_files, min(num_files, len(pdf_files)))
+    pdf_files = list(TEST_FILES_DIR.glob("*.pdf"))
+    pdf_files_str = [str(f) for f in pdf_files]
+    return random.sample(pdf_files_str, min(num_files, len(pdf_files_str)))
 
 
 # Complex topics for testing
@@ -136,17 +136,17 @@ def get_system_stats() -> dict:
 
 # CSV writer for system stats
 class SystemStatsWriter:
-    def __init__(self, filename: str):
+    def __init__(self, filename):
         self.filename = filename
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
-        self.file = open(filename, "w", newline="")
+        Path(filename).parent.mkdir(parents=True, exist_ok=True)
+        self.file = Path(filename).open("w", newline="")  # noqa: SIM115
         self.writer = csv.writer(self.file)
         self.writer.writerow(["timestamp", "cpu_percent", "memory_percent", "num_threads", "connections"])
 
     def write_stats(self, stats: dict):
         self.writer.writerow(
             [
-                datetime.now().isoformat(),
+                datetime.now(timezone.utc).isoformat(),
                 stats["cpu_percent"],
                 stats["memory_percent"],
                 stats["num_threads"],
@@ -187,22 +187,21 @@ class EmailProcessingUser(HttpUser):
             stream = data.get("stream", False)
 
             # Process attachments if present
-            attachments = []
-            for file_path in data.get("files", []):
-                attachments.append(
-                    {"path": file_path, "type": "application/pdf", "filename": os.path.basename(file_path)}
-                )
+            attachments = [
+                {"path": file_path, "type": "application/pdf", "filename": Path(file_path).name}
+                for file_path in data.get("files", [])
+            ]
 
             # Call deep research tool with mock service
             result = self.deep_research_tool.forward(
                 query=query, context=context, attachments=attachments, stream=stream
             )
 
-            return {"status": "success", "message": "Research completed successfully", "data": result}
-
         except Exception as e:
-            logger.exception(f"Error in deep research processing: {e!s}")
+            logger.exception("Error in deep research processing")
             return {"status": "error", "message": str(e)}
+        else:
+            return {"status": "success", "message": "Research completed successfully", "data": result}
 
     @task
     def process_email(self):
@@ -216,9 +215,9 @@ class EmailProcessingUser(HttpUser):
 
         # Check if this is a deep research request
         if scenario["data"].get("deep_research"):
-            start_time = datetime.now()
+            start_time = datetime.now(timezone.utc)
             result = self._process_deep_research(scenario["data"])
-            end_time = datetime.now()
+            end_time = datetime.now(timezone.utc)
 
             # Record response time for deep research
             response_time = (end_time - start_time).total_seconds() * 1000
@@ -247,15 +246,13 @@ class EmailProcessingUser(HttpUser):
 
         # Prepare the request data for regular email processing
         data = scenario["data"].copy()
-        files = []
 
         # Add files if present in scenario
-        for file_path in data.pop("files", []):
-            try:
-                files.append(("files", (os.path.basename(file_path), open(file_path, "rb"), "application/pdf")))
-            except FileNotFoundError:
-                logger.error(f"File not found: {file_path}")
-                continue
+        files = [
+            ("files", (Path(file_path).name, Path(file_path).open("rb"), "application/pdf"))  # noqa: SIM115
+            for file_path in data.pop("files", [])
+            if Path(file_path).exists()
+        ]
 
         try:
             # Send the request
@@ -310,4 +307,4 @@ def on_test_stop(environment, **kwargs):
 
 if __name__ == "__main__":
     # Create test_files directory if it doesn't exist
-    os.makedirs(TEST_FILES_DIR, exist_ok=True)
+    Path(TEST_FILES_DIR).mkdir(parents=True, exist_ok=True)

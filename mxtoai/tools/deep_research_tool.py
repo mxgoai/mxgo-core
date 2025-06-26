@@ -159,11 +159,12 @@ class DeepResearchTool(Tool):
 
             # Encode content
             encoded = base64.b64encode(content).decode("utf-8")
-            return {"type": "file", "data": f"data:{mime_type};base64,{encoded}", "mimeType": mime_type}
-
+            result = {"type": "file", "data": f"data:{mime_type};base64,{encoded}", "mimeType": mime_type}
         except Exception as e:
             logger.error(f"Error encoding content for {filename}: {e!s}")
             return None
+        else:
+            return result
 
     def _encode_file(self, file_path: str) -> Optional[dict[str, Any]]:
         """
@@ -240,7 +241,7 @@ class DeepResearchTool(Tool):
         # Return a single message with all content
         return [{"role": "user", "content": message_content}]
 
-    def _process_stream_response(self, response):
+    def _process_stream_response(self, response):  # noqa: PLR0912
         """
         Process a streaming response from the API.
 
@@ -298,10 +299,9 @@ class DeepResearchTool(Tool):
                                     continue
 
                             # Handle content
-                            if delta.get("content"):
+                            if delta.get("content") and current_type != "think":
                                 # Only append text content (ignore think content)
-                                if current_type != "think":
-                                    findings.append(delta["content"])
+                                findings.append(delta["content"])
 
                             # Handle annotations
                             if "annotations" in delta:
@@ -353,7 +353,7 @@ class DeepResearchTool(Tool):
         logger.debug("Skipping TOC generation, returning raw content structure.")
         return content
 
-    def _format_research_content(
+    def _format_research_content(  # noqa: PLR0912
         self, content: str, annotations: list[dict[str, Any]], visited_urls: list[str], read_urls: list[str]
     ) -> str:
         """
@@ -445,24 +445,24 @@ class DeepResearchTool(Tool):
 
             # Add references to the content
             formatted_content += "\n".join(references)
-
-            return formatted_content
-
+            result = formatted_content
         except Exception as e:
             logger.error(f"Error formatting research content: {e!s}")
             # Return original content if formatting fails
             return content
+        else:
+            return result
 
-    def forward(
+    def forward(  # noqa: PLR0912, PLR0915
         self,
         query: str,
-        context: Optional[str] = None,
+        context: Optional[dict[str, Any]] = None,
         memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
         thread_messages: Optional[list[dict[str, str]]] = None,
         *,
         stream: bool = False,
         reasoning_effort: str = "medium",
-    ) -> dict[str, Any]:
+    ) -> Any:
         """
         Perform deep research on a query with context and attachments.
 
@@ -470,15 +470,16 @@ class DeepResearchTool(Tool):
             query: The research query to investigate
             context: Optional additional context
             memory_attachments: Dict mapping filename to (content, mime_type) tuples for in-memory files
-            thread_messages: Optional list of previous messages
+            thread_messages: Previous messages in thread
             stream: Whether to stream the response (default False)
-            reasoning_effort: Level of reasoning effort ("low", "medium", "high")
+            reasoning_effort: Level of reasoning effort ('low', 'medium', 'high')
 
         Returns:
             Research results including findings, citations, and sources
 
         """
         # Ensure parameters are properly initialized
+        context = context if isinstance(context, dict) else {}
         memory_attachments = memory_attachments if isinstance(memory_attachments, dict) else {}
         thread_messages = thread_messages if isinstance(thread_messages, list) else []
 
@@ -487,200 +488,198 @@ class DeepResearchTool(Tool):
             total_size = sum(len(content) for content, _ in memory_attachments.values())
             logger.info(f"Processing {len(memory_attachments)} memory attachments, total size: {total_size} bytes")
 
+        result = {}
+
         if not self.api_key and not self.use_mock_service:
-            return {
+            result = {
                 "query": query,
                 "findings": "Research functionality is not available. JINA_API_KEY is required.",
                 "error": "API key not configured",
             }
-
-        if not self.deep_research_enabled:
+        elif not self.deep_research_enabled:
             logger.info("Deep research is disabled. Enable it explicitly before use.")
-            return {
+            result = {
                 "query": query,
                 "findings": "Deep research functionality is currently disabled. Enable it explicitly before use.",
                 "error": "Deep research disabled",
             }
-
-        try:
-            if self.use_mock_service:
-                logger.info("Using mock Jina service for load testing")
-                response_data = self.mock_service.process_request(
-                    query=query, stream=stream, reasoning_effort=reasoning_effort
-                )
-
-                if stream:
-                    # Process streaming response from mock service
-                    stream_results = self._process_stream_response(response_data)
-                    if "error" in stream_results:
-                        return {
-                            "query": query,
-                            "findings": f"An error occurred during research: {stream_results['error']}",
-                            "error": stream_results["error"],
-                        }
-                    return {"query": query, **stream_results}
-                # Process non-streaming response from mock service
-                content = response_data["choices"][0]["message"]["content"]
-                annotations = response_data["choices"][0]["message"]["annotations"]
-
-                # Format content with proper citations
-                formatted_content = self._format_research_content(
-                    content=content,
-                    annotations=annotations,
-                    visited_urls=response_data.get("visitedURLs", []),
-                    read_urls=response_data.get("readURLs", []),
-                )
-
-                return {
-                    "query": query,
-                    "findings": formatted_content,
-                    "annotations": annotations,
-                    "visited_urls": response_data.get("visitedURLs", []),
-                    "read_urls": response_data.get("readURLs", []),
-                    "timestamp": response_data.get("timestamp"),
-                    "usage": response_data.get("usage", {}),
-                    "num_urls": response_data.get("numURLs", 0),
-                }
-
-            # Prepare messages including files and context
-            messages = self._prepare_messages(
-                query=query, context=context, memory_attachments=memory_attachments, thread_messages=thread_messages
-            )
-
-            # Prepare request data
-            data = {
-                "model": "jina-deepsearch-v1",
-                "messages": messages,
-                "stream": stream,
-                "reasoning_effort": reasoning_effort,
-                "no_direct_answer": False,
-            }
-
-            # Log the complete request data
-            logger.info("Request data being sent to Jina AI:")
-            logger.info(f"URL: {self.api_url}")
-            logger.info(f"Headers: {json.dumps({k: v for k, v in self.headers.items() if k != 'Authorization'})}")
-            logger.info(f"Request Body: {json.dumps(data, indent=2)}")
-
-            logger.info(f"Sending research query to Jina AI: {query}")
-
-            # Make API request
-            response = requests.post(
-                self.api_url,
-                headers=self.headers,
-                data=json.dumps(data),
-                stream=stream,
-                timeout=600,  # 10 minute timeout
-            )
-
-            logger.debug(f"Response status: {response.status_code}")
-
-            if not response.ok:
-                error_msg = f"API request failed with status {response.status_code}"
-                logger.error(error_msg)
-                return {
-                    "query": query,
-                    "findings": f"An error occurred during research: {error_msg}",
-                    "error": error_msg,
-                }
-
+        else:
             try:
-                if not stream:
-                    # Process non-streaming response
-                    response_data = response.json()
-                    logger.debug(f"Non-streaming response data: {json.dumps(response_data, indent=2)}")
-
-                    # Check for error in the response content
-                    if (
-                        response_data.get("choices")
-                        and response_data["choices"][0].get("message", {}).get("type") == "error"
-                    ):
-                        error_msg = response_data["choices"][0]["message"].get("content", "Unknown error from API")
-                        logger.error(f"API returned error in response: {error_msg}")
-                        return {
-                            "query": query,
-                            "findings": f"An error occurred during research: {error_msg}",
-                            "error": error_msg,
-                        }
-
-                    if not response_data.get("choices") or not response_data["choices"][0].get("message"):
-                        error_msg = "Invalid response format from API"
-                        logger.error(error_msg)
-                        return {
-                            "query": query,
-                            "findings": f"An error occurred during research: {error_msg}",
-                            "error": error_msg,
-                        }
-
-                    # Extract message content and annotations
-                    message = response_data["choices"][0]["message"]
-                    content = message.get("content", "")
-                    annotations = message.get("annotations", [])
-
-                    # Format content with proper citations
-                    formatted_content = self._format_research_content(
-                        content=content,
-                        annotations=annotations,
-                        visited_urls=response_data.get("visitedURLs", []),
-                        read_urls=response_data.get("readURLs", []),
+                if self.use_mock_service:
+                    logger.info("Using mock Jina service for load testing")
+                    response_data = self.mock_service.process_request(
+                        query=query, stream=stream, reasoning_effort=reasoning_effort
                     )
 
-                    research_results = {
-                        "query": query,
-                        "findings": formatted_content,
-                        "annotations": annotations,
-                        "visited_urls": response_data.get("visitedURLs", []),
-                        "read_urls": response_data.get("readURLs", []),
-                        "timestamp": response.headers.get("date"),
-                        "usage": response_data.get("usage", {}),
-                        "num_urls": response_data.get("numURLs", len(response_data.get("visitedURLs", []))),
-                    }
+                    if stream:
+                        # Process streaming response from mock service
+                        stream_results = self._process_stream_response(response_data)
+                        if "error" in stream_results:
+                            result = {
+                                "query": query,
+                                "findings": f"An error occurred during research: {stream_results['error']}",
+                                "error": stream_results["error"],
+                            }
+                        else:
+                            result = {"query": query, **stream_results}
+                    else:
+                        # Process non-streaming response from mock service
+                        content = response_data["choices"][0]["message"]["content"]
+                        annotations = response_data["choices"][0]["message"]["annotations"]
+
+                        # Format content with proper citations
+                        formatted_content = self._format_research_content(
+                            content=content,
+                            annotations=annotations,
+                            visited_urls=response_data.get("visitedURLs", []),
+                            read_urls=response_data.get("readURLs", []),
+                        )
+
+                        result = {
+                            "query": query,
+                            "findings": formatted_content,
+                            "annotations": annotations,
+                            "visited_urls": response_data.get("visitedURLs", []),
+                            "read_urls": response_data.get("readURLs", []),
+                            "timestamp": response_data.get("timestamp"),
+                            "usage": response_data.get("usage", {}),
+                            "num_urls": response_data.get("numURLs", 0),
+                        }
                 else:
-                    # Process streaming response
-                    stream_results = self._process_stream_response(response)
-                    if "error" in stream_results:
-                        return {
-                            "query": query,
-                            "findings": f"An error occurred during research: {stream_results['error']}",
-                            "error": stream_results["error"],
-                        }
-                    research_results = {
-                        "query": query,
-                        "findings": stream_results["findings"],
-                        "annotations": stream_results.get("annotations", []),
-                        "visited_urls": stream_results.get("visited_urls", []),
-                        "read_urls": stream_results.get("read_urls", []),
-                        "timestamp": stream_results.get("timestamp") or response.headers.get("date"),
-                    }
-
-                # Validate research results
-                if not research_results.get("findings") or research_results["findings"].startswith("Error:"):
-                    error_msg = (
-                        research_results["findings"]
-                        if research_results.get("findings")
-                        else "No research findings returned"
+                    # Prepare messages including files and context
+                    messages = self._prepare_messages(
+                        query=query,
+                        context=context.get("context"),
+                        memory_attachments=memory_attachments,
+                        thread_messages=thread_messages,
                     )
-                    logger.error(f"Invalid research results: {error_msg}")
-                    return {
-                        "query": query,
-                        "findings": f"An error occurred during research: {error_msg}",
-                        "error": error_msg,
+
+                    # Prepare request data
+                    data = {
+                        "model": "jina-deepsearch-v1",
+                        "messages": messages,
+                        "stream": stream,
+                        "reasoning_effort": reasoning_effort,
+                        "no_direct_answer": False,
                     }
 
-                logger.info(f"Research complete for query: {query}")
+                    # Log the complete request data
+                    logger.info("Request data being sent to Jina AI:")
+                    logger.info(f"URL: {self.api_url}")
+                    logger.info(
+                        f"Headers: {json.dumps({k: v for k, v in self.headers.items() if k != 'Authorization'})}"
+                    )
+                    logger.info(f"Request Body: {json.dumps(data, indent=2)}")
 
-                return research_results
+                    logger.info(f"Sending research query to Jina AI: {query}")
 
+                    # Make API request
+                    response = requests.post(
+                        self.api_url,
+                        headers=self.headers,
+                        data=json.dumps(data),
+                        stream=stream,
+                        timeout=600,  # 10 minute timeout
+                    )
+
+                    logger.debug(f"Response status: {response.status_code}")
+
+                    if not response.ok:
+                        error_msg = f"API request failed with status {response.status_code}"
+                        logger.error(error_msg)
+                        result = {
+                            "query": query,
+                            "findings": f"An error occurred during research: {error_msg}",
+                            "error": error_msg,
+                        }
+                    else:
+                        try:
+                            if not stream:
+                                # Process non-streaming response
+                                response_data = response.json()
+                                logger.debug(f"Non-streaming response data: {json.dumps(response_data, indent=2)}")
+
+                                # Check for error in the response content
+                                if (
+                                    response_data.get("choices")
+                                    and response_data["choices"][0].get("message", {}).get("type") == "error"
+                                ):
+                                    error_msg = response_data["choices"][0]["message"].get(
+                                        "content", "Unknown error from API"
+                                    )
+                                    logger.error(f"API returned error in response: {error_msg}")
+                                    result = {
+                                        "query": query,
+                                        "findings": f"An error occurred during research: {error_msg}",
+                                        "error": error_msg,
+                                    }
+                                elif not response_data.get("choices") or not response_data["choices"][0].get("message"):
+                                    error_msg = "Invalid response format from API"
+                                    logger.error(error_msg)
+                                    result = {
+                                        "query": query,
+                                        "findings": f"An error occurred during research: {error_msg}",
+                                        "error": error_msg,
+                                    }
+                                else:
+                                    # Extract message content and annotations
+                                    message = response_data["choices"][0]["message"]
+                                    content = message.get("content", "")
+                                    annotations = message.get("annotations", [])
+
+                                    # Format content with proper citations
+                                    formatted_content = self._format_research_content(
+                                        content=content,
+                                        annotations=annotations,
+                                        visited_urls=response_data.get("visitedURLs", []),
+                                        read_urls=response_data.get("readURLs", []),
+                                    )
+
+                                    result = {
+                                        "query": query,
+                                        "findings": formatted_content,
+                                        "annotations": annotations,
+                                        "visited_urls": response_data.get("visitedURLs", []),
+                                        "read_urls": response_data.get("readURLs", []),
+                                        "timestamp": response.headers.get("date"),
+                                        "usage": response_data.get("usage", {}),
+                                        "num_urls": response_data.get(
+                                            "numURLs", len(response_data.get("visitedURLs", []))
+                                        ),
+                                    }
+                            else:
+                                # Process streaming response
+                                stream_results = self._process_stream_response(response)
+                                if "error" in stream_results:
+                                    result = {
+                                        "query": query,
+                                        "findings": f"An error occurred during research: {stream_results['error']}",
+                                        "error": stream_results["error"],
+                                    }
+                                else:
+                                    result = {
+                                        "query": query,
+                                        "findings": stream_results["findings"],
+                                        "annotations": stream_results.get("annotations", []),
+                                        "visited_urls": stream_results.get("visited_urls", []),
+                                        "read_urls": stream_results.get("read_urls", []),
+                                        "timestamp": stream_results.get("timestamp") or response.headers.get("date"),
+                                    }
+                        except Exception as e:
+                            error_msg = f"Error processing response: {e}"
+                            logger.error(error_msg)
+                            result = {
+                                "query": query,
+                                "findings": f"An error occurred during research: {error_msg}",
+                                "error": error_msg,
+                            }
             except Exception as e:
-                error_msg = f"Error processing research results: {e!s}"
+                error_msg = f"Unexpected error during research: {e}"
                 logger.error(error_msg)
-                return {
+                result = {
                     "query": query,
                     "findings": f"An error occurred during research: {error_msg}",
                     "error": error_msg,
                 }
 
-        except Exception as e:
-            error_msg = f"Error performing research: {e!s}"
-            logger.error(error_msg)
-            return {"query": query, "findings": f"An error occurred during research: {e!s}", "error": str(e)}
+        return result

@@ -143,7 +143,7 @@ class TestCronIntervalCalculation:
 
     def test_invalid_cron_expression(self):
         """Test invalid cron expression raises error."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="must have exactly 5 parts") as exc_info:
             calculate_cron_interval("invalid")
         assert "must have exactly 5 parts" in str(exc_info.value)
 
@@ -163,14 +163,14 @@ class TestMinimumIntervalValidation:
 
     def test_invalid_30_minute_interval(self):
         """Test 30-minute interval fails validation."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="too frequent") as exc_info:
             validate_minimum_interval("*/30 * * * *")
         assert "too frequent" in str(exc_info.value)
         assert f"minimum required: {timedelta(hours=SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS)}" in str(exc_info.value)
 
     def test_invalid_every_minute_interval(self):
         """Test every minute interval fails validation."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="too frequent") as exc_info:
             validate_minimum_interval("* * * * *")
         assert "too frequent" in str(exc_info.value)
 
@@ -212,7 +212,7 @@ class TestDatetimeUtilities:
 
     def test_validate_datetime_field_invalid(self):
         """Test datetime field validation with invalid input."""
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises(ValueError, match="Invalid datetime format for test_field") as exc_info:
             validate_datetime_field("invalid-date", "test_field")
         assert "Invalid datetime format for test_field" in str(exc_info.value)
 
@@ -425,7 +425,7 @@ class TestConfigurationIntegration:
         # Create a cron expression that's just under the minimum
         if SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS == 1:
             # 30 minutes should fail
-            with pytest.raises(ValueError) as exc_info:
+            with pytest.raises(ValueError, match="too frequent") as exc_info:
                 validate_minimum_interval("*/30 * * * *")
             assert str(expected_minimum) in str(exc_info.value)
 

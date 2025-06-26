@@ -279,7 +279,7 @@ class CitationCollection(BaseModel):
         if not any(s.id == source.id for s in self.sources):
             self.sources.append(source)
 
-    def generate_references_section(self) -> str:
+    def generate_references_section(self) -> str:  # noqa: PLR0912
         """Generate a formatted references section with improved formatting."""
         if not self.sources:
             return ""

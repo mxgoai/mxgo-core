@@ -5,7 +5,7 @@ Brave search tool - Better quality results with moderate API cost.
 import json
 import logging
 import os
-from typing import Optional
+from typing import ClassVar, Optional
 
 from smolagents import Tool
 
@@ -27,14 +27,38 @@ class BraveSearchTool(Tool):
         "It might give better results than DuckDuckGo but has moderate API costs. Use this when DDG results are insufficient "
         "or when you need more detailed, current, or specialized information. Good for research and detailed queries."
     )
-    inputs = {
+    inputs: ClassVar[dict] = {
         "query": {"type": "string", "description": "The user's search query term. Max 400 chars, 50 words."},
-        "country": {"type": "string", "description": "2-char country code for results (e.g., 'US', 'DE'). Default: 'US'.", "nullable": True},
-        "search_lang": {"type": "string", "description": "Language code for search results (e.g., 'en', 'es'). Default: 'en'.", "nullable": True},
-        "ui_lang": {"type": "string", "description": "UI language for response (e.g., 'en-US'). Default: 'en-US'.", "nullable": True},
-        "safesearch": {"type": "string", "description": "Filter adult content: 'off', 'moderate', 'strict'. Default: 'moderate'.", "nullable": True},
-        "freshness": {"type": "string", "description": "Filter by discovery date: 'pd' (day), 'pw' (week), 'pm' (month), 'py' (year), or 'YYYY-MM-DDtoYYYY-MM-DD'. Default: None.", "nullable": True},
-        "result_filter": {"type": "string", "description": "Comma-separated result types (e.g., 'web,news,videos'). Default: 'web'.", "nullable": True},
+        "country": {
+            "type": "string",
+            "description": "2-char country code for results (e.g., 'US', 'DE'). Default: 'US'.",
+            "nullable": True,
+        },
+        "search_lang": {
+            "type": "string",
+            "description": "Language code for search results (e.g., 'en', 'es'). Default: 'en'.",
+            "nullable": True,
+        },
+        "ui_lang": {
+            "type": "string",
+            "description": "UI language for response (e.g., 'en-US'). Default: 'en-US'.",
+            "nullable": True,
+        },
+        "safesearch": {
+            "type": "string",
+            "description": "Filter adult content: 'off', 'moderate', 'strict'. Default: 'moderate'.",
+            "nullable": True,
+        },
+        "freshness": {
+            "type": "string",
+            "description": "Filter by discovery date: 'pd' (day), 'pw' (week), 'pm' (month), 'py' (year), or 'YYYY-MM-DDtoYYYY-MM-DD'. Default: None.",
+            "nullable": True,
+        },
+        "result_filter": {
+            "type": "string",
+            "description": "Comma-separated result types (e.g., 'web,news,videos'). Default: 'web'.",
+            "nullable": True,
+        },
     }
     output_type = "object"
 
@@ -57,7 +81,7 @@ class BraveSearchTool(Tool):
         else:
             logger.debug(f"BraveSearchTool initialized with max_results={max_results}")
 
-    def forward(
+    def forward(  # noqa: PLR0912, PLR0915
         self,
         query: str,
         country: str = "US",
@@ -125,7 +149,7 @@ class BraveSearchTool(Tool):
             if web_search and web_search.get("results"):
                 web_results = web_search["results"]
                 content_parts.append("**Web Results:**")
-                for i, result in enumerate(web_results[:self.max_results], 1):
+                for i, result in enumerate(web_results[: self.max_results], 1):
                     # SearchResult inherits from Result: has title, url, description
                     title = result.get("title", "No title")
                     url = result.get("url", "")
@@ -209,7 +233,9 @@ class BraveSearchTool(Tool):
                     if long_desc:
                         content_parts.append(long_desc)
                     if website_url:
-                        citation_id = self.context.add_web_citation(website_url, f"{title} (Official Website)", visited=False)
+                        citation_id = self.context.add_web_citation(
+                            website_url, f"{title} (Official Website)", visited=False
+                        )
                         content_parts.append(f"Website: {website_url} [#{citation_id}]")
                         citations_added += 1
                 content_parts.append("")  # Add spacing
@@ -331,8 +357,7 @@ class BraveSearchTool(Tool):
             if not content_parts:
                 logger.warning(f"Brave search returned no results for query: {query}")
                 result = ToolOutputWithCitations(
-                    content=f"No results found for query: {query}",
-                    metadata={"query": query, "total_results": 0}
+                    content=f"No results found for query: {query}", metadata={"query": query, "total_results": 0}
                 )
                 return json.dumps(result.model_dump())
 
@@ -366,7 +391,12 @@ class BraveSearchTool(Tool):
                 citations=local_citations,
                 metadata={
                     "query": query,
-                    "total_results": web_count + news_count + video_count + discussion_count + faq_count + infobox_count,
+                    "total_results": web_count
+                    + news_count
+                    + video_count
+                    + discussion_count
+                    + faq_count
+                    + infobox_count,
                     "search_engine": "Brave",
                     "params": log_params,
                     "citations_added": citations_added,
@@ -376,9 +406,9 @@ class BraveSearchTool(Tool):
                         "videos": video_count,
                         "discussions": discussion_count,
                         "faq": faq_count,
-                        "infobox": infobox_count
-                    }
-                }
+                        "infobox": infobox_count,
+                    },
+                },
             )
 
             logger.info(f"Brave search completed successfully with {citations_added} citations")

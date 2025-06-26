@@ -16,6 +16,18 @@ from mxtoai.request_context import RequestContext
 logger = logging.getLogger(__name__)
 
 
+class LinkedInFreshDataError(Exception):
+    """Base exception for LinkedIn Fresh Data API errors."""
+
+
+class LinkedInFreshDataRequestError(LinkedInFreshDataError):
+    """Exception for LinkedIn Fresh Data API request failures."""
+
+
+class LinkedInFreshDataProcessingError(LinkedInFreshDataError):
+    """Exception for LinkedIn Fresh Data API processing failures."""
+
+
 class LinkedInFreshDataTool(Tool):
     """Tool for accessing LinkedIn data through Fresh LinkedIn Profile Data API."""
 
@@ -231,11 +243,11 @@ class LinkedInFreshDataTool(Tool):
         except requests.exceptions.RequestException as e:
             logger.error(f"LinkedIn Fresh Data API request failed: {e}")
             msg = f"LinkedIn Fresh Data API request failed: {e}"
-            raise Exception(msg) from e
+            raise LinkedInFreshDataRequestError(msg) from e
         except Exception as e:
             logger.error(f"Error processing LinkedIn Fresh Data API request: {e}")
             msg = f"Failed to process LinkedIn Fresh Data API request: {e}"
-            raise Exception(msg) from e
+            raise LinkedInFreshDataProcessingError(msg) from e
 
     def get_linkedin_profile(
         self,
@@ -290,7 +302,7 @@ class LinkedInFreshDataTool(Tool):
             "include_company_public_url": str(include_company_public_url).lower(),
         }
 
-        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params)
+        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params, timeout=30)
         response.raise_for_status()
         return response.json()
 
@@ -308,7 +320,7 @@ class LinkedInFreshDataTool(Tool):
         endpoint = "/get-company-by-linkedinurl"
         params = {"linkedin_url": linkedin_url}
 
-        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params)
+        response = requests.get(f"{self.base_url}{endpoint}", headers=self.headers, params=params, timeout=30)
         response.raise_for_status()
         return response.json()
 

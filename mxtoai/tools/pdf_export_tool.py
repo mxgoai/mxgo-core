@@ -79,9 +79,10 @@ class PDFExportTool(Tool):
     def forward(
         self,
         content: str,
-        title: Optional[str] = None,
+        title: str = "Document",
         research_findings: Optional[str] = None,
         attachments_summary: Optional[str] = None,
+        *,
         include_attachments: bool = False,
     ) -> dict[str, Any]:
         """
@@ -118,7 +119,7 @@ class PDFExportTool(Tool):
             )
 
             # Convert to HTML using existing ReportFormatter
-            html_content = self.report_formatter._to_html(markdown_document, theme="default")
+            html_content = self.report_formatter._to_html(markdown_document, theme="default")  # noqa: SLF001
 
             # Enhance HTML for PDF with custom CSS
             pdf_html = self._enhance_html_for_pdf(html_content, doc_title)
@@ -207,28 +208,27 @@ class PDFExportTool(Tool):
 
         # Look for markdown headers first
         lines = content.split("\n")
-        for line in lines[:10]:  # Check first 10 lines
-            line = line.strip()
+        for original_line in lines[:10]:  # Check first 10 lines
+            line = original_line.strip()
             if line.startswith("# "):
                 return line[2:].strip()[:60]  # Remove # and limit length
             if line.startswith("## "):
                 return line[3:].strip()[:60]  # Remove ## and limit length
 
         # Look for lines that could be titles (short, meaningful lines)
-        for line in lines[:5]:  # Check first 5 lines
-            line = line.strip()
-            if line and len(line) < MAX_TITLE_LENGTH and len(line) > MIN_TITLE_LENGTH:
-                # Check if it looks like a title (no common body text indicators)
-                if not any(
+        for original_line in lines[:5]:  # Check first 5 lines
+            line = original_line.strip()
+            if (line and len(line) < MAX_TITLE_LENGTH and len(line) > MIN_TITLE_LENGTH and
+                not any(
                     indicator in line.lower()
                     for indicator in ["the", "this", "that", "with", "from", "email", "message"]
-                ):
-                    return line[:60]
+                )):
+                return line[:60]
 
         # Fallback: use first meaningful sentence
         sentences = re.split(r"[.!?]+", content)
-        for sentence in sentences[:3]:
-            sentence = sentence.strip()
+        for original_sentence in sentences[:3]:
+            sentence = original_sentence.strip()
             if MIN_SENTENCE_LENGTH < len(sentence) < MAX_SENTENCE_LENGTH:
                 return sentence[:60]
 

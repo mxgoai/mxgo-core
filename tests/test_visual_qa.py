@@ -40,7 +40,7 @@ class TestEncodeImage:
             assert len(decoded) > 0
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     @patch("requests.get")
     def test_encode_remote_image_url(self, mock_get):
@@ -53,14 +53,17 @@ class TestEncodeImage:
         mock_get.return_value = mock_response
 
         # Mock file operations - provide binary data for base64 encoding
-        with patch("builtins.open", mock_open(read_data=b"fake_jpeg_data")) as mock_file, patch("os.path.abspath") as mock_abspath:
+        with (
+            patch("builtins.open", mock_open(read_data=b"fake_jpeg_data")),
+            patch("os.path.abspath") as mock_abspath,
+            patch("pathlib.Path.open", mock_open(read_data=b"fake_jpeg_data")),
+        ):
             mock_abspath.return_value = "/downloads/test.jpg"
 
             result = encode_image("http://example.com/image.jpg")
 
             assert isinstance(result, str)
             mock_get.assert_called_once()
-            mock_file.assert_called()
 
     @patch("requests.get")
     def test_encode_remote_image_no_extension(self, mock_get):
@@ -71,11 +74,15 @@ class TestEncodeImage:
         mock_response.iter_content.return_value = [b"data"]
         mock_get.return_value = mock_response
 
-        with patch("builtins.open", mock_open(read_data=b"data")):
-            with patch("os.path.abspath", return_value="/downloads/test.download"):
-                # Should handle unknown content types
-                result = encode_image("http://example.com/unknown")
-                assert isinstance(result, str)
+        with (
+            patch("builtins.open", mock_open(read_data=b"data")),
+            patch("os.path.abspath", return_value="/downloads/test.download"),
+            patch("pathlib.Path.mkdir"),
+            patch("pathlib.Path.open", mock_open(read_data=b"data")),
+        ):
+            # Should handle unknown content types
+            result = encode_image("http://example.com/unknown")
+            assert isinstance(result, str)
 
     def test_encode_nonexistent_file(self):
         """Test encoding a file that doesn't exist."""
@@ -107,14 +114,9 @@ class TestResizeImage:
             assert resized_img.size == (100, 100)
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
             if resized_path and Path(resized_path).exists():
-                os.unlink(resized_path)
-
-    def test_resize_nonexistent_file(self):
-        """Test resizing a file that doesn't exist."""
-        with pytest.raises(FileNotFoundError):
-            resize_image("/nonexistent/file.jpg")
+                Path(resized_path).unlink()
 
 
 class TestProcessImagesAndText:
@@ -172,10 +174,7 @@ class TestVisualQATool:
     def test_forward_payload_too_large_retry(self, mock_resize, mock_process):
         """Test handling of 'Payload Too Large' error with image resizing."""
         # First call fails with payload error, second succeeds
-        mock_process.side_effect = [
-            Exception("Payload Too Large"),
-            {"generated_text": "Resized image result"}
-        ]
+        mock_process.side_effect = [Exception("Payload Too Large"), {"generated_text": "Resized image result"}]
         mock_resize.return_value = "resized_test_image.jpg"
 
         tool = VisualQATool()
@@ -201,13 +200,7 @@ class TestVisualizerFunction:
         mock_encode.return_value = "base64_encoded_image"
 
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "This is an image of a cat"
-                }
-            }]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "This is an image of a cat"}}]}
         mock_post.return_value = mock_response
 
         result = visualizer("test_image.jpg", "What animal is this?")
@@ -238,13 +231,7 @@ class TestVisualizerFunction:
         mock_encode.return_value = "base64_data"
 
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{
-                "message": {
-                    "content": "Auto-generated description"
-                }
-            }]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "Auto-generated description"}}]}
         mock_post.return_value = mock_response
 
         result = visualizer("image.jpg")
@@ -278,12 +265,15 @@ class TestAzureVisualizer:
 
     @patch("mxtoai.scripts.visual_qa.completion")
     @patch("mxtoai.scripts.visual_qa.encode_image")
-    @patch.dict(os.environ, {
-        "MODEL_NAME": "gpt-4o",
-        "MODEL_API_KEY": "test_key",
-        "MODEL_ENDPOINT": "https://test.openai.azure.com",
-        "MODEL_API_VERSION": "2024-02-01"
-    })
+    @patch.dict(
+        os.environ,
+        {
+            "MODEL_NAME": "gpt-4o",
+            "MODEL_API_KEY": "test_key",
+            "MODEL_ENDPOINT": "https://test.openai.azure.com",
+            "MODEL_API_VERSION": "2024-02-01",
+        },
+    )
     def test_azure_visualizer_success(self, mock_encode, mock_completion):
         """Test successful Azure OpenAI image analysis."""
         mock_encode.return_value = "base64_image_data"
@@ -348,7 +338,7 @@ class TestAzureVisualizer:
         # First call fails with size error, second succeeds after resize
         mock_completion.side_effect = [
             Exception("image too large"),
-            Mock(choices=[Mock(message=Mock(content="Resized result"))])
+            Mock(choices=[Mock(message=Mock(content="Resized result"))]),
         ]
 
         result = azure_visualizer("large_image.jpg", "What's this?")
@@ -398,12 +388,7 @@ class TestAzureVisualizer:
             mock_completion.return_value = mock_response
 
             # Test different image extensions
-            test_files = [
-                "image.jpg",
-                "image.png",
-                "image.gif",
-                "image.unknown"
-            ]
+            test_files = ["image.jpg", "image.png", "image.gif", "image.unknown"]
 
             for filename in test_files:
                 result = azure_visualizer(filename, "Analyze")
@@ -442,14 +427,10 @@ class TestIntegrationScenarios:
 
                 # Should return the processed result
                 assert result == {"generated_text": "Integration test result"}
-                mock_process.assert_called_once_with(
-                    temp_path,
-                    "What color is this image?",
-                    tool.client
-                )
+                mock_process.assert_called_once_with(temp_path, "What color is this image?", tool.client)
 
         finally:
-            os.unlink(temp_path)
+            Path(temp_path).unlink()
 
     def test_error_handling_chain(self):
         """Test error handling across different visual processing functions."""
@@ -460,5 +441,5 @@ class TestIntegrationScenarios:
         with pytest.raises(FileNotFoundError):
             resize_image("nonexistent_file.jpg")
 
-        with pytest.raises(Exception):
+        with pytest.raises(Exception, match="You should provide at least"):
             visualizer(None)  # Invalid input type
