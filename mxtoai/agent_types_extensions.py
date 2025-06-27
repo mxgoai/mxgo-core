@@ -67,16 +67,13 @@ class AgentCitationOutput(AgentType):
         if self._citations_output:
             return {
                 "citations": self._citations_output.citations.model_dump(),
-                "metadata": self._citations_output.metadata
+                "metadata": self._citations_output.metadata,
             }
         return {}
 
     def has_citations(self) -> bool:
         """Check if this output contains citations."""
-        return (
-            self._citations_output is not None and
-            len(self._citations_output.citations.sources) > 0
-        )
+        return self._citations_output is not None and len(self._citations_output.citations.sources) > 0
 
 
 def handle_citation_outputs(output: Any) -> Any:
@@ -93,7 +90,7 @@ def handle_citation_outputs(output: Any) -> Any:
         Processed output with citation handling
 
     """
-    if isinstance(output, (dict, str)) and _looks_like_citation_output(output):
+    if isinstance(output, dict | str) and _looks_like_citation_output(output):
         return AgentCitationOutput(output)
     return output
 
