@@ -101,31 +101,6 @@ curl -X POST "http://localhost:8000/process-email" \
 
 The system processes emails asynchronously and can send responses via your configured email service.
 
-## 📊 Email Processing Flow
-
-```mermaid
-graph TD
-    A[📧 Incoming Email] --> B[🎯 Email Routing]
-    B --> C{🤔 Determine Mode}
-
-    C -->|summarize@| D[📝 Summary Mode]
-    C -->|reply@| E[💬 Reply Mode]
-    C -->|research@| F[🔍 Research Mode]
-    C -->|ask@| G[🎯 Full Mode]
-
-    A --> H[📎 Attachment Detection]
-    H --> I{📄 File Type}
-    I -->|🖼️ Images| J[👁️ Vision Analysis]
-    I -->|📄 Documents| K[📖 Content Extract]
-    I -->|📊 Other| L[ℹ️ Metadata]
-
-    D & E & F & G --> M[⚙️ AI Processing]
-    J & K & L --> M
-
-    M --> N[✨ Format Response]
-    N --> O[📤 Send Reply]
-```
-
 ## 🛠️ Configuration
 
 ### Environment Variables
