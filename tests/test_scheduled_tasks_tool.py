@@ -28,18 +28,15 @@ class TestScheduledTaskInput:
         input_data = ScheduledTaskInput(
             cron_expression="0 9 * * 1",  # Every Monday at 9 AM
             distilled_future_task_instructions="Send weekly reminder email",
-            task_description="Weekly reminder task",
         )
         assert input_data.cron_expression == "0 9 * * 1"
         assert input_data.distilled_future_task_instructions == "Send weekly reminder email"
-        assert input_data.task_description == "Weekly reminder task"
 
     def test_valid_input_with_times(self):
         """Test valid input with start and end times."""
         input_data = ScheduledTaskInput(
             cron_expression="0 14 * * *",  # Daily at 2 PM
             distilled_future_task_instructions="Daily market update",
-            task_description="Daily market updates",
             start_time="2024-01-01T14:00:00Z",
             end_time="2024-12-31T14:00:00Z",
         )
@@ -52,7 +49,6 @@ class TestScheduledTaskInput:
             ScheduledTaskInput(
                 cron_expression="invalid cron",
                 distilled_future_task_instructions="Test task",
-                task_description="Test",
             )
         assert "Invalid cron expression" in str(exc_info.value)
 
@@ -62,7 +58,6 @@ class TestScheduledTaskInput:
             ScheduledTaskInput(
                 cron_expression="*/30 * * * *",  # Every 30 minutes - too frequent
                 distilled_future_task_instructions="Test task",
-                task_description="Test",
             )
         assert "too frequent" in str(exc_info.value)
 
@@ -71,7 +66,6 @@ class TestScheduledTaskInput:
         input_data = ScheduledTaskInput(
             cron_expression="0 * * * *",  # Every hour - should pass
             distilled_future_task_instructions="Hourly task",
-            task_description="Hourly test",
         )
         assert input_data.cron_expression == "0 * * * *"
 
@@ -80,7 +74,6 @@ class TestScheduledTaskInput:
         input_data = ScheduledTaskInput(
             cron_expression="0 9 * * 1",
             distilled_future_task_instructions="Test task",
-            task_description="Test",
             start_time="2024-01-01T14:30:45Z",  # Has seconds
         )
         # Should be rounded to nearest minute (no seconds)
@@ -91,7 +84,6 @@ class TestScheduledTaskInput:
         input_data = ScheduledTaskInput(
             cron_expression="0 9 * * 1",
             distilled_future_task_instructions="Test task",
-            task_description="Test",
             start_time="2024-01-01T14:30:00",  # No timezone
         )
         # Should add UTC timezone
@@ -247,14 +239,16 @@ class TestScheduledTasksTool:
         result = tool.forward(
             cron_expression="0 9 * * 1",
             distilled_future_task_instructions="Send weekly reminder with attachment context: report.pdf (2MB) containing sales data",
-            task_description="Weekly sales report reminder",
         )
 
         # Verify result
         assert result["success"] is True
         assert "task_id" in result
         assert result["cron_expression"] == "0 9 * * 1"
-        assert result["task_description"] == "Weekly sales report reminder"
+        assert (
+            result["task_description"]
+            == "Send weekly reminder with attachment context: report.pdf (2MB) containing sales data"
+        )
         assert "next_execution" in result
 
         # Verify database interaction
@@ -282,7 +276,6 @@ class TestScheduledTasksTool:
         result = tool.forward(
             cron_expression="0 14 * * *",
             distilled_future_task_instructions="Daily market updates",
-            task_description="Daily market updates",
             start_time="2024-01-01T14:00:00Z",
             end_time="2024-12-31T14:00:00Z",
         )
@@ -312,7 +305,6 @@ class TestScheduledTasksTool:
             result = tool.forward(
                 cron_expression="0 9 * * 1",
                 distilled_future_task_instructions="Test task",
-                task_description="Test",
                 start_time="2024-12-31T14:00:00Z",  # After end_time
                 end_time="2024-01-01T14:00:00Z",  # Before start_time
             )
@@ -331,7 +323,6 @@ class TestScheduledTasksTool:
         result = tool.forward(
             cron_expression="0 9 * * 1",
             distilled_future_task_instructions="Test task",
-            task_description="Test",
         )
 
         assert result["success"] is False
@@ -359,7 +350,6 @@ class TestScheduledTasksTool:
             tool.forward(
                 cron_expression="0 9 * * 1",
                 distilled_future_task_instructions=distilled_instructions,
-                task_description="Weekly sales analysis",
             )
 
             # Verify the email request was updated
@@ -393,7 +383,6 @@ class TestScheduledTasksTool:
             result = tool.forward(
                 cron_expression="0 9 * * 1",
                 distilled_future_task_instructions=attachment_context,
-                task_description="Weekly sales analysis with attachment context",
             )
 
             assert result["success"] is True
@@ -407,7 +396,6 @@ class TestScheduledTasksTool:
         result = tool.forward(
             cron_expression="*/15 * * * *",  # Every 15 minutes - too frequent
             distilled_future_task_instructions="Test task",
-            task_description="Test",
         )
 
         assert result["success"] is False
@@ -475,7 +463,9 @@ class TestScheduledTasksLimitEnforcement:
                 "task_id": f"task-{call_count['count']}",
                 "message": "Task created successfully",
                 "cron_expression": args[0] if args else "0 9 * * 1",
-                "task_description": kwargs.get("task_description", f"Task {call_count['count']}"),
+                "task_description": kwargs.get(
+                    "distilled_future_task_instructions", f"Task {call_count['count']} instructions"
+                ),
             }
 
         # Create 5 successful tasks (should all work)
@@ -484,7 +474,6 @@ class TestScheduledTasksLimitEnforcement:
             result = limited_forward_simulation(
                 "0 9 * * 1",
                 distilled_future_task_instructions=f"Task {i + 1} instructions",
-                task_description=f"Task {i + 1}",
             )
             successful_tasks.append(result)
             assert result["success"] is True
@@ -494,7 +483,6 @@ class TestScheduledTasksLimitEnforcement:
         sixth_result = limited_forward_simulation(
             "0 9 * * 1",
             distilled_future_task_instructions="Sixth task instructions",
-            task_description="Sixth task",
         )
 
         # Verify the 6th task was rejected
@@ -549,8 +537,7 @@ class TestScheduledTasksLimitEnforcement:
         # First task should fail (simulated database error)
         result1 = limited_forward_with_failure_simulation(
             "0 9 * * 1",
-            distilled_future_task_instructions="First task",
-            task_description="First task",
+            distilled_future_task_instructions="First task instructions",
         )
         assert result1["success"] is False  # Should fail due to simulated error
         assert result1["error"] == "Database error"
@@ -560,7 +547,6 @@ class TestScheduledTasksLimitEnforcement:
             result = limited_forward_with_failure_simulation(
                 "0 9 * * 1",
                 distilled_future_task_instructions=f"Task {i + 2} instructions",
-                task_description=f"Task {i + 2}",
             )
             assert result["success"] is True
             assert "task_id" in result
@@ -568,8 +554,7 @@ class TestScheduledTasksLimitEnforcement:
         # 7th task should be rejected (we've hit the limit)
         result7 = limited_forward_with_failure_simulation(
             "0 9 * * 1",
-            distilled_future_task_instructions="Seventh task",
-            task_description="Seventh task",
+            distilled_future_task_instructions="Seventh task instructions",
         )
         assert result7["success"] is False
         assert result7["error"] == "Task limit exceeded"

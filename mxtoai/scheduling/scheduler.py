@@ -60,6 +60,7 @@ class Scheduler:
         """
         self.max_workers = 1
         self._scheduler: Optional[BackgroundScheduler] = None
+        self._previous_job_ids: Optional[set] = None  # Track previous job IDs for change detection
 
     def get_db_uri(self) -> str:
         """Get database URI from environment variables."""
@@ -166,7 +167,38 @@ class Scheduler:
         try:
             jobstore = scheduler._jobstores["default"]  # noqa: SLF001
             db_jobs = jobstore.get_all_jobs()
-            logger.info(f"Refreshed job list - found {len(db_jobs)} jobs in database")
+
+            # Get current job IDs for comparison
+            current_job_ids = {job.id for job in db_jobs}
+
+            # Only log if job list has changed
+            if self._previous_job_ids != current_job_ids:
+                if self._previous_job_ids is None:
+                    # First time running - log initial state
+                    logger.info(f"Initial job list loaded - found {len(db_jobs)} jobs in database")
+                else:
+                    # Calculate changes
+                    added_jobs = current_job_ids - self._previous_job_ids
+                    removed_jobs = self._previous_job_ids - current_job_ids
+
+                    # Log the changes
+                    changes = []
+                    if added_jobs:
+                        changes.append(f"+{len(added_jobs)} added")
+                    if removed_jobs:
+                        changes.append(f"-{len(removed_jobs)} removed")
+
+                    change_summary = ", ".join(changes)
+                    logger.info(f"Job list changed: {change_summary} (total: {len(db_jobs)} jobs)")
+
+                    # Log individual job changes for debugging
+                    if added_jobs:
+                        logger.debug(f"Added jobs: {sorted(added_jobs)}")
+                    if removed_jobs:
+                        logger.debug(f"Removed jobs: {sorted(removed_jobs)}")
+
+                # Update previous job IDs for next comparison
+                self._previous_job_ids = current_job_ids
 
             # NOTE: This is a workaround to ensure we can detect new jobs, by default they
             # aren't getting picked up.

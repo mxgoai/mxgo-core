@@ -126,8 +126,6 @@ class ScheduledTaskInput(BaseModel):
     distilled_future_task_instructions: str = Field(
         ..., description="Distilled and detailed instructions about how the task will be processed in future"
     )
-    task_description: str = Field(..., description="Human-readable description of the task")
-    next_run_time: Optional[str] = Field(None, description="Next execution time (ISO format)")
     start_time: Optional[str] = Field(
         None, description="Start time for the task - task will not execute before this time (ISO format)"
     )
@@ -158,12 +156,6 @@ class ScheduledTaskInput(BaseModel):
             raise ValueError(msg) from e
         return v
 
-    @field_validator("next_run_time")
-    @classmethod
-    def validate_next_run_time(cls, v):
-        """Validate that next_run_time is a valid ISO 8601 datetime string if provided"""
-        return validate_datetime_field(v, "next_run_time")
-
     @field_validator("start_time")
     @classmethod
     def validate_start_time(cls, v):
@@ -193,12 +185,6 @@ class ScheduledTasksTool(Tool):
             "type": "string",
             "description": "Distilled and detailed instructions about how the task will be processed in future",
         },
-        "task_description": {"type": "string", "description": "Human-readable description of the task"},
-        "next_run_time": {
-            "type": "string",
-            "description": "Optional next run time in ISO 8601 format",
-            "nullable": True,
-        },
         "start_time": {
             "type": "string",
             "description": "Optional start time for the task in ISO 8601 format - task will not execute before this time",
@@ -225,12 +211,10 @@ class ScheduledTasksTool(Tool):
         # Create dedicated scheduling instance for this tool
         self.scheduler = Scheduler()
 
-    def forward(  # noqa: PLR0912
+    def forward(
         self,
         cron_expression: str,
         distilled_future_task_instructions: str,
-        task_description: str,
-        next_run_time: Optional[str] = None,
         start_time: Optional[str] = None,
         end_time: Optional[str] = None,
     ) -> dict:
@@ -240,8 +224,6 @@ class ScheduledTasksTool(Tool):
         Args:
             cron_expression: Valid cron expression for task scheduling
             distilled_future_task_instructions: Distilled and detailed instructions about how the task will be processed in future
-            task_description: Human-readable description of task
-            next_run_time: Optional next run time in ISO 8601 format
             start_time: Optional start time for the task in ISO 8601 format
             end_time: Optional end time for the task in ISO 8601 format
 
@@ -249,7 +231,7 @@ class ScheduledTasksTool(Tool):
             Dictionary with task details including task_id, next_execution, etc.
 
         """
-        logger.info(f"Storing and scheduling task: {task_description}")
+        logger.info(f"Storing and scheduling task: {distilled_future_task_instructions}")
         logger.info(f"Cron expression: {cron_expression}")
         logger.info(f"Is one-time task: {is_one_time_task(cron_expression) if cron_expression else 'Unknown'}")
 
@@ -271,8 +253,6 @@ class ScheduledTasksTool(Tool):
             input_data = ScheduledTaskInput(
                 cron_expression=cron_expression,
                 distilled_future_task_instructions=distilled_future_task_instructions,
-                task_description=task_description,
-                next_run_time=next_run_time,
                 start_time=start_time,
                 end_time=end_time,
             )
@@ -313,29 +293,19 @@ class ScheduledTasksTool(Tool):
                     "success": False,
                     "error": "Invalid time range",
                     "message": "start_time must be before end_time",
-                    "task_description": task_description,
+                    "task_description": distilled_future_task_instructions,
                 }
 
-            # Round the next execution time to nearest minute if provided
-            next_execution = None
-            if next_run_time:
-                try:
-                    parsed_time = datetime.fromisoformat(next_run_time.replace("Z", "+00:00"))
-                    next_execution = round_to_nearest_minute(parsed_time)
-                except Exception as e:
-                    logger.warning(f"Could not parse next_run_time: {e}")
-
-            # Calculate next execution time from cron if not provided
-            if not next_execution:
-                cron_iter = croniter(input_data.cron_expression, datetime.now(timezone.utc))
-                next_execution = round_to_nearest_minute(datetime.fromtimestamp(cron_iter.get_next(), tz=timezone.utc))
+            # Calculate next execution time from cron expression
+            cron_iter = croniter(input_data.cron_expression, datetime.now(timezone.utc))
+            next_execution = round_to_nearest_minute(datetime.fromtimestamp(cron_iter.get_next(), tz=timezone.utc))
 
             # Create scheduling job ID (APScheduler will use this)
             scheduler_job_id = f"task_{task_id}"
 
             # Save distilled instructions and task description to email request
             email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
-            email_request.task_description = input_data.task_description
+            email_request.task_description = distilled_future_task_instructions
             # TODO: Need an AI driver logic here but for now we'll just redirect to ask
             email_request.distilled_alias = HandlerAlias.ASK
             email_request.parent_message_id = email_request.messageId
@@ -393,8 +363,8 @@ class ScheduledTasksTool(Tool):
                 "next_execution": next_execution.isoformat() if next_execution else None,
                 "start_time": parsed_start_time.isoformat() if parsed_start_time else None,
                 "end_time": parsed_end_time.isoformat() if parsed_end_time else None,
-                "task_description": task_description,
-                "message": f"Task '{task_description}' scheduled successfully",
+                "task_description": distilled_future_task_instructions,
+                "message": f"Task '{distilled_future_task_instructions}' scheduled successfully",
             }
 
         except Exception as e:
@@ -402,6 +372,6 @@ class ScheduledTasksTool(Tool):
             return {
                 "success": False,
                 "error": str(e),
-                "task_description": task_description,
+                "task_description": distilled_future_task_instructions,
                 "message": f"Failed to schedule task: {e}",
             }
