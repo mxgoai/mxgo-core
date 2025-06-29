@@ -8,13 +8,15 @@ COMMON_TOOLS = [
     ToolName.PYTHON_INTERPRETER,
     ToolName.REFERENCES_GENERATOR,
     ToolName.AZURE_VISUALIZER,
+    ToolName.PDF_EXPORT,
 ]
 
 # Search tools for handles that need enhanced search capabilities
 SEARCH_TOOLS = [
     ToolName.DDG_SEARCH,
-    ToolName.BRAVE_SEARCH,
     ToolName.WIKIPEDIA_SEARCH,
+    ToolName.GOOGLE_SEARCH,
+    ToolName.BRAVE_SEARCH,
 ]
 
 # Research tools for handles that need deep research capabilities
@@ -31,7 +33,7 @@ DEFAULT_EMAIL_HANDLES = [
         aliases=["summarise", "summary"],
         process_attachments=True,
         deep_research_mandatory=False,
-        allowed_tools=COMMON_TOOLS,
+        allowed_tools=COMMON_TOOLS + SEARCH_TOOLS,
         target_model="gpt-4",
         task_template=template_prompts.SUMMARIZE_TEMPLATE,
         output_template=output_prompts.SUMMARIZE_OUTPUT_GUIDELINES,
@@ -65,7 +67,7 @@ DEFAULT_EMAIL_HANDLES = [
         allowed_tools=COMMON_TOOLS
         + SEARCH_TOOLS
         + RESEARCH_TOOLS
-        + [ToolName.MEETING_CREATOR, ToolName.PDF_EXPORT, ToolName.SCHEDULED_TASKS],
+        + [ToolName.MEETING_CREATOR, ToolName.SCHEDULED_TASKS],
         target_model="gpt-4",
         task_template=template_prompts.ASK_TEMPLATE,
         output_template=output_prompts.ASK_OUTPUT_GUIDELINES,
@@ -75,7 +77,7 @@ DEFAULT_EMAIL_HANDLES = [
         aliases=["factcheck", "verify"],
         process_attachments=True,
         deep_research_mandatory=False,
-        allowed_tools=COMMON_TOOLS + SEARCH_TOOLS,
+        allowed_tools=COMMON_TOOLS + SEARCH_TOOLS + RESEARCH_TOOLS,
         target_model="gpt-4",
         task_template=template_prompts.FACT_TEMPLATE,
         output_template=output_prompts.FACT_CHECK_OUTPUT_GUIDELINES,
@@ -116,7 +118,7 @@ DEFAULT_EMAIL_HANDLES = [
         aliases=["export", "convert", "document", "export-pdf"],
         process_attachments=True,
         deep_research_mandatory=False,
-        allowed_tools=[*COMMON_TOOLS, ToolName.PDF_EXPORT],
+        allowed_tools=COMMON_TOOLS,
         target_model="gpt-4",
         task_template=template_prompts.PDF_EXPORT_TEMPLATE,
         output_template=output_prompts.PDF_EXPORT_OUTPUT_GUIDELINES,

@@ -17,7 +17,6 @@ from mxtoai.schemas import (
     EmailContentDetails,
     EmailSentStatus,
     ProcessingError,
-    ProcessingInstructions,
     ProcessingMetadata,
 )
 from mxtoai.tasks import process_email_task
@@ -306,18 +305,72 @@ def test_process_email_task_agent_exception(prepare_email_request_data):
     )
 
 
-# Parametrized test for each handle
-@pytest.mark.parametrize("handle_instructions", DEFAULT_EMAIL_HANDLES)
-def test_process_email_task_for_handle(
-    handle_instructions: ProcessingInstructions,
-    prepare_email_request_data,
-    tmp_path,  # For schedule handle specific file creation
-):
-    """
-    Tests successful processing for each defined email handle.
-    Only EmailSender.send_reply is mocked.
-    This is an integration test for the task and the agent's processing for each handle.
-    """
+# --- Individual Handle Tests for Better Parallelization ---
+
+
+def test_process_email_task_summarize_handle(prepare_email_request_data):
+    """Test summarize handle specifically."""
+    _test_single_handle("summarize", prepare_email_request_data)
+
+
+def test_process_email_task_research_handle(prepare_email_request_data):
+    """Test research handle specifically."""
+    _test_single_handle("research", prepare_email_request_data)
+
+
+def test_process_email_task_simplify_handle(prepare_email_request_data):
+    """Test simplify handle specifically."""
+    _test_single_handle("simplify", prepare_email_request_data)
+
+
+def test_process_email_task_ask_handle(prepare_email_request_data):
+    """Test ask handle specifically."""
+    _test_single_handle("ask", prepare_email_request_data)
+
+
+def test_process_email_task_fact_check_handle(prepare_email_request_data):
+    """Test fact-check handle specifically."""
+    _test_single_handle("fact-check", prepare_email_request_data)
+
+
+def test_process_email_task_background_research_handle(prepare_email_request_data):
+    """Test background-research handle specifically."""
+    _test_single_handle("background-research", prepare_email_request_data)
+
+
+def test_process_email_task_translate_handle(prepare_email_request_data):
+    """Test translate handle specifically."""
+    _test_single_handle("translate", prepare_email_request_data)
+
+
+def test_process_email_task_meeting_handle(prepare_email_request_data):
+    """Test meeting handle specifically."""
+    _test_single_handle("meeting", prepare_email_request_data)
+
+
+def test_process_email_task_pdf_handle(prepare_email_request_data):
+    """Test pdf handle specifically."""
+    _test_single_handle("pdf", prepare_email_request_data)
+
+
+def test_process_email_task_schedule_handle(prepare_email_request_data):
+    """Test schedule handle specifically."""
+    _test_single_handle("schedule", prepare_email_request_data)
+
+
+def _test_single_handle(handle_name: str, prepare_email_request_data):
+    """Helper function to test a single email handle."""
+    # Find the handle instructions for the given handle name
+    handle_instructions = None
+    for handle in DEFAULT_EMAIL_HANDLES:
+        if handle.handle == handle_name:
+            handle_instructions = handle
+            break
+
+    if not handle_instructions:
+        pytest.fail(f"Handle '{handle_name}' not found in DEFAULT_EMAIL_HANDLES")
+
+    # Use the same logic as the parametrized test
     to_email_address = f"{handle_instructions.handle}@mxtoai.com"
 
     attachments_for_test: Optional[list[AttachmentFileContent]] = None
@@ -409,8 +462,12 @@ def test_process_email_task_for_handle(
             # Specific assertion for meeting handle's calendar_data
             if is_meeting_handle:
                 assert returned_result.calendar_data is not None, "Calendar data should be present for meeting handle"
-                assert returned_result.calendar_data.ics_content is not None, "ICS content should not be None for meeting handle"
-                assert len(returned_result.calendar_data.ics_content) > 0, "ICS content is missing or empty for meeting handle"
+                assert returned_result.calendar_data.ics_content is not None, (
+                    "ICS content should not be None for meeting handle"
+                )
+                assert len(returned_result.calendar_data.ics_content) > 0, (
+                    "ICS content is missing or empty for meeting handle"
+                )
 
             # Specific assertions for PDF handle
             if handle_instructions.handle == "pdf":
@@ -441,8 +498,6 @@ def test_process_email_task_for_handle(
 
 
 # --- PDF Export Specific Tests ---
-
-
 def test_pdf_export_tool_direct():
     """Test the PDFExportTool directly to ensure it generates valid PDFs."""
     from mxtoai.tools.pdf_export_tool import PDFExportTool
