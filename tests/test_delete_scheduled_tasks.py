@@ -238,7 +238,7 @@ class TestDeleteScheduledTasksTool:
         result = tool.forward(task_id=task_id)
 
         assert result["success"] is False
-        assert result["error"] == "Cannot delete finished task"
+        assert result["error"] == "The task is already Finished, nothing to delete"
         assert "Only active tasks can be deleted" in result["message"]
         assert result["task_status"] == "FINISHED"
 
@@ -256,6 +256,6 @@ class TestDeleteScheduledTasksTool:
         result = tool.forward(task_id=task_id)
 
         assert result["success"] is False
-        assert result["error"] == "Cannot delete finished task"
+        assert result["error"] == "The task is already Finished, nothing to delete"
         assert "Only active tasks can be deleted" in result["message"]
         assert result["task_status"] == "DELETED"

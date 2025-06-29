@@ -166,12 +166,9 @@ def process_email_task(  # noqa: PLR0912, PLR0915
             pdf_export=None,
         )
 
-    email_agent = EmailAgent(email_request=email_request, attachment_info=attachment_info)
-
-    if email_instructions.deep_research_mandatory and email_agent.research_tool:
-        email_agent.research_tool.enable_deep_research()
-    elif email_agent.research_tool:  # Ensure research_tool exists before trying to disable
-        email_agent.research_tool.disable_deep_research()
+    email_agent = EmailAgent(
+        email_request=email_request, processing_instructions=email_instructions, attachment_info=attachment_info
+    )
 
     if email_request.attachments and attachment_info:
         valid_attachments = []
