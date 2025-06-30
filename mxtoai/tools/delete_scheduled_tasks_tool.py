@@ -18,7 +18,7 @@ from sqlmodel import Session
 from mxtoai._logging import get_logger
 from mxtoai.crud import find_user_tasks_formatted, get_task_by_id, update_task_status
 from mxtoai.db import init_db_connection
-from mxtoai.models import TaskStatus
+from mxtoai.models import TaskStatus, is_terminal_status
 from mxtoai.request_context import RequestContext
 from mxtoai.scheduling.scheduler import Scheduler
 
@@ -108,7 +108,7 @@ class DeleteScheduledTasksTool(Tool):
         # Create dedicated scheduling instance for this tool
         self.scheduler = Scheduler()
 
-    def forward(self, task_id: str) -> dict:
+    def forward(self, task_id: str) -> dict:  # NOQA: PLR0911
         """
         Delete a scheduled task after verifying user ownership.
 
@@ -137,6 +137,17 @@ class DeleteScheduledTasksTool(Tool):
                         "error": "Task not found",
                         "task_id": task_id,
                         "message": f"No task found with ID: {task_id}",
+                    }
+
+                # Check if task is in a terminal state (finished tasks have cleared email data)
+                if is_terminal_status(task.status):
+                    logger.warning(f"Cannot delete task {task_id} with terminal status {task.status}")
+                    return {
+                        "success": False,
+                        "error": "The task is already Finished, nothing to delete",
+                        "task_id": task_id,
+                        "message": f"Task with status '{task.status.value}' cannot be deleted. Only active tasks can be deleted.",
+                        "task_status": task.status.value,
                     }
 
                 # Check user ownership using email from the task's email_request

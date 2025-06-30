@@ -223,3 +223,39 @@ class TestDeleteScheduledTasksTool:
             result = find_user_tasks(session, user_email)
             assert len(result) == 1
             assert result[0]["task_id"] == task_id
+
+    @requires_database
+    def test_cannot_delete_finished_task(self):
+        """Test that finished tasks cannot be deleted."""
+        task_id = str(uuid.uuid4())
+        user_email = "user@example.com"
+
+        # Create a finished task
+        self.create_test_task(task_id, user_email, status=TaskStatus.FINISHED)
+
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
+        result = tool.forward(task_id=task_id)
+
+        assert result["success"] is False
+        assert result["error"] == "The task is already Finished, nothing to delete"
+        assert "Only active tasks can be deleted" in result["message"]
+        assert result["task_status"] == "FINISHED"
+
+    @requires_database
+    def test_cannot_delete_deleted_task(self):
+        """Test that already deleted tasks cannot be deleted again."""
+        task_id = str(uuid.uuid4())
+        user_email = "user@example.com"
+
+        # Create a deleted task
+        self.create_test_task(task_id, user_email, status=TaskStatus.DELETED)
+
+        email_request = EmailRequest(from_email=user_email, to="dummy@to.com")
+        tool = DeleteScheduledTasksTool(context=RequestContext(email_request))
+        result = tool.forward(task_id=task_id)
+
+        assert result["success"] is False
+        assert result["error"] == "The task is already Finished, nothing to delete"
+        assert "Only active tasks can be deleted" in result["message"]
+        assert result["task_status"] == "DELETED"

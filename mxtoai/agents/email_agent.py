@@ -1,6 +1,5 @@
 import ast
 import json
-import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,11 +11,6 @@ from dotenv import load_dotenv
 from smolagents import Tool, ToolCallingAgent
 
 # Add imports for the new default tools
-from smolagents.default_tools import (
-    PythonInterpreterTool,
-    WikipediaSearchTool,
-)
-
 from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
 from mxtoai.crud import count_active_tasks_for_user, get_task_by_id
@@ -50,22 +44,13 @@ from mxtoai.schemas import (
     ProcessingError,
     ProcessingInstructions,
     ProcessingMetadata,
+    ToolName,
 )
 
 # Import citation management and web search tools
 from mxtoai.scripts.report_formatter import ReportFormatter
-from mxtoai.scripts.visual_qa import azure_visualizer
-from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
-from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
-from mxtoai.tools.deep_research_tool import DeepResearchTool
-from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
-from mxtoai.tools.external_data.linkedin.fresh_data import LinkedInFreshDataTool
-from mxtoai.tools.external_data.linkedin.linkedin_data_api import LinkedInDataAPITool
-from mxtoai.tools.meeting_tool import MeetingTool
-from mxtoai.tools.pdf_export_tool import PDFExportTool
-from mxtoai.tools.references_generator_tool import ReferencesGeneratorTool
+from mxtoai.tools import create_tool_mapping
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
-from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 # Load environment variables
 load_dotenv(override=True)
@@ -97,6 +82,7 @@ class EmailAgent:
     def __init__(
         self,
         email_request: EmailRequest,
+        processing_instructions: ProcessingInstructions,
         attachment_dir: str = "email_attachments",
         *,
         verbose: bool = False,
@@ -108,6 +94,7 @@ class EmailAgent:
 
         Args:
             email_request: The email request to process
+            processing_instructions: Instructions defining which tools are allowed
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
             enable_deep_research: Whether to enable deep research functionality
@@ -120,6 +107,7 @@ class EmailAgent:
             logger.debug("Verbose logging potentially enabled (actual level depends on logger config).")
 
         self.email_request = email_request
+        self.processing_instructions = processing_instructions
         self.attachment_dir = attachment_dir
         Path(self.attachment_dir).mkdir(parents=True, exist_ok=True)
 
@@ -129,61 +117,11 @@ class EmailAgent:
         self.context = RequestContext(email_request, attachment_info)
         logger.debug("Request context initialized with per-request citation manager")
 
-        # Initialize tools with context
-        self.attachment_tool = AttachmentProcessingTool(context=self.context)
+        # Initialize report formatter (always needed)
         self.report_formatter = ReportFormatter()
-        self.meeting_tool = MeetingTool()
-        self.visit_webpage_tool = CitationAwareVisitTool(context=self.context)
-        self.python_tool = PythonInterpreterTool(authorized_imports=ALLOWED_PYTHON_IMPORTS)
-        self.wikipedia_search_tool = WikipediaSearchTool()
-        self.pdf_export_tool = PDFExportTool()
-        self.references_generator_tool = ReferencesGeneratorTool(context=self.context)
 
-        # Initialize scheduled tasks tool with call counter wrapper
-        self.delete_scheduled_tasks_tool = DeleteScheduledTasksTool(context=self.context)
-        self.scheduled_tasks_tool = self._create_limited_scheduled_tasks_tool()
-
-        # Initialize independent search tools
-        self.search_tools = self._initialize_independent_search_tools()
-        self.research_tool = self._initialize_deep_research_tool(enable_deep_research=self.enable_deep_research)
-
-        self.available_tools: list[Tool] = [
-            self.attachment_tool,
-            self.meeting_tool,
-            self.visit_webpage_tool,
-            self.python_tool,
-            self.wikipedia_search_tool,
-            self.pdf_export_tool,
-            self.scheduled_tasks_tool,
-            self.delete_scheduled_tasks_tool,
-            self.references_generator_tool,
-            azure_visualizer,
-        ]
-
-        # Add all available search tools
-        self.available_tools.extend(self.search_tools)
-
-        if self.research_tool:
-            self.available_tools.append(self.research_tool)
-
-        # Initialize LinkedIn tools with context if API key is available
-        rapidapi_key = os.getenv("RAPIDAPI_KEY")
-        if rapidapi_key:
-            try:
-                linkedin_fresh_tool = LinkedInFreshDataTool(api_key=rapidapi_key, context=self.context)
-                self.available_tools.append(linkedin_fresh_tool)
-                logger.debug("Initialized LinkedInFreshDataTool with context")
-            except Exception as e:
-                logger.warning(f"Failed to initialize LinkedInFreshDataTool: {e}")
-
-            try:
-                linkedin_data_api_tool = LinkedInDataAPITool(api_key=rapidapi_key, context=self.context)
-                self.available_tools.append(linkedin_data_api_tool)
-                logger.debug("Initialized LinkedInDataAPITool with context")
-            except Exception as e:
-                logger.warning(f"Failed to initialize LinkedInDataAPITool: {e}")
-        else:
-            logger.info("RAPIDAPI_KEY not found. LinkedIn tools not initialized.")
+        # Initialize tools based on allowed_tools from processing instructions
+        self.available_tools = self._initialize_allowed_tools()
 
         logger.info(f"Agent tools initialized: {[tool.name for tool in self.available_tools]}")
         self._init_agent()
@@ -222,40 +160,78 @@ class EmailAgent:
 
         logger.debug("Agent initialized with routed model configuration, loguru-integrated Rich console")
 
-    def _initialize_independent_search_tools(self) -> list[Tool]:
+    def _initialize_allowed_tools(self) -> list[Tool]:
         """
-        Initialize independent search tools for DDG, Brave, and Google.
-        The agent will be able to choose which search engine to use based on cost and quality needs.
+        Initialize tools based on the allowed_tools field from processing instructions.
 
         Returns:
-            list[Tool]: List of available search tools.
+            list[Tool]: List of allowed tools for this handle
 
         """
-        search_tools = []
+        # Get allowed tools from processing instructions
+        allowed_tools = self.processing_instructions.allowed_tools
 
-        # DDG Search - Always available (free)
-        ddg_tool = DDGSearchTool(context=self.context, max_results=10)
-        search_tools.append(ddg_tool)
-        logger.debug("Initialized DDG search tool (free, first choice)")
+        # If no allowed_tools specified, use all tools (backward compatibility)
+        if allowed_tools is None:
+            logger.warning("No allowed_tools specified in processing instructions, using all tools")
+            return self._initialize_all_tools()
 
-        # Brave Search - Available if API key is configured
-        if os.getenv("BRAVE_SEARCH_API_KEY"):
-            brave_tool = BraveSearchTool(context=self.context, max_results=5)
-            search_tools.append(brave_tool)
-            logger.debug("Initialized Brave search tool (moderate cost, better quality)")
-        else:
-            logger.warning("BRAVE_SEARCH_API_KEY not found. Brave search tool not initialized.")
+        # Create mapping of tool names to tool instances
+        tool_mapping = create_tool_mapping(
+            context=self.context,
+            scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
+            allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
+        )
 
-        # Google Search - Available if API keys are configured
-        if os.getenv("SERPAPI_API_KEY") or os.getenv("SERPER_API_KEY"):
-            google_tool = GoogleSearchTool(context=self.context)
-            search_tools.append(google_tool)
-            logger.debug("Initialized Google search tool (premium cost, highest quality)")
-        else:
-            logger.warning("No Google Search API keys found. Google search tool not initialized.")
+        # Filter tools based on allowed list
+        filtered_tools = []
+        for tool_name in allowed_tools:
+            if tool_name in tool_mapping:
+                tool_instance = tool_mapping[tool_name]
+                if tool_instance is not None:  # Handle tools that might not be available (e.g., missing API keys)
+                    filtered_tools.append(tool_instance)
+                    logger.debug(f"Added allowed tool: {tool_name.value}")
+                else:
+                    logger.warning(
+                        f"Tool {tool_name.value} is in allowed list but not available (missing dependencies/API keys)"
+                    )
+                    # Log specific reasons for common tools
+                    if tool_name == ToolName.BRAVE_SEARCH:
+                        logger.debug("BRAVE_SEARCH_API_KEY not found")
+                    elif tool_name == ToolName.GOOGLE_SEARCH:
+                        logger.debug("SERPAPI_API_KEY or SERPER_API_KEY not found")
+                    elif tool_name == ToolName.DEEP_RESEARCH:
+                        logger.debug("JINA_API_KEY not found")
+                    elif tool_name in [ToolName.LINKEDIN_FRESH_DATA, ToolName.LINKEDIN_DATA_API]:
+                        logger.debug("RAPIDAPI_KEY not found or LinkedIn tool initialization failed")
+            else:
+                logger.warning(f"Unknown tool in allowed list: {tool_name.value}")
 
-        logger.info(f"Initialized {len(search_tools)} independent search tools: {[tool.name for tool in search_tools]}")
-        return search_tools
+        logger.info(
+            f"Initialized {len(filtered_tools)} allowed tools for handle '{self.processing_instructions.handle}': {[tool.name for tool in filtered_tools]}"
+        )
+        return filtered_tools
+
+    def _initialize_all_tools(self) -> list[Tool]:
+        """
+        Initialize all available tools (backward compatibility method).
+
+        Returns:
+            list[Tool]: List of all available tools
+
+        """
+        # Use centralized tool mapping for consistency
+        tool_mapping = create_tool_mapping(
+            context=self.context,
+            scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
+            allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
+        )
+
+        # Get all available tools (non-None values)
+        all_tools = [tool for tool in tool_mapping.values() if tool is not None]
+
+        logger.info(f"Initialized {len(all_tools)} tools for backward compatibility mode")
+        return all_tools
 
     def _get_required_actions(self, mode: str) -> list[str]:
         """
@@ -276,34 +252,6 @@ class EmailAgent:
         if mode in ["research", "full"]:
             actions.append("Conduct research")
         return actions
-
-    def _initialize_deep_research_tool(self, *, enable_deep_research: bool) -> DeepResearchTool | None:
-        """
-        Initializes the DeepResearchTool if API key is available.
-
-        Args:
-            enable_deep_research: Flag to enable deep research functionality
-
-        Returns:
-            Optional[DeepResearchTool]: Initialized DeepResearchTool instance or None if API key is not found
-
-        """
-        research_tool: DeepResearchTool | None = None
-        if os.getenv("JINA_API_KEY"):
-            research_tool = DeepResearchTool()
-            if enable_deep_research:
-                # Assuming DeepResearchTool is enabled by its presence and API key.
-                # If specific enabling logic is needed in DeepResearchTool, it should be called here.
-                logger.debug(
-                    "DeepResearchTool instance created; deep research functionality is active if enable_deep_research is true."
-                )
-            else:
-                logger.debug(
-                    "DeepResearchTool instance created, but deep research is not explicitly enabled via agent config (enable_deep_research=False). Tool may operate in a basic mode or not be used by agent logic if dependent on this flag."
-                )
-        else:
-            logger.info("JINA_API_KEY not found. DeepResearchTool not initialized.")
-        return research_tool
 
     def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
         """

@@ -20,6 +20,34 @@ class HandlerAlias(str, Enum):
     DELETE = "delete"
 
 
+class ToolName(str, Enum):
+    """Enum for tool names used in email processing."""
+
+    # Common tools available to most handles
+    ATTACHMENT_PROCESSOR = "attachment_processor"
+    CITATION_AWARE_VISIT = "citation_aware_visit"
+    PYTHON_INTERPRETER = "python_interpreter"
+    WIKIPEDIA_SEARCH = "wikipedia_search"
+    REFERENCES_GENERATOR = "references_generator"
+    AZURE_VISUALIZER = "azure_visualizer"
+
+    # Search tools
+    DDG_SEARCH = "ddg_search"
+    BRAVE_SEARCH = "brave_search"
+    GOOGLE_SEARCH = "google_search"
+
+    # Specialized tools
+    DEEP_RESEARCH = "deep_research"
+    MEETING_CREATOR = "meeting_creator"
+    PDF_EXPORT = "pdf_export"
+    SCHEDULED_TASKS = "scheduled_tasks"
+    DELETE_SCHEDULED_TASKS = "delete_scheduled_tasks"
+
+    # External data tools
+    LINKEDIN_FRESH_DATA = "linkedin_fresh_data"
+    LINKEDIN_DATA_API = "linkedin_data_api"
+
+
 # Enum for Rate Limit Plans
 class RateLimitPlan(Enum):
     BETA = "beta"
@@ -210,6 +238,7 @@ class ProcessingInstructions(BaseModel):
     aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
+    allowed_tools: list[ToolName] | None = None  # Tools allowed for this handle
     rejection_message: str | None = (
         "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
     )
