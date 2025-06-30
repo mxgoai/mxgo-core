@@ -1,6 +1,6 @@
-# 🤖 MXTOAI - Automate any email workflow with AI
+# 🤖 MXtoAI - Automate any email workflow with AI
 
-> MXTOAI processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
+> MXtoAI processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
 
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -17,7 +17,7 @@
 
 ```bash
 # Clone and start
-git clone https://github.com/your-org/mxtoai.git
+git clone https://github.com/mxtoai/mxtoai-core.git
 cd mxtoai
 
 # Automated setup and start
@@ -39,25 +39,21 @@ Edit the `model.config.toml` file with your AI service credentials:
 # For OpenAI
 [[model]]
 model_name = "gpt-4"
-litellm_params = {
-    model = "gpt-4",
-    api_key = "your_openai_api_key_here"
-}
+litellm_params.model = "gpt-4"
+litellm_params.api_key = "your_openai_api_key_here"
 
 # For Azure OpenAI
 [[model]]
 model_name = "azure-gpt-4"
-litellm_params = {
-    model = "azure/gpt-4",
-    api_key = "your_azure_openai_api_key",
-    base_url = "https://your-resource.openai.azure.com/",
-    api_version = "2023-05-15"
-}
+litellm_params.model = "azure/gpt-4"
+litellm_params.api_key = "your_azure_openai_api_key"
+litellm_params.base_url = "https://your-resource.openai.azure.com/"
+litellm_params.api_version = "2023-05-15"
 ```
 
-## 🎯 What is MXTOAI?
+## 🎯 What is MXtoAI?
 
-MXTOAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
+MXtoAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
 
 ### ✨ **Core Features**
 
@@ -105,7 +101,7 @@ The system processes emails asynchronously and can send responses via your confi
 
 ### Environment Variables
 
-MXTOAI uses a clean, organized environment configuration system:
+MXtoAI uses a clean, organized environment configuration system:
 
 #### 🚀 **Quick Setup**
 1. **Copy the template**: `cp .env.example .env`
@@ -251,7 +247,7 @@ poetry run python -m mxtoai.scheduler_runner          # Scheduler
 
 ```mermaid
 graph TD
-    A["MXTOAI Repository"] --> B["docker/"]
+    A["MXtoAI Repository"] --> B["docker/"]
     A --> C["mxtoai/"]
     A --> D["scripts/"]
     A --> E["tests/"]
@@ -312,7 +308,7 @@ graph TD
 
 ### Multiple AI Model Support
 
-MXTOAI supports load balancing across multiple AI providers:
+MXtoAI supports load balancing across multiple AI providers:
 
 - OpenAI GPT models
 - Azure OpenAI
@@ -392,7 +388,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 <div align="center">
 
-**⭐ Star this repo if MXTOAI helps you!**
+**⭐ Star this repo if MXtoAI helps you!**
 
 Made with ❤️ for the open source community
 

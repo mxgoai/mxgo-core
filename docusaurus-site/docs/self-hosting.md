@@ -17,7 +17,7 @@ MXtoAI can be self-hosted on your own infrastructure, giving you complete contro
 
 ```bash
 # Clone and start
-git clone https://github.com/your-org/mxtoai.git
+git clone https://github.com/mxtoai/mxtoai-core.git
 cd mxtoai
 
 # Automated setup and start
