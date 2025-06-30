@@ -167,18 +167,48 @@ class LinkedInDataAPITool(Tool):
     def forward(  # noqa: PLR0912, PLR0915
         self,
         action: str,
-        email: str,
-        password: str,
-        **kwargs,
+        username: Optional[str] = None,
+        profile_url: Optional[str] = None,
+        search_url: Optional[str] = None,
+        keywords: Optional[str] = None,
+        start: Optional[str] = None,
+        geo: Optional[str] = None,
+        school_id: Optional[str] = None,
+        first_name: Optional[str] = None,
+        last_name: Optional[str] = None,
+        keyword_school: Optional[str] = None,
+        keyword_title: Optional[str] = None,
+        company: Optional[str] = None,
+        keyword: Optional[str] = None,
+        locations: Optional[list[int]] = None,
+        company_sizes: Optional[list[str]] = None,
+        has_jobs: Optional[bool] = None,
+        industries: Optional[list[int]] = None,
+        page: int = 1,
     ) -> dict[str, Any]:
         """
         Process LinkedIn data requests and return structured output with citations.
 
         Args:
             action: The type of search to perform
-            email: LinkedIn email
-            password: LinkedIn password
-            **kwargs: Additional keyword arguments
+            username: LinkedIn username (for get_profile_data and get_company_details actions)
+            profile_url: LinkedIn profile URL (for get_profile_by_url action)
+            search_url: LinkedIn search URL (for search_people_by_url action)
+            keywords: Search keywords for people search
+            start: Pagination start position for people search
+            geo: Geographic location codes for people search
+            school_id: School identifier for education filter in people search
+            first_name: First name filter for people search
+            last_name: Last name filter for people search
+            keyword_school: School-related keywords for people search
+            keyword_title: Job title keywords for people search
+            company: Company filter for people search
+            keyword: Search keyword for company name/description in company search
+            locations: List of location codes for company search
+            company_sizes: List of company size codes for company search
+            has_jobs: Whether the company has active job postings in company search
+            industries: List of industry codes for company search
+            page: Page number for pagination in company search
 
         Returns:
             dict[str, Any]: JSON string containing the search results with citation metadata
@@ -200,74 +230,91 @@ class LinkedInDataAPITool(Tool):
         try:
             # Get the raw data from LinkedIn API
             if action == "get_profile_data":
-                if not kwargs.get("username"):
+                if not username:
                     msg = "username is required for get_profile_data action"
                     raise ValueError(msg)
-                data = actions[action](**kwargs)
+                data = actions[action](username=username)
                 # Generate LinkedIn URL from username and add citation
-                linkedin_url = f"https://www.linkedin.com/in/{kwargs['username']}/"
-                profile_name = data.get("full_name", kwargs["username"])
+                linkedin_url = f"https://www.linkedin.com/in/{username}/"
+                profile_name = data.get("full_name", username)
                 citation_title = f"{profile_name} - LinkedIn Profile"
                 citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             elif action == "get_profile_by_url":
-                if not kwargs.get("profile_url"):
+                if not profile_url:
                     msg = "profile_url is required for get_profile_by_url action"
                     raise ValueError(msg)
-                data = actions[action](**kwargs)
+                data = actions[action](profile_url=profile_url)
                 # Use the provided URL for citation
                 profile_name = data.get("full_name", "LinkedIn Profile")
                 citation_title = f"{profile_name} - LinkedIn Profile"
-                citation_id = self.context.add_web_citation(kwargs["profile_url"], citation_title, visited=True)
+                citation_id = self.context.add_web_citation(profile_url, citation_title, visited=True)
 
             elif action == "search_people_by_url":
-                if not kwargs.get("search_url"):
+                if not search_url:
                     msg = "search_url is required for search_people_by_url action"
                     raise ValueError(msg)
-                data = actions[action](**kwargs)
+                data = actions[action](search_url=search_url)
                 # Extract LinkedIn profile URLs from search results
                 citation_ids = []
                 if data.get("success") and data.get("data", {}).get("items"):
                     for item in data["data"]["items"]:
-                        profile_url = item.get("profileURL")
+                        item_profile_url = item.get("profileURL")
                         full_name = item.get("fullName", "LinkedIn Profile")
-                        if profile_url:
+                        if item_profile_url:
                             citation_title = f"{full_name} - LinkedIn Profile"
-                            citation_id = self.context.add_web_citation(profile_url, citation_title, visited=True)
+                            citation_id = self.context.add_web_citation(item_profile_url, citation_title, visited=True)
                             citation_ids.append(citation_id)
 
                 # Set citation_id to first one for metadata, or None if no results
                 citation_id = citation_ids[0] if citation_ids else None
 
             elif action == "get_company_details":
-                if not kwargs.get("username"):
+                if not username:
                     msg = "username is required for get_company_details action"
                     raise ValueError(msg)
-                data = actions[action](**kwargs)
+                data = actions[action](username=username)
                 # Generate LinkedIn company URL from username and add citation
-                linkedin_url = f"https://www.linkedin.com/company/{kwargs['username']}/"
-                company_name = data.get("name", kwargs["username"])
+                linkedin_url = f"https://www.linkedin.com/company/{username}/"
+                company_name = data.get("name", username)
                 citation_title = f"{company_name} - LinkedIn Company"
                 citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             elif action == "search_people":
-                data = actions[action](**kwargs)
+                data = actions[action](
+                    keywords=keywords,
+                    start=start,
+                    geo=geo,
+                    school_id=school_id,
+                    first_name=first_name,
+                    last_name=last_name,
+                    keyword_school=keyword_school,
+                    keyword_title=keyword_title,
+                    company=company,
+                )
                 # Extract LinkedIn profile URLs from search results based on schema
                 citation_ids = []
                 if data.get("success") and data.get("data", {}).get("items"):
                     for item in data["data"]["items"]:
-                        profile_url = item.get("profileURL")
+                        item_profile_url = item.get("profileURL")
                         full_name = item.get("fullName", "LinkedIn Profile")
-                        if profile_url:
+                        if item_profile_url:
                             citation_title = f"{full_name} - LinkedIn Profile"
-                            citation_id = self.context.add_web_citation(profile_url, citation_title, visited=True)
+                            citation_id = self.context.add_web_citation(item_profile_url, citation_title, visited=True)
                             citation_ids.append(citation_id)
 
                 # Set citation_id to first one for metadata, or None if no results
                 citation_id = citation_ids[0] if citation_ids else None
 
             elif action == "search_companies":
-                data = actions[action](**kwargs)
+                data = actions[action](
+                    keyword=keyword,
+                    locations=locations,
+                    company_sizes=company_sizes,
+                    has_jobs=has_jobs,
+                    industries=industries,
+                    page=page,
+                )
                 # Extract LinkedIn company URLs from search results based on schema
                 citation_ids = []
                 if data.get("success") and data.get("data", {}).get("items"):
