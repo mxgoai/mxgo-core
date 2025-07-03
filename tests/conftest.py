@@ -78,6 +78,14 @@ def setup_test_database(monkeypatch_session):
         # Explicitly drop alembic_version table
         with sync_engine.connect() as conn:
             conn.execute(text("DROP TABLE IF EXISTS alembic_version;"))
+            conn.execute(text("""
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'alembic_version') THEN
+                        EXECUTE 'DROP TYPE alembic_version CASCADE';
+                    END IF;
+                END$$;
+            """))
             conn.commit()
         logger.info("Explicitly dropped alembic_version table.")
 
