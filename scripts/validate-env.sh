@@ -25,7 +25,7 @@ check_required_var() {
     local var_name=$1
     local var_value=$2
     local description=$3
-    
+
     if [ -z "$var_value" ]; then
         echo "❌ $var_name is not set - $description"
         ERRORS=$((ERRORS + 1))
@@ -38,7 +38,7 @@ check_optional_var() {
     local var_name=$1
     local var_value=$2
     local description=$3
-    
+
     if [ -z "$var_value" ]; then
         echo "⚠️  $var_name is not set - $description (optional)"
     else
@@ -86,7 +86,7 @@ if [ ! -f model.config.toml ]; then
     ERRORS=$((ERRORS + 1))
 else
     echo "✅ model.config.toml found"
-    
+
     # Basic validation of model config
     if grep -q "your_.*_api_key" model.config.toml; then
         echo "⚠️  model.config.toml contains placeholder values"

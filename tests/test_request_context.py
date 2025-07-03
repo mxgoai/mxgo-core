@@ -2,7 +2,6 @@
 Tests for RequestContext functionality.
 """
 
-
 from mxtoai.request_context import CitationManager, RequestContext
 from mxtoai.schemas import EmailRequest
 
@@ -64,10 +63,7 @@ def test_citation_manager_references_section():
 def test_request_context_basic():
     """Test basic RequestContext functionality."""
     email_request = EmailRequest(
-        from_email="test@example.com",
-        to="recipient@example.com",
-        subject="Test Subject",
-        textContent="Test content"
+        from_email="test@example.com", to="recipient@example.com", subject="Test Subject", textContent="Test content"
     )
 
     context = RequestContext(email_request)
@@ -91,10 +87,7 @@ def test_request_context_attachment_paths():
     from mxtoai.schemas import EmailAttachment
 
     attachment = EmailAttachment(
-        filename="test.pdf",
-        contentType="application/pdf",
-        size=1024,
-        path="/path/to/test.pdf"
+        filename="test.pdf", contentType="application/pdf", size=1024, path="/path/to/test.pdf"
     )
 
     email_request = EmailRequest(
@@ -102,7 +95,7 @@ def test_request_context_attachment_paths():
         to="recipient@example.com",
         subject="Test Subject",
         textContent="Test content",
-        attachments=[attachment]
+        attachments=[attachment],
     )
 
     context = RequestContext(email_request)
@@ -127,10 +120,7 @@ def test_citation_manager_api_title_sanitization():
 def test_request_context_attachment_service():
     """Test attachment service loading functionality."""
     email_request = EmailRequest(
-        from_email="test@example.com",
-        to="recipient@example.com",
-        subject="Test Subject",
-        textContent="Test content"
+        from_email="test@example.com", to="recipient@example.com", subject="Test Subject", textContent="Test content"
     )
 
     # Test attachment info
@@ -139,7 +129,7 @@ def test_request_context_attachment_service():
             "filename": "test.txt",
             "path": "/nonexistent/path",  # Won't actually load in test
             "type": "text/plain",
-            "size": 100
+            "size": 100,
         }
     ]
 
@@ -153,10 +143,7 @@ def test_request_context_attachment_service():
 def test_request_context_backward_compatibility():
     """Test that RequestContext still works without attachment_info."""
     email_request = EmailRequest(
-        from_email="test@example.com",
-        to="recipient@example.com",
-        subject="Test Subject",
-        textContent="Test content"
+        from_email="test@example.com", to="recipient@example.com", subject="Test Subject", textContent="Test content"
     )
 
     # Should work without attachment_info parameter

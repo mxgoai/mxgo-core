@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     name: backend tests
-    
+
     services:
       postgres:
         image: postgres:15
@@ -34,7 +34,7 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-    
+
     env:
       X_API_KEY: "some-api-key"
       IS_PROD: "true"

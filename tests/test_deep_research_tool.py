@@ -222,9 +222,7 @@ class TestMessagePreparation:
         tool = DeepResearchTool()
 
         # Test with memory attachments instead of file paths
-        memory_attachments = {
-            "test.txt": (b"Test file content", "text/plain")
-        }
+        memory_attachments = {"test.txt": (b"Test file content", "text/plain")}
 
         messages = tool._prepare_messages(query="Analyze this file", memory_attachments=memory_attachments)
 
@@ -241,9 +239,7 @@ class TestMessagePreparation:
 
         # Create large content (more than 10MB)
         large_content = b"x" * (11 * 1024 * 1024)
-        memory_attachments = {
-            "large.bin": (large_content, "application/octet-stream")
-        }
+        memory_attachments = {"large.bin": (large_content, "application/octet-stream")}
 
         messages = tool._prepare_messages(query="Analyze this file", memory_attachments=memory_attachments)
 

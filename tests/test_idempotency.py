@@ -22,7 +22,7 @@ class TestIdempotency:
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
             text_content="Test text",
-            files_count=2
+            files_count=2,
         )
 
         msg_id_2 = generate_message_id(
@@ -32,7 +32,7 @@ class TestIdempotency:
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
             text_content="Test text",
-            files_count=2
+            files_count=2,
         )
 
         assert msg_id_1 == msg_id_2, "Same inputs should produce same message ID"
@@ -47,7 +47,7 @@ class TestIdempotency:
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
             text_content="Test text",
-            files_count=2
+            files_count=2,
         )
 
         assert msg_id_1 != msg_id_3, "Different inputs should produce different message IDs"
@@ -56,13 +56,16 @@ class TestIdempotency:
     @patch("mxtoai.api.validate_rate_limits", new_callable=AsyncMock)
     @patch("mxtoai.api.validate_idempotency", new_callable=AsyncMock)
     @patch("mxtoai.api.process_email_task")
-    def test_api_idempotency_already_queued(self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist):
+    def test_api_idempotency_already_queued(
+        self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist
+    ):
         """Test API returns conflict when email already queued."""
         mock_validate_whitelist.return_value = None  # Email is whitelisted
         mock_rate_limits.return_value = None  # Rate limits pass
 
         # Mock idempotency check to return duplicate response
         from fastapi import Response, status
+
         duplicate_response = Response(
             content='{"message": "Email already queued for processing", "messageId": "<test123@example.com>", "status": "duplicate_queued"}',
             status_code=status.HTTP_409_CONFLICT,
@@ -79,11 +82,7 @@ class TestIdempotency:
                 "messageId": "<test123@example.com>",
             }
 
-            response = test_client.post(
-                "/process-email",
-                data=form_data,
-                headers={"x-api-key": API_KEY}
-            )
+            response = test_client.post("/process-email", data=form_data, headers={"x-api-key": API_KEY})
 
         assert response.status_code == 409
         response_data = response.json()
@@ -97,13 +96,16 @@ class TestIdempotency:
     @patch("mxtoai.api.validate_rate_limits", new_callable=AsyncMock)
     @patch("mxtoai.api.validate_idempotency", new_callable=AsyncMock)
     @patch("mxtoai.api.process_email_task")
-    def test_api_idempotency_already_processed(self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist):
+    def test_api_idempotency_already_processed(
+        self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist
+    ):
         """Test API returns conflict when email already processed."""
         mock_validate_whitelist.return_value = None  # Email is whitelisted
         mock_rate_limits.return_value = None  # Rate limits pass
 
         # Mock idempotency check to return duplicate response
         from fastapi import Response, status
+
         duplicate_response = Response(
             content='{"message": "Email already processed", "messageId": "<test123@example.com>", "status": "duplicate_processed"}',
             status_code=status.HTTP_409_CONFLICT,
@@ -120,11 +122,7 @@ class TestIdempotency:
                 "messageId": "<test123@example.com>",
             }
 
-            response = test_client.post(
-                "/process-email",
-                data=form_data,
-                headers={"x-api-key": API_KEY}
-            )
+            response = test_client.post("/process-email", data=form_data, headers={"x-api-key": API_KEY})
 
         assert response.status_code == 409
         response_data = response.json()
@@ -151,14 +149,11 @@ class TestIdempotency:
             "date": "2023-01-01T12:00:00Z",
             "rawHeaders": {},
             "cc": [],
-            "attachments": []
+            "attachments": [],
         }
 
         result = process_email_task(
-            email_data=email_data,
-            email_attachments_dir="",
-            attachment_info=[],
-            scheduled_task_id=None
+            email_data=email_data, email_attachments_dir="", attachment_info=[], scheduled_task_id=None
         )
 
         # Should return duplicate result
@@ -177,7 +172,7 @@ class TestIdempotency:
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
             text_content="Test text",
-            files_count=0
+            files_count=0,
         )
 
         msg_id_2 = generate_message_id(
@@ -187,7 +182,7 @@ class TestIdempotency:
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
             text_content="Test text",
-            files_count=0
+            files_count=0,
         )
 
         assert msg_id_1 == msg_id_2, "Should generate same ID for same content"

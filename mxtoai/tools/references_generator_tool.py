@@ -32,7 +32,7 @@ class ReferencesGeneratorTool(Tool):
             "type": "boolean",
             "description": "Whether to include the references in the main content output. Default: True.",
             "default": True,
-            "nullable": True
+            "nullable": True,
         }
     }
     output_type = "object"
@@ -57,10 +57,7 @@ class ReferencesGeneratorTool(Tool):
             if not self.context.has_citations():
                 result = ToolOutputWithCitations(
                     content="No citations were collected during this session.",
-                    metadata={
-                        "total_citations": 0,
-                        "has_references": False
-                    }
+                    metadata={"total_citations": 0, "has_references": False},
                 )
                 logger.info("No citations found to generate references")
                 return json.dumps(result.model_dump())
@@ -83,11 +80,11 @@ class ReferencesGeneratorTool(Tool):
                             "title": source.title,
                             "source_type": source.source_type,
                             "url": source.url,
-                            "filename": source.filename
+                            "filename": source.filename,
                         }
                         for source in citations.sources
-                    ]
-                }
+                    ],
+                },
             )
 
             logger.info(f"Generated references section with {len(citations.sources)} sources")

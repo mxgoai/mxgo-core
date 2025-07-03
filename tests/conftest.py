@@ -19,6 +19,7 @@ logger = get_logger(__name__)
 def monkeypatch_session():
     """Session-scoped monkeypatch fixture."""
     from _pytest.monkeypatch import MonkeyPatch
+
     mp = MonkeyPatch()
     yield mp
     mp.undo()
@@ -104,7 +105,7 @@ def setup_test_database(monkeypatch_session):
             ["alembic", "-c", "alembic.ini", "upgrade", "head"],  # noqa: S607
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         logger.info(f"Alembic upgrade to head completed on {sync_test_db_url}")
         logger.info(f"Alembic stdout: {result.stdout}")

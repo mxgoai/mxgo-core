@@ -13,10 +13,7 @@ from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearch
 # Helper function to create mock context
 def create_mock_context():
     email_request = EmailRequest(
-        from_email="test@example.com",
-        to="recipient@example.com",
-        subject="Test Subject",
-        textContent="Test content"
+        from_email="test@example.com", to="recipient@example.com", subject="Test Subject", textContent="Test content"
     )
     return RequestContext(email_request)
 
@@ -156,16 +153,8 @@ class TestBraveSearchTool:
         mock_response.json.return_value = {
             "web": {
                 "results": [
-                    {
-                        "title": "Test Result 1",
-                        "url": "https://example1.com",
-                        "description": "First test result"
-                    },
-                    {
-                        "title": "Test Result 2",
-                        "url": "https://example2.com",
-                        "description": "Second test result"
-                    }
+                    {"title": "Test Result 1", "url": "https://example1.com", "description": "First test result"},
+                    {"title": "Test Result 2", "url": "https://example2.com", "description": "Second test result"},
                 ]
             }
         }
@@ -207,7 +196,7 @@ class TestBraveSearchTool:
             ui_lang="fr-FR",
             safesearch="strict",
             freshness="pd",
-            result_filter="web,news"
+            result_filter="web,news",
         )
 
         call_params = mock_get.call_args[1]["params"]
@@ -270,13 +259,7 @@ class TestBraveSearchTool:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {
             "web": {
-                "results": [
-                    {
-                        "title": "Test Result",
-                        "url": "https://example.com",
-                        "description": "Test description"
-                    }
-                ]
+                "results": [{"title": "Test Result", "url": "https://example.com", "description": "Test description"}]
             }
         }
         mock_get.return_value = mock_response
@@ -417,7 +400,9 @@ class TestGoogleSearchTool:
         mock_logger.info.assert_any_call("Performing Google search for: test query")
         # Should contain "Google search completed" (the actual message varies based on results)
         completion_calls = [call for call in mock_logger.info.call_args_list if "Google search completed" in str(call)]
-        assert len(completion_calls) > 0, f"Expected 'Google search completed' message not found in calls: {mock_logger.info.call_args_list}"
+        assert len(completion_calls) > 0, (
+            f"Expected 'Google search completed' message not found in calls: {mock_logger.info.call_args_list}"
+        )
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
     @patch("mxtoai.tools.web_search.google_search.logger")
@@ -495,7 +480,7 @@ class TestIntegrationScenarios:
             requests.HTTPError("HTTP 500"),
             requests.ConnectionError("Connection failed"),
             requests.Timeout("Request timeout"),
-            ValueError("Invalid response format")
+            ValueError("Invalid response format"),
         ]
 
         for tool in tools:

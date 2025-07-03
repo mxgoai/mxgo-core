@@ -76,14 +76,13 @@ class Tasks(BaseMixin, table=True):
     start_time: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True),
         default=None,
-        description="Start time for the task - task will not execute before this time"
+        description="Start time for the task - task will not execute before this time",
     )
     expiry_time: Optional[datetime] = Field(
         sa_type=DateTime(timezone=True),
         default=None,
-        description="End time for the task - task will not execute after this time"
+        description="End time for the task - task will not execute after this time",
     )
-
 
     runs: list["TaskRun"] = Relationship(back_populates="task")
 

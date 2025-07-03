@@ -12,8 +12,10 @@ logger = get_logger(__name__)
 # Initialize Supabase client
 supabase: Optional[Client] = None
 
+
 def is_whitelist_enabled() -> bool:
     return os.getenv("WHITELIST_ENABLED", "false").strip().lower() == "true"
+
 
 def init_supabase():
     """
