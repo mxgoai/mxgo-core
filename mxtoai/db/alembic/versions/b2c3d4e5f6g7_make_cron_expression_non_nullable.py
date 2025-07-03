@@ -6,6 +6,7 @@ Revises: a1b2c3d4e5f6
 Create Date: 2024-12-15 12:30:00.000000
 
 """
+
 from collections.abc import Sequence
 from typing import Union
 

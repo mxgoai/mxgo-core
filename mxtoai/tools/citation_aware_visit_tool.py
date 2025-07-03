@@ -50,9 +50,9 @@ class CitationAwareVisitTool(Tool):
 
             # Extract title from content if possible
             title_match = (
-                re.search(r"<title>(.*?)</title>", content, re.IGNORECASE) or
-                re.search(r"<h1[^>]*>(.*?)</h1>", content, re.IGNORECASE) or
-                re.search(r"# (.*?)$", content, re.MULTILINE)
+                re.search(r"<title>(.*?)</title>", content, re.IGNORECASE)
+                or re.search(r"<h1[^>]*>(.*?)</h1>", content, re.IGNORECASE)
+                or re.search(r"# (.*?)$", content, re.MULTILINE)
             )
 
             title = re.sub(r"<[^>]+>", "", title_match.group(1)).strip() if title_match else f"Webpage: {url}"
@@ -63,12 +63,7 @@ class CitationAwareVisitTool(Tool):
             # Create structured output with citation
             result = ToolOutputWithCitations(
                 content=f"**{title}** [#{citation_id}]\n\n{content}",
-                metadata={
-                    "url": url,
-                    "title": title,
-                    "citation_id": citation_id,
-                    "content_length": len(content)
-                }
+                metadata={"url": url, "title": title, "citation_id": citation_id, "content_length": len(content)},
             )
 
             logger.info(f"Successfully visited webpage and added citation [#{citation_id}]")

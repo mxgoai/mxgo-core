@@ -20,27 +20,27 @@ class YourNewTool(Tool):
     """
     Description of what your tool does.
     """
-    
+
     def __init__(self, **kwargs):
         """Initialize tool with required dependencies."""
         super().__init__(**kwargs)
-        
+
         # Initialize any required resources (DB connections, APIs, etc.)
         # ...
-    
+
     def forward(self, *args, **kwargs):
         """
         Synchronous implementation of the tool's main functionality.
-        
+
         Args:
             Arguments specific to your tool's functionality
-            
+
         Returns:
             Dictionary with results or status information
         """
         # Implement the core functionality
         # ...
-        
+
         return {"status": "success", "result": "..."}
 ```
 
@@ -79,15 +79,15 @@ When working with database models:
 try:
     # Try ORM approach first (good for testing)
     from mxtoai.models import YourModel
-    
+
     model = YourModel(...)
     session.add(model)
     session.commit()
-    
+
 except (ImportError, Exception) as e:
     # Fall back to SQL approach if needed
     from sqlalchemy import text
-    
+
     stmt = text("INSERT INTO your_table (column1, column2) VALUES (:val1, :val2)")
     session.execute(stmt, {"val1": value1, "val2": value2})
     session.commit()
@@ -102,10 +102,10 @@ from pydantic import BaseModel, Field, field_validator
 
 class ToolInput(BaseModel):
     """Input model for tool validation."""
-    
+
     field1: str = Field(..., description="Description of field1")
     field2: int = Field(..., description="Description of field2")
-    
+
     @field_validator("field1")
     @classmethod
     def validate_field1(cls, v):
@@ -152,19 +152,19 @@ Create comprehensive tests that cover:
 # Example test with mocked dependencies
 def test_your_tool(prepare_email_request_data):
     """Tests your tool functionality."""
-    
+
     # Setup test data
     test_data = {...}
-    
+
     # Create mock functions
     mock_resource = False
     mock_id = None
-    
+
     def mock_db_function(data):
         nonlocal mock_resource, mock_id
         mock_resource = True
         mock_id = "test_id_123"
-    
+
     # Apply mocks
     with (
         patch("module.path.to.dependency", side_effect=mock_db_function),
@@ -172,7 +172,7 @@ def test_your_tool(prepare_email_request_data):
     ):
         # Execute function being tested
         result = your_function(test_data)
-        
+
         # Verify behavior
         assert mock_resource, "Resource was not created"
         assert mock_id is not None, "ID was not generated"
@@ -192,21 +192,21 @@ def mock_session_execute(statement, params=None):
     """Mock for Session.execute."""
     # Record what would have been executed
     mock_executed = True
-    
+
     # Create a mock result that mimics what execute() would return
     class MockResult:
         def scalar_one_or_none(self):
             return None
-            
+
         def scalars(self):
             return self
-            
+
         def first(self):
             return None
-            
+
         def all(self):
             return []
-    
+
     return MockResult()
 ```
 

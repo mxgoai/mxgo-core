@@ -7,13 +7,13 @@
       },
       "colors": {
         "background": "#ffffff",
-        "text": "#333333", 
+        "text": "#333333",
         "heading": "#2c3e50",
         "link": "#0366d6",
         "code_background": "#f6f8fa",
         "table_header": "#f6f8fa",
         "table_border": "#ddd",
-        "blockquote": "#6a737d" 
+        "blockquote": "#6a737d"
       },
       "spacing": {
         "container_width": "800px",
@@ -21,4 +21,3 @@
       }
     }
 }
-  

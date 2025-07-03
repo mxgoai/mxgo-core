@@ -19,7 +19,9 @@ from mxtoai.schemas import EmailRequest
 class TestEmailSender:
     """Test the EmailSender class functionality."""
 
-    @patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "test_key", "AWS_SECRET_ACCESS_KEY": "test_secret", "AWS_REGION": "us-east-1"})
+    @patch.dict(
+        os.environ, {"AWS_ACCESS_KEY_ID": "test_key", "AWS_SECRET_ACCESS_KEY": "test_secret", "AWS_REGION": "us-east-1"}
+    )
     @patch("boto3.client")
     def test_email_sender_init_success(self, mock_boto_client):
         """Test successful EmailSender initialization."""
@@ -71,7 +73,7 @@ class TestEmailSender:
             body_text="Test body",
             body_html="<p>Test HTML</p>",
             cc_addresses=["cc@example.com"],
-            reply_to_addresses=["reply@example.com"]
+            reply_to_addresses=["reply@example.com"],
         )
 
         assert result["MessageId"] == "test-message-id"
@@ -90,19 +92,14 @@ class TestEmailSender:
         mock_ses_client = Mock()
         mock_ses_client.get_send_quota.return_value = {"Max24HourSend": 200.0}
         mock_ses_client.send_email.side_effect = ClientError(
-            {"Error": {"Code": "MessageRejected", "Message": "Email address is not verified"}},
-            "send_email"
+            {"Error": {"Code": "MessageRejected", "Message": "Email address is not verified"}}, "send_email"
         )
         mock_boto_client.return_value = mock_ses_client
 
         sender = EmailSender()
 
         with pytest.raises(ClientError):
-            await sender.send_email(
-                to_address="test@example.com",
-                subject="Test Subject",
-                body_text="Test body"
-            )
+            await sender.send_email(to_address="test@example.com", subject="Test Subject", body_text="Test body")
 
     @patch.dict(os.environ, {"AWS_ACCESS_KEY_ID": "test_key", "AWS_SECRET_ACCESS_KEY": "test_secret"})
     @patch("boto3.client")
@@ -120,13 +117,11 @@ class TestEmailSender:
             "from": "sender@example.com",
             "to": "recipient@example.com",
             "subject": "Original Subject",
-            "messageId": "original-id"
+            "messageId": "original-id",
         }
 
         result = await sender.send_reply(
-            original_email=original_email,
-            reply_text="Reply text",
-            reply_html="<p>Reply HTML</p>"
+            original_email=original_email, reply_text="Reply text", reply_html="<p>Reply HTML</p>"
         )
 
         assert result["MessageId"] == "reply-message-id"
@@ -143,16 +138,10 @@ class TestEmailSender:
 
         sender = EmailSender()
 
-        original_email = {
-            "to": "recipient@example.com",
-            "subject": "Original Subject"
-        }
+        original_email = {"to": "recipient@example.com", "subject": "Original Subject"}
 
         with pytest.raises(ValueError, match="Original email 'from' address is missing"):
-            await sender.send_reply(
-                original_email=original_email,
-                reply_text="Reply text"
-            )
+            await sender.send_reply(original_email=original_email, reply_text="Reply text")
 
 
 class TestEmailUtilities:
@@ -167,7 +156,7 @@ class TestEmailUtilities:
             date="2024-01-01T10:00:00Z",
             html_content="<p>HTML</p>",
             text_content="Text content",
-            files_count=2
+            files_count=2,
         )
 
         assert isinstance(message_id, str)
@@ -182,7 +171,7 @@ class TestEmailUtilities:
             subject="Test Subject",
             textContent="Text content",
             htmlContent="<p>HTML</p>",
-            date="2024-01-01T10:00:00Z"
+            date="2024-01-01T10:00:00Z",
         )
 
         email_id = generate_email_id(email_data)
@@ -198,7 +187,7 @@ class TestEmailUtilities:
             subject="Test Subject",
             textContent="Text content",
             htmlContent="<p>HTML</p>",
-            date="2024-01-01T10:00:00Z"
+            date="2024-01-01T10:00:00Z",
         )
 
         email_id = "test-email-id"
@@ -218,12 +207,14 @@ class TestEmailUtilities:
             textContent="Text content",
             htmlContent="<p>HTML</p>",
             date="2024-01-01T10:00:00Z",
-            attachments=[{
-                "filename": "test.txt",
-                "content": base64.b64encode(b"Test content").decode(),
-                "contentType": "text/plain",
-                "size": len("Test content")  # Add required size field
-            }]
+            attachments=[
+                {
+                    "filename": "test.txt",
+                    "content": base64.b64encode(b"Test content").decode(),
+                    "contentType": "text/plain",
+                    "size": len("Test content"),  # Add required size field
+                }
+            ],
         )
 
         with patch("mxtoai.config.ATTACHMENTS_DIR", str(tmp_path)):
@@ -244,7 +235,7 @@ class TestEmailUtilities:
             textContent="Text content",
             htmlContent="<p>HTML</p>",
             date="2024-01-01T10:00:00Z",
-            cc=["cc@example.com"]
+            cc=["cc@example.com"],
         )
 
         attachment_info = [{"filename": "test.txt", "path": "/path/to/test.txt"}]
