@@ -81,6 +81,13 @@ jobs:
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction --with dev
 
+      - name: Create 'root' Postgres role (for Alembic)
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          psql -h localhost -U testuser -d testdb -c "CREATE ROLE root WITH LOGIN SUPERUSER PASSWORD 'password';"
+        env:
+          PGPASSWORD: testpassword
+
       - name: Create LiteLLM config from secret
         env:
           MODEL_CONFIG_CONTENT: ${{ secrets.MODEL_CONFIG }}
