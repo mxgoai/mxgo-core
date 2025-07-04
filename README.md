@@ -51,6 +51,8 @@ litellm_params.base_url = "https://your-resource.openai.azure.com/"
 litellm_params.api_version = "2023-05-15"
 ```
 
+For thinking models, make sure to set the model group name to "thinking".
+
 ## 🎯 What is MXtoAI?
 
 MXtoAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:

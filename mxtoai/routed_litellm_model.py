@@ -224,6 +224,9 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             custom_role_conversions=self.custom_role_conversions,
             **kwargs,
         )
+        # remove stop parameter from kwargs if model is thinking based
+        if self.model_id == "thinking":
+            completion_kwargs.pop("stop", None)
 
         response = self.client.completion(**completion_kwargs)
 
@@ -275,7 +278,6 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             # explicit 'model=self.model_id' passed by LiteLLMModel.generate
             # to _prepare_completion_kwargs.
             kwargs_for_super_generate = {k: v for k, v in kwargs.items() if k != "model"}
-
             try:
                 chat_message = self.generate(
                     messages=messages,
