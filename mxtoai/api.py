@@ -597,16 +597,31 @@ async def process_email(  # noqa: PLR0912, PLR0915
                 if parsed_headers:
                     cc_list = extract_cc_from_headers(parsed_headers)
 
-                # Prepare attachment validation
+                # Prepare attachment validation and processing
                 attachments_for_validation = []
+                email_attachments = []
                 if files:
-                    # Convert UploadFile objects to EmailAttachment objects for validation
+                    # Read file content once and prepare for both validation and processing
                     for file in files:
                         content = await file.read()
+                        filename = file.filename or "unknown"
+                        content_type = file.content_type or "application/octet-stream"
+
+                        # For validation (dict format)
                         attachments_for_validation.append(
+                            {
+                                "filename": filename,
+                                "contentType": content_type,
+                                "content": content,
+                                "size": len(content),
+                            }
+                        )
+
+                        # For processing (EmailAttachment objects)
+                        email_attachments.append(
                             EmailAttachment(
-                                filename=file.filename or "unknown",
-                                contentType=file.content_type or "application/octet-stream",
+                                filename=filename,
+                                contentType=content_type,
                                 content=content,
                                 size=len(content),
                             )
@@ -670,9 +685,9 @@ async def process_email(  # noqa: PLR0912, PLR0915
                         # Handle attachments only if the handle requires it
                         email_attachments_dir = ""
                         attachment_info = []
-                        if email_instructions.process_attachments and files:
+                        if email_instructions.process_attachments and email_attachments:
                             email_attachments_dir, attachment_info = await handle_file_attachments(
-                                files, email_id, email_request
+                                email_attachments, email_id, email_request
                             )
                             logger.info(f"Processed {len(attachment_info)} attachments successfully")
                             logger.info(f"Attachments directory: {email_attachments_dir}")
