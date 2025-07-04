@@ -218,11 +218,15 @@ class PDFExportTool(Tool):
         # Look for lines that could be titles (short, meaningful lines)
         for original_line in lines[:5]:  # Check first 5 lines
             line = original_line.strip()
-            if (line and len(line) < MAX_TITLE_LENGTH and len(line) > MIN_TITLE_LENGTH and
-                not any(
+            if (
+                line
+                and len(line) < MAX_TITLE_LENGTH
+                and len(line) > MIN_TITLE_LENGTH
+                and not any(
                     indicator in line.lower()
                     for indicator in ["the", "this", "that", "with", "from", "email", "message"]
-                )):
+                )
+            ):
                 return line[:60]
 
         # Fallback: use first meaningful sentence

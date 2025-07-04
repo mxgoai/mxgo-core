@@ -81,16 +81,16 @@ def test_time_sensitive_functionality():
 ```python
 class TestFeatureName:
     """Test the feature functionality."""
-    
+
     def create_mock_helper(self, ...):
         """Helper to create consistent mock objects."""
-        
+
     def test_happy_path(self):
         """Test the main success scenario."""
-        
+
     def test_edge_cases(self):
         """Test boundary conditions."""
-        
+
     def test_error_handling(self):
         """Test error scenarios."""
 ```
@@ -157,7 +157,7 @@ assert call_args[0][0]["from"] == expected_email
 tests/
 ├── conftest.py              # Shared fixtures and database setup
 ├── test_process_email.py    # Main email processing tests
-├── test_api.py              # API endpoint tests  
+├── test_api.py              # API endpoint tests
 ├── test_scheduled_tasks.py  # Scheduled task functionality
 └── test_report_formatter.py # Individual component tests
 ```

@@ -65,7 +65,7 @@ class DDGSearchTool(Tool):
             citations_added = 0
 
             # Process each markdown link found
-            for i, (link_title, link_url) in enumerate(matches[:self.max_results], 1):
+            for i, (link_title, link_url) in enumerate(matches[: self.max_results], 1):
                 clean_title = link_title.strip()
                 clean_url = link_url.strip()
 
@@ -85,7 +85,7 @@ class DDGSearchTool(Tool):
                 url_pattern = r"https?://[^\s\n)]+"
                 urls = re.findall(url_pattern, raw_result)
 
-                for i, url in enumerate(urls[:self.max_results], 1):
+                for i, url in enumerate(urls[: self.max_results], 1):
                     # Generate a simple title from URL
                     title = url.split("/")[-1] or url.split("//")[-1].split("/")[0]
                     title = title.replace("-", " ").replace("_", " ").title()
@@ -127,8 +127,8 @@ class DDGSearchTool(Tool):
                     "query": query,
                     "total_results": len(formatted_results) if formatted_results else 0,
                     "search_engine": "DuckDuckGo",
-                    "citations_added": citations_added
-                }
+                    "citations_added": citations_added,
+                },
             )
 
             logger.info(f"DDG search completed successfully with {citations_added} citations")

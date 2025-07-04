@@ -416,13 +416,13 @@ Unable to fully verify this claim due to:
 
 # Background research handler template
 BACKGROUND_RESEARCH_TEMPLATE = """
-Conduct comprehensive business intelligence research on individuals and organizations mentioned in the email.
+Conduct comprehensive business intelligence research on individuals and organizations mentioned in the email, excluding the sender who has forwarded the email.
 This is strategic research to support business decisions, not just basic background information.
 
 # Research Methodology - CRITICAL PROCESS
 
-## STEP 1: INFORMATION EXTRACTION & VERIFICATION
-**Extract ALL available identifiers from the email content:**
+## STEP 1: INFORMATION EXTRACTION & VERIFICATION`
+**Extract ALL available identifiers from the email content apart from sender:**
 - Full names (first, middle, last)
 - Email addresses
 - Company names and variations

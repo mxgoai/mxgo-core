@@ -85,16 +85,12 @@ class GoogleSearchTool(Tool):
             matches = re.findall(link_pattern, raw_result)
 
             for title, url in matches:
-                results.append({
-                    "title": title.strip(),
-                    "url": url.strip()
-                })
+                results.append({"title": title.strip(), "url": url.strip()})
 
             if not results:
                 # Fallback: treat the whole result as content
                 result = ToolOutputWithCitations(
-                    content=raw_result,
-                    metadata={"query": query, "total_results": 0, "search_engine": "Google"}
+                    content=raw_result, metadata={"query": query, "total_results": 0, "search_engine": "Google"}
                 )
                 logger.info("Google search completed (no structured results found)")
                 return json.dumps(result.model_dump())
@@ -126,8 +122,8 @@ class GoogleSearchTool(Tool):
                     "query": query,
                     "total_results": len(results),
                     "search_engine": "Google",
-                    "citations_added": citations_added
-                }
+                    "citations_added": citations_added,
+                },
             )
 
             logger.info(f"Google search completed successfully with {citations_added} citations")
