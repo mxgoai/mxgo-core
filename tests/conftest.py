@@ -19,6 +19,7 @@ logger = get_logger(__name__)
 def monkeypatch_session():
     """Session-scoped monkeypatch fixture."""
     from _pytest.monkeypatch import MonkeyPatch
+
     mp = MonkeyPatch()
     yield mp
     mp.undo()
@@ -86,7 +87,9 @@ def setup_test_database(monkeypatch_session):
         pytest.fail(f"Failed to drop tables from {sync_test_db_url}: {e}")
 
     # Run Alembic migrations
-    alembic_cfg_path = Path.cwd() / "mxtoai" / "db" / "alembic.ini"
+    conftest_dir = Path(__file__).parent
+    project_root = conftest_dir.parent
+    alembic_cfg_path = project_root / "mxtoai" / "db" / "alembic.ini"
     logger.info(f"Running Alembic migrations with config: {alembic_cfg_path}")
 
     if not alembic_cfg_path.exists():
@@ -104,7 +107,7 @@ def setup_test_database(monkeypatch_session):
             ["alembic", "-c", "alembic.ini", "upgrade", "head"],  # noqa: S607
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
         logger.info(f"Alembic upgrade to head completed on {sync_test_db_url}")
         logger.info(f"Alembic stdout: {result.stdout}")
