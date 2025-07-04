@@ -1,8 +1,9 @@
 import os
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
 import pytest
+
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
-from mxtoai.schemas import ProcessingInstructions
 
 
 class TestRoutedLiteLLMModel:
@@ -21,7 +22,7 @@ class TestRoutedLiteLLMModel:
                         "api_key": "test_key",
                         "base_url": None,
                         "api_version": None,
-                    }
+                    },
                 },
                 {
                     "model_name": "thinking",
@@ -31,14 +32,14 @@ class TestRoutedLiteLLMModel:
                         "api_key": "test_key",
                         "base_url": None,
                         "api_version": None,
-                    }
-                }
+                    },
+                },
             ],
             "router_config": {
                 "routing_strategy": "simple-shuffle",
                 "fallbacks": [],
                 "default_litellm_params": {"drop_params": True},
-            }
+            },
         }
 
     @pytest.fixture
@@ -50,7 +51,7 @@ class TestRoutedLiteLLMModel:
         response.choices[0].message.model_dump.return_value = {
             "role": "assistant",
             "content": "Test response",
-            "tool_calls": None
+            "tool_calls": None,
         }
         response.usage = Mock()
         response.usage.prompt_tokens = 100
@@ -69,54 +70,56 @@ class TestRoutedLiteLLMModel:
         # Setup mocks
         mock_tomllib_load.return_value = mock_config
         mock_super_init.return_value = None
-        
+
         # Create model instance
         model = RoutedLiteLLMModel()
-        
+
         # Set required attributes that would normally be set by parent class
         model.api_base = "https://test.openai.azure.com"
         model.api_key = "test_api_key"
         model.custom_role_conversions = {}
-        
+
         # Mock the client and its completion method
         mock_client = Mock()
         mock_client.completion.return_value = mock_response
         model.client = mock_client
-        
+
         # Mock the _prepare_completion_kwargs method to capture the kwargs
-        model._prepare_completion_kwargs = Mock(return_value={
-            "messages": [{"role": "user", "content": "test"}],
-            "model": "thinking",
-            "stop": ["stop1", "stop2"],  # This should be removed
-            "temperature": 0.7,
-        })
-        
+        model._prepare_completion_kwargs = Mock(
+            return_value={
+                "messages": [{"role": "user", "content": "test"}],
+                "model": "thinking",
+                "stop": ["stop1", "stop2"],  # This should be removed
+                "temperature": 0.7,
+            }
+        )
+
         # Set model_id to "thinking" to trigger the stop parameter removal
         model.model_id = "thinking"
-        
+
         # Call generate method
         messages = [{"role": "user", "content": "test"}]
         stop_sequences = ["stop1", "stop2"]
-        
+
         result = model.generate(
             messages=messages,
             stop_sequences=stop_sequences,
         )
-        
+
         # Verify that completion was called
         mock_client.completion.assert_called_once()
-        
+
         # Get the actual kwargs passed to completion
         completion_kwargs = mock_client.completion.call_args[1]
-        
+
         # Assert that the stop parameter was removed
         assert "stop" not in completion_kwargs, "Stop parameter should be removed for thinking models"
-        
+
         # Assert other parameters are still present
         assert "messages" in completion_kwargs
         assert "model" in completion_kwargs
         assert "temperature" in completion_kwargs
-        
+
         # Verify the response
         assert result.content == "Test response"
 
@@ -132,55 +135,57 @@ class TestRoutedLiteLLMModel:
         # Setup mocks
         mock_tomllib_load.return_value = mock_config
         mock_super_init.return_value = None
-        
+
         # Create model instance
         model = RoutedLiteLLMModel()
-        
+
         # Set required attributes that would normally be set by parent class
         model.api_base = "https://test.openai.azure.com"
         model.api_key = "test_api_key"
         model.custom_role_conversions = {}
-        
+
         # Mock the client and its completion method
         mock_client = Mock()
         mock_client.completion.return_value = mock_response
         model.client = mock_client
-        
+
         # Mock the _prepare_completion_kwargs method to capture the kwargs
-        model._prepare_completion_kwargs = Mock(return_value={
-            "messages": [{"role": "user", "content": "test"}],
-            "model": "gpt-4",
-            "stop": ["stop1", "stop2"],  # This should be preserved
-            "temperature": 0.7,
-        })
-        
+        model._prepare_completion_kwargs = Mock(
+            return_value={
+                "messages": [{"role": "user", "content": "test"}],
+                "model": "gpt-4",
+                "stop": ["stop1", "stop2"],  # This should be preserved
+                "temperature": 0.7,
+            }
+        )
+
         # Set model_id to a non-thinking model
         model.model_id = "gpt-4"
-        
+
         # Call generate method
         messages = [{"role": "user", "content": "test"}]
         stop_sequences = ["stop1", "stop2"]
-        
+
         result = model.generate(
             messages=messages,
             stop_sequences=stop_sequences,
         )
-        
+
         # Verify that completion was called
         mock_client.completion.assert_called_once()
-        
+
         # Get the actual kwargs passed to completion
         completion_kwargs = mock_client.completion.call_args[1]
-        
+
         # Assert that the stop parameter was preserved
         assert "stop" in completion_kwargs, "Stop parameter should be preserved for non-thinking models"
         assert completion_kwargs["stop"] == ["stop1", "stop2"]
-        
+
         # Assert other parameters are still present
         assert "messages" in completion_kwargs
         assert "model" in completion_kwargs
         assert "temperature" in completion_kwargs
-        
+
         # Verify the response
         assert result.content == "Test response"
 
@@ -196,46 +201,48 @@ class TestRoutedLiteLLMModel:
         # Setup mocks
         mock_tomllib_load.return_value = mock_config
         mock_super_init.return_value = None
-        
+
         # Create model instance
         model = RoutedLiteLLMModel()
-        
+
         # Set required attributes that would normally be set by parent class
         model.api_base = "https://test.openai.azure.com"
         model.api_key = "test_api_key"
         model.custom_role_conversions = {}
-        
+
         # Mock the client and its completion method
         mock_client = Mock()
         mock_client.completion.return_value = mock_response
         model.client = mock_client
-        
+
         # Mock the _prepare_completion_kwargs method to capture the kwargs
-        model._prepare_completion_kwargs = Mock(return_value={
-            "messages": [{"role": "user", "content": "test"}],
-            "model": "Thinking",  # Different case
-            "stop": ["stop1", "stop2"],  # This should be preserved
-            "temperature": 0.7,
-        })
-        
+        model._prepare_completion_kwargs = Mock(
+            return_value={
+                "messages": [{"role": "user", "content": "test"}],
+                "model": "Thinking",  # Different case
+                "stop": ["stop1", "stop2"],  # This should be preserved
+                "temperature": 0.7,
+            }
+        )
+
         # Set model_id to "Thinking" (different case)
         model.model_id = "Thinking"
-        
+
         # Call generate method
         messages = [{"role": "user", "content": "test"}]
         stop_sequences = ["stop1", "stop2"]
-        
-        result = model.generate(
+
+        model.generate(
             messages=messages,
             stop_sequences=stop_sequences,
         )
-        
+
         # Verify that completion was called
         mock_client.completion.assert_called_once()
-        
+
         # Get the actual kwargs passed to completion
         completion_kwargs = mock_client.completion.call_args[1]
-        
+
         # Assert that the stop parameter was preserved (case sensitive check)
         assert "stop" in completion_kwargs, "Stop parameter should be preserved for non-exact 'thinking' matches"
         assert completion_kwargs["stop"] == ["stop1", "stop2"]
@@ -252,47 +259,49 @@ class TestRoutedLiteLLMModel:
         # Setup mocks
         mock_tomllib_load.return_value = mock_config
         mock_super_init.return_value = None
-        
+
         # Create model instance
         model = RoutedLiteLLMModel()
-        
+
         # Set required attributes that would normally be set by parent class
         model.api_base = "https://test.openai.azure.com"
         model.api_key = "test_api_key"
         model.custom_role_conversions = {}
-        
+
         # Mock the client and its completion method
         mock_client = Mock()
         mock_client.completion.return_value = mock_response
         model.client = mock_client
-        
+
         # Mock the _prepare_completion_kwargs method with no stop parameter
-        model._prepare_completion_kwargs = Mock(return_value={
-            "messages": [{"role": "user", "content": "test"}],
-            "model": "thinking",
-            "temperature": 0.7,
-            # No stop parameter included
-        })
-        
+        model._prepare_completion_kwargs = Mock(
+            return_value={
+                "messages": [{"role": "user", "content": "test"}],
+                "model": "thinking",
+                "temperature": 0.7,
+                # No stop parameter included
+            }
+        )
+
         # Set model_id to "thinking"
         model.model_id = "thinking"
-        
+
         # Call generate method with None stop_sequences
         messages = [{"role": "user", "content": "test"}]
-        
+
         result = model.generate(
             messages=messages,
             stop_sequences=None,
         )
-        
+
         # Verify that completion was called without errors
         mock_client.completion.assert_called_once()
-        
+
         # Get the actual kwargs passed to completion
         completion_kwargs = mock_client.completion.call_args[1]
-        
+
         # Assert that no stop parameter is present
         assert "stop" not in completion_kwargs
-        
+
         # Verify the response
         assert result.content == "Test response"
