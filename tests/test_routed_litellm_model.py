@@ -6,6 +6,11 @@ import pytest
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 
 
+@patch.dict(os.environ, {"LITELLM_DEFAULT_MODEL_GROUP": "gpt-4"})
+@patch("mxtoai.routed_litellm_model.LiteLLMRouterModel.__init__")
+@patch("tomllib.load")
+@patch("builtins.open")
+@patch("pathlib.Path.exists", return_value=True)
 class TestRoutedLiteLLMModel:
     """Test the RoutedLiteLLMModel class functionality."""
 
@@ -58,13 +63,8 @@ class TestRoutedLiteLLMModel:
         response.usage.completion_tokens = 50
         return response
 
-    @patch.dict(os.environ, {"LITELLM_DEFAULT_MODEL_GROUP": "gpt-4"})
-    @patch("pathlib.Path.exists", return_value=True)
-    @patch("builtins.open")
-    @patch("tomllib.load")
-    @patch("mxtoai.routed_litellm_model.LiteLLMRouterModel.__init__")
     def test_stop_parameter_removal_for_thinking_model(
-        self, mock_super_init, mock_tomllib_load, mock_open, mock_exists, mock_config, mock_response
+        self, mock_exists, mock_open, mock_tomllib_load, mock_super_init, mock_config, mock_response
     ):
         """Test that stop parameter is correctly removed for thinking models."""
         # Setup mocks
@@ -123,13 +123,8 @@ class TestRoutedLiteLLMModel:
         # Verify the response
         assert result.content == "Test response"
 
-    @patch.dict(os.environ, {"LITELLM_DEFAULT_MODEL_GROUP": "gpt-4"})
-    @patch("pathlib.Path.exists", return_value=True)
-    @patch("builtins.open")
-    @patch("tomllib.load")
-    @patch("mxtoai.routed_litellm_model.LiteLLMRouterModel.__init__")
     def test_stop_parameter_preserved_for_non_thinking_model(
-        self, mock_super_init, mock_tomllib_load, mock_open, mock_exists, mock_config, mock_response
+        self, mock_exists, mock_open, mock_tomllib_load, mock_super_init, mock_config, mock_response
     ):
         """Test that stop parameter is preserved for non-thinking models."""
         # Setup mocks
@@ -189,13 +184,8 @@ class TestRoutedLiteLLMModel:
         # Verify the response
         assert result.content == "Test response"
 
-    @patch.dict(os.environ, {"LITELLM_DEFAULT_MODEL_GROUP": "gpt-4"})
-    @patch("pathlib.Path.exists", return_value=True)
-    @patch("builtins.open")
-    @patch("tomllib.load")
-    @patch("mxtoai.routed_litellm_model.LiteLLMRouterModel.__init__")
     def test_stop_parameter_removal_case_sensitivity(
-        self, mock_super_init, mock_tomllib_load, mock_open, mock_exists, mock_config, mock_response
+        self, mock_exists, mock_open, mock_tomllib_load, mock_super_init, mock_config, mock_response
     ):
         """Test that stop parameter removal is case sensitive (only exact 'thinking' match)."""
         # Setup mocks
@@ -247,13 +237,8 @@ class TestRoutedLiteLLMModel:
         assert "stop" in completion_kwargs, "Stop parameter should be preserved for non-exact 'thinking' matches"
         assert completion_kwargs["stop"] == ["stop1", "stop2"]
 
-    @patch.dict(os.environ, {"LITELLM_DEFAULT_MODEL_GROUP": "gpt-4"})
-    @patch("pathlib.Path.exists", return_value=True)
-    @patch("builtins.open")
-    @patch("tomllib.load")
-    @patch("mxtoai.routed_litellm_model.LiteLLMRouterModel.__init__")
     def test_stop_parameter_none_handling_for_thinking_model(
-        self, mock_super_init, mock_tomllib_load, mock_open, mock_exists, mock_config, mock_response
+        self, mock_exists, mock_open, mock_tomllib_load, mock_super_init, mock_config, mock_response
     ):
         """Test that None stop parameter doesn't cause issues for thinking models."""
         # Setup mocks

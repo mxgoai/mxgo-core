@@ -225,6 +225,8 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
             **kwargs,
         )
 
+        # models under the 'thinking' group do not support stop sequences
+        # This is a workaround for the current limitation in LiteLLMRouterModel
         if self.model_id == "thinking":
             completion_kwargs.pop("stop", None)
 
