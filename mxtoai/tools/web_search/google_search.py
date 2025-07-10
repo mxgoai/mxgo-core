@@ -6,7 +6,7 @@ import json
 import logging
 import os
 import re
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from smolagents import Tool
 from smolagents.default_tools import GoogleSearchTool as SmolagentsGoogleSearchTool
@@ -44,7 +44,7 @@ class GoogleSearchTool(Tool):
         """
         super().__init__()
         self.context = context
-        self.google_tool: Optional[SmolagentsGoogleSearchTool] = None
+        self.google_tool: SmolagentsGoogleSearchTool | None = None
 
         # Try to initialize Google search tool with available providers
         # Try SerpAPI first if available

@@ -64,7 +64,7 @@ class DbConnection:
 class AsyncDbConnection:
     """Asynchronous database connection handler for future use."""
 
-    _engine: Optional[AsyncEngine] = None
+    _engine: AsyncEngine | None = None
 
     def __init__(self) -> None:
         self.db_uri = self.get_db_uri_from_env()

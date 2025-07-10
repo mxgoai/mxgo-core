@@ -6,7 +6,7 @@ Provides access to LinkedIn data through the LinkedIn Data API (different from F
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import requests
 from smolagents import Tool
@@ -167,23 +167,23 @@ class LinkedInDataAPITool(Tool):
     def forward(  # noqa: PLR0912, PLR0915
         self,
         action: str,
-        username: Optional[str] = None,
-        profile_url: Optional[str] = None,
-        search_url: Optional[str] = None,
-        keywords: Optional[str] = None,
-        start: Optional[str] = None,
-        geo: Optional[str] = None,
-        school_id: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
-        keyword_school: Optional[str] = None,
-        keyword_title: Optional[str] = None,
-        company: Optional[str] = None,
-        keyword: Optional[str] = None,
-        locations: Optional[list[int]] = None,
-        company_sizes: Optional[list[str]] = None,
-        has_jobs: Optional[bool] = None,
-        industries: Optional[list[int]] = None,
+        username: str | None = None,
+        profile_url: str | None = None,
+        search_url: str | None = None,
+        keywords: str | None = None,
+        start: str | None = None,
+        geo: str | None = None,
+        school_id: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        keyword_school: str | None = None,
+        keyword_title: str | None = None,
+        company: str | None = None,
+        keyword: str | None = None,
+        locations: list[int] | None = None,
+        company_sizes: list[str] | None = None,
+        has_jobs: bool | None = None,
+        industries: list[int] | None = None,
         page: int = 1,
     ) -> dict[str, Any]:
         """
@@ -451,15 +451,15 @@ class LinkedInDataAPITool(Tool):
 
     def search_people(
         self,
-        keywords: Optional[str] = None,
-        start: Optional[str] = None,
-        geo: Optional[str] = None,
-        school_id: Optional[str] = None,
-        first_name: Optional[str] = None,
-        last_name: Optional[str] = None,
-        keyword_school: Optional[str] = None,
-        keyword_title: Optional[str] = None,
-        company: Optional[str] = None,
+        keywords: str | None = None,
+        start: str | None = None,
+        geo: str | None = None,
+        school_id: str | None = None,
+        first_name: str | None = None,
+        last_name: str | None = None,
+        keyword_school: str | None = None,
+        keyword_title: str | None = None,
+        company: str | None = None,
     ) -> dict:
         """
         Search for people on LinkedIn.
@@ -555,11 +555,11 @@ class LinkedInDataAPITool(Tool):
 
     def search_companies(
         self,
-        keyword: Optional[str] = None,
-        locations: Optional[list[int]] = None,
-        company_sizes: Optional[list[str]] = None,
-        has_jobs: Optional[bool] = None,
-        industries: Optional[list[int]] = None,
+        keyword: str | None = None,
+        locations: list[int] | None = None,
+        company_sizes: list[str] | None = None,
+        has_jobs: bool | None = None,
+        industries: list[int] | None = None,
         page: int = 1,
     ) -> dict:
         """
@@ -598,7 +598,7 @@ class LinkedInDataAPITool(Tool):
         return response.json()
 
 
-def initialize_linkedin_data_api_tool() -> Optional[LinkedInDataAPITool]:
+def initialize_linkedin_data_api_tool() -> LinkedInDataAPITool | None:
     """
     Initialize the LinkedIn Data API tool if API key is available.
 

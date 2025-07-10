@@ -3,7 +3,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import dramatiq
 from dotenv import load_dotenv
@@ -92,7 +92,7 @@ def process_email_task(  # noqa: PLR0912, PLR0915
     email_data: dict[str, Any],
     email_attachments_dir: str,
     attachment_info: list[dict[str, Any]],
-    scheduled_task_id: Optional[str] = None,
+    scheduled_task_id: str | None = None,
 ) -> DetailedEmailProcessingResult:
     """
     Dramatiq task for processing emails asynchronously.

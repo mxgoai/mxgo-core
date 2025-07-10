@@ -6,7 +6,6 @@ Provides access to LinkedIn data through the Fresh LinkedIn Profile Data API.
 import json
 import logging
 import os
-from typing import Optional
 
 import requests
 from smolagents import Tool
@@ -325,7 +324,7 @@ class LinkedInFreshDataTool(Tool):
         return response.json()
 
 
-def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
+def initialize_linkedin_fresh_tool() -> LinkedInFreshDataTool | None:
     """
     Initialize the LinkedIn Fresh Data tool if API key is available.
 

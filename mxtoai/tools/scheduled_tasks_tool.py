@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from croniter import croniter
 from pydantic import BaseModel, Field, field_validator
@@ -126,10 +126,10 @@ class ScheduledTaskInput(BaseModel):
     distilled_future_task_instructions: str = Field(
         ..., description="Distilled and detailed instructions about how the task will be processed in future"
     )
-    start_time: Optional[str] = Field(
+    start_time: str | None = Field(
         None, description="Start time for the task - task will not execute before this time (ISO format)"
     )
-    end_time: Optional[str] = Field(
+    end_time: str | None = Field(
         None, description="End time for the task - task will not execute after this time (ISO format)"
     )
 
@@ -215,8 +215,8 @@ class ScheduledTasksTool(Tool):
         self,
         cron_expression: str,
         distilled_future_task_instructions: str,
-        start_time: Optional[str] = None,
-        end_time: Optional[str] = None,
+        start_time: str | None = None,
+        end_time: str | None = None,
     ) -> dict:
         """
         Sync implementation for creating a scheduled task with APScheduler integration.
@@ -275,14 +275,14 @@ class ScheduledTasksTool(Tool):
 
             if input_data.start_time:
                 try:
-                    parsed_start_time = datetime.fromisoformat(input_data.start_time.replace("Z", "+00:00"))
+                    parsed_start_time = datetime.fromisoformat(input_data.start_time)
                     parsed_start_time = round_to_nearest_minute(parsed_start_time)
                 except Exception as e:
                     logger.warning(f"Could not parse start_time: {e}")
 
             if input_data.end_time:
                 try:
-                    parsed_end_time = datetime.fromisoformat(input_data.end_time.replace("Z", "+00:00"))
+                    parsed_end_time = datetime.fromisoformat(input_data.end_time)
                     parsed_end_time = round_to_nearest_minute(parsed_end_time)
                 except Exception as e:
                     logger.warning(f"Could not parse end_time: {e}")

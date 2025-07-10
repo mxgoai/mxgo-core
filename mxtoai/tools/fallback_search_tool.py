@@ -1,5 +1,5 @@
 import logging
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from smolagents import Tool
 
@@ -25,8 +25,8 @@ class FallbackWebSearchTool(Tool):
 
     def __init__(
         self,
-        primary_tool: Optional[Tool] = None,
-        secondary_tool: Optional[Tool] = None,
+        primary_tool: Tool | None = None,
+        secondary_tool: Tool | None = None,
     ):
         """
         Initialize the FallbackWebSearchTool.

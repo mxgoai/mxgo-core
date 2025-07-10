@@ -40,7 +40,7 @@ def validate_datetime_field(value: str, field_name: str) -> str:
         return value
     try:
         # Parse the datetime string and ensure it has a timezone
-        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(value)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
 

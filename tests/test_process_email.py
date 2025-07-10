@@ -2,7 +2,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -33,9 +33,7 @@ def prepare_email_request_data(tmp_path):
         text_content: str = "This is a test email.",
         html_content: str = "<p>This is a test email.</p>",
         message_id: str = "<test-message-id-default>",
-        attachments_data: Optional[
-            list[AttachmentFileContent]
-        ] = None,  # List of (filename, content_bytes, content_type)
+        attachments_data: list[AttachmentFileContent] | None = None,  # List of (filename, content_bytes, content_type)
     ) -> tuple[dict[str, Any], str, list[dict[str, Any]]]:
         """
         Prepares email_data, email_attachments_dir_str, and attachment_info_list.
@@ -81,7 +79,7 @@ def _assert_basic_successful_processing(
     result: DetailedEmailProcessingResult,
     expected_handle: str,
     expect_reply_sent: bool = True,
-    attachments_cleaned_up_dir: Optional[str] = None,
+    attachments_cleaned_up_dir: str | None = None,
 ):
     """Helper function for common assertions on successful processing results."""
     assert isinstance(result, DetailedEmailProcessingResult), "Return type mismatch"
@@ -373,7 +371,7 @@ def _test_single_handle(handle_name: str, prepare_email_request_data):
     # Use the same logic as the parametrized test
     to_email_address = f"{handle_instructions.handle}@mxtoai.com"
 
-    attachments_for_test: Optional[list[AttachmentFileContent]] = None
+    attachments_for_test: list[AttachmentFileContent] | None = None
     is_schedule_handle = handle_instructions.handle == "schedule"
     is_meeting_handle = handle_instructions.handle == "meeting"
 

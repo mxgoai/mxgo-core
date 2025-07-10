@@ -4,7 +4,7 @@ import shutil
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any, Optional
+from typing import Annotated, Any
 
 import aiofiles
 import redis.asyncio as aioredis
@@ -22,7 +22,14 @@ from mxtoai.email_sender import (
     generate_email_id,
     send_email_reply,
 )
-from mxtoai.schemas import EmailAttachment, EmailRequest, RateLimitPlan
+from mxtoai.schemas import (
+    EmailAttachment,
+    EmailRequest,
+    EmailSuggestionRequest,
+    EmailSuggestionResponse,
+    RateLimitPlan,
+    SuggestionDetail,
+)
 from mxtoai.tasks import process_email_task, rabbitmq_broker
 from mxtoai.validators import (
     validate_api_key,
@@ -106,6 +113,36 @@ if os.getenv("IS_PROD", "false").lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
+suggestions_api_auth_scheme = APIKeyHeader(name="x-suggestions-api-key", auto_error=False)
+
+
+async def validate_suggestions_api_key(api_key: str) -> Response | None:
+    """
+    Validate the suggestions API key.
+
+    Args:
+        api_key: The suggestions API key to validate
+
+    Returns:
+        Response if validation fails, None if validation succeeds
+
+    """
+    suggestions_api_key = os.getenv("SUGGESTIONS_API_KEY")
+    if not suggestions_api_key:
+        logger.error("SUGGESTIONS_API_KEY environment variable not set")
+        return Response(
+            content=json.dumps({"message": "Server configuration error", "status": "error"}),
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            media_type="application/json",
+        )
+
+    if api_key != suggestions_api_key:
+        return Response(
+            content=json.dumps({"message": "Invalid suggestions API key", "status": "error"}),
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            media_type="application/json",
+        )
+    return None
 
 
 @app.get("/health")
@@ -510,13 +547,13 @@ def extract_cc_from_headers(headers: dict) -> list[str]:
 async def process_email(  # noqa: PLR0912, PLR0915
     from_email: Annotated[str, Form()] = ...,
     to: Annotated[str, Form()] = ...,
-    subject: Annotated[Optional[str], Form()] = "",
-    textContent: Annotated[Optional[str], Form()] = "",  # noqa: N803
-    htmlContent: Annotated[Optional[str], Form()] = "",  # noqa: N803
-    messageId: Annotated[Optional[str], Form()] = None,  # noqa: N803
-    date: Annotated[Optional[str], Form()] = None,
-    rawHeaders: Annotated[Optional[str], Form()] = None,  # noqa: N803
-    scheduled_task_id: Annotated[Optional[str], Form()] = None,
+    subject: Annotated[str | None, Form()] = "",
+    textContent: Annotated[str | None, Form()] = "",  # noqa: N803
+    htmlContent: Annotated[str | None, Form()] = "",  # noqa: N803
+    messageId: Annotated[str | None, Form()] = None,  # noqa: N803
+    date: Annotated[str | None, Form()] = None,
+    rawHeaders: Annotated[str | None, Form()] = None,  # noqa: N803
+    scheduled_task_id: Annotated[str | None, Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: Annotated[str, Depends(api_auth_scheme)] = ...,
 ):
@@ -765,6 +802,99 @@ async def process_email(  # noqa: PLR0912, PLR0915
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         media_type="application/json",
     )
+
+
+@app.post("/suggestions")
+async def process_suggestions(
+    requests: list[EmailSuggestionRequest],
+    api_key: Annotated[str | None, Depends(suggestions_api_auth_scheme)] = None,
+):
+    """
+    Process email suggestions requests.
+
+    Args:
+        requests (list[EmailSuggestionRequest]): List of email suggestion requests to process
+        api_key (str | None): Suggestions API key for authentication
+
+    Returns:
+        list[EmailSuggestionResponse]: List of processed email suggestions
+
+    """
+    # Import suggestions module here to avoid circular imports
+    from mxtoai.suggestions import generate_suggestions, get_suggestions_model
+
+    # Check if API key is provided
+    if api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing required header: x-suggestions-api-key",
+        )
+
+    # Validate suggestions API key
+    if validation_response := await validate_suggestions_api_key(api_key):
+        return validation_response
+
+    # Get the suggestions model once for all requests
+    suggestions_model = get_suggestions_model()
+
+    responses = []
+
+    for request in requests:
+        try:
+            # Validate user whitelist against user_email_id
+            whitelist_response = await validate_email_whitelist(
+                from_email=request.user_email_id,
+                to="suggestions@mxtoai.com",  # Dummy handle for whitelist validation
+                subject=request.subject,
+                message_id=request.email_identified,
+            )
+
+            if whitelist_response:
+                # User not whitelisted, skip this request and add error response
+                error_response = EmailSuggestionResponse(
+                    email_identified=request.email_identified,
+                    user_email_id=request.user_email_id,
+                    suggestions=[
+                        SuggestionDetail(
+                            suggestion_title="Access Denied",
+                            suggestion_id="error_not_whitelisted",
+                            suggestion_to_email="",
+                            suggestion_cc_emails=[],
+                            suggestion_email_instructions="",  # Empty - this is an error, not a processable suggestion
+                        )
+                    ],
+                )
+                responses.append(error_response)
+                logger.warning(f"User {request.user_email_id} not whitelisted for suggestions service")
+                continue
+
+            # Generate suggestions using the suggestions module
+            suggestion_response = await generate_suggestions(request, suggestions_model)
+            responses.append(suggestion_response)
+
+            logger.info(
+                f"Generated {len(suggestion_response.suggestions)} suggestions for email {request.email_identified}"
+            )
+
+        except Exception as e:
+            logger.error(f"Error processing suggestion request {request.email_identified}: {e}")
+            # Add error response for this request
+            error_response = EmailSuggestionResponse(
+                email_identified=request.email_identified,
+                user_email_id=request.user_email_id,
+                suggestions=[
+                    SuggestionDetail(
+                        suggestion_title="Processing Error",
+                        suggestion_id="error_processing",
+                        suggestion_to_email="",
+                        suggestion_cc_emails=[],
+                        suggestion_email_instructions="",  # Empty - this is an error, not a processable suggestion
+                    )
+                ],
+            )
+            responses.append(error_response)
+
+    return responses
 
 
 if __name__ == "__main__":

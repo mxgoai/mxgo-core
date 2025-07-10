@@ -9,7 +9,7 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 import httpx
 
@@ -55,7 +55,7 @@ def execute_scheduled_task(task_id: str) -> None:  # noqa: PLR0912
 
     # Initialize database connection
     db_connection = init_db_connection()
-    task_run_id: Optional[str] = None
+    task_run_id: str | None = None
 
     try:
         # Read task from database
@@ -287,7 +287,7 @@ def _is_recurring_cron_expression(cron_expression: str) -> bool:
     return not is_one_time_task(cron_expression)
 
 
-def get_task_execution_status(task_id: str) -> Optional[dict[str, Any]]:
+def get_task_execution_status(task_id: str) -> dict[str, Any] | None:
     """
     Get the current execution status of a task.
 

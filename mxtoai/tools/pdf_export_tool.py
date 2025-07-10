@@ -3,7 +3,7 @@ import shutil
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from smolagents import Tool
 
@@ -80,8 +80,8 @@ class PDFExportTool(Tool):
         self,
         content: str,
         title: str = "Document",
-        research_findings: Optional[str] = None,
-        attachments_summary: Optional[str] = None,
+        research_findings: str | None = None,
+        attachments_summary: str | None = None,
         *,
         include_attachments: bool = False,
     ) -> dict[str, Any]:
@@ -259,8 +259,8 @@ class PDFExportTool(Tool):
         self,
         content: str,
         title: str,
-        research_findings: Optional[str] = None,
-        attachments_summary: Optional[str] = None,
+        research_findings: str | None = None,
+        attachments_summary: str | None = None,
     ) -> str:
         """
         Build a complete markdown document for PDF conversion.

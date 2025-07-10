@@ -7,7 +7,6 @@ in different processes while sharing the same PostgreSQL jobstore.
 
 import os
 from datetime import datetime, timezone
-from typing import Optional
 
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED, EVENT_JOB_MISSED
 from apscheduler.executors.pool import ThreadPoolExecutor
@@ -59,8 +58,8 @@ class Scheduler:
         Initialize the scheduling with PostgreSQL jobstore.
         """
         self.max_workers = 1
-        self._scheduler: Optional[BackgroundScheduler] = None
-        self._previous_job_ids: Optional[set] = None  # Track previous job IDs for change detection
+        self._scheduler: BackgroundScheduler | None = None
+        self._previous_job_ids: set | None = None  # Track previous job IDs for change detection
 
     def get_db_uri(self) -> str:
         """Get database URI from environment variables."""

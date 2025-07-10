@@ -13,6 +13,7 @@ from freezegun import freeze_time  # For controlling time in tests
 
 from mxtoai._logging import get_logger
 from mxtoai.api import app
+from mxtoai.schemas import EmailSuggestionResponse, SuggestionDetail
 
 client = TestClient(app)  # This client might be overridden by fixtures for specific tests
 API_KEY = os.environ["X_API_KEY"]
@@ -448,3 +449,460 @@ def test_rate_limits_cleared_after_time_period(
         assert_successful_response(response)
         mock_task_send.assert_called_once()  # Should be processed
         mock_rejection_email.assert_not_called()  # No rejection this time
+
+
+# --- Unit Tests for Suggestions API ---
+
+
+def prepare_suggestions_request_data(**kwargs):
+    """Prepare test data for suggestions API requests."""
+    return [
+        {
+            "email_identified": "test-email-123",
+            "user_email_id": "test@example.com",
+            "sender_email": "sender@example.com",
+            "cc_emails": [],
+            "Subject": "Test Subject",
+            "email_content": "This is test email content.",
+            "attachments": [],
+            **kwargs,
+        }
+    ]
+
+
+def make_suggestions_post_request(request_data, headers=None):
+    """Make a POST request to the suggestions endpoint."""
+    request_headers = {"x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "test-suggestions-key")}
+    if headers is not None:
+        request_headers.update(headers)
+
+    return client.post("/suggestions", json=request_data, headers=request_headers)
+
+
+def make_suggestions_post_request_with_client(test_client, request_data, headers=None):
+    """Make a POST request to the suggestions endpoint with custom client."""
+    request_headers = {"x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "test-suggestions-key")}
+    if headers is not None:
+        request_headers.update(headers)
+
+    return test_client.post("/suggestions", json=request_data, headers=request_headers)
+
+
+def assert_suggestions_successful_response(response, expected_num_requests=1):
+    """Assert a successful suggestions API response."""
+    assert response.status_code == 200, f"Expected status 200, got {response.status_code}. Response: {response.text}"
+    response_json = response.json()
+    assert isinstance(response_json, list), "Response should be a list"
+    assert len(response_json) == expected_num_requests, f"Expected {expected_num_requests} responses"
+
+    for email_response in response_json:
+        assert "email_identified" in email_response
+        assert "user_email_id" in email_response
+        assert "suggestions" in email_response
+        assert isinstance(email_response["suggestions"], list)
+        assert len(email_response["suggestions"]) >= 1, "Should have at least one suggestion"
+
+        # Validate suggestion format
+        for suggestion in email_response["suggestions"]:
+            assert "suggestion_title" in suggestion
+            assert "suggestion_id" in suggestion
+            assert "suggestion_to_email" in suggestion
+            assert "suggestion_cc_emails" in suggestion
+            assert "suggestion_email_instructions" in suggestion
+            assert isinstance(suggestion["suggestion_cc_emails"], list)
+
+
+def assert_suggestions_error_response(response, expected_status=422):
+    """Assert an error response from suggestions API."""
+    assert response.status_code == expected_status, f"Expected status {expected_status}, got {response.status_code}"
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_validate_whitelist):
+    """Test successful suggestions API call with single request."""
+    mock_validate_whitelist.return_value = None  # User is whitelisted
+
+    # Mock the suggestions response
+
+    mock_response = EmailSuggestionResponse(
+        email_identified="test-email-123",
+        user_email_id="test@example.com",
+        suggestions=[
+            SuggestionDetail(
+                suggestion_title="Summarize content",
+                suggestion_id="suggest-1",
+                suggestion_to_email="summarize@mxtoai.com",
+                suggestion_cc_emails=[],
+                suggestion_email_instructions="",
+            ),
+            SuggestionDetail(
+                suggestion_title="Ask anything",
+                suggestion_id="suggest-2",
+                suggestion_to_email="ask@mxtoai.com",
+                suggestion_cc_emails=[],
+                suggestion_email_instructions="",
+            ),
+        ],
+    )
+    mock_generate_suggestions.return_value = mock_response
+
+    request_data = prepare_suggestions_request_data()
+    response = make_suggestions_post_request(request_data)
+
+    assert_suggestions_successful_response(response, expected_num_requests=1)
+    mock_validate_whitelist.assert_called_once()
+    mock_generate_suggestions.assert_called_once()
+
+    # Verify the response content
+    response_json = response.json()
+    email_response = response_json[0]
+    assert email_response["email_identified"] == "test-email-123"
+    assert email_response["user_email_id"] == "test@example.com"
+    assert len(email_response["suggestions"]) == 2
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mock_validate_whitelist):
+    """Test successful suggestions API call with multiple requests."""
+    mock_validate_whitelist.return_value = None
+
+    # Mock responses for each request
+    mock_responses = [
+        EmailSuggestionResponse(
+            email_identified=f"test-email-{i}",
+            user_email_id="test@example.com",
+            suggestions=[
+                SuggestionDetail(
+                    suggestion_title="Ask anything",
+                    suggestion_id=f"suggest-{i}",
+                    suggestion_to_email="ask@mxtoai.com",
+                    suggestion_cc_emails=[],
+                    suggestion_email_instructions="",
+                ),
+            ],
+        )
+        for i in range(1, 4)
+    ]
+    mock_generate_suggestions.side_effect = mock_responses
+
+    # Prepare multiple requests
+    request_data = [
+        {
+            "email_identified": f"test-email-{i}",
+            "user_email_id": "test@example.com",
+            "sender_email": "sender@example.com",
+            "cc_emails": [],
+            "Subject": f"Test Subject {i}",
+            "email_content": f"Test content {i}",
+            "attachments": [],
+        }
+        for i in range(1, 4)
+    ]
+
+    response = make_suggestions_post_request(request_data)
+
+    assert_suggestions_successful_response(response, expected_num_requests=3)
+    assert mock_validate_whitelist.call_count == 3
+    assert mock_generate_suggestions.call_count == 3
+
+
+def test_suggestions_api_missing_api_key():
+    """Test suggestions API without API key."""
+    request_data = prepare_suggestions_request_data()
+    response = client.post("/suggestions", json=request_data)
+
+    assert response.status_code == 422, f"Expected 422 for missing API key, got {response.status_code}"
+
+
+def test_suggestions_api_invalid_api_key():
+    """Test suggestions API with invalid API key."""
+    request_data = prepare_suggestions_request_data()
+    response = make_suggestions_post_request(request_data, headers={"x-suggestions-api-key": "invalid-key"})
+
+    assert response.status_code == 401, f"Expected 401 for invalid API key, got {response.status_code}"
+    response_json = response.json()
+    assert "Invalid suggestions API key" in response_json["message"]
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": ""})  # Missing environment variable
+def test_suggestions_api_missing_env_var():
+    """Test suggestions API when SUGGESTIONS_API_KEY environment variable is not set."""
+    request_data = prepare_suggestions_request_data()
+    # Provide a valid API key header to test environment variable validation
+    response = make_suggestions_post_request(request_data, headers={"x-suggestions-api-key": "test-key"})
+
+    assert response.status_code == 500, f"Expected 500 for missing env var, got {response.status_code}"
+    response_json = response.json()
+    assert "Server configuration error" in response_json["message"]
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
+    """Test suggestions API when user is not whitelisted."""
+    from fastapi import Response
+
+    # Mock whitelist validation to return an error response
+    mock_validate_whitelist.return_value = Response(
+        content='{"message": "Email not whitelisted", "status": "error"}',
+        status_code=403,
+        media_type="application/json",
+    )
+
+    request_data = prepare_suggestions_request_data()
+    response = make_suggestions_post_request(request_data)
+
+    assert response.status_code == 200, "Should return 200 with error suggestions"
+    response_json = response.json()
+    assert len(response_json) == 1
+
+    # Should contain error suggestion
+    email_response = response_json[0]
+    assert email_response["email_identified"] == "test-email-123"
+    assert len(email_response["suggestions"]) == 1
+
+    error_suggestion = email_response["suggestions"][0]
+    assert error_suggestion["suggestion_title"] == "Access Denied"
+    assert error_suggestion["suggestion_id"] == "error_not_whitelisted"
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_generation_error(mock_generate_suggestions, mock_validate_whitelist):
+    """Test suggestions API when suggestions generation fails."""
+    mock_validate_whitelist.return_value = None
+    mock_generate_suggestions.side_effect = Exception("LLM service unavailable")
+
+    request_data = prepare_suggestions_request_data()
+    response = make_suggestions_post_request(request_data)
+
+    assert response.status_code == 200, "Should return 200 with error suggestions"
+    response_json = response.json()
+    assert len(response_json) == 1
+
+    # Should contain error suggestion
+    email_response = response_json[0]
+    assert len(email_response["suggestions"]) == 1
+
+    error_suggestion = email_response["suggestions"][0]
+    assert error_suggestion["suggestion_title"] == "Processing Error"
+    assert error_suggestion["suggestion_id"] == "error_processing"
+
+
+def test_suggestions_api_invalid_request_format():
+    """Test suggestions API with invalid request format."""
+    # Missing required fields
+    invalid_request = [{"email_identified": "test"}]  # Missing required fields
+
+    response = make_suggestions_post_request(invalid_request, headers={"x-suggestions-api-key": "valid-key"})
+
+    assert_suggestions_error_response(response, expected_status=422)
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-key"})
+def test_suggestions_api_empty_request():
+    """Test suggestions API with empty request list."""
+    response = make_suggestions_post_request(
+        [],  # Empty list
+        headers={"x-suggestions-api-key": "valid-key"},
+    )
+
+    assert response.status_code == 200, "Empty list should be valid and return empty response"
+    response_json = response.json()
+    assert response_json == []
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_validate_whitelist):
+    """Test suggestions API with attachments in request."""
+    mock_validate_whitelist.return_value = None
+
+    mock_response = EmailSuggestionResponse(
+        email_identified="test-email-123",
+        user_email_id="test@example.com",
+        suggestions=[
+            SuggestionDetail(
+                suggestion_title="Summarize documents",
+                suggestion_id="suggest-1",
+                suggestion_to_email="summarize@mxtoai.com",
+                suggestion_cc_emails=[],
+                suggestion_email_instructions="Focus on key findings from the attached reports",
+            ),
+        ],
+    )
+    mock_generate_suggestions.return_value = mock_response
+
+    request_data = prepare_suggestions_request_data(
+        attachments=[
+            {
+                "filename": "report.pdf",
+                "file_type": "application/pdf",
+                "file_size": 1024000,
+            },
+            {
+                "filename": "data.xlsx",
+                "file_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "file_size": 512000,
+            },
+        ]
+    )
+
+    response = make_suggestions_post_request(request_data)
+
+    assert_suggestions_successful_response(response)
+    mock_generate_suggestions.assert_called_once()
+
+    # Verify attachments were passed correctly
+    call_args = mock_generate_suggestions.call_args[0][0]  # First positional argument (EmailSuggestionRequest)
+    assert len(call_args.attachments) == 2
+    assert call_args.attachments[0].filename == "report.pdf"
+    assert call_args.attachments[1].filename == "data.xlsx"
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate_whitelist):
+    """Test suggestions API with CC emails in request."""
+    mock_validate_whitelist.return_value = None
+
+    mock_response = EmailSuggestionResponse(
+        email_identified="test-email-123",
+        user_email_id="test@example.com",
+        suggestions=[
+            SuggestionDetail(
+                suggestion_title="Schedule meeting",
+                suggestion_id="suggest-1",
+                suggestion_to_email="meeting@mxtoai.com",
+                suggestion_cc_emails=["manager@company.com"],
+                suggestion_email_instructions="",
+            ),
+        ],
+    )
+    mock_generate_suggestions.return_value = mock_response
+
+    request_data = prepare_suggestions_request_data(cc_emails=["cc1@example.com", "cc2@example.com"])
+
+    response = make_suggestions_post_request(request_data)
+
+    assert_suggestions_successful_response(response)
+
+    # Verify CC emails were passed correctly
+    call_args = mock_generate_suggestions.call_args[0][0]
+    assert call_args.cc_emails == ["cc1@example.com", "cc2@example.com"]
+
+    # Verify response includes CC emails in suggestions
+    response_json = response.json()
+    suggestion = response_json[0]["suggestions"][0]
+    assert suggestion["suggestion_cc_emails"] == ["manager@company.com"]
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
+    """Test suggestions API with rate limiting (if rate limits apply to suggestions endpoint)."""
+    # Note: This test assumes suggestions endpoint might have its own rate limits
+    # If not implemented, this test will verify normal operation
+
+    request_data = prepare_suggestions_request_data()
+
+    with (
+        patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock) as mock_validate_whitelist,
+        patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock) as mock_generate_suggestions,
+    ):
+        mock_validate_whitelist.return_value = None
+
+        mock_response = EmailSuggestionResponse(
+            email_identified="test-email-123",
+            user_email_id="test@example.com",
+            suggestions=[
+                SuggestionDetail(
+                    suggestion_title="Ask anything",
+                    suggestion_id="suggest-1",
+                    suggestion_to_email="ask@mxtoai.com",
+                    suggestion_cc_emails=[],
+                    suggestion_email_instructions="",
+                ),
+            ],
+        )
+        mock_generate_suggestions.return_value = mock_response
+
+        # Make a request - should succeed
+        response = make_suggestions_post_request_with_client(client_with_patched_redis, request_data)
+        assert response.status_code == 200
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_validate_whitelist):
+    """Test suggestions API handles the Subject field alias correctly."""
+    mock_validate_whitelist.return_value = None
+    mock_response = EmailSuggestionResponse(
+        email_identified="test-email-123",
+        user_email_id="test@example.com",
+        suggestions=[
+            SuggestionDetail(
+                suggestion_title="Ask anything",
+                suggestion_id="suggest-1",
+                suggestion_to_email="ask@mxtoai.com",
+                suggestion_cc_emails=[],
+                suggestion_email_instructions="",
+            ),
+        ],
+    )
+    mock_generate_suggestions.return_value = mock_response
+
+    # Test with "Subject" field (should work due to alias)
+    request_data = prepare_suggestions_request_data(Subject="Test with Subject field")
+    response = make_suggestions_post_request(request_data)
+
+    assert_suggestions_successful_response(response)
+
+    # Verify the subject was passed correctly
+    call_args = mock_generate_suggestions.call_args[0][0]
+    assert call_args.subject == "Test with Subject field"
+
+
+@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_default_suggestions_always_included(mock_generate_suggestions, mock_validate_whitelist):
+    """Test that default suggestions are always included in responses."""
+    mock_validate_whitelist.return_value = None
+
+    # Mock response with only custom suggestions (no default)
+    mock_response = EmailSuggestionResponse(
+        email_identified="test-email-123",
+        user_email_id="test@example.com",
+        suggestions=[
+            SuggestionDetail(
+                suggestion_title="Fact check claims",
+                suggestion_id="suggest-custom-1",
+                suggestion_to_email="fact-check@mxtoai.com",
+                suggestion_cc_emails=[],
+                suggestion_email_instructions="Verify the statistical claims in this email",
+            ),
+        ],
+    )
+    mock_generate_suggestions.return_value = mock_response
+
+    request_data = prepare_suggestions_request_data()
+    response = make_suggestions_post_request(request_data)
+
+    assert_suggestions_successful_response(response)
+
+    # The actual suggestions generation function should add default suggestions
+    # This test verifies the API returns what the generation function provides
+    response_json = response.json()
+    email_response = response_json[0]
+
+    # Should have the custom suggestion
+    suggestion_titles = [s["suggestion_title"] for s in email_response["suggestions"]]
+    assert "Fact check claims" in suggestion_titles

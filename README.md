@@ -6,7 +6,26 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-✓-brightgreen)]()
 
-## 🚀 Quick Start (5 minutes)
+
+## 🎯 What is MXtoAI?
+
+MXtoAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
+
+### ✨ **Core Features**
+
+- **🧠 Smart Email Processing**: Automatically summarize, reply to, and analyze emails
+- **📎 Advanced Attachment Handling**: Process PDFs, images, documents with AI-powered analysis
+- **🔍 Deep Research**: Optional integration with research APIs for comprehensive insights
+- **📧 Multiple Processing Modes**:
+  - `summary@`: Generate email summaries
+  - `reply@`: Create smart replies
+  - `research@`: Perform topic research
+  - `ask@`: Full processing with Q&A
+- **⚡ Scalable Architecture**: Background processing with multiple workers
+- **🔒 Privacy First**: Runs entirely on your infrastructure
+- **🎨 Rich Formatting**: HTML and plain text responses with professional styling
+
+## 🚀 Self-host MXtoAI
 
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running
@@ -51,27 +70,7 @@ litellm_params.base_url = "https://your-resource.openai.azure.com/"
 litellm_params.api_version = "2023-05-15"
 ```
 
-## 🎯 What is MXtoAI?
-
-MXtoAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
-
-### ✨ **Core Features**
-
-- **🧠 Smart Email Processing**: Automatically summarize, reply to, and analyze emails
-- **📎 Advanced Attachment Handling**: Process PDFs, images, documents with AI-powered analysis
-- **🔍 Deep Research**: Optional integration with research APIs for comprehensive insights
-- **📧 Multiple Processing Modes**:
-  - `summary@`: Generate email summaries
-  - `reply@`: Create smart replies
-  - `research@`: Perform topic research
-  - `ask@`: Full processing with Q&A
-- **⚡ Scalable Architecture**: Background processing with multiple workers
-- **🔒 Privacy First**: Runs entirely on your infrastructure
-- **🎨 Rich Formatting**: HTML and plain text responses with professional styling
-
-## 📧 Process Your First Email
-
-### Using the API
+## 📧 Process Your First Email using the self-hosted API
 
 ```bash
 # Send an email for processing

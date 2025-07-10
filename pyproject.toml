@@ -151,6 +151,7 @@ pytest-timeout = "^2.4.0"
 pytest-durations = "^1.5.2"
 fakeredis = "^2.29.0"
 freezegun = "^1.5.2"
+pytest-retry = "^1.7.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "strict"

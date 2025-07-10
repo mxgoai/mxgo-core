@@ -1,7 +1,7 @@
 import json
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import markdown2
 from jinja2 import Environment, FileSystemLoader, select_autoescape
@@ -16,7 +16,7 @@ class ReportFormatter:
     Format research reports and emails for delivery.
     """
 
-    def __init__(self, template_dir: Optional[str] = None):
+    def __init__(self, template_dir: str | None = None):
         """
         Initialize the ReportFormatter with configurable templates.
 

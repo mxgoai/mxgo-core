@@ -5,7 +5,7 @@ import os
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 import requests
 from dotenv import load_dotenv
@@ -157,7 +157,7 @@ class VisualQATool(Tool):
 
     client: ClassVar[InferenceClient] = InferenceClient("HuggingFaceM4/idefics2-8b-chatty")
 
-    def forward(self, image_path: str, question: Optional[str] = None) -> str:
+    def forward(self, image_path: str, question: str | None = None) -> str:
         """
         Process the image and return a short caption based on the content.
 
@@ -188,7 +188,7 @@ class VisualQATool(Tool):
 
 
 @tool
-def visualizer(image_path: str, question: Optional[str] = None) -> str:
+def visualizer(image_path: str, question: str | None = None) -> str:
     """
     A tool that can answer questions about attached images.
 
@@ -235,7 +235,7 @@ def visualizer(image_path: str, question: Optional[str] = None) -> str:
 
 
 @tool
-def azure_visualizer(image_path: str, question: Optional[str] = None) -> str:  # noqa: PLR0912
+def azure_visualizer(image_path: str, question: str | None = None) -> str:  # noqa: PLR0912
     """
     A tool that can answer questions about attached images using Azure OpenAI.
 
