@@ -1,5 +1,6 @@
 import json
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, ClassVar
 from urllib.parse import unquote
@@ -151,8 +152,6 @@ class AttachmentProcessingTool(Tool):
             str: The text content extracted from the document.
 
         """
-        import tempfile
-
         try:
             # For text files, decode directly
             if content_type.startswith("text/"):

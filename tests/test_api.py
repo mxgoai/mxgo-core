@@ -8,9 +8,11 @@ import pytest  # For fixtures
 
 # Corrected import for FakeAsyncRedis based on common usage and docs
 from fakeredis import FakeAsyncRedis
+from fastapi import Response
 from fastapi.testclient import TestClient
 from freezegun import freeze_time  # For controlling time in tests
 
+import mxtoai.validators
 from mxtoai._logging import get_logger
 from mxtoai.api import app
 from mxtoai.schemas import EmailSuggestionResponse, SuggestionDetail
@@ -61,8 +63,6 @@ def client_with_patched_redis():
         # we can assume the patch takes effect before request handling.
 
         # Forcing the global in validators to be our fake instance
-        import mxtoai.validators
-
         original_redis_client = mxtoai.validators.redis_client
         original_domain_set = mxtoai.validators.email_provider_domain_set
 
@@ -644,13 +644,9 @@ def test_suggestions_api_missing_env_var():
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
     """Test suggestions API when user is not whitelisted."""
-    from fastapi import Response
-
     # Mock whitelist validation to return an error response
     mock_validate_whitelist.return_value = Response(
-        content='{"message": "Email not whitelisted", "status": "error"}',
-        status_code=403,
-        media_type="application/json",
+        status_code=403, content=json.dumps({"detail": "User not whitelisted"})
     )
 
     request_data = prepare_suggestions_request_data()

@@ -11,6 +11,7 @@ import requests
 from smolagents import Tool
 
 from mxtoai.request_context import RequestContext
+from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
 
 logger = logging.getLogger(__name__)
 
@@ -208,8 +209,6 @@ class LinkedInFreshDataTool(Tool):
             citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             # Create structured output with citation reference
-            from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
-
             # Create local citation collection
             local_citations = CitationCollection()
             citation_source = CitationSource(

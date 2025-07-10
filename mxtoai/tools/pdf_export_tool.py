@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from smolagents import Tool
+from weasyprint import CSS, HTML
 
 from mxtoai._logging import get_logger
 from mxtoai.scripts.report_formatter import ReportFormatter
@@ -99,12 +100,6 @@ class PDFExportTool(Tool):
             Dict containing export results
 
         """
-        try:
-            from weasyprint import CSS, HTML
-        except ImportError as e:
-            logger.error(f"WeasyPrint not available: {e}")
-            return {"error": "PDF generation library not available. Please install WeasyPrint.", "details": str(e)}
-
         try:
             # Clean and prepare content
             cleaned_content = self._clean_content(content)
@@ -325,12 +320,11 @@ class PDFExportTool(Tool):
         # Extract the body content if it's a full HTML document
         if "<body>" in html_content:
             # Extract content between body tags
-            import re
-
             body_match = re.search(r"<body[^>]*>(.*?)</body>", html_content, re.DOTALL)
-            body_content = body_match.group(1) if body_match else html_content
+            if body_match:
+                inner_html = body_match.group(1)
         else:
-            body_content = html_content
+            inner_html = html_content
 
         # Create a clean PDF-optimized HTML document
         return f"""
@@ -342,7 +336,7 @@ class PDFExportTool(Tool):
         </head>
         <body>
             <div class="pdf-document">
-                {body_content}
+                {inner_html}
             </div>
         </body>
         </html>

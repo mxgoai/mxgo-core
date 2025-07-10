@@ -1,10 +1,12 @@
 import os
 from unittest.mock import AsyncMock, patch
 
+from fastapi import Response, status
 from fastapi.testclient import TestClient
 
 from mxtoai.api import app
 from mxtoai.email_sender import generate_message_id
+from mxtoai.tasks import process_email_task
 
 API_KEY = os.environ["X_API_KEY"]
 
@@ -64,8 +66,6 @@ class TestIdempotency:
         mock_rate_limits.return_value = None  # Rate limits pass
 
         # Mock idempotency check to return duplicate response
-        from fastapi import Response, status
-
         duplicate_response = Response(
             content='{"message": "Email already queued for processing", "messageId": "<test123@example.com>", "status": "duplicate_queued"}',
             status_code=status.HTTP_409_CONFLICT,
@@ -104,8 +104,6 @@ class TestIdempotency:
         mock_rate_limits.return_value = None  # Rate limits pass
 
         # Mock idempotency check to return duplicate response
-        from fastapi import Response, status
-
         duplicate_response = Response(
             content='{"message": "Email already processed", "messageId": "<test123@example.com>", "status": "duplicate_processed"}',
             status_code=status.HTTP_409_CONFLICT,
@@ -135,8 +133,6 @@ class TestIdempotency:
     @patch("mxtoai.tasks.check_task_idempotency")
     def test_task_idempotency_already_processed(self, mock_check_idempotency):
         """Test task returns early when email already processed."""
-        from mxtoai.tasks import process_email_task
-
         # Setup mock to return True (already processed)
         mock_check_idempotency.return_value = True
 

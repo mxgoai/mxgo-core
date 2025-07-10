@@ -13,6 +13,7 @@ from huggingface_hub import InferenceClient
 from litellm import completion
 from PIL import Image
 from smolagents import Tool, tool
+from transformers import AutoProcessor
 
 from mxtoai._logging import get_logger
 
@@ -32,8 +33,6 @@ def process_images_and_text(image_path: str, query: str, client: InferenceClient
         client: Inference client for the model.
 
     """
-    from transformers import AutoProcessor
-
     messages = [
         {
             "role": "user",

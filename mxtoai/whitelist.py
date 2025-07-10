@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from supabase import Client, create_client
 
 from mxtoai._logging import get_logger
+from mxtoai.email_sender import EmailSender
 
 logger = get_logger(__name__)
 
@@ -167,8 +168,6 @@ async def send_verification_email(email: str, verification_token: str) -> bool:
 
     """
     try:
-        from mxtoai.email_sender import EmailSender
-
         # Get the origin URL for verification links
         origin = os.getenv("FRONTEND_URL", "https://mxtoai.com")
         verification_url = f"{origin}/verify?token={verification_token}"

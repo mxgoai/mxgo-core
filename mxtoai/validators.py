@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from datetime import datetime, timezone
@@ -8,6 +9,7 @@ from fastapi import Response, status
 
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
+from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import generate_message_id, send_email_reply
 from mxtoai.schemas import RateLimitPlan
@@ -348,8 +350,6 @@ def check_task_idempotency(message_id: str) -> bool:
 
     try:
         # Check if already processed
-        import asyncio
-
         if asyncio.run(redis_client.get(redis_key_processed)):
             logger.warning(f"Email with messageId {message_id} already processed, skipping duplicate processing")
             return True
@@ -376,8 +376,6 @@ def mark_email_as_processed(message_id: str) -> None:
 
     try:
         # Mark as processed (expires in 24 hours)
-        import asyncio
-
         asyncio.run(
             asyncio.gather(redis_client.setex(redis_key_processed, 86400, "1"), redis_client.delete(redis_key_queued))
         )
@@ -619,8 +617,6 @@ async def validate_attachments(
         Optional[Response]: Error response if validation fails, None if validation passes
 
     """
-    from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB
-
     if len(attachments) > MAX_ATTACHMENTS_COUNT:
         rejection_msg = f"""Your email could not be processed due to too many attachments.
 
@@ -667,8 +663,7 @@ Number of attachments in your email: {len(attachments)}</p>
             media_type="application/json",
         )
 
-    total_size_mb = sum(attachment.get("size", 0) for attachment in attachments) / (1024 * 1024)
-
+    total_size_mb = 0
     for attachment in attachments:
         size_mb = attachment.get("size", 0) / (1024 * 1024)
         if size_mb > MAX_ATTACHMENT_SIZE_MB:
@@ -717,6 +712,7 @@ Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p
                 status_code=status.HTTP_400_BAD_REQUEST,
                 media_type="application/json",
             )
+        total_size_mb += size_mb
 
     if total_size_mb > MAX_TOTAL_ATTACHMENTS_SIZE_MB:
         rejection_msg = f"""Your email could not be processed due to total attachment size exceeding the limit.

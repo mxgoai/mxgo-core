@@ -1,3 +1,6 @@
+import re
+
+
 class TOCGenerator:
     """Generate Table of Contents and structured research plans."""
 
@@ -127,8 +130,6 @@ Include specific information that would be valuable for this section of the repo
             List of section titles
 
         """
-        import re
-
         sections = []
 
         # Extract section titles (lines that start with a number followed by a dot)

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from mxtoai.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
+from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL, SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
 from mxtoai.request_context import RequestContext
 from mxtoai.schemas import EmailRequest, HandlerAlias
 from mxtoai.tools.scheduled_tasks_tool import (
@@ -422,139 +422,73 @@ class TestConfigurationIntegration:
 
 
 class TestScheduledTasksLimitEnforcement:
-    """Test the 5-task limit enforcement per email."""
+    """Test enforcement of the maximum number of scheduled tasks per email."""
 
     def create_mock_email_request(self, from_email: str = "user@example.com"):
-        """Helper to create mock email request."""
+        """Helper to create a mock email request object."""
         return EmailRequest(
             from_email=from_email,
             to="test@example.com",
-            subject="Test Email",
-            textContent="Test content",
+            subject="Test Email with many tasks",
+            textContent="This email will try to create multiple scheduled tasks.",
         )
 
     def test_scheduled_task_limit_wrapper_logic(self):
         """Test the limit wrapper logic directly without full EmailAgent."""
-        from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
-
         self.create_mock_email_request()
+        # Counter to simulate task creation
+        task_creation_counter = 0
 
-        # Create a counter to track calls (simulating the wrapper logic)
-        call_count = {"count": 0}
-        max_calls = SCHEDULED_TASKS_MAX_PER_EMAIL
-
+        # Simulate the wrapped forward method
         def limited_forward_simulation(*args, **kwargs):
-            """Simulate the wrapper that limits scheduled task calls."""
-            if call_count["count"] >= max_calls:
-                return {
-                    "success": False,
-                    "error": "Task limit exceeded",
-                    "message": f"Maximum of {max_calls} scheduled tasks allowed per email. This limit helps prevent excessive automation.",
-                    "tasks_created": call_count["count"],
-                    "max_allowed": max_calls,
-                }
+            nonlocal task_creation_counter
+            if task_creation_counter >= SCHEDULED_TASKS_MAX_PER_EMAIL:
+                msg = "Scheduled task limit reached"
+                raise ValueError(msg)
+            task_creation_counter += 1
+            return {"success": True, "task_id": f"task_{task_creation_counter}"}
 
-            # Increment counter before calling
-            call_count["count"] += 1
-
-            # Simulate successful task creation
-            return {
-                "success": True,
-                "task_id": f"task-{call_count['count']}",
-                "message": "Task created successfully",
-                "cron_expression": args[0] if args else "0 9 * * 1",
-                "task_description": kwargs.get(
-                    "distilled_future_task_instructions", f"Task {call_count['count']} instructions"
-                ),
-            }
-
-        # Create 5 successful tasks (should all work)
-        successful_tasks = []
-        for i in range(5):
-            result = limited_forward_simulation(
-                "0 9 * * 1",
-                distilled_future_task_instructions=f"Task {i + 1} instructions",
-            )
-            successful_tasks.append(result)
+        # Verify that creating tasks up to the limit is successful
+        for _ in range(SCHEDULED_TASKS_MAX_PER_EMAIL):
+            result = limited_forward_simulation()
             assert result["success"] is True
-            assert "task_id" in result
 
-        # Try to create a 6th task (should be rejected)
-        sixth_result = limited_forward_simulation(
-            "0 9 * * 1",
-            distilled_future_task_instructions="Sixth task instructions",
-        )
-
-        # Verify the 6th task was rejected
-        assert sixth_result["success"] is False
-        assert sixth_result["error"] == "Task limit exceeded"
-        assert "Maximum of 5 scheduled tasks allowed per email" in sixth_result["message"]
-        assert sixth_result["tasks_created"] == 5
-        assert sixth_result["max_allowed"] == 5
+        # Verify that creating one more task raises the expected error
+        with pytest.raises(ValueError, match="Scheduled task limit reached"):
+            limited_forward_simulation()
 
     def test_failed_task_counter_decrement_logic(self):
         """Test that failed task creation doesn't count against the limit."""
-        from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
-
         # Create a counter to track calls
-        call_count = {"count": 0}
-        max_calls = SCHEDULED_TASKS_MAX_PER_EMAIL
+        task_creation_counter = 0
 
-        # Track whether we've had the first failure
-        first_call = {"done": False}
-
+        # Simulate the wrapped forward method that sometimes fails
         def limited_forward_with_failure_simulation(*args, **kwargs):
-            """Simulate the wrapper with failure handling."""
-            if call_count["count"] >= max_calls:
-                return {
-                    "success": False,
-                    "error": "Task limit exceeded",
-                    "message": f"Maximum of {max_calls} scheduled tasks allowed per email.",
-                    "tasks_created": call_count["count"],
-                    "max_allowed": max_calls,
-                }
+            nonlocal task_creation_counter
+            # Fail on the second attempt
+            if task_creation_counter == 1:
+                msg = "Simulated failure during task creation"
+                raise RuntimeError(msg)
+            if task_creation_counter >= SCHEDULED_TASKS_MAX_PER_EMAIL:
+                msg = "Scheduled task limit reached"
+                raise ValueError(msg)
+            task_creation_counter += 1
+            return {"success": True, "task_id": f"task_{task_creation_counter}"}
 
-            # Increment counter before calling
-            call_count["count"] += 1
+        # Successful call
+        limited_forward_with_failure_simulation()
+        assert task_creation_counter == 1
 
-            # Simulate a failure on first call only
-            if not first_call["done"]:
-                first_call["done"] = True
-                call_count["count"] -= 1  # Decrement on failure
-                return {
-                    "success": False,
-                    "error": "Database error",
-                    "message": "Simulated database error",
-                }
+        # Failed call
+        with pytest.raises(RuntimeError):
+            limited_forward_with_failure_simulation()
+        # Counter should not have incremented
+        assert task_creation_counter == 1
 
-            # For other calls, return success
-            return {
-                "success": True,
-                "task_id": f"task-{call_count['count']}",
-                "message": "Task created successfully",
-            }
+        # Subsequent calls up to the limit should still succeed
+        for _ in range(SCHEDULED_TASKS_MAX_PER_EMAIL - 1):
+            limited_forward_with_failure_simulation()
 
-        # First task should fail (simulated database error)
-        result1 = limited_forward_with_failure_simulation(
-            "0 9 * * 1",
-            distilled_future_task_instructions="First task instructions",
-        )
-        assert result1["success"] is False  # Should fail due to simulated error
-        assert result1["error"] == "Database error"
-
-        # Next 5 tasks should succeed (counter was decremented after failure)
-        for i in range(5):
-            result = limited_forward_with_failure_simulation(
-                "0 9 * * 1",
-                distilled_future_task_instructions=f"Task {i + 2} instructions",
-            )
-            assert result["success"] is True
-            assert "task_id" in result
-
-        # 7th task should be rejected (we've hit the limit)
-        result7 = limited_forward_with_failure_simulation(
-            "0 9 * * 1",
-            distilled_future_task_instructions="Seventh task instructions",
-        )
-        assert result7["success"] is False
-        assert result7["error"] == "Task limit exceeded"
+        # The next call should fail due to the limit
+        with pytest.raises(ValueError, match="Scheduled task limit reached"):
+            limited_forward_with_failure_simulation()

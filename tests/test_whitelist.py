@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+import mxtoai.whitelist
 from mxtoai.whitelist import (
     get_whitelist_signup_url,
     init_supabase,
@@ -24,8 +25,6 @@ class TestSupabaseInitialization:
         mock_create_client.return_value = mock_client
 
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         init_supabase()
@@ -37,8 +36,6 @@ class TestSupabaseInitialization:
     def test_init_supabase_missing_env_vars(self):
         """Test Supabase initialization with missing environment variables."""
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(ValueError, match="Supabase URL and service role key must be set"):
@@ -48,8 +45,6 @@ class TestSupabaseInitialization:
     def test_init_supabase_missing_key(self):
         """Test Supabase initialization with missing service role key."""
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(ValueError, match="Supabase URL and service role key must be set"):
@@ -62,8 +57,6 @@ class TestSupabaseInitialization:
         mock_create_client.side_effect = Exception("Connection failed")
 
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(Exception, match="Connection failed"):
@@ -73,8 +66,6 @@ class TestSupabaseInitialization:
     @patch("mxtoai.whitelist.create_client")
     def test_init_supabase_already_initialized(self, mock_create_client):
         """Test that initialization is skipped when client already exists."""
-        import mxtoai.whitelist
-
         existing_client = Mock()
         mxtoai.whitelist.supabase = existing_client
 
@@ -155,8 +146,6 @@ class TestEmailWhitelistCheck:
 
             # Mock init_supabase to set the client
             def set_supabase():
-                import mxtoai.whitelist
-
                 mxtoai.whitelist.supabase = mock_supabase
 
             mock_init.side_effect = set_supabase

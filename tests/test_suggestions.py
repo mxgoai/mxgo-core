@@ -377,25 +377,24 @@ async def test_suggestions_integration_multiple_emails_batch(prepare_suggestion_
         """,
     )
 
-    # Convert to schema objects
-    request_objects = []
-    for req_data in [simple_request, news_request]:
-        request_objects.append(
-            EmailSuggestionRequest(
-                email_identified=req_data["email_identified"],
-                user_email_id=req_data["user_email_id"],
-                sender_email=req_data["sender_email"],
-                cc_emails=req_data["cc_emails"],
-                Subject=req_data["Subject"],
-                email_content=req_data["email_content"],
-                attachments=[],
-            )
+    # Create a batch of request objects
+    request_objects = [
+        EmailSuggestionRequest(
+            email_identified=req_data["email_identified"],
+            user_email_id=req_data["user_email_id"],
+            sender_email=req_data["sender_email"],
+            cc_emails=req_data["cc_emails"],
+            Subject=req_data["Subject"],
+            email_content=req_data["email_content"],
+            attachments=[],
         )
+        for req_data in [simple_request, news_request]
+    ]
 
     model = get_suggestions_model()
-    responses = []
 
-    # Process each request (simulating batch processing)
+    # Generate suggestions for the batch
+    responses = []
     for request_obj in request_objects:
         response = await generate_suggestions(request_obj, model)
         responses.append(response)

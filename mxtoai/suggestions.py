@@ -3,9 +3,8 @@ import os
 import uuid
 from typing import TYPE_CHECKING
 
-from fastapi import Depends
-
 from mxtoai._logging import get_logger
+from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import EmailSuggestionRequest, EmailSuggestionResponse, SuggestionDetail
 
@@ -149,14 +148,12 @@ def validate_suggestion_to_email(suggestion_to_email: str) -> str:
     Validate that the suggestion_to_email corresponds to a valid email handle alias.
 
     Args:
-        suggestion_to_email: The email address to validate (e.g., "summarize@mxtoai.com")
+        suggestion_to_email: The email address to validate (e.g., "summarize" from "summarize@mxtoai.com")
 
     Returns:
         str: The validated email address, or "ask@mxtoai.com" if invalid
 
     """
-    from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
-
     # Extract handle from email (e.g., "summarize" from "summarize@mxtoai.com")
     if "@" not in suggestion_to_email:
         return "ask@mxtoai.com"
@@ -238,7 +235,7 @@ Please analyze this email and provide 1-3 relevant suggestions in the required J
 
 async def generate_suggestions(
     request: EmailSuggestionRequest,
-    model: RoutedLiteLLMModel = Depends(get_suggestions_model),
+    model: RoutedLiteLLMModel | None = None,
 ) -> EmailSuggestionResponse:
     """
     Generate suggestions for an email using the LLM model.
@@ -248,9 +245,13 @@ async def generate_suggestions(
         model: RoutedLiteLLMModel for generating suggestions
 
     Returns:
-        EmailSuggestionResponse with generated suggestions
+        EmailSuggestionResponse: Response containing suggested actions
 
     """
+    # If model is not provided, get the default suggestions model
+    if model is None:
+        model = get_suggestions_model()
+
     try:
         logger.info(f"Generating suggestions for email {request.email_identified}")
 

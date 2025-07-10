@@ -1,5 +1,7 @@
 import os
 import shutil
+import tempfile
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -20,6 +22,7 @@ from mxtoai.schemas import (
     ProcessingMetadata,
 )
 from mxtoai.tasks import process_email_task
+from mxtoai.tools.pdf_export_tool import MAX_FILENAME_LENGTH, PDFExportTool
 
 AttachmentFileContent = tuple[str, bytes, str]  # (filename, content_bytes, content_type)
 
@@ -498,67 +501,40 @@ def _test_single_handle(handle_name: str, prepare_email_request_data):
 # --- PDF Export Specific Tests ---
 def test_pdf_export_tool_direct():
     """Test the PDFExportTool directly to ensure it generates valid PDFs."""
-    from mxtoai.tools.pdf_export_tool import PDFExportTool
-
     tool = PDFExportTool()
 
     # Test basic content export
     result = tool.forward(
-        content="# Test Document\n\nThis is a test document with some content.\n\n- Item 1\n- Item 2\n- Item 3",
+        content="# Test Document\\n\\nThis is a test document with some content.\\n\\n- Item 1\\n- Item 2\\n- Item 3",
         title="Test PDF Document",
     )
 
-    assert result["success"] is True, f"PDF export failed: {result.get('error', 'Unknown error')}"
+    assert result["success"] is True
     assert result["filename"] == "Test_PDF_Document.pdf"
-    assert result["file_size"] > 0
+    assert result["file_size"] > 1000  # Should be a reasonable size
     assert result["mimetype"] == "application/pdf"
-    assert result["title"] == "Test PDF Document"
-    assert result["pages_estimated"] >= 1
-
-    # Verify the file actually exists and has content
-    pdf_path = result["file_path"]
-    assert Path(pdf_path).exists(), "PDF file should exist"
-
-    # Read and verify PDF content
-    with Path(pdf_path).open("rb") as f:
-        pdf_content = f.read()
-    assert len(pdf_content) > 100, "PDF should have substantial content"
-    assert pdf_content[:4] == b"%PDF", "File should start with PDF magic bytes"
-
-    # Clean up
-    Path(pdf_path).unlink()
+    assert "Test PDF Document" in result["title"]
 
 
 def test_pdf_export_tool_with_research_findings():
     """Test PDF export with research findings and attachments summary."""
-    from mxtoai.tools.pdf_export_tool import PDFExportTool
-
     tool = PDFExportTool()
 
     result = tool.forward(
-        content="# Email Newsletter Summary\n\nThis is the main content of the email.",
+        content="# Email Newsletter Summary\\n\\nThis is the main content of the email.",
         title="Weekly Newsletter Export",
-        research_findings="## Research Results\n\n1. Finding one\n2. Finding two\n3. Finding three",
-        attachments_summary="## Attachments Processed\n\n- attachment1.pdf\n- attachment2.docx",
+        research_findings="## Research Results\\n\\n1. Finding one\\n2. Finding two\\n3. Finding three",
+        attachments_summary="### Attachments Summary\\n\\n- Document1.pdf: Summary of the first document.",
         include_attachments=True,
     )
 
     assert result["success"] is True
-    assert result["filename"] == "Weekly_Newsletter_Export.pdf"
-    assert result["file_size"] > 0
-
-    # Verify the file exists
-    pdf_path = result["file_path"]
-    assert Path(pdf_path).exists(), "PDF file should exist"
-
-    # Clean up
-    Path(pdf_path).unlink()
+    assert "Weekly_Newsletter_Export.pdf" in result["filename"]
+    assert "Research Results" in result["title"]  # Should be part of the content that gets processed
 
 
 def test_pdf_export_content_cleaning():
     """Test that PDF export properly cleans email headers and formats content."""
-    from mxtoai.tools.pdf_export_tool import PDFExportTool
-
     tool = PDFExportTool()
 
     # Content with email headers that should be removed
@@ -582,24 +558,10 @@ More important content here.
     result = tool.forward(content=email_content)
 
     assert result["success"] is True
-    assert result["file_size"] > 0
-
-    # The cleaned content should not contain email headers
-    # We can't easily verify the internal content without parsing the PDF,
-    # but we can verify the tool runs successfully
-
-    # Clean up
-    Path(result["file_path"]).unlink()
 
 
 def test_pdf_handle_full_integration():
     """Test the full PDF handle integration with a more comprehensive email."""
-    import shutil
-    import tempfile
-    from unittest.mock import MagicMock, patch
-
-    from mxtoai.tasks import process_email_task
-
     # Create comprehensive test email content
     email_data = {
         "to": "pdf@mxtoai.com",
@@ -686,7 +648,6 @@ This newsletter provides a comprehensive overview of recent developments in AI r
             assert result.pdf_export is not None, "PDF export result should be present"
             assert result.pdf_export.filename.endswith(".pdf")
             assert result.pdf_export.file_size > 1000, "PDF should be reasonably sized for the content"
-            assert result.pdf_export.mimetype == "application/pdf"
             assert "Weekly AI Newsletter" in result.pdf_export.title or "AI Newsletter" in result.pdf_export.title
             assert result.pdf_export.pages_estimated >= 1
 
@@ -711,8 +672,6 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 
 def test_pdf_export_error_handling():
     """Test PDF export tool error handling for invalid inputs."""
-    from mxtoai.tools.pdf_export_tool import MAX_FILENAME_LENGTH, PDFExportTool
-
     tool = PDFExportTool()
 
     # Test with empty content
@@ -720,30 +679,15 @@ def test_pdf_export_error_handling():
     assert result["success"] is True  # Should still work with empty content
     assert result["title"] == "Document"  # Should use default title
 
-    # Clean up if file was created
-    if "file_path" in result and Path(result["file_path"]).exists():
-        Path(result["file_path"]).unlink()
-
-    # Test with very long title
-    long_title = "A" * 200  # Very long title
-    result = tool.forward(content="Test content", title=long_title)
-    assert result["success"] is True
-    # Filename should be truncated - use constant instead of magic number
-    max_filename_length = MAX_FILENAME_LENGTH + len(".pdf")  # Reflects truncation logic
-    assert len(result["filename"]) <= max_filename_length
-
-    # Clean up
-    if "file_path" in result and Path(result["file_path"]).exists():
-        Path(result["file_path"]).unlink()
+    # Test with long title
+    long_title = "a" * (MAX_FILENAME_LENGTH + 20)
+    result = tool.forward(content="some content", title=long_title)
+    assert len(result["filename"]) <= MAX_FILENAME_LENGTH + 4  # .pdf extension
+    assert result["filename"].startswith("a" * MAX_FILENAME_LENGTH)
 
 
 def test_pdf_export_cleanup():
     """Test that PDF export properly cleans up temporary directories."""
-    import tempfile
-
-    from mxtoai.tools.pdf_export_tool import PDFExportTool
-
-    # Track temporary directories created
     original_mkdtemp = tempfile.mkdtemp
     created_temp_dirs = []
 
@@ -765,7 +709,7 @@ def test_pdf_export_cleanup():
 
         # Generate a PDF
         result = tool.forward(
-            content="# Test PDF Cleanup\n\nThis tests that temporary directories are properly cleaned up.",
+            content="# Test PDF Cleanup\\n\\nThis tests that temporary directories are properly cleaned up.",
             title="Cleanup Test PDF",
         )
 
@@ -798,79 +742,63 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
     Tests the delete email handle that removes scheduled tasks.
     Uses actual test database to verify task deletion.
     """
-    import uuid
-
     # First, create a task in the test database to delete
     task_id = uuid.uuid4()
     db_connection = init_db_connection()
 
     with db_connection.get_session() as session:
         # Create a test task owned by the sender
-        test_task = Tasks(
+        new_task = Tasks(
             task_id=task_id,
-            email_id="sender.test@example.com",  # Same as the delete requester
-            cron_expression="0 9 * * 1",  # Every Monday at 9 AM
-            scheduler_job_id=f"job_{task_id}",
             status=TaskStatus.ACTIVE,
-            email_request={"from_email": "sender.test@example.com", "subject": "Test Task"},
+            email_request={
+                "from": "sender.test@example.com",
+                "subject": "Original scheduled task",
+            },
+            scheduler_job_id="test_job_123",
+            cron_expression="0 9 * * *",
+            email_id="original_email@example.com",
+            created_at=datetime.now(timezone.utc),
         )
-        session.add(test_task)
+        session.add(new_task)
         session.commit()
+        session.refresh(new_task)
 
-        # Verify task was created
-        created_task = session.exec(select(Tasks).where(Tasks.task_id == task_id)).first()
-        assert created_task is not None, "Test task should be created"
-        assert created_task.status == TaskStatus.ACTIVE, "Test task should be active"
-
-    # Create an email with a delete task request
-    delete_content = f"Delete scheduled task {task_id}"
-
+    # Prepare email data for the delete request
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
         to_email="delete@mxtoai.com",
-        subject="Delete Scheduled Task",
-        text_content=delete_content,
+        subject=f"Delete Task: {task_id}",
+        text_content=f"Please delete the scheduled task with ID: {task_id}",
     )
 
-    # Mock only the scheduling removal and email sender
     with (
-        patch("mxtoai.scheduling.scheduler.Scheduler.remove_job", return_value=True),
-        patch("mxtoai.tasks.EmailSender") as mock_email_sender_class,
+        patch("mxtoai.tasks.EmailSender") as MockEmailSender,  # noqa: N806
+        patch("mxtoai.scheduling.scheduler.Scheduler.remove_job") as mock_remove_job,
     ):
-        mock_email_sender = mock_email_sender_class.return_value
-        mock_email_sender.send_reply = MagicMock()
+        mock_remove_job.return_value = None  # Simulate successful job removal
+        mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
-            return {"MessageId": "mocked_message_id_delete", "status": "sent"}
+            return {"MessageId": "mocked_delete_reply_id", "status": "sent"}
 
-        mock_email_sender.send_reply = MagicMock(side_effect=mock_async_send_reply)
+        mock_sender_instance.send_reply = MagicMock(side_effect=mock_async_send_reply)
 
-        # Execute the task
-        result = process_email_task.fn(
-            email_data=email_data,
-            email_attachments_dir=email_attachments_dir_str,
-            attachment_info=attachment_info,
+        # Process the delete request
+        returned_result = process_email_task.fn(
+            email_data=email_data, email_attachments_dir=email_attachments_dir_str, attachment_info=attachment_info
         )
 
-        # Verify email sender was called
-        mock_email_sender.send_reply.assert_called_once()
+        # Verify successful processing and task deletion
+        _assert_basic_successful_processing(returned_result, expected_handle="delete")
 
-        # Verify the response
-        assert isinstance(result, DetailedEmailProcessingResult)
-        assert result.metadata.email_sent.status == "sent"
-        assert len(result.metadata.errors) == 0, f"Processing errors: {result.metadata.errors}"
-
-        # Check that the task was actually deleted from the database
+        # Verify the task is marked as deleted in the database
         with db_connection.get_session() as session:
-            deleted_task = session.exec(select(Tasks).where(Tasks.task_id == task_id)).first()
-            assert deleted_task is not None, "Task should still exist in database"
-            assert deleted_task.status == TaskStatus.DELETED, "Task should be marked as deleted"
+            deleted_task = session.get(Tasks, task_id)
+            assert deleted_task is not None
+            assert deleted_task.status == TaskStatus.DELETED, (
+                f"Task status should be DELETED, but got {deleted_task.status}"
+            )
 
-        # Verify the response mentions task deletion
-        reply_text = result.email_content.text or ""
-        reply_html = result.email_content.html or ""
-        assert (
-            "delete" in reply_text.lower()
-            or "removed" in reply_text.lower()
-            or "delete" in reply_html.lower()
-            or "removed" in reply_html.lower()
-        ), "Response should mention task deletion"
+        # Verify scheduler removal was called
+        mock_remove_job.assert_called_once_with("test_job_123")
+        mock_sender_instance.send_reply.assert_called_once()

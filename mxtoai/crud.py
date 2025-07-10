@@ -71,7 +71,7 @@ def get_tasks_by_user_email(
 
 
 def get_tasks_by_status(
-    session: Session, statuses: list[TaskStatus], has_scheduler_job_id: bool | None = None
+    session: Session, statuses: list[TaskStatus], *, has_scheduler_job_id: bool | None = None
 ) -> list[Tasks]:
     """
     Get tasks by their status.

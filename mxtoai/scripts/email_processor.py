@@ -1,3 +1,4 @@
+import re
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
@@ -99,8 +100,6 @@ class EmailProcessor:
 
         """
         # Simple implementation - can be improved with BeautifulSoup
-        import re
-
         text = re.sub(r"<[^>]+>", " ", html)
         return re.sub(r"\s+", " ", text).strip()
 

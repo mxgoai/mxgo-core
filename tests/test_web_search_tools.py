@@ -7,6 +7,7 @@ import requests
 
 from mxtoai.request_context import RequestContext
 from mxtoai.schemas import EmailRequest
+from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 
@@ -440,31 +441,33 @@ class TestGoogleSearchTool:
 
 
 class TestIntegrationScenarios:
-    """Test realistic integration scenarios for web search tools."""
+    """Test integration scenarios involving multiple search tools."""
 
     def test_fallback_tool_integration(self):
         """Test realistic scenario using tools with FallbackWebSearchTool."""
-        from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
-
         # Mock DDG as primary
-        ddg_tool = Mock()
-        ddg_tool.name = "ddg_search"
-        ddg_tool.forward.return_value = "DDG results"
+        mock_ddg_instance = Mock()
+        mock_ddg_instance.forward.side_effect = Exception("DDG search failed")
 
         # Mock Brave as secondary
-        brave_tool = Mock()
-        brave_tool.name = "brave_search"
-        brave_tool.forward.return_value = "Brave results"
+        mock_brave_response = Mock()
+        mock_brave_response.raise_for_status.return_value = None
+        mock_brave_response.json.return_value = {"web": {"results": [{"title": "Brave Result"}]}}
 
-        fallback_tool = FallbackWebSearchTool(
-            primary_tool=ddg_tool,
-            secondary_tool=brave_tool,
-        )
+        context = create_mock_context()
 
-        result = fallback_tool.forward("integration test query")
-        assert result == "DDG results"
-        ddg_tool.forward.assert_called_once_with(query="integration test query")
-        brave_tool.forward.assert_not_called()
+        with (
+            patch("mxtoai.tools.web_search.ddg_search.WebSearchTool", return_value=mock_ddg_instance),
+            patch("requests.get", return_value=mock_brave_response),
+            patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test_key"}),
+        ):
+            ddg_tool = DDGSearchTool(context)
+            brave_tool = BraveSearchTool(context)
+            fallback_tool = FallbackWebSearchTool(primary_tool=ddg_tool, secondary_tool=brave_tool)
+
+            result = fallback_tool.forward("test query")
+            content = parse_tool_output(result)
+            assert "Brave Result" in content
 
     @patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test_key"})
     @patch("requests.get")

@@ -30,6 +30,7 @@ from mxtoai.schemas import (
     RateLimitPlan,
     SuggestionDetail,
 )
+from mxtoai.suggestions import generate_suggestions, get_suggestions_model
 from mxtoai.tasks import process_email_task, rabbitmq_broker
 from mxtoai.validators import (
     validate_api_key,
@@ -379,8 +380,6 @@ async def handle_file_attachments(  # noqa: PLR0912
     # If no attachments were successfully saved, clean up the directory
     if not attachment_info and Path(email_attachments_dir).exists():
         logger.warning("No attachments were successfully saved, cleaning up directory")
-        import shutil
-
         shutil.rmtree(email_attachments_dir)
         email_attachments_dir = ""
     else:
@@ -808,21 +807,18 @@ async def process_email(  # noqa: PLR0912, PLR0915
 async def process_suggestions(
     requests: list[EmailSuggestionRequest],
     api_key: Annotated[str | None, Depends(suggestions_api_auth_scheme)] = None,
-):
+) -> list[EmailSuggestionResponse]:
     """
-    Process email suggestions requests.
+    Process a batch of email suggestion requests.
 
     Args:
-        requests (list[EmailSuggestionRequest]): List of email suggestion requests to process
-        api_key (str | None): Suggestions API key for authentication
+        requests: A list of email suggestion requests.
+        api_key: The API key for authentication.
 
     Returns:
-        list[EmailSuggestionResponse]: List of processed email suggestions
+        A list of email suggestion responses.
 
     """
-    # Import suggestions module here to avoid circular imports
-    from mxtoai.suggestions import generate_suggestions, get_suggestions_model
-
     # Check if API key is provided
     if api_key is None:
         raise HTTPException(
@@ -845,7 +841,7 @@ async def process_suggestions(
             whitelist_response = await validate_email_whitelist(
                 from_email=request.user_email_id,
                 to="suggestions@mxtoai.com",  # Dummy handle for whitelist validation
-                subject=request.subject,
+                subject=request.Subject,
                 message_id=request.email_identified,
             )
 

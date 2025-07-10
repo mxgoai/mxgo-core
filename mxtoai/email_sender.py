@@ -367,7 +367,7 @@ async def verify_sender_email(email_address: str) -> bool:
         return True
 
 
-async def test_send_email(to_address, subject="Test from mxtoai", body_text="This is a test email"):
+async def test_send_email(to_address, subject, body_text):
     """
     Test email sending functionality.
 
@@ -405,7 +405,7 @@ async def run_tests():
         return False
 
     tests = [
-        ("Basic Send", lambda: test_send_email(test_email)),
+        ("Basic Send", lambda: test_send_email(test_email, "Test Subject", "This is a test email")),
         ("Verify Email", lambda: verify_sender_email(test_email)),
     ]
 

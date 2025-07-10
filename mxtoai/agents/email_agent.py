@@ -942,8 +942,6 @@ Raw Email Request Data (for tool use):
         """
         if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
-            import re
-
             existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
             if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
                 logger.warning(

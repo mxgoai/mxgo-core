@@ -7,10 +7,11 @@ import logging
 import os
 from typing import ClassVar
 
+import requests
 from smolagents import Tool
 
 from mxtoai.request_context import RequestContext
-from mxtoai.schemas import ToolOutputWithCitations
+from mxtoai.schemas import CitationCollection, ToolOutputWithCitations
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +108,6 @@ class BraveSearchTool(Tool):
                 "result_filter": result_filter,
             }
             logger.info(f"Performing Brave search with params: {log_params}")
-
-            import requests
 
             headers = {
                 "Accept": "application/json",
@@ -364,8 +363,6 @@ class BraveSearchTool(Tool):
             content = "\n".join(content_parts).strip()
 
             # Create structured output with local citations
-            from mxtoai.schemas import CitationCollection
-
             # Create a local citation collection for this tool's output
             local_citations = CitationCollection()
 

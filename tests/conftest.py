@@ -4,6 +4,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import pytest
+from _pytest.monkeypatch import MonkeyPatch
 from sqlalchemy import create_engine, text
 from sqlmodel import SQLModel
 
@@ -18,8 +19,6 @@ logger = get_logger(__name__)
 @pytest.fixture(scope="session")
 def monkeypatch_session():
     """Session-scoped monkeypatch fixture."""
-    from _pytest.monkeypatch import MonkeyPatch
-
     mp = MonkeyPatch()
     yield mp
     mp.undo()
