@@ -37,10 +37,9 @@ jobs:
 
     env:
       X_API_KEY: "some-api-key"
+      SUGGESTIONS_API_KEY: "another-api-key"
       IS_PROD: "true"
       LITELLM_DEFAULT_MODEL_GROUP: ${{ secrets.LITELLM_DEFAULT_MODEL_GROUP }}
-      # TODO: Ideally, this shouldn't be needed, remove later
-      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
       # Test database configuration
       TEST_DB_URL: postgresql://testuser:testpassword@localhost:5432/testdb
 
