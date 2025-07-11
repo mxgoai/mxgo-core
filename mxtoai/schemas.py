@@ -35,6 +35,7 @@ class ToolName(str, Enum):
     DDG_SEARCH = "ddg_search"
     BRAVE_SEARCH = "brave_search"
     GOOGLE_SEARCH = "google_search"
+    WEB_SEARCH = "web_search"  # Fallback search tool
 
     # Specialized tools
     DEEP_RESEARCH = "deep_research"

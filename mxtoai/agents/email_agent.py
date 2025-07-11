@@ -176,11 +176,15 @@ class EmailAgent:
             logger.warning("No allowed_tools specified in processing instructions, using all tools")
             return self._initialize_all_tools()
 
+        # Create a routed model instance for tools that need it
+        model = RoutedLiteLLMModel()
+
         # Create mapping of tool names to tool instances
         tool_mapping = create_tool_mapping(
             context=self.context,
             scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
             allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
+            model=model,
         )
 
         # Filter tools based on allowed list
@@ -204,6 +208,8 @@ class EmailAgent:
                         logger.debug("JINA_API_KEY not found")
                     elif tool_name in [ToolName.LINKEDIN_FRESH_DATA, ToolName.LINKEDIN_DATA_API]:
                         logger.debug("RAPIDAPI_KEY not found or LinkedIn tool initialization failed")
+                    elif tool_name == ToolName.AZURE_VISUALIZER:
+                        logger.debug("Azure OpenAI configuration not available")
             else:
                 logger.warning(f"Unknown tool in allowed list: {tool_name.value}")
 
@@ -220,11 +226,15 @@ class EmailAgent:
             list[Tool]: List of all available tools
 
         """
+        # Create a routed model instance for tools that need it
+        model = RoutedLiteLLMModel()
+
         # Use centralized tool mapping for consistency
         tool_mapping = create_tool_mapping(
             context=self.context,
             scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
             allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
+            model=model,
         )
 
         # Get all available tools (non-None values)

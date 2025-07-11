@@ -841,7 +841,7 @@ async def process_suggestions(
             whitelist_response = await validate_email_whitelist(
                 from_email=request.user_email_id,
                 to="suggestions@mxtoai.com",  # Dummy handle for whitelist validation
-                subject=request.Subject,
+                subject=request.subject,
                 message_id=request.email_identified,
             )
 

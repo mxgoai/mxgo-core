@@ -6,14 +6,16 @@ from smolagents import Tool
 from smolagents.default_tools import PythonInterpreterTool, WikipediaSearchTool
 
 from mxtoai.request_context import RequestContext
+from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import ToolName
-from mxtoai.scripts.visual_qa import azure_visualizer
+from mxtoai.scripts.visual_qa import AzureVisualizerTool, HuggingFaceVisualizerTool, OpenAIVisualizerTool
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
 from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
 from mxtoai.tools.external_data.linkedin.fresh_data import LinkedInFreshDataTool
 from mxtoai.tools.external_data.linkedin.linkedin_data_api import LinkedInDataAPITool
+from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 from mxtoai.tools.meeting_tool import MeetingTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.references_generator_tool import ReferencesGeneratorTool
@@ -22,15 +24,19 @@ from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearch
 
 __all__ = [
     "AttachmentProcessingTool",
+    "AzureVisualizerTool",
     "BraveSearchTool",
     "CitationAwareVisitTool",
     "DDGSearchTool",
     "DeepResearchTool",
     "DeleteScheduledTasksTool",
+    "FallbackWebSearchTool",
     "GoogleSearchTool",
+    "HuggingFaceVisualizerTool",
     "LinkedInDataAPITool",
     "LinkedInFreshDataTool",
     "MeetingTool",
+    "OpenAIVisualizerTool",
     "PDFExportTool",
     "ReferencesGeneratorTool",
     "ScheduledTasksTool",
@@ -42,6 +48,7 @@ def create_tool_mapping(
     context: RequestContext,
     scheduled_tasks_tool_factory: Callable[[], Tool],
     allowed_python_imports: list[str],
+    model: RoutedLiteLLMModel | None = None,
 ) -> dict[ToolName, Tool | None]:
     """
     Create a mapping of ToolName enums to actual tool instances.
@@ -50,11 +57,16 @@ def create_tool_mapping(
         context: Request context for tools that need it
         scheduled_tasks_tool_factory: Factory function to create limited scheduled tasks tool
         allowed_python_imports: List of allowed Python imports for the interpreter
+        model: Optional RoutedLiteLLMModel instance for tools that need it
 
     Returns:
         dict[ToolName, Tool | None]: Mapping of tool names to instances
 
     """
+    # Create a model instance if not provided
+    if model is None:
+        model = RoutedLiteLLMModel()
+
     tool_mapping = {}
 
     # Common tools
@@ -63,7 +75,16 @@ def create_tool_mapping(
     tool_mapping[ToolName.PYTHON_INTERPRETER] = PythonInterpreterTool(authorized_imports=allowed_python_imports)
     tool_mapping[ToolName.WIKIPEDIA_SEARCH] = WikipediaSearchTool()
     tool_mapping[ToolName.REFERENCES_GENERATOR] = ReferencesGeneratorTool(context=context)
-    tool_mapping[ToolName.AZURE_VISUALIZER] = azure_visualizer
+
+    # Azure Visualizer Tool - use the new class-based approach
+    try:
+        tool_mapping[ToolName.AZURE_VISUALIZER] = AzureVisualizerTool(model=model)
+    except Exception as e:
+        # Fall back to None if model initialization fails
+        tool_mapping[ToolName.AZURE_VISUALIZER] = None
+        from mxtoai._logging import get_logger
+        logger = get_logger("tools")
+        logger.warning(f"Failed to initialize AzureVisualizerTool: {e}")
 
     # Search tools
     tool_mapping[ToolName.DDG_SEARCH] = DDGSearchTool(context=context, max_results=10)
@@ -73,6 +94,31 @@ def create_tool_mapping(
         tool_mapping[ToolName.BRAVE_SEARCH] = BraveSearchTool(context=context, max_results=5)
     else:
         tool_mapping[ToolName.BRAVE_SEARCH] = None
+
+    # Create fallback search tool
+    primary_search_tool = None
+    secondary_search_tool = None
+
+    # Set up search tool hierarchy
+    if tool_mapping[ToolName.BRAVE_SEARCH] is not None:
+        primary_search_tool = tool_mapping[ToolName.BRAVE_SEARCH]
+        secondary_search_tool = tool_mapping[ToolName.DDG_SEARCH]
+    elif tool_mapping[ToolName.DDG_SEARCH] is not None:
+        primary_search_tool = tool_mapping[ToolName.DDG_SEARCH]
+
+    # Create fallback search tool if we have at least one search tool
+    if primary_search_tool is not None:
+        try:
+            fallback_search_tool = FallbackWebSearchTool(
+                primary_tool=primary_search_tool,
+                secondary_tool=secondary_search_tool,
+            )
+            tool_mapping[ToolName.WEB_SEARCH] = fallback_search_tool
+        except Exception:
+            # If FallbackWebSearchTool fails, use the primary tool directly
+            tool_mapping[ToolName.WEB_SEARCH] = primary_search_tool
+    else:
+        tool_mapping[ToolName.WEB_SEARCH] = None
 
     if os.getenv("SERPAPI_API_KEY") or os.getenv("SERPER_API_KEY"):
         tool_mapping[ToolName.GOOGLE_SEARCH] = GoogleSearchTool(context=context)
