@@ -352,7 +352,7 @@ def azure_visualizer(image_path: str, question: str | None = None) -> str:  # no
             else:
                 return output
 
-        logger.error(f"Error in azure_visualizer: {e}")
+        logger.exception("Error in azure_visualizer")
         return f"Error processing image: {e!s}"
     else:
         return output
