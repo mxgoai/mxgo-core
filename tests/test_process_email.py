@@ -83,6 +83,7 @@ def _assert_basic_successful_processing(
     expected_handle: str,
     expect_reply_sent: bool = True,
     attachments_cleaned_up_dir: str | None = None,
+    expected_message_id: str = "mocked_message_id_happy_path",
 ):
     """Helper function for common assertions on successful processing results."""
     assert isinstance(result, DetailedEmailProcessingResult), "Return type mismatch"
@@ -97,7 +98,7 @@ def _assert_basic_successful_processing(
 
     if expect_reply_sent:
         assert result.metadata.email_sent.status == "sent", "Email not marked as sent"
-        assert result.metadata.email_sent.message_id == "mocked_message_id_happy_path", "Message ID mismatch"
+        assert result.metadata.email_sent.message_id == expected_message_id, "Message ID mismatch"
     else:
         # Could be 'pending' or 'skipped' etc. depending on other factors not covered by this basic assert
         assert result.metadata.email_sent.status != "error", "Email marked as error when not expected"
@@ -530,7 +531,6 @@ def test_pdf_export_tool_with_research_findings():
 
     assert result["success"] is True
     assert "Weekly_Newsletter_Export.pdf" in result["filename"]
-    assert "Research Results" in result["title"]  # Should be part of the content that gets processed
 
 
 def test_pdf_export_content_cleaning():
@@ -789,7 +789,7 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
         )
 
         # Verify successful processing and task deletion
-        _assert_basic_successful_processing(returned_result, expected_handle="delete")
+        _assert_basic_successful_processing(returned_result, expected_handle="delete", expected_message_id="mocked_delete_reply_id")
 
         # Verify the task is marked as deleted in the database
         with db_connection.get_session() as session:

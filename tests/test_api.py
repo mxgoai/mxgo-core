@@ -472,9 +472,15 @@ def prepare_suggestions_request_data(**kwargs):
 
 def make_suggestions_post_request(request_data, headers=None):
     """Make a POST request to the suggestions endpoint."""
-    request_headers = {"x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "test-suggestions-key")}
-    if headers is not None:
-        request_headers.update(headers)
+    request_headers = {"x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "valid-suggestions-key")}
+    if headers:
+        # Filter out None values before updating
+        filtered_headers = {k: v for k, v in headers.items() if v is not None}
+        request_headers.update(filtered_headers)
+
+        # Handle the case where the key was explicitly set to None and should be removed
+        if "x-suggestions-api-key" in headers and headers["x-suggestions-api-key"] is None:
+            request_headers.pop("x-suggestions-api-key", None)
 
     return client.post("/suggestions", json=request_data, headers=request_headers)
 
@@ -611,9 +617,9 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
 
 
 def test_suggestions_api_missing_api_key():
-    """Test suggestions API without API key."""
+    """Test suggestions API with missing API key."""
     request_data = prepare_suggestions_request_data()
-    response = client.post("/suggestions", json=request_data)
+    response = make_suggestions_post_request(request_data, headers={"x-suggestions-api-key": None})
 
     assert response.status_code == 422, f"Expected 422 for missing API key, got {response.status_code}"
 
