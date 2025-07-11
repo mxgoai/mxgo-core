@@ -11,9 +11,19 @@ from dotenv import load_dotenv
 from huggingface_hub import InferenceClient
 from PIL import Image
 from smolagents import Tool, tool
-from transformers import AutoProcessor
 
 from mxtoai._logging import get_logger
+
+
+# Lazy import for transformers to avoid torch import issues during test discovery
+def _get_auto_processor():
+    """Lazy import of AutoProcessor to avoid early torch imports."""
+    try:
+        from transformers import AutoProcessor
+        return AutoProcessor
+    except ImportError as e:
+        msg = "transformers package is required for HuggingFace models"
+        raise ImportError(msg) from e
 
 load_dotenv(override=True)
 
@@ -85,9 +95,7 @@ def process_images_and_text(image_path: str, query: str, client: InferenceClient
         client: Inference client for the model.
 
     """
-    if AutoProcessor is None:
-        msg = "transformers package is required for HuggingFace models"
-        raise ImportError(msg)
+    AutoProcessor = _get_auto_processor()
 
     messages = [
         {
@@ -140,17 +148,15 @@ class AzureVisualizerTool(Tool):
     """Tool for analyzing images using Azure OpenAI vision models."""
 
     name: ClassVar[str] = "azure_visualizer"
-    description: ClassVar[str] = "A tool that can answer questions about attached images using Azure OpenAI vision models."
+    description: ClassVar[str] = (
+        "A tool that can answer questions about attached images using Azure OpenAI vision models."
+    )
     inputs: ClassVar[dict] = {
         "image_path": {
             "description": "The path to the image on which to answer the question. This should be a local path to downloaded image.",
             "type": "string",
         },
-        "question": {
-            "description": "The question to answer about the image",
-            "type": "string",
-            "nullable": True
-        },
+        "question": {"description": "The question to answer about the image", "type": "string", "nullable": True},
     }
     output_type: ClassVar[str] = "string"
 
@@ -199,9 +205,7 @@ class AzureVisualizerTool(Tool):
             ]
 
             # Create messages for the model
-            messages = [
-                {"role": "user", "content": content}
-            ]
+            messages = [{"role": "user", "content": content}]
 
             logger.info("Sending image to Azure OpenAI for analysis")
 
@@ -217,9 +221,9 @@ class AzureVisualizerTool(Tool):
 
             # Add note if no question was provided
             if add_note:
-                output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
-
-            return output
+                output = (
+                    f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
+                )
 
         except Exception as e:
             # Handle image too large error by resizing and retrying
@@ -239,9 +243,7 @@ class AzureVisualizerTool(Tool):
                         {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{base64_image}"}},
                     ]
 
-                    messages = [
-                        {"role": "user", "content": content}
-                    ]
+                    messages = [{"role": "user", "content": content}]
 
                     response = self.model(messages, max_tokens=1000)
 
@@ -254,21 +256,25 @@ class AzureVisualizerTool(Tool):
                     if add_note:
                         output = f"You did not provide a particular question, so here is a detailed caption for the image: {output}"
 
-                    return output
-
                 except Exception as retry_e:
                     logger.error(f"Error in azure_visualizer retry: {retry_e}")
                     return f"Error processing image: {retry_e!s}"
+                else:
+                    return output
 
             logger.exception("Error in azure_visualizer")
             return f"Error processing image: {e!s}"
+        else:
+            return output
 
 
 class HuggingFaceVisualizerTool(Tool):
     """Tool for visual question answering using HuggingFace models."""
 
     name: ClassVar[str] = "huggingface_visualizer"
-    description: ClassVar[str] = "A tool that can answer questions about attached images using HuggingFace vision models."
+    description: ClassVar[str] = (
+        "A tool that can answer questions about attached images using HuggingFace vision models."
+    )
     inputs: ClassVar[dict] = {
         "image_path": {
             "description": "The path to the image on which to answer the question",
@@ -353,10 +359,7 @@ class OpenAIVisualizerTool(Tool):
             msg = "OpenAI API key is required"
             raise ValueError(msg)
 
-        self.headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
-        }
+        self.headers = {"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"}
         logger.debug(f"OpenAIVisualizerTool initialized with model: {model}")
 
     def forward(self, image_path: str, question: str | None = None) -> str:
@@ -398,10 +401,7 @@ class OpenAIVisualizerTool(Tool):
         }
 
         response = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers=self.headers,
-            json=payload,
-            timeout=30
+            "https://api.openai.com/v1/chat/completions", headers=self.headers, json=payload, timeout=30
         )
 
         try:
@@ -418,6 +418,7 @@ class OpenAIVisualizerTool(Tool):
 
 # Legacy function-based tools for backward compatibility
 # These are now deprecated and will be removed in a future version
+
 
 @tool
 def visualizer(image_path: str, question: str | None = None) -> str:
@@ -443,15 +444,15 @@ def visualizer(image_path: str, question: str | None = None) -> str:
 
 
 @tool
-def azure_visualizer(image_path: str, question: str | None = None) -> str:
+def azure_visualizer(_image_path: str, _question: str | None = None) -> str:
     """
     A tool that can answer questions about attached images using Azure OpenAI.
 
     DEPRECATED: Use AzureVisualizerTool instead.
 
     Args:
-        image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
-        question: The question to answer.
+        _image_path: The path to the image on which to answer the question. This should be a local path to downloaded image.
+        _question: The question to answer.
 
     """
     logger.warning("azure_visualizer function is deprecated. Use AzureVisualizerTool instead.")

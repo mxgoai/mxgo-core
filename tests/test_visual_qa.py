@@ -1,3 +1,4 @@
+import base64
 import os
 import tempfile
 from pathlib import Path
@@ -37,7 +38,6 @@ class TestEncodeImage:
             assert len(result) > 0
 
             # Should be valid base64 (rough check)
-            import base64
             try:
                 base64.b64decode(result)
                 assert True
@@ -174,10 +174,7 @@ class TestHuggingFaceVisualizerTool:
         mock_resize.return_value = "resized_image.jpg"
 
         # First call fails with "Payload Too Large", second succeeds
-        mock_process.side_effect = [
-            Exception("Payload Too Large"),
-            "Resized image result"
-        ]
+        mock_process.side_effect = [Exception("Payload Too Large"), "Resized image result"]
 
         tool = HuggingFaceVisualizerTool()
         result = tool.forward("large_image.jpg", "What's this?")
@@ -201,9 +198,8 @@ class TestOpenAIVisualizerTool:
 
     def test_initialization_without_api_key_raises_error(self):
         """Test OpenAIVisualizerTool initialization without API key raises error."""
-        with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="OpenAI API key is required"):
-                OpenAIVisualizerTool()
+        with patch.dict(os.environ, {}, clear=True), pytest.raises(ValueError, match="OpenAI API key is required"):
+            OpenAIVisualizerTool()
 
     def test_invalid_image_path_type(self):
         """Test OpenAIVisualizerTool with invalid image path type."""
@@ -219,9 +215,7 @@ class TestOpenAIVisualizerTool:
         mock_encode.return_value = "base64_image_data"
 
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "OpenAI analysis result"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "OpenAI analysis result"}}]}
         mock_post.return_value = mock_response
 
         tool = OpenAIVisualizerTool(api_key="test_key")
@@ -238,9 +232,7 @@ class TestOpenAIVisualizerTool:
         mock_encode.return_value = "base64_data"
 
         mock_response = Mock()
-        mock_response.json.return_value = {
-            "choices": [{"message": {"content": "Default caption"}}]
-        }
+        mock_response.json.return_value = {"choices": [{"message": {"content": "Default caption"}}]}
         mock_post.return_value = mock_response
 
         tool = OpenAIVisualizerTool(api_key="test_key")
@@ -326,10 +318,7 @@ class TestAzureVisualizerTool:
         mock_model = Mock()
 
         # First call fails with size error, second succeeds after resize
-        mock_model.side_effect = [
-            Exception("image too large"),
-            Mock(content="Resized result")
-        ]
+        mock_model.side_effect = [Exception("image too large"), Mock(content="Resized result")]
 
         tool = AzureVisualizerTool(model=mock_model)
         result = tool.forward("large_image.jpg", "What's this?")
@@ -407,7 +396,9 @@ class TestLegacyFunctions:
             result = azure_visualizer("image.jpg", "What's this?")
 
             # Should log deprecation warning
-            mock_logger.warning.assert_called_with("azure_visualizer function is deprecated. Use AzureVisualizerTool instead.")
+            mock_logger.warning.assert_called_with(
+                "azure_visualizer function is deprecated. Use AzureVisualizerTool instead."
+            )
             # Should return error message
             assert "Error: azure_visualizer function is deprecated" in result
 

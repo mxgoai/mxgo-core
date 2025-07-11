@@ -519,7 +519,7 @@ def assert_suggestions_error_response(response, expected_status=422):
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_validate_whitelist):
     """Test successful suggestions API call with single request."""
     mock_validate_whitelist.return_value = None  # User is whitelisted
@@ -565,7 +565,7 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mock_validate_whitelist):
     """Test successful suggestions API call with multiple requests."""
     mock_validate_whitelist.return_value = None
@@ -668,7 +668,7 @@ def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_generation_error(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API when suggestions generation fails."""
     mock_validate_whitelist.return_value = None
@@ -715,7 +715,7 @@ def test_suggestions_api_empty_request():
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API with attachments in request."""
     mock_validate_whitelist.return_value = None
@@ -764,7 +764,7 @@ def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_valida
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API with CC emails in request."""
     mock_validate_whitelist.return_value = None
@@ -836,7 +836,7 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API handles the Subject field alias correctly."""
     mock_validate_whitelist.return_value = None
@@ -868,7 +868,7 @@ def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_val
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock)
+@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_default_suggestions_always_included(mock_generate_suggestions, mock_validate_whitelist):
     """Test that default suggestions are always included in responses."""
     mock_validate_whitelist.return_value = None

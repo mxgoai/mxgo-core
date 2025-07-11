@@ -282,7 +282,7 @@ class ModelConfig(BaseModel):
 
 class RouterConfig(BaseModel):
     routing_strategy: str
-    fallbacks: list[dict[str, list[str]]]
+    fallbacks: list[dict[str, list[str]]] = []
     default_litellm_params: dict[str, Any]
 
 

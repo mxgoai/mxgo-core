@@ -121,16 +121,16 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
            mxtoai.schemas.RouterConfig: Router configuration
 
         """
-        router_config = mxtoai.schemas.RouterConfig(**self.config.get("router_config"))
-
-        if not router_config:
+        router_config_data = self.config.get("router_config")
+        if not router_config_data:
             logger.warning("No router config found in model-config.toml. Using defaults.")
             return mxtoai.schemas.RouterConfig(
                 routing_strategy="simple-shuffle",
                 fallbacks=[],
                 default_litellm_params={"drop_params": True},
             )
-        return router_config
+
+        return mxtoai.schemas.RouterConfig(**router_config_data)
 
     def _set_azure_environment_variables(self, model_list: list[mxtoai.schemas.ModelConfig]) -> None:
         """
