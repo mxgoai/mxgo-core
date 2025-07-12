@@ -2,7 +2,6 @@ import ast
 import json
 import re
 from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any, Union
 
 from dotenv import load_dotenv
@@ -10,10 +9,13 @@ from dotenv import load_dotenv
 # Update imports to use proper classes from smolagents
 from smolagents import Tool, ToolCallingAgent
 
+# Import the base agent class
+from mxtoai.agents.agent import BaseAgent
+
 # Add imports for the new default tools
 from mxtoai._logging import get_logger, get_smolagents_console
 from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
-from mxtoai.crud import count_active_tasks_for_user, get_task_by_id
+from mxtoai.crud import count_active_tasks_for_user
 from mxtoai.db import init_db_connection
 from mxtoai.prompts.base_prompts import (
     MARKDOWN_STYLE_GUIDE,
@@ -22,10 +24,7 @@ from mxtoai.prompts.base_prompts import (
     SECURITY_GUIDELINES,
 )
 from mxtoai.prompts.template_prompts import (
-    SCHEDULED_TASK_CONTEXT_TEMPLATE,
     SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE,
-    SCHEDULED_TASK_ERROR_TEMPLATE,
-    SCHEDULED_TASK_NOT_FOUND_TEMPLATE,
 )
 from mxtoai.request_context import RequestContext
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
@@ -48,7 +47,6 @@ from mxtoai.schemas import (
 )
 
 # Import citation management and web search tools
-from mxtoai.scripts.report_formatter import ReportFormatter
 from mxtoai.tools import create_tool_mapping
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
 
@@ -74,7 +72,7 @@ ALLOWED_PYTHON_IMPORTS = [
 ]
 
 
-class EmailAgent:
+class EmailAgent(BaseAgent):
     """
     Email processing agent that can summarize, reply to, and research information for emails.
     """
@@ -86,7 +84,6 @@ class EmailAgent:
         attachment_dir: str = "email_attachments",
         *,
         verbose: bool = False,
-        enable_deep_research: bool = False,
         attachment_info: list[dict] | None = None,
     ):
         """
@@ -97,28 +94,17 @@ class EmailAgent:
             processing_instructions: Instructions defining which tools are allowed
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
-            enable_deep_research: Whether to enable deep research functionality
             attachment_info: Optional list of attachment info to load into memory
 
         """
-        # Set up logging
-        if verbose:
-            # Consider configuring logging level via environment variables or central logging setup
-            logger.debug("Verbose logging potentially enabled (actual level depends on logger config).")
-
-        self.email_request = email_request
-        self.processing_instructions = processing_instructions
-        self.attachment_dir = attachment_dir
-        Path(self.attachment_dir).mkdir(parents=True, exist_ok=True)
-
-        self.enable_deep_research = enable_deep_research
-
-        # Create request context - this replaces the global citation manager
-        self.context = RequestContext(email_request, attachment_info)
-        logger.debug("Request context initialized with per-request citation manager")
-
-        # Initialize report formatter (always needed)
-        self.report_formatter = ReportFormatter()
+        # Initialize base class
+        super().__init__(
+            email_request=email_request,
+            processing_instructions=processing_instructions,
+            attachment_dir=attachment_dir,
+            verbose=verbose,
+            attachment_info=attachment_info,
+        )
 
         # Initialize tools based on allowed_tools from processing instructions
         self.available_tools = self._initialize_allowed_tools()
@@ -200,8 +186,6 @@ class EmailAgent:
                         logger.debug("BRAVE_SEARCH_API_KEY not found")
                     elif tool_name == ToolName.GOOGLE_SEARCH:
                         logger.debug("SERPAPI_API_KEY or SERPER_API_KEY not found")
-                    elif tool_name == ToolName.DEEP_RESEARCH:
-                        logger.debug("JINA_API_KEY not found")
                     elif tool_name in [ToolName.LINKEDIN_FRESH_DATA, ToolName.LINKEDIN_DATA_API]:
                         logger.debug("RAPIDAPI_KEY not found or LinkedIn tool initialization failed")
             else:
@@ -253,93 +237,6 @@ class EmailAgent:
             actions.append("Conduct research")
         return actions
 
-    def _create_email_context(self, email_request: EmailRequest, attachment_details=None) -> str:
-        """
-        Generate context information from the email request.
-
-        Args:
-            email_request: EmailRequest instance containing email data
-            attachment_details: List of formatted attachment details
-
-        Returns:
-            str: The context information for the agent
-
-        """
-        recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
-        attachments_info = (
-            f"Available Attachments:\n{chr(10).join(attachment_details)}"
-            if attachment_details
-            else "No attachments provided."
-        )
-
-        email_request_json = email_request.model_dump_json(indent=2)
-
-        # Add scheduled task context if this is a scheduled task execution
-        scheduled_context = ""
-        if email_request.scheduled_task_id:
-            scheduled_context = self._create_scheduled_task_context(email_request.scheduled_task_id)
-
-        base_context = f"""Email Content:
-    Subject: {email_request.subject}
-    From: {email_request.from_email}
-    Email Date: {email_request.date}
-    Recipients: {recipients}
-    CC: {email_request.cc or "N/A"}
-    BCC: {email_request.bcc or "N/A"}
-    Body: {email_request.textContent or email_request.htmlContent or ""}
-
-    {attachments_info}
-
-Raw Email Request Data (for tool use):
-{email_request_json}"""
-
-        if scheduled_context:
-            return f"""{scheduled_context}
-
-{base_context}"""
-        return base_context
-
-    def _create_scheduled_task_context(self, scheduled_task_id: str) -> str:
-        """
-        Create context information for a scheduled task execution.
-
-        Args:
-            scheduled_task_id: The ID of the scheduled task being executed
-
-        Returns:
-            str: Formatted context explaining this is a scheduled task execution
-
-        """
-        try:
-            with init_db_connection().get_session() as session:
-                # Get the task information using CRUD
-                task = get_task_by_id(session, scheduled_task_id)
-
-                if not task:
-                    return SCHEDULED_TASK_NOT_FOUND_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
-
-                # Parse the original email request
-                try:
-                    original_request = (
-                        json.loads(task.email_request) if isinstance(task.email_request, str) else task.email_request
-                    )
-                except (json.JSONDecodeError, TypeError):
-                    original_request = {}
-
-                # Format the execution context
-                return SCHEDULED_TASK_CONTEXT_TEMPLATE.format(
-                    scheduled_task_id=scheduled_task_id,
-                    created_at=task.created_at.strftime("%Y-%m-%d %H:%M:%S UTC") if task.created_at else "Unknown",
-                    cron_expression=task.cron_expression,
-                    original_subject=original_request.get("subject", "Unknown"),
-                    original_from=original_request.get("from_email", original_request.get("from", "Unknown")),
-                    task_status=task.status,
-                )
-
-        except Exception as e:
-            logger.error(f"Error creating scheduled task context for {scheduled_task_id}: {e}")
-            return SCHEDULED_TASK_ERROR_TEMPLATE.format(scheduled_task_id=scheduled_task_id)
-
     def _create_attachment_task(self, attachment_details: list[str]) -> str:
         """
         Return instructions for processing attachments, if any.
@@ -379,7 +276,6 @@ Raw Email Request Data (for tool use):
             email_context=self._create_email_context(email_request, attachments),
             handle_specific_template=email_instructions.task_template,
             attachment_task=self._create_attachment_task(attachments),
-            deep_research_mandatory=email_instructions.deep_research_mandatory,
             output_template=output_template,
             distilled_processing_instructions=email_request.distilled_processing_instructions,
         )
@@ -407,7 +303,6 @@ Raw Email Request Data (for tool use):
         handle_specific_template: str = "",
         attachment_task: str = "",
         *,
-        deep_research_mandatory: bool = False,
         output_template: str = "",
         distilled_processing_instructions: str | None = None,
     ) -> str:
@@ -419,7 +314,6 @@ Raw Email Request Data (for tool use):
             email_context: The context information extracted from the email.
             handle_specific_template: Any specific template for the handle.
             attachment_task: Instructions for processing attachments.
-            deep_research_mandatory: Flag indicating if deep research is mandatory.
             output_template: The output template to use.
             distilled_processing_instructions: Specific processing instructions for scheduled tasks.
 
@@ -441,9 +335,7 @@ Raw Email Request Data (for tool use):
             f"Process this email according to the '{handle}' instruction type.\n",
             email_context,
             distilled_section,
-            RESEARCH_GUIDELINES["mandatory"]
-            if deep_research_mandatory and self.enable_deep_research
-            else RESEARCH_GUIDELINES["optional"],
+            RESEARCH_GUIDELINES["optional"],
             attachment_task,
             handle_specific_template,
             output_template,
@@ -502,7 +394,6 @@ Raw Email Request Data (for tool use):
                     needs_parsing = tool_name in [
                         "meeting_creator",
                         "attachment_processor",
-                        "deep_research",
                         "pdf_export",
                         "scheduled_tasks",
                     ]
@@ -583,20 +474,6 @@ Raw Email Request Data (for tool use):
                                 ):
                                     pa_detail.caption = attachment_data["content"]["caption"]
                                 processed_attachment_details.append(pa_detail)
-
-                    elif self.enable_deep_research and tool_name == "deep_research" and isinstance(tool_output, dict):
-                        research_output_findings = tool_output.get("findings")
-                        research_output_metadata = AgentResearchMetadata(
-                            query=tool_output.get("query"),
-                            annotations=tool_output.get("annotations", []),
-                            visited_urls=tool_output.get("visited_urls", []),
-                            read_urls=tool_output.get("read_urls", []),
-                            timestamp=tool_output.get("timestamp"),
-                            usage=tool_output.get("usage", {}),
-                            num_urls=tool_output.get("num_urls", 0),
-                        )
-                        if not research_output_findings:
-                            errors_list.append(ProcessingError(message="Deep research tool returned empty findings."))
 
                     elif tool_name == "meeting_creator" and isinstance(tool_output, dict):
                         if tool_output.get("status") == "success" and tool_output.get("ics_content"):
@@ -929,31 +806,4 @@ Raw Email Request Data (for tool use):
 
         return base_tool
 
-    def _finalize_response_with_citations(self, content: str) -> str:
-        """
-        Finalize the response by appending citations if any were collected.
 
-        Args:
-            content: The main response content
-
-        Returns:
-            str: Content with appended references section if citations exist
-
-        """
-        if self.context.has_citations():
-            # Check if content already contains a References or Sources section to avoid duplication
-            import re
-
-            existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
-            if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
-                logger.warning(
-                    "Content already contains a References/Sources section - skipping automatic references to avoid duplication"
-                )
-                return content
-
-            references_section = self.context.get_references_section()
-            logger.info(f"Appending references section with {len(self.context.get_citations().sources)} sources")
-            return f"{content}\n\n{references_section}"
-
-        logger.debug("No citations found, returning content without references section")
-        return content

@@ -29,6 +29,17 @@ RESEARCH_TOOLS = [
 # default email handles for processing instructions
 DEFAULT_EMAIL_HANDLES = [
     ProcessingInstructions(
+        handle=HandlerAlias.RESEARCH.value,
+        aliases=["deep-research"],
+        process_attachments=True,
+        deep_research_mandatory=True,
+        allowed_tools=SEARCH_TOOLS,
+        add_summary=True,
+        target_model="deep-research",
+        task_template=template_prompts.RESEARCH_TEMPLATE,
+        output_template=output_prompts.RESEARCH_OUTPUT_GUIDELINES,
+    ),
+    ProcessingInstructions(
         handle=HandlerAlias.SUMMARIZE.value,
         aliases=["summarise", "summary"],
         process_attachments=True,
@@ -37,17 +48,6 @@ DEFAULT_EMAIL_HANDLES = [
         target_model="gpt-4",
         task_template=template_prompts.SUMMARIZE_TEMPLATE,
         output_template=output_prompts.SUMMARIZE_OUTPUT_GUIDELINES,
-    ),
-    ProcessingInstructions(
-        handle=HandlerAlias.RESEARCH.value,
-        aliases=["deep-research"],
-        process_attachments=True,
-        deep_research_mandatory=True,
-        allowed_tools=COMMON_TOOLS + SEARCH_TOOLS + RESEARCH_TOOLS,
-        add_summary=True,
-        target_model="gpt-4",
-        task_template=template_prompts.RESEARCH_TEMPLATE,
-        output_template=output_prompts.RESEARCH_OUTPUT_GUIDELINES,
     ),
     ProcessingInstructions(
         handle=HandlerAlias.SIMPLIFY.value,

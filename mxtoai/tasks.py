@@ -11,7 +11,6 @@ from dramatiq.brokers.rabbitmq import RabbitmqBroker
 
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
-from mxtoai.agents.email_agent import EmailAgent
 from mxtoai.config import SKIP_EMAIL_DELIVERY
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import EmailSender
@@ -166,33 +165,24 @@ def process_email_task(  # noqa: PLR0912, PLR0915
             pdf_export=None,
         )
 
-    email_agent = EmailAgent(
-        email_request=email_request, processing_instructions=email_instructions, attachment_info=attachment_info
-    )
-
-    if email_request.attachments and attachment_info:
-        valid_attachments = []
-        for attachment_model, info_dict in zip(email_request.attachments, attachment_info, strict=False):
-            try:
-                if not Path(info_dict["path"]).exists():
-                    logger.error(f"Attachment file not found: {info_dict['path']}")
-                    continue
-                attachment_model.path = info_dict["path"]
-                attachment_model.contentType = (
-                    info_dict.get("type") or info_dict.get("contentType") or "application/octet-stream"
-                )
-                attachment_model.size = info_dict.get("size", 0)
-                valid_attachments.append(attachment_model)
-            except Exception as e:
-                logger.error(f"Error processing attachment {attachment_model.filename}: {e!s}")
-        email_request.attachments = valid_attachments
-
-    # Set scheduled task ID in email request for the agent to access
-    if scheduled_task_id:
-        # Add the task ID to the email data for the agent to process
-        email_request.scheduled_task_id = scheduled_task_id
-
-    processing_result = email_agent.process_email(email_request, email_instructions)
+    # --- AGENT SELECTION LOGIC ---
+    # Handles for research agent
+    research_handles = {"research", "deep-research"}
+    if handle in research_handles:
+        from mxtoai.agents.research_agent import ResearchAgent
+        agent = ResearchAgent(
+            email_request=email_request,
+            processing_instructions=email_instructions,
+            attachment_info=attachment_info,
+        )
+    else:
+        from mxtoai.agents.email_agent import EmailAgent
+        agent = EmailAgent(
+            email_request=email_request, 
+            processing_instructions=email_instructions, 
+            attachment_info=attachment_info
+        )
+    processing_result = agent.process_email(email_request, email_instructions)
 
     # Add task ID to email content if this is a scheduled task
     if scheduled_task_id and processing_result.email_content:
