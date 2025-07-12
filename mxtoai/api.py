@@ -35,7 +35,18 @@ from mxtoai.validators import (
 
 # Load environment variables
 load_dotenv()
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# Redis Configuration
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = os.getenv("REDIS_PORT", "6379")
+REDIS_DB = os.getenv("REDIS_DB", "0")
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+
+if REDIS_PASSWORD:
+    REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+else:
+    REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
 
 # Constants
 MAX_FILENAME_LENGTH = 100
