@@ -9,11 +9,11 @@ from dotenv import load_dotenv
 # Update imports to use proper classes from smolagents
 from smolagents import Tool, ToolCallingAgent
 
-# Import the base agent class
-from mxtoai.agents.agent import BaseAgent
-
 # Add imports for the new default tools
 from mxtoai._logging import get_logger, get_smolagents_console
+
+# Import the base agent class
+from mxtoai.agents.agent import BaseAgent
 from mxtoai.config import SCHEDULED_TASKS_MAX_PER_EMAIL
 from mxtoai.crud import count_active_tasks_for_user
 from mxtoai.db import init_db_connection
@@ -26,7 +26,6 @@ from mxtoai.prompts.base_prompts import (
 from mxtoai.prompts.template_prompts import (
     SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE,
 )
-from mxtoai.request_context import RequestContext
 from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
     AgentResearchMetadata,
@@ -805,5 +804,3 @@ class EmailAgent(BaseAgent):
         base_tool.forward = limited_forward
 
         return base_tool
-
-

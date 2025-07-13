@@ -1,5 +1,10 @@
+import os
+import tomllib
 from datetime import datetime, timezone
 
+from smolagents import LiteLLMModel
+
+from mxtoai import exceptions
 from mxtoai._logging import get_logger
 from mxtoai.agents.agent import BaseAgent
 from mxtoai.prompts.base_prompts import (
@@ -15,6 +20,7 @@ from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import (
     AgentResearchMetadata,
     AgentResearchOutput,
+    AttachmentsProcessingResult,
     DetailedEmailProcessingResult,
     EmailContentDetails,
     EmailRequest,
@@ -22,12 +28,7 @@ from mxtoai.schemas import (
     ProcessingError,
     ProcessingInstructions,
     ProcessingMetadata,
-    AttachmentsProcessingResult,
 )
-from mxtoai import exceptions
-from smolagents import LiteLLMModel
-import tomllib
-import os
 
 logger = get_logger("research_agent")
 
@@ -35,8 +36,8 @@ logger = get_logger("research_agent")
 class ResearchAgent(BaseAgent):
     """
     Research agent that performs direct model research on email requests.
-    
-    Unlike EmailAgent which uses tools and multi-step processing, ResearchAgent 
+
+    Unlike EmailAgent which uses tools and multi-step processing, ResearchAgent
     calls the routed model directly with initial prompts for streamlined research tasks.
     The routing system still applies based on the handle's target_model configuration.
     """
@@ -59,6 +60,7 @@ class ResearchAgent(BaseAgent):
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
             attachment_info: Optional list of attachment info to load into memory
+
         """
         # Initialize base class
         super().__init__(
@@ -71,42 +73,45 @@ class ResearchAgent(BaseAgent):
 
         # Initialize the routed model for direct research calls
         self.routed_model = RoutedLiteLLMModel()
-        
+
         logger.info("Research agent initialized successfully")
 
     def _extract_and_log_token_usage(self, response) -> dict:
         """Extract token usage from response and log it."""
         usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
-        
+
         try:
-            if hasattr(response, 'usage') and response.usage:
-                usage["prompt_tokens"] = getattr(response.usage, 'prompt_tokens', 0)
-                usage["completion_tokens"] = getattr(response.usage, 'completion_tokens', 0)
-                usage["total_tokens"] = getattr(response.usage, 'total_tokens', 0)
-            elif hasattr(response, 'raw') and response.raw and hasattr(response.raw, 'usage'):
+            if hasattr(response, "usage") and response.usage:
+                usage["prompt_tokens"] = getattr(response.usage, "prompt_tokens", 0)
+                usage["completion_tokens"] = getattr(response.usage, "completion_tokens", 0)
+                usage["total_tokens"] = getattr(response.usage, "total_tokens", 0)
+            elif hasattr(response, "raw") and response.raw and hasattr(response.raw, "usage"):
                 raw_usage = response.raw.usage
-                usage["prompt_tokens"] = getattr(raw_usage, 'prompt_tokens', 0)
-                usage["completion_tokens"] = getattr(raw_usage, 'completion_tokens', 0)
-                usage["total_tokens"] = getattr(raw_usage, 'total_tokens', 0)
-            
+                usage["prompt_tokens"] = getattr(raw_usage, "prompt_tokens", 0)
+                usage["completion_tokens"] = getattr(raw_usage, "completion_tokens", 0)
+                usage["total_tokens"] = getattr(raw_usage, "total_tokens", 0)
+
             # Calculate total if not provided
             if usage["total_tokens"] == 0 and (usage["prompt_tokens"] > 0 or usage["completion_tokens"] > 0):
                 usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
-                
+
             # Log the usage
-            logger.info(f"🔢 Research call completed - Token usage: {usage['prompt_tokens']} prompt + {usage['completion_tokens']} completion = {usage['total_tokens']} total")
-            
+            logger.info(
+                f"🔢 Research call completed - Token usage: {usage['prompt_tokens']} prompt + {usage['completion_tokens']} completion = {usage['total_tokens']} total"
+            )
+
         except Exception as e:
             logger.warning(f"Failed to extract token usage: {e}")
-            
+
         return usage
 
     def _load_model_config(self):
         """
         Load the model configuration from the environment variable or default path.
-        
+
         Returns:
             dict: The model configuration dictionary
+
         """
         # Load model config
         config_path = os.getenv("LITELLM_CONFIG_PATH", "model.config.toml")
@@ -118,24 +123,18 @@ class ResearchAgent(BaseAgent):
                 deep_research_model = entry["litellm_params"]
                 break
         if not deep_research_model:
-            raise exceptions.DeepResearchModelNotFoundError("No 'deep-research' model found in model.config.toml")
+            msg = "No 'deep-research' model found in model.config.toml"
+            raise exceptions.DeepResearchModelNotFoundError(msg)
 
-        # Set Azure env vars for compatibility (if needed)
-        if deep_research_model.get("api_key"):
-            os.environ["AZURE_OPENAI_API_KEY"] = deep_research_model["api_key"]
-        if deep_research_model.get("base_url"):
-            os.environ["AZURE_OPENAI_ENDPOINT"] = deep_research_model["base_url"]
-        if deep_research_model.get("api_version"):
-            os.environ["AZURE_OPENAI_API_VERSION"] = deep_research_model["api_version"]
-
-        # Instantiate LiteLLMModel directly
+        # Instantiate LiteLLMModel directly with Azure OpenAI parameters
+        # No need to set environment variables as LiteLLMModel accepts these directly
         self.model = LiteLLMModel(
             model_id=deep_research_model["model"],
             api_base=deep_research_model.get("base_url"),
             api_key=deep_research_model.get("api_key"),
             api_version=deep_research_model.get("api_version"),
         )
-    
+
     def process_email(
         self,
         email_request: EmailRequest,
@@ -149,16 +148,14 @@ class ResearchAgent(BaseAgent):
 
             research_prompt = self._create_research_prompt(email_request, email_instructions)
             logger.info("Starting direct deep-research model call (no routing)...")
-            
+
             # Make the model call
-            response = self.model([
-                {"role": "user", "content": research_prompt}
-            ])
-            
+            response = self.model([{"role": "user", "content": research_prompt}])
+
             # Extract and log token usage
             token_usage = self._extract_and_log_token_usage(response)
-            
-            research_content = response.content if hasattr(response, 'content') else str(response)
+
+            research_content = response.content if hasattr(response, "content") else str(response)
             logger.info("Direct deep-research model call completed")
 
             finalized_content = self._finalize_response_with_citations(research_content)
@@ -168,7 +165,7 @@ class ResearchAgent(BaseAgent):
             email_html_content = self.report_formatter.format_report(
                 finalized_content, format_type="html", include_signature=True
             )
-            
+
             processed_at_time = datetime.now(timezone.utc).isoformat()
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
@@ -194,14 +191,14 @@ class ResearchAgent(BaseAgent):
                         timestamp=processed_at_time,
                         usage=token_usage,  # Include token usage in metadata
                         num_urls=0,
-                    )
+                    ),
                 ),
                 pdf_export=None,
             )
         except Exception as e:
             error_msg = f"Critical error in research processing: {e!s}"
             logger.exception(error_msg)
-            
+
             now_iso = datetime.now(timezone.utc).isoformat()
             return DetailedEmailProcessingResult(
                 metadata=ProcessingMetadata(
@@ -235,16 +232,15 @@ class ResearchAgent(BaseAgent):
                         timestamp=now_iso,
                         usage={},  # Empty usage data for error case
                         num_urls=0,
-                    )
-                ) if email_request else None,
+                    ),
+                )
+                if email_request
+                else None,
                 pdf_export=None,
             )
 
     def _create_research_prompt(
-        self,
-        email_request: EmailRequest,
-        email_instructions: ProcessingInstructions,
-        attachment_task: str = ""
+        self, email_request: EmailRequest, email_instructions: ProcessingInstructions, attachment_task: str = ""
     ) -> str:
         """
         Create a research-focused prompt for direct model processing.
@@ -255,17 +251,18 @@ class ResearchAgent(BaseAgent):
 
         Returns:
             str: The research prompt for direct model call
+
         """
         # Create basic email context
         email_context = self._create_email_context(email_request)
-        
+
         # Create distilled processing instructions section for scheduled tasks
         distilled_section = ""
         if email_request.distilled_processing_instructions:
             distilled_section = SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE.format(
                 distilled_processing_instructions=email_request.distilled_processing_instructions
             )
-        
+
         # Build comprehensive research prompt
         sections = [
             f"Process this email according to the '{email_instructions.handle}' instruction type for DIRECT RESEARCH.\n",
@@ -281,4 +278,3 @@ class ResearchAgent(BaseAgent):
         ]
 
         return "\n\n".join(filter(None, sections))
-    

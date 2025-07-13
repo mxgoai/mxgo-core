@@ -1,5 +1,5 @@
-from abc import ABC, abstractmethod
 import json
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
@@ -21,7 +21,7 @@ logger = get_logger("base_agent")
 class BaseAgent(ABC):
     """
     Base class for all email processing agents.
-    
+
     Provides common functionality for email processing including:
     - Request context management
     - Report formatting
@@ -47,6 +47,7 @@ class BaseAgent(ABC):
             attachment_dir: Directory to store email attachments
             verbose: Whether to enable verbose logging
             attachment_info: Optional list of attachment info to load into memory
+
         """
         # Set up logging
         if verbose:
@@ -75,6 +76,7 @@ class BaseAgent(ABC):
 
         Returns:
             str: Content with appended references section if citations exist
+
         """
         if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
@@ -104,6 +106,7 @@ class BaseAgent(ABC):
 
         Returns:
             str: The context information for the agent
+
         """
         recipients = ", ".join(email_request.recipients) if email_request.recipients else "N/A"
         attachments_info = (
@@ -148,6 +151,7 @@ Raw Email Request Data (for tool use):
 
         Returns:
             str: Formatted context explaining this is a scheduled task execution
+
         """
         try:
             with init_db_connection().get_session() as session:
@@ -187,7 +191,7 @@ Raw Email Request Data (for tool use):
     ) -> Any:
         """
         Process an email using the agent based on the provided email handle instructions.
-        
+
         This method must be implemented by subclasses to define specific processing logic.
 
         Args:
@@ -196,5 +200,5 @@ Raw Email Request Data (for tool use):
 
         Returns:
             Processing result (type varies by implementation)
+
         """
-        pass

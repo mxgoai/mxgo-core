@@ -170,6 +170,7 @@ def process_email_task(  # noqa: PLR0912, PLR0915
     research_handles = {"research", "deep-research"}
     if handle in research_handles:
         from mxtoai.agents.research_agent import ResearchAgent
+
         agent = ResearchAgent(
             email_request=email_request,
             processing_instructions=email_instructions,
@@ -177,10 +178,9 @@ def process_email_task(  # noqa: PLR0912, PLR0915
         )
     else:
         from mxtoai.agents.email_agent import EmailAgent
+
         agent = EmailAgent(
-            email_request=email_request, 
-            processing_instructions=email_instructions, 
-            attachment_info=attachment_info
+            email_request=email_request, processing_instructions=email_instructions, attachment_info=attachment_info
         )
     processing_result = agent.process_email(email_request, email_instructions)
 
