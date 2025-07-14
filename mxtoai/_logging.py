@@ -27,8 +27,12 @@ LOGS_DIR = Path(LOGS_DIR_ENV) if LOGS_DIR_ENV else PROJECT_ROOT / "logs"
 # Create logs directory if it doesn't exist
 try:
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
-except (PermissionError, OSError) as e:
-    logger.error(f"Failed to create logs directory: {e}")
+except (PermissionError, OSError):
+    # If we can't create the logs directory, fall back to a writable location
+    import tempfile
+
+    LOGS_DIR = Path(tempfile.gettempdir()) / "mxtoai_logs"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Get log level from environment or use default
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip()
@@ -153,32 +157,28 @@ logger.add(
     filter=loguru_scrubbing_filter,
 )
 
-# Add file handlers only if LOGS_DIR is available
-if LOGS_DIR is not None:
-    logger.add(
-        str(LOGS_DIR / "debug.log"),
-        format=LOG_FORMAT,
-        level="DEBUG",
-        rotation="1 day",
-        retention="1 year",
-        compression="zip",
-        enqueue=True,  # Use a queue for thread-safe logging
-        filter=loguru_scrubbing_filter,
-    )
+# Add file handlers
+logger.add(
+    str(LOGS_DIR / "debug.log"),
+    format=LOG_FORMAT,
+    level="DEBUG",
+    rotation="1 day",
+    retention="1 year",
+    compression="zip",
+    enqueue=True,  # Use a queue for thread-safe logging
+    filter=loguru_scrubbing_filter,
+)
 
-    logger.add(
-        str(LOGS_DIR / "app.log"),
-        format=LOG_FORMAT,
-        level=LOG_LEVEL,
-        rotation="1 day",
-        retention="1 year",
-        compression="zip",
-        enqueue=True,  # Use a queue for thread-safe logging
-        filter=loguru_scrubbing_filter,
-    )
-else:
-    # Log a warning that file logging is disabled
-    logger.warning("File logging disabled - could not create logs directory")
+logger.add(
+    str(LOGS_DIR / "app.log"),
+    format=LOG_FORMAT,
+    level=LOG_LEVEL,
+    rotation="1 day",
+    retention="1 year",
+    compression="zip",
+    enqueue=True,  # Use a queue for thread-safe logging
+    filter=loguru_scrubbing_filter,
+)
 
 # Add logfire handler if token is available
 if os.environ.get("LOGFIRE_TOKEN"):

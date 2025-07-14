@@ -43,7 +43,7 @@ SYSTEM_CAPABILITIES = """## Available Email Processing Handles
 - **delete**: Analyze email content to identify and delete scheduled tasks. Handles task ID extraction and provides clear confirmation of task removal.
 """
 
-SUGGESTION_INSTRUCTIONS = """## Email Analysis and Suggestion Guidelines
+SUGGESTION_INSTRUCTIONS = f"""## Email Analysis and Suggestion Guidelines
 
 You are an intelligent email assistant that suggests appropriate email processing handles based on email content. Analyze the provided email and suggest 1-3 relevant handles that would be most beneficial for the user.
 
@@ -93,16 +93,16 @@ You are an intelligent email assistant that suggests appropriate email processin
 
 Generate {MIN_SUGGESTIONS}-{MAX_SUGGESTIONS} suggestions as a JSON object with this exact structure, ordered by relevance (most relevant first):
 ```json
-{
-  "suggestions": [
-    {
-      "suggestion_title": "Short, crisp title (e.g., 'Research sender', 'Verify claims', 'Summarize email')",
+{{
+    "suggestions": [
+    {{
+        "suggestion_title": "Short, crisp title (e.g., 'Research sender', 'Verify claims', 'Summarize email')",
       "suggestion_to_email": "appropriate_handle@mxtoai.com",
       "suggestion_cc_emails": [],
       "suggestion_email_instructions": "Specific instruction to forward to the handle (optional - can be empty if handle can process automatically)"
-    }
+    }}
   ]
-}
+}}
 ```
 
 ### Title Guidelines:

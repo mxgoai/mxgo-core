@@ -31,38 +31,6 @@ def prepare_suggestion_request_data():
     return _prepare
 
 
-def validate_suggestions_response(response_data: list, expected_min_suggestions: int = 3):
-    """Helper to validate suggestions response format and content."""
-    assert isinstance(response_data, list), "Response should be a list"
-    assert len(response_data) > 0, "Should have at least one email response"
-
-    for email_response in response_data:
-        assert "email_identified" in email_response
-        assert "user_email_id" in email_response
-        assert "suggestions" in email_response
-        assert isinstance(email_response["suggestions"], list)
-        assert len(email_response["suggestions"]) >= expected_min_suggestions, (
-            f"Expected at least {expected_min_suggestions} suggestions"
-        )
-
-        # Validate default suggestion is present
-        has_ask_suggestion = any(
-            suggestion.get("suggestion_to_email") == "ask@mxtoai.com"
-            and suggestion.get("suggestion_title") == "Ask anything"
-            for suggestion in email_response["suggestions"]
-        )
-        assert has_ask_suggestion, "Should always include default 'Ask anything' suggestion"
-
-        # Validate suggestion format
-        for suggestion in email_response["suggestions"]:
-            assert "suggestion_title" in suggestion
-            assert "suggestion_id" in suggestion
-            assert "suggestion_to_email" in suggestion
-            assert "suggestion_cc_emails" in suggestion
-            assert "suggestion_email_instructions" in suggestion
-            assert isinstance(suggestion["suggestion_cc_emails"], list)
-
-
 @pytest.mark.asyncio
 @pytest.mark.flaky(retries=2, delay=1)
 async def test_suggestions_integration_promotional_email(prepare_suggestion_request_data):
