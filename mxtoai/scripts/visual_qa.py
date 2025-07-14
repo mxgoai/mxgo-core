@@ -19,11 +19,12 @@ from mxtoai._logging import get_logger
 def _get_auto_processor():
     """Lazy import of AutoProcessor to avoid early torch imports."""
     try:
-        from transformers import AutoProcessor
-        return AutoProcessor
+        from transformers import AutoProcessor  # NOQA: PLC0415
     except ImportError as e:
         msg = "transformers package is required for HuggingFace models"
         raise ImportError(msg) from e
+    else:
+        return AutoProcessor
 
 load_dotenv(override=True)
 
@@ -95,7 +96,7 @@ def process_images_and_text(image_path: str, query: str, client: InferenceClient
         client: Inference client for the model.
 
     """
-    AutoProcessor = _get_auto_processor()
+    AutoProcessor = _get_auto_processor() # NOQA: N806
 
     messages = [
         {
