@@ -28,7 +28,6 @@ from mxtoai.schemas import (
     EmailSuggestionRequest,
     EmailSuggestionResponse,
     RateLimitPlan,
-    SuggestionDetail,
 )
 from mxtoai.suggestions import generate_suggestions, get_suggestions_model
 from mxtoai.tasks import process_email_task, rabbitmq_broker
@@ -846,23 +845,12 @@ async def process_suggestions(
             )
 
             if whitelist_response:
-                # User not whitelisted, skip this request and add error response
-                error_response = EmailSuggestionResponse(
-                    email_identified=request.email_identified,
-                    user_email_id=request.user_email_id,
-                    suggestions=[
-                        SuggestionDetail(
-                            suggestion_title="Access Denied",
-                            suggestion_id="error_not_whitelisted",
-                            suggestion_to_email="",
-                            suggestion_cc_emails=[],
-                            suggestion_email_instructions="",  # Empty - this is an error, not a processable suggestion
-                        )
-                    ],
-                )
-                responses.append(error_response)
+                # User not whitelisted - raise HTTP exception instead of creating error suggestion
                 logger.warning(f"User {request.user_email_id} not whitelisted for suggestions service")
-                continue
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Email verification required - check your email for verification instructions",
+                )
 
             # Generate suggestions using the suggestions module
             suggestion_response = await generate_suggestions(request, suggestions_model)
@@ -872,23 +860,16 @@ async def process_suggestions(
                 f"Generated {len(suggestion_response.suggestions)} suggestions for email {request.email_identified}"
             )
 
+        except HTTPException:
+            # Re-raise HTTP exceptions (like 403 Forbidden from whitelist validation)
+            raise
         except Exception as e:
             logger.error(f"Error processing suggestion request {request.email_identified}: {e}")
-            # Add error response for this request
-            error_response = EmailSuggestionResponse(
-                email_identified=request.email_identified,
-                user_email_id=request.user_email_id,
-                suggestions=[
-                    SuggestionDetail(
-                        suggestion_title="Processing Error",
-                        suggestion_id="error_processing",
-                        suggestion_to_email="",
-                        suggestion_cc_emails=[],
-                        suggestion_email_instructions="",  # Empty - this is an error, not a processable suggestion
-                    )
-                ],
-            )
-            responses.append(error_response)
+            # For other exceptions, raise a generic server error
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error processing suggestion request: {e!s}",
+            ) from e
 
     return responses
 

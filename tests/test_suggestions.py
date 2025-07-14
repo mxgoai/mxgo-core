@@ -31,7 +31,7 @@ def prepare_suggestion_request_data():
     return _prepare
 
 
-def validate_suggestions_response(response_data: list, expected_min_suggestions: int = 2):
+def validate_suggestions_response(response_data: list, expected_min_suggestions: int = 3):
     """Helper to validate suggestions response format and content."""
     assert isinstance(response_data, list), "Response should be a list"
     assert len(response_data) > 0, "Should have at least one email response"
@@ -107,7 +107,7 @@ async def test_suggestions_integration_promotional_email(prepare_suggestion_requ
     # Validate response format
     assert response.email_identified == request_data["email_identified"]
     assert response.user_email_id == request_data["user_email_id"]
-    assert len(response.suggestions) >= 2, "Should have default + at least one generated suggestion"
+    assert len(response.suggestions) >= 3, "Should have at least 3 suggestions (generated + default)"
 
     # Check for default suggestion
     has_ask_suggestion = any(
@@ -165,7 +165,7 @@ async def test_suggestions_integration_meeting_request(prepare_suggestion_reques
     response = await generate_suggestions(request_obj, model)
 
     # Validate basic response
-    assert len(response.suggestions) >= 2
+    assert len(response.suggestions) >= 3
 
     # Check for meeting-related suggestion
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
@@ -267,7 +267,7 @@ async def test_suggestions_integration_long_email_with_attachments(prepare_sugge
     response = await generate_suggestions(request_obj, model)
 
     # Validate response
-    assert len(response.suggestions) >= 2
+    assert len(response.suggestions) >= 3
 
     # Should suggest summarize for long content with attachments
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
@@ -330,7 +330,7 @@ async def test_suggestions_integration_unfamiliar_sender(prepare_suggestion_requ
     response = await generate_suggestions(request_obj, model)
 
     # Validate response
-    assert len(response.suggestions) >= 2
+    assert len(response.suggestions) >= 3
 
     # Should suggest background research for unfamiliar business sender
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
@@ -405,7 +405,7 @@ async def test_suggestions_integration_multiple_emails_batch(prepare_suggestion_
     for i, response in enumerate(responses):
         assert response.email_identified == request_objects[i].email_identified
         assert response.user_email_id == request_objects[i].user_email_id
-        assert len(response.suggestions) >= 2  # Default + at least one more
+        assert len(response.suggestions) >= 3  # At least 3 suggestions (generated + default)
 
         # Each should have ask suggestion
         has_ask = any(s.suggestion_to_email == "ask@mxtoai.com" for s in response.suggestions)

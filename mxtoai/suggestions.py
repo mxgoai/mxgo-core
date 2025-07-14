@@ -13,6 +13,10 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
+# Constants for suggestion limits
+MIN_SUGGESTIONS = 3
+MAX_SUGGESTIONS = 7
+
 # System capabilities - extracted from email handles and their templates
 SYSTEM_CAPABILITIES = """## Available Email Processing Handles
 
@@ -87,12 +91,12 @@ You are an intelligent email assistant that suggests appropriate email processin
 
 ### Output Requirements:
 
-Generate suggestions as a JSON object with this exact structure:
+Generate {MIN_SUGGESTIONS}-{MAX_SUGGESTIONS} suggestions as a JSON object with this exact structure, ordered by relevance (most relevant first):
 ```json
 {
   "suggestions": [
     {
-      "suggestion_title": "Clear, actionable title (e.g., 'Research sender background', 'Verify claims')",
+      "suggestion_title": "Short, crisp title (e.g., 'Research sender', 'Verify claims', 'Summarize email')",
       "suggestion_to_email": "appropriate_handle@mxtoai.com",
       "suggestion_cc_emails": [],
       "suggestion_email_instructions": "Specific instruction to forward to the handle (optional - can be empty if handle can process automatically)"
@@ -100,6 +104,13 @@ Generate suggestions as a JSON object with this exact structure:
   ]
 }
 ```
+
+### Title Guidelines:
+- Keep titles to 2-4 words maximum
+- Use action verbs (Research, Verify, Summarize, Check, Schedule, etc.)
+- Make titles immediately understandable
+- Examples of good titles: "Research sender", "Verify claims", "Schedule meeting", "Check facts", "Summarize content"
+- Examples of bad titles: "Research sender's company background and recent news", "Verify all the claims made in this promotional email"
 
 ### Guidelines for suggestion_email_instructions:
 - **Leave EMPTY** when the email handle can process the original email automatically (e.g., summarize, translate, pdf export)
@@ -116,11 +127,13 @@ Generate suggestions as a JSON object with this exact structure:
   - simplify: (handle will automatically simplify complex content)
 
 ### General Guidelines:
-- Provide 1-3 most relevant suggestions (not all possible ones)
-- Make suggestion titles specific and actionable
+- Provide {MIN_SUGGESTIONS}-{MAX_SUGGESTIONS} most relevant suggestions ordered by relevance (most relevant first)
+- Make suggestion titles short, crisp, and actionable (max 3-4 words)
 - Always include varied suggestions that address different aspects
 - Prioritize suggestions that provide immediate value
 - Consider the user's likely intent and context
+- Order suggestions by relevance: most valuable/applicable suggestions first
+- Avoid duplicate or very similar suggestions
 """
 
 
@@ -230,7 +243,7 @@ def build_suggestion_prompt(request: EmailSuggestionRequest) -> str:
 - Email ID: {request.email_identified}
 - User: {request.user_email_id}
 
-Please analyze this email and provide 1-3 relevant suggestions in the required JSON format. Focus on the most valuable actions the user could take with this email content."""
+Please analyze this email and provide {MIN_SUGGESTIONS}-{MAX_SUGGESTIONS} relevant suggestions in the required JSON format, ordered by relevance (most relevant first). Focus on the most valuable actions the user could take with this email content. Keep suggestion titles short and crisp (2-4 words max)."""
 
 
 async def generate_suggestions(
@@ -298,10 +311,19 @@ async def generate_suggestions(
                     )
                 )
 
-            # Add default suggestions
-            all_suggestions = generated_suggestions + get_default_suggestions()
+            # Ensure we have at least MIN_SUGGESTIONS total (including default)
+            default_suggestions = get_default_suggestions()
 
-            logger.info(f"Generated {len(generated_suggestions)} suggestions for email {request.email_identified}")
+            # If we have fewer than MAX_SUGGESTIONS generated suggestions, add default
+            if len(generated_suggestions) < MAX_SUGGESTIONS:
+                all_suggestions = generated_suggestions + default_suggestions
+            else:
+                # Take top (MAX_SUGGESTIONS - 1) generated suggestions and add default
+                all_suggestions = generated_suggestions[: MAX_SUGGESTIONS - 1] + default_suggestions
+
+            logger.info(
+                f"Generated {len(generated_suggestions)} suggestions for email {request.email_identified}, total returned: {len(all_suggestions)}"
+            )
 
             return EmailSuggestionResponse(
                 email_identified=request.email_identified,
