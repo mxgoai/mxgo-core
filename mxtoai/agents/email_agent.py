@@ -171,16 +171,15 @@ class EmailAgent:
         # Get allowed tools from processing instructions
         allowed_tools = self.processing_instructions.allowed_tools
 
-        # If no allowed_tools specified, use all tools (backward compatibility)
-        if allowed_tools is None:
-            logger.warning("No allowed_tools specified in processing instructions, using all tools")
-            return self._initialize_all_tools()
+        # Create a routed model instance for tools that need it
+        model = RoutedLiteLLMModel()
 
         # Create mapping of tool names to tool instances
         tool_mapping = create_tool_mapping(
             context=self.context,
             scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
             allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
+            model=model,
         )
 
         # Filter tools based on allowed list
@@ -204,6 +203,8 @@ class EmailAgent:
                         logger.debug("JINA_API_KEY not found")
                     elif tool_name in [ToolName.LINKEDIN_FRESH_DATA, ToolName.LINKEDIN_DATA_API]:
                         logger.debug("RAPIDAPI_KEY not found or LinkedIn tool initialization failed")
+                    elif tool_name == ToolName.AZURE_VISUALIZER:
+                        logger.debug("Azure OpenAI configuration not available")
             else:
                 logger.warning(f"Unknown tool in allowed list: {tool_name.value}")
 
@@ -211,27 +212,6 @@ class EmailAgent:
             f"Initialized {len(filtered_tools)} allowed tools for handle '{self.processing_instructions.handle}': {[tool.name for tool in filtered_tools]}"
         )
         return filtered_tools
-
-    def _initialize_all_tools(self) -> list[Tool]:
-        """
-        Initialize all available tools (backward compatibility method).
-
-        Returns:
-            list[Tool]: List of all available tools
-
-        """
-        # Use centralized tool mapping for consistency
-        tool_mapping = create_tool_mapping(
-            context=self.context,
-            scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
-            allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
-        )
-
-        # Get all available tools (non-None values)
-        all_tools = [tool for tool in tool_mapping.values() if tool is not None]
-
-        logger.info(f"Initialized {len(all_tools)} tools for backward compatibility mode")
-        return all_tools
 
     def _get_required_actions(self, mode: str) -> list[str]:
         """
@@ -942,8 +922,6 @@ Raw Email Request Data (for tool use):
         """
         if self.context.has_citations():
             # Check if content already contains a References or Sources section to avoid duplication
-            import re
-
             existing_references_pattern = r"(^|\n)#{1,3}\s*(References|Sources|Bibliography)\s*$"
             if re.search(existing_references_pattern, content, re.MULTILINE | re.IGNORECASE):
                 logger.warning(

@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -35,6 +35,7 @@ class ToolName(str, Enum):
     DDG_SEARCH = "ddg_search"
     BRAVE_SEARCH = "brave_search"
     GOOGLE_SEARCH = "google_search"
+    WEB_SEARCH = "web_search"  # Fallback search tool
 
     # Specialized tools
     DEEP_RESEARCH = "deep_research"
@@ -162,7 +163,7 @@ class ProcessingError(BaseModel):
 
 class ProcessingMetadata(BaseModel):
     processed_at: str
-    mode: Optional[str] = None
+    mode: str | None = None
     errors: list[ProcessingError] = []
     email_sent: EmailSentStatus
 
@@ -238,7 +239,7 @@ class ProcessingInstructions(BaseModel):
     aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
-    allowed_tools: list[ToolName] | None = None  # Tools allowed for this handle
+    allowed_tools: list[ToolName]
     rejection_message: str | None = (
         "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
     )
@@ -281,7 +282,7 @@ class ModelConfig(BaseModel):
 
 class RouterConfig(BaseModel):
     routing_strategy: str
-    fallbacks: list[dict[str, list[str]]]
+    fallbacks: list[dict[str, list[str]]] = []
     default_litellm_params: dict[str, Any]
 
 
@@ -367,6 +368,46 @@ class CitationCollection(BaseModel):
 
         self.references_section = "\n".join(references)
         return self.references_section
+
+
+class EmailSuggestionAttachmentSummary(BaseModel):
+    """Summary of an email attachment for suggestions processing."""
+
+    filename: str
+    file_type: str | None = None
+    file_size: int
+
+
+class EmailSuggestionRequest(BaseModel):
+    """Request model for email suggestions processing."""
+
+    email_identified: str
+    user_email_id: str
+    sender_email: str
+    cc_emails: list[str]
+    subject: str = Field(alias="Subject")
+    email_content: str
+    attachments: list[EmailSuggestionAttachmentSummary]
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SuggestionDetail(BaseModel):
+    """Details of a single email suggestion."""
+
+    suggestion_title: str
+    suggestion_id: str
+    suggestion_to_email: str
+    suggestion_cc_emails: list[str]
+    suggestion_email_instructions: str
+
+
+class EmailSuggestionResponse(BaseModel):
+    """Response model for email suggestions."""
+
+    email_identified: str
+    user_email_id: str
+    suggestions: list[SuggestionDetail]
 
 
 class ToolOutputWithCitations(BaseModel):

@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime
-from typing import ClassVar, Optional
+from typing import ClassVar
 from urllib.parse import urlencode
 
 import pytz
@@ -18,14 +18,14 @@ class EventDetails(BaseModel):
 
     title: str = Field(..., description="The title or summary of the event.")
     start_time: datetime = Field(..., description="The start date and time of the event. Must include timezone info.")
-    end_time: Optional[datetime] = Field(
+    end_time: datetime | None = Field(
         None, description="The end date and time of the event. Must include timezone info if provided."
     )
-    description: Optional[str] = Field(None, description="A detailed description of the event.")
-    location: Optional[str] = Field(
+    description: str | None = Field(None, description="A detailed description of the event.")
+    location: str | None = Field(
         None, description="The location of the event (physical address or virtual meeting link)."
     )
-    attendees: Optional[list[EmailStr]] = Field(None, description="List of attendee email addresses.")
+    attendees: list[EmailStr] | None = Field(None, description="List of attendee email addresses.")
 
     @field_validator("start_time", "end_time")
     @classmethod
@@ -179,10 +179,10 @@ class MeetingTool(Tool):
         self,
         title: str,
         start_time: str,
-        end_time: Optional[str] = None,
-        description: Optional[str] = None,
-        location: Optional[str] = None,
-        attendees: Optional[list[str]] = None,
+        end_time: str | None = None,
+        description: str | None = None,
+        location: str | None = None,
+        attendees: list[str] | None = None,
     ) -> dict:
         """
         Main execution method for the tool (renamed from run). Parses input and generates outputs.

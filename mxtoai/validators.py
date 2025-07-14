@@ -1,14 +1,15 @@
+import asyncio
 import json
 import os
 from datetime import datetime, timezone
 from email.utils import parseaddr
-from typing import Optional
 
 import redis.asyncio as aioredis
 from fastapi import Response, status
 
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
+from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import generate_message_id, send_email_reply
 from mxtoai.schemas import RateLimitPlan
@@ -17,7 +18,7 @@ from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted, tri
 logger = get_logger(__name__)
 
 # Globals to be initialized from api.py
-redis_client: Optional[aioredis.Redis] = None
+redis_client: aioredis.Redis | None = None
 email_provider_domain_set: set[str] = set()  # Still useful for the domain check logic
 
 # Rate limit settings
@@ -63,7 +64,7 @@ async def check_rate_limit_redis(
     ],  # e.g., RATE_LIMITS_BY_PLAN[RateLimitPlan.BETA] or RATE_LIMIT_PER_DOMAIN_HOUR
     current_dt: datetime,
     plan_name_for_key: str = "",  # e.g. "beta" or "" for domain
-) -> Optional[str]:
+) -> str | None:
     """
     Checks and updates rate limits using Redis.
 
@@ -151,7 +152,7 @@ def get_domain_from_email(email_address: str) -> str:
 
 
 async def send_rate_limit_rejection_email(
-    from_email: str, to: str, subject: Optional[str], message_id: Optional[str], limit_type: str
+    from_email: str, to: str, subject: str | None, message_id: str | None, limit_type: str
 ) -> None:
     """Send a rejection email for rate limit exceeded."""
     rejection_subject = f"Re: {subject}" if subject else "Usage Limit Exceeded"
@@ -181,8 +182,8 @@ MXtoAI Team"""
 
 
 async def validate_rate_limits(
-    from_email: str, to: str, subject: Optional[str], message_id: Optional[str], plan: RateLimitPlan
-) -> Optional[Response]:
+    from_email: str, to: str, subject: str | None, message_id: str | None, plan: RateLimitPlan
+) -> Response | None:
     """
     Validate incoming email against defined rate limits based on the plan, using Redis.
     """
@@ -254,8 +255,8 @@ async def validate_idempotency(
     html_content: str,
     text_content: str,
     files_count: int,
-    message_id: Optional[str] = None,
-) -> tuple[Optional[Response], str]:
+    message_id: str | None = None,
+) -> tuple[Response | None, str]:
     """
     Validate email idempotency and generate deterministic message ID if needed.
 
@@ -349,8 +350,6 @@ def check_task_idempotency(message_id: str) -> bool:
 
     try:
         # Check if already processed
-        import asyncio
-
         if asyncio.run(redis_client.get(redis_key_processed)):
             logger.warning(f"Email with messageId {message_id} already processed, skipping duplicate processing")
             return True
@@ -377,8 +376,6 @@ def mark_email_as_processed(message_id: str) -> None:
 
     try:
         # Mark as processed (expires in 24 hours)
-        import asyncio
-
         asyncio.run(
             asyncio.gather(redis_client.setex(redis_key_processed, 86400, "1"), redis_client.delete(redis_key_queued))
         )
@@ -387,7 +384,7 @@ def mark_email_as_processed(message_id: str) -> None:
         logger.error(f"Failed to mark email as processed in Redis: {redis_error}")
 
 
-async def validate_api_key(api_key: str) -> Optional[Response]:
+async def validate_api_key(api_key: str) -> Response | None:
     """
     Validate the API key.
 
@@ -407,9 +404,7 @@ async def validate_api_key(api_key: str) -> Optional[Response]:
     return None
 
 
-async def validate_email_whitelist(
-    from_email: str, to: str, subject: str, message_id: Optional[str]
-) -> Optional[Response]:
+async def validate_email_whitelist(from_email: str, to: str, subject: str, message_id: str | None) -> Response | None:
     """
     Validate email whitelist to ensure only authorized senders can use the service.
 
@@ -558,8 +553,8 @@ MXtoAI Team"""
 
 
 async def validate_email_handle(
-    to: str, from_email: str, subject: str, message_id: Optional[str]
-) -> tuple[Optional[Response], Optional[str]]:
+    to: str, from_email: str, subject: str, message_id: str | None
+) -> tuple[Response | None, str | None]:
     """
     Validate the email handle to ensure it's supported and extract the handle.
 
@@ -606,8 +601,8 @@ async def validate_email_handle(
 
 
 async def validate_attachments(
-    attachments: list[dict], from_email: str, to: str, subject: str, message_id: Optional[str]
-) -> Optional[Response]:
+    attachments: list[dict], from_email: str, to: str, subject: str, message_id: str | None
+) -> Response | None:
     """
     Validate email attachments for security and size constraints.
 
@@ -622,8 +617,6 @@ async def validate_attachments(
         Optional[Response]: Error response if validation fails, None if validation passes
 
     """
-    from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB
-
     if len(attachments) > MAX_ATTACHMENTS_COUNT:
         rejection_msg = f"""Your email could not be processed due to too many attachments.
 
@@ -670,8 +663,7 @@ Number of attachments in your email: {len(attachments)}</p>
             media_type="application/json",
         )
 
-    total_size_mb = sum(attachment.get("size", 0) for attachment in attachments) / (1024 * 1024)
-
+    total_size_mb = 0
     for attachment in attachments:
         size_mb = attachment.get("size", 0) / (1024 * 1024)
         if size_mb > MAX_ATTACHMENT_SIZE_MB:
@@ -720,6 +712,7 @@ Size of attachment '{attachment.get("filename", "unknown")}': {size_mb:.1f}MB</p
                 status_code=status.HTTP_400_BAD_REQUEST,
                 media_type="application/json",
             )
+        total_size_mb += size_mb
 
     if total_size_mb > MAX_TOTAL_ATTACHMENTS_SIZE_MB:
         rejection_msg = f"""Your email could not be processed due to total attachment size exceeding the limit.

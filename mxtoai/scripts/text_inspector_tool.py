@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from smolagents import Tool
 from smolagents.models import MessageRole, Model
@@ -122,7 +122,7 @@ This tool handles the following file extensions: [".html", ".htm", ".xlsx", ".pp
 
         return result_text
 
-    def forward(self, file_path, question: Optional[str] = None) -> str:
+    def forward(self, file_path, question: str | None = None) -> str:
         """
         Process the file and return a response based on the content and question.
 

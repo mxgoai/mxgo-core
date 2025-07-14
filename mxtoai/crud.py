@@ -7,7 +7,7 @@ to avoid code duplication and centralize database logic.
 
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any
 
 from sqlmodel import Session, select
 
@@ -25,7 +25,7 @@ logger = get_logger("crud")
 
 
 # Task CRUD operations
-def get_task_by_id(session: Session, task_id: str | uuid.UUID) -> Optional[Tasks]:
+def get_task_by_id(session: Session, task_id: str | uuid.UUID) -> Tasks | None:
     """
     Get a task by its ID.
 
@@ -42,7 +42,7 @@ def get_task_by_id(session: Session, task_id: str | uuid.UUID) -> Optional[Tasks
 
 
 def get_tasks_by_user_email(
-    session: Session, user_email: str, statuses: Optional[list[TaskStatus]] = None, limit: int = 10
+    session: Session, user_email: str, statuses: list[TaskStatus] | None = None, limit: int = 10
 ) -> list[Tasks]:
     """
     Get tasks for a specific user email.
@@ -71,7 +71,7 @@ def get_tasks_by_user_email(
 
 
 def get_tasks_by_status(
-    session: Session, statuses: list[TaskStatus], has_scheduler_job_id: Optional[bool] = None
+    session: Session, statuses: list[TaskStatus], *, has_scheduler_job_id: bool | None = None
 ) -> list[Tasks]:
     """
     Get tasks by their status.
@@ -103,9 +103,9 @@ def create_task(
     email_id: str,
     cron_expression: str,
     email_request: dict,
-    scheduler_job_id: Optional[str] = None,
-    start_time: Optional[datetime] = None,
-    expiry_time: Optional[datetime] = None,
+    scheduler_job_id: str | None = None,
+    start_time: datetime | None = None,
+    expiry_time: datetime | None = None,
     status: TaskStatus = TaskStatus.INITIALISED,
 ) -> Tasks:
     """
@@ -151,7 +151,7 @@ def create_task(
 
 def update_task_status(
     session: Session, task_id: str | uuid.UUID, status: TaskStatus, *, clear_email_data_if_terminal: bool = True
-) -> Optional[Tasks]:
+) -> Tasks | None:
     """
     Update a task's status.
 
@@ -228,7 +228,7 @@ def count_active_tasks_for_user(session: Session, user_email: str) -> int:
 
 
 # TaskRun CRUD operations
-def get_task_run_by_id(session: Session, run_id: str | uuid.UUID) -> Optional[TaskRun]:
+def get_task_run_by_id(session: Session, run_id: str | uuid.UUID) -> TaskRun | None:
     """
     Get a task run by its ID.
 
@@ -244,7 +244,7 @@ def get_task_run_by_id(session: Session, run_id: str | uuid.UUID) -> Optional[Ta
     return session.exec(statement).first()
 
 
-def get_latest_task_run(session: Session, task_id: str | uuid.UUID) -> Optional[TaskRun]:
+def get_latest_task_run(session: Session, task_id: str | uuid.UUID) -> TaskRun | None:
     """
     Get the latest task run for a task.
 
@@ -297,7 +297,7 @@ def create_task_run(
     return task_run
 
 
-def update_task_run_status(session: Session, run_id: str | uuid.UUID, status: TaskRunStatus) -> Optional[TaskRun]:
+def update_task_run_status(session: Session, run_id: str | uuid.UUID, status: TaskRunStatus) -> TaskRun | None:
     """
     Update a task run's status.
 
@@ -326,7 +326,7 @@ def update_task_run_status(session: Session, run_id: str | uuid.UUID, status: Ta
 
 
 # Utility functions for common operations
-def get_task_execution_status(session: Session, task_id: str | uuid.UUID) -> Optional[dict[str, Any]]:
+def get_task_execution_status(session: Session, task_id: str | uuid.UUID) -> dict[str, Any] | None:
     """
     Get comprehensive execution status for a task.
 

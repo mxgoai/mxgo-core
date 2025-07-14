@@ -11,7 +11,7 @@ from smolagents import Tool
 from smolagents.default_tools import WebSearchTool
 
 from mxtoai.request_context import RequestContext
-from mxtoai.schemas import ToolOutputWithCitations
+from mxtoai.schemas import CitationCollection, ToolOutputWithCitations
 
 logger = logging.getLogger(__name__)
 
@@ -107,8 +107,6 @@ class DDGSearchTool(Tool):
                 content = f"## Search Results\n\n{raw_result}"
 
             # Create structured output with local citations
-            from mxtoai.schemas import CitationCollection
-
             # Create a local citation collection for this tool's output
             local_citations = CitationCollection()
 

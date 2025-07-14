@@ -7,7 +7,6 @@ information for a simple references section without embedding citations in text.
 
 import re
 import time
-from typing import Optional
 
 from smolagents import GoogleSearchTool
 
@@ -24,7 +23,7 @@ def reset_url_store():
     _all_visited_urls.clear()
 
 
-def add_url_to_references(url: str, title: Optional[str] = None, date: Optional[str] = None) -> None:
+def add_url_to_references(url: str, title: str | None = None, date: str | None = None) -> None:
     """
     Add a URL to the global references collection.
 
@@ -46,7 +45,7 @@ class CitationAwareGoogleSearchTool(GoogleSearchTool):
     Extension of GoogleSearchTool that collects URL information.
     """
 
-    def forward(self, query: str, filter_year: Optional[int] = None) -> str:
+    def forward(self, query: str, filter_year: int | None = None) -> str:
         """
         Perform a Google search and collect URL information.
 

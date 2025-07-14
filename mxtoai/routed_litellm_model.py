@@ -19,16 +19,18 @@ logger = get_logger("routed_litellm_model")
 class RoutedLiteLLMModel(LiteLLMRouterModel):
     """LiteLLM Model with routing capabilities, using LiteLLMRouterModel from smolagents."""
 
-    def __init__(self, current_handle: ProcessingInstructions | None = None, **kwargs):
+    def __init__(self, current_handle: ProcessingInstructions | None = None, target_model: str | None = None, **kwargs):
         """
         Initialize the routed LiteLLM model.
 
         Args:
-            current_handle: Current email handle configuration being processed
+            current_handle: Current email handle configuration being processed (optional)
+            target_model: Direct model name to use instead of deriving from current_handle (optional)
             **kwargs: Additional arguments passed to parent class (e.g., flatten_messages_as_text)
 
         """
         self.current_handle = current_handle
+        self.target_model = target_model
         self.config_path = os.getenv("LITELLM_CONFIG_PATH", "model.config.toml")
         self.config = self._load_toml_config()
 
@@ -119,16 +121,16 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
            mxtoai.schemas.RouterConfig: Router configuration
 
         """
-        router_config = mxtoai.schemas.RouterConfig(**self.config.get("router_config"))
-
-        if not router_config:
+        router_config_data = self.config.get("router_config")
+        if not router_config_data:
             logger.warning("No router config found in model-config.toml. Using defaults.")
             return mxtoai.schemas.RouterConfig(
                 routing_strategy="simple-shuffle",
                 fallbacks=[],
                 default_litellm_params={"drop_params": True},
             )
-        return router_config
+
+        return mxtoai.schemas.RouterConfig(**router_config_data)
 
     def _set_azure_environment_variables(self, model_list: list[mxtoai.schemas.ModelConfig]) -> None:
         """
@@ -161,12 +163,18 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
 
     def _get_target_model(self) -> str:
         """
-        Determine which model to route to based on the current handle configuration.
+        Determine which model to route to based on the target_model or current handle configuration.
 
         Returns:
             str: The model name (group) to route to.
 
         """
+        # Use direct target_model if provided
+        if self.target_model:
+            logger.debug(f"Using directly specified model group {self.target_model}")
+            return self.target_model
+
+        # Fall back to current_handle pattern
         if self.current_handle and self.current_handle.target_model:
             logger.debug(
                 f"Using model group {self.current_handle.target_model} for handle {self.current_handle.handle}"

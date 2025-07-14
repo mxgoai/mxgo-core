@@ -4,7 +4,7 @@ import os
 import time
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import boto3
 from botocore.exceptions import ClientError
@@ -85,10 +85,10 @@ class EmailSender:
         to_address: str,
         subject: str,
         body_text: str,
-        body_html: Optional[str] = None,
-        cc_addresses: Optional[list[str]] = None,
-        reply_to_addresses: Optional[list[str]] = None,
-        sender_email: Optional[str] = None,
+        body_html: str | None = None,
+        cc_addresses: list[str] | None = None,
+        reply_to_addresses: list[str] | None = None,
+        sender_email: str | None = None,
     ) -> dict[str, Any]:
         """
         Send an email using AWS SES.
@@ -155,8 +155,8 @@ class EmailSender:
         self,
         original_email: dict[str, Any],
         reply_text: str,
-        reply_html: Optional[str] = None,
-        attachments: Optional[list[dict[str, Any]]] = None,
+        reply_html: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """
         Send a reply to an original email, using send_raw_email for attachment support.
@@ -367,7 +367,7 @@ async def verify_sender_email(email_address: str) -> bool:
         return True
 
 
-async def test_send_email(to_address, subject="Test from mxtoai", body_text="This is a test email"):
+async def test_send_email(to_address, subject, body_text):
     """
     Test email sending functionality.
 
@@ -405,7 +405,7 @@ async def run_tests():
         return False
 
     tests = [
-        ("Basic Send", lambda: test_send_email(test_email)),
+        ("Basic Send", lambda: test_send_email(test_email, "Test Subject", "This is a test email")),
         ("Verify Email", lambda: verify_sender_email(test_email)),
     ]
 

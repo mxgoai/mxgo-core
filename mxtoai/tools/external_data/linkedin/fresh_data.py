@@ -6,12 +6,12 @@ Provides access to LinkedIn data through the Fresh LinkedIn Profile Data API.
 import json
 import logging
 import os
-from typing import Optional
 
 import requests
 from smolagents import Tool
 
 from mxtoai.request_context import RequestContext
+from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
 
 logger = logging.getLogger(__name__)
 
@@ -209,8 +209,6 @@ class LinkedInFreshDataTool(Tool):
             citation_id = self.context.add_web_citation(linkedin_url, citation_title, visited=True)
 
             # Create structured output with citation reference
-            from mxtoai.schemas import CitationCollection, CitationSource, ToolOutputWithCitations
-
             # Create local citation collection
             local_citations = CitationCollection()
             citation_source = CitationSource(
@@ -325,7 +323,7 @@ class LinkedInFreshDataTool(Tool):
         return response.json()
 
 
-def initialize_linkedin_fresh_tool() -> Optional[LinkedInFreshDataTool]:
+def initialize_linkedin_fresh_tool() -> LinkedInFreshDataTool | None:
     """
     Initialize the LinkedIn Fresh Data tool if API key is available.
 

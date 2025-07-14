@@ -2,8 +2,8 @@
 Tests for RequestContext functionality.
 """
 
-from mxtoai.request_context import CitationManager, RequestContext
-from mxtoai.schemas import EmailRequest
+from mxtoai.request_context import CitationManager, RequestContext, _sanitize_api_title
+from mxtoai.schemas import EmailAttachment, EmailRequest
 
 
 def test_citation_manager_basic():
@@ -84,8 +84,6 @@ def test_request_context_basic():
 
 def test_request_context_attachment_paths():
     """Test attachment path extraction."""
-    from mxtoai.schemas import EmailAttachment
-
     attachment = EmailAttachment(
         filename="test.pdf", contentType="application/pdf", size=1024, path="/path/to/test.pdf"
     )
@@ -107,8 +105,6 @@ def test_request_context_attachment_paths():
 
 def test_citation_manager_api_title_sanitization():
     """Test API title sanitization."""
-    from mxtoai.request_context import _sanitize_api_title
-
     # Test basic sanitization
     assert _sanitize_api_title("LinkedIn Profile via RapidAPI") == "LinkedIn Profile"
     assert _sanitize_api_title("Data Source (RapidAPI)") == "Data Source"

@@ -17,7 +17,7 @@ import tempfile
 import traceback
 import zipfile
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Union
 from urllib.parse import parse_qs, quote, unquote, urlparse, urlunparse
 
 import mammoth
@@ -777,9 +777,9 @@ class MarkdownConverter:
 
     def __init__(
         self,
-        requests_session: Optional[requests.Session] = None,
-        mlm_client: Optional[Any] = None,
-        mlm_model: Optional[Any] = None,
+        requests_session: requests.Session | None = None,
+        mlm_client: Any | None = None,
+        mlm_model: Any | None = None,
     ):
         if requests_session is None:
             self._requests_session = requests.Session()

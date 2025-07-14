@@ -3,7 +3,7 @@ import json
 import mimetypes
 import os
 import urllib.parse
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 import requests
 from smolagents import Tool
@@ -132,7 +132,7 @@ class DeepResearchTool(Tool):
 
     def _encode_content_from_memory(
         self, content: bytes, filename: str, mime_type: str | None = None
-    ) -> Optional[dict[str, Any]]:
+    ) -> dict[str, Any] | None:
         """
         Encode file content from memory to base64 data URI format for Jina API.
 
@@ -166,7 +166,7 @@ class DeepResearchTool(Tool):
         else:
             return result
 
-    def _encode_file(self, file_path: str) -> Optional[dict[str, Any]]:
+    def _encode_file(self, file_path: str) -> dict[str, Any] | None:
         """
         DEPRECATED: This method has been removed for security reasons.
         Use memory_attachments with _encode_content_from_memory instead.
@@ -192,9 +192,9 @@ class DeepResearchTool(Tool):
     def _prepare_messages(
         self,
         query: str,
-        context: Optional[str] = None,
-        memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
-        thread_messages: Optional[list[dict[str, str]]] = None,
+        context: str | None = None,
+        memory_attachments: dict[str, tuple[bytes, str]] | None = None,
+        thread_messages: list[dict[str, str]] | None = None,
     ) -> list[dict[str, Any]]:
         """
         Prepare messages for Jina API including files and context.
@@ -456,9 +456,9 @@ class DeepResearchTool(Tool):
     def forward(  # noqa: PLR0912, PLR0915
         self,
         query: str,
-        context: Optional[dict[str, Any]] = None,
-        memory_attachments: Optional[dict[str, tuple[bytes, str]]] = None,
-        thread_messages: Optional[list[dict[str, str]]] = None,
+        context: dict[str, Any] | None = None,
+        memory_attachments: dict[str, tuple[bytes, str]] | None = None,
+        thread_messages: list[dict[str, str]] | None = None,
         *,
         stream: bool = False,
         reasoning_effort: str = "medium",

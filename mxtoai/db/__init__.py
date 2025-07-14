@@ -1,7 +1,6 @@
 import os
 from collections.abc import AsyncGenerator, Generator
 from contextlib import asynccontextmanager, contextmanager
-from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, create_async_engine
@@ -64,7 +63,7 @@ class DbConnection:
 class AsyncDbConnection:
     """Asynchronous database connection handler for future use."""
 
-    _engine: Optional[AsyncEngine] = None
+    _engine: AsyncEngine | None = None
 
     def __init__(self) -> None:
         self.db_uri = self.get_db_uri_from_env()

@@ -1,16 +1,16 @@
 import os
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
 from supabase import Client, create_client
 
 from mxtoai._logging import get_logger
+from mxtoai.email_sender import EmailSender
 
 logger = get_logger(__name__)
 
 # Initialize Supabase client
-supabase: Optional[Client] = None
+supabase: Client | None = None
 
 
 def is_whitelist_enabled() -> bool:
@@ -168,8 +168,6 @@ async def send_verification_email(email: str, verification_token: str) -> bool:
 
     """
     try:
-        from mxtoai.email_sender import EmailSender
-
         # Get the origin URL for verification links
         origin = os.getenv("FRONTEND_URL", "https://mxtoai.com")
         verification_url = f"{origin}/verify?token={verification_token}"

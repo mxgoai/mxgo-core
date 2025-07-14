@@ -13,10 +13,9 @@ COMMON_TOOLS = [
 
 # Search tools for handles that need enhanced search capabilities
 SEARCH_TOOLS = [
-    ToolName.DDG_SEARCH,
+    ToolName.WEB_SEARCH,  # Fallback search tool with robust error handling
     ToolName.WIKIPEDIA_SEARCH,
-    ToolName.GOOGLE_SEARCH,
-    ToolName.BRAVE_SEARCH,
+    ToolName.GOOGLE_SEARCH,  # Keep for specialized Google search needs
 ]
 
 # Research tools for handles that need deep research capabilities

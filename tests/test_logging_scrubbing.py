@@ -276,8 +276,6 @@ class TestActualLoggingIntegration:
 
     def test_scrubbing_patterns_are_properly_configured(self):
         """Test that scrubbing patterns are properly configured in the logging system."""
-        from mxtoai._logging import COMPILED_PATTERNS, scrub_sensitive_data
-
         # Verify patterns are loaded
         assert len(SENSITIVE_PATTERNS) > 0, "No sensitive patterns configured"
         assert len(COMPILED_PATTERNS) > 0, "No compiled patterns available"
@@ -300,8 +298,6 @@ class TestActualLoggingIntegration:
 
     def test_logging_filter_integration(self):
         """Test that the logging filter is properly integrated."""
-        from mxtoai._logging import loguru_scrubbing_filter
-
         # Create a test record with sensitive data
         test_record = {
             "message": "Login attempt with password=secret123",

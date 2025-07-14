@@ -7,7 +7,7 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Any, ClassVar, Optional, Union
+from typing import Any, ClassVar, Union
 from urllib.parse import unquote, urljoin, urlparse
 
 import pathvalidate
@@ -36,17 +36,17 @@ class SimpleTextBrowser:
 
     def __init__(
         self,
-        start_page: Optional[str] = None,
-        viewport_size: Optional[int] = 1024 * 8,
-        downloads_folder: Optional[Union[str, None]] = None,
-        serpapi_key: Optional[Union[str, None]] = None,
-        request_kwargs: Optional[Union[dict[str, Any], None]] = None,
+        start_page: str | None = None,
+        viewport_size: int | None = 1024 * 8,
+        downloads_folder: str | None = None,
+        serpapi_key: str | None = None,
+        request_kwargs: dict[str, Any] | None = None,
     ):
         self.start_page: str = start_page if start_page else "about:blank"
         self.viewport_size = viewport_size  # Applies only to the standard uri types
         self.downloads_folder = downloads_folder
         self.history: list[tuple[str, float]] = []
-        self.page_title: Optional[str] = None
+        self.page_title: str | None = None
         self.viewport_current_page = 0
         self.viewport_pages: list[tuple[int, int]] = []
         self.set_address(self.start_page)
@@ -64,7 +64,7 @@ class SimpleTextBrowser:
         """Return the address of the current page."""
         return self.history[-1][0]
 
-    def set_address(self, uri_or_path: str, filter_year: Optional[int] = None) -> None:
+    def set_address(self, uri_or_path: str, filter_year: int | None = None) -> None:
         # TODO: Handle anchors
         self.history.append((uri_or_path, time.time()))
 
@@ -180,7 +180,7 @@ class SimpleTextBrowser:
 
         return None
 
-    def visit_page(self, path_or_uri: str, filter_year: Optional[int] = None) -> str:
+    def visit_page(self, path_or_uri: str, filter_year: int | None = None) -> str:
         """Update the address, visit the page, and return the content of the viewport."""
         self.set_address(path_or_uri, filter_year=filter_year)
         return self.viewport
@@ -207,7 +207,7 @@ class SimpleTextBrowser:
             self.viewport_pages.append((start_idx, end_idx))
             start_idx = end_idx
 
-    def _serpapi_search(self, query: str, filter_year: Optional[int] = None) -> None:
+    def _serpapi_search(self, query: str, filter_year: int | None = None) -> None:
         if self.serpapi_key is None:
             msg = "Missing SerpAPI key."
             raise ValueError(msg)
@@ -327,8 +327,7 @@ class SimpleTextBrowser:
 
                     # Open a file for writing
                     with pathlib.Path(download_path).open("wb") as fh:
-                        for chunk in response.iter_content(chunk_size=512):
-                            fh.write(chunk)
+                        fh.writelines(response.iter_content(chunk_size=512))
 
                     # Render it
                     local_uri = pathlib.Path(download_path).as_uri()
@@ -396,7 +395,7 @@ class SearchInformationTool(Tool):
             "nullable": True,
         }
 
-    def forward(self, query: str, filter_year: Optional[int] = None) -> str:
+    def forward(self, query: str, filter_year: int | None = None) -> str:
         self.browser.visit_page(f"google: {query}", filter_year=filter_year)
         header, content = self.browser._state()  # noqa: SLF001
         return header.strip() + "\n=======================\n" + content

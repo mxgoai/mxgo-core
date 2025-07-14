@@ -9,7 +9,7 @@ import json
 import re
 import uuid
 from datetime import datetime, timezone
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from pydantic import BaseModel, Field, field_validator
 from smolagents import Tool
@@ -42,7 +42,7 @@ class DeleteTaskInput(BaseModel):
         return v
 
 
-def extract_task_id_from_text(text: str) -> Optional[str]:
+def extract_task_id_from_text(text: str) -> str | None:
     """
     Extract UUID task ID from text content.
 

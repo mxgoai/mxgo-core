@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+import mxtoai.whitelist
 from mxtoai.whitelist import (
     get_whitelist_signup_url,
     init_supabase,
@@ -24,8 +25,6 @@ class TestSupabaseInitialization:
         mock_create_client.return_value = mock_client
 
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         init_supabase()
@@ -37,8 +36,6 @@ class TestSupabaseInitialization:
     def test_init_supabase_missing_env_vars(self):
         """Test Supabase initialization with missing environment variables."""
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(ValueError, match="Supabase URL and service role key must be set"):
@@ -48,8 +45,6 @@ class TestSupabaseInitialization:
     def test_init_supabase_missing_key(self):
         """Test Supabase initialization with missing service role key."""
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(ValueError, match="Supabase URL and service role key must be set"):
@@ -62,8 +57,6 @@ class TestSupabaseInitialization:
         mock_create_client.side_effect = Exception("Connection failed")
 
         # Reset global state
-        import mxtoai.whitelist
-
         mxtoai.whitelist.supabase = None
 
         with pytest.raises(Exception, match="Connection failed"):
@@ -73,8 +66,6 @@ class TestSupabaseInitialization:
     @patch("mxtoai.whitelist.create_client")
     def test_init_supabase_already_initialized(self, mock_create_client):
         """Test that initialization is skipped when client already exists."""
-        import mxtoai.whitelist
-
         existing_client = Mock()
         mxtoai.whitelist.supabase = existing_client
 
@@ -155,8 +146,6 @@ class TestEmailWhitelistCheck:
 
             # Mock init_supabase to set the client
             def set_supabase():
-                import mxtoai.whitelist
-
                 mxtoai.whitelist.supabase = mock_supabase
 
             mock_init.side_effect = set_supabase
@@ -299,7 +288,7 @@ class TestSendVerificationEmail:
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "test-123"})
 
         with (
-            patch("mxtoai.email_sender.EmailSender", mock_email_sender),
+            patch("mxtoai.whitelist.EmailSender", mock_email_sender),
             patch.dict(os.environ, {"FRONTEND_URL": "https://test.mxtoai.com"}),
         ):
             result = await send_verification_email("test@example.com", "token-123")
@@ -320,7 +309,7 @@ class TestSendVerificationEmail:
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "test-123"})
 
-        with patch("mxtoai.email_sender.EmailSender", mock_email_sender), patch.dict(os.environ, {}, clear=True):
+        with patch("mxtoai.whitelist.EmailSender", mock_email_sender), patch.dict(os.environ, {}, clear=True):
             result = await send_verification_email("test@example.com", "token-456")
 
         assert result is True
@@ -333,7 +322,7 @@ class TestSendVerificationEmail:
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(side_effect=Exception("Send failed"))
 
-        with patch("mxtoai.email_sender.EmailSender", mock_email_sender):
+        with patch("mxtoai.whitelist.EmailSender", mock_email_sender):
             result = await send_verification_email("test@example.com", "token-789")
 
         assert result is False
@@ -344,7 +333,7 @@ class TestSendVerificationEmail:
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "test-123"})
 
-        with patch("mxtoai.email_sender.EmailSender", mock_email_sender):
+        with patch("mxtoai.whitelist.EmailSender", mock_email_sender):
             await send_verification_email("test@example.com", "token-html")
 
         call_args = mock_email_sender.return_value.send_email.call_args
@@ -376,6 +365,7 @@ class TestIntegrationScenarios:
     """Test integrated workflow scenarios."""
 
     @pytest.mark.asyncio
+    @patch.dict(os.environ, {"WHITELIST_ENABLED": "true"})
     async def test_full_verification_workflow_new_user(self):
         """Test complete verification workflow for new user."""
         mock_supabase = Mock()
@@ -392,14 +382,20 @@ class TestIntegrationScenarios:
         insert_table = Mock()
         insert_table.insert.return_value.execute.return_value = insert_response
 
-        mock_supabase.table.side_effect = [existing_table, insert_table]
+        # Third call: check existing (finds the new user)
+        final_response = Mock()
+        final_response.data = [{"email": "newuser@example.com", "verified": False}]
+        final_table = Mock()
+        final_table.select.return_value.eq.return_value.execute.return_value = final_response
+
+        mock_supabase.table.side_effect = [existing_table, insert_table, final_table]
 
         mock_email_sender = Mock()
         mock_email_sender.return_value.send_email = AsyncMock(return_value={"MessageId": "msg-123"})
 
         with (
             patch("mxtoai.whitelist.supabase", mock_supabase),
-            patch("mxtoai.email_sender.EmailSender", mock_email_sender),
+            patch("mxtoai.whitelist.EmailSender", mock_email_sender),
         ):
             # Trigger verification
             verification_result = await trigger_automatic_verification("newuser@example.com")
@@ -408,8 +404,8 @@ class TestIntegrationScenarios:
             exists, verified = await is_email_whitelisted("newuser@example.com")
 
         assert verification_result is True
-        # Note: In real scenario, this would depend on the actual database state
-        # Here we're testing the function behavior independently
+        assert exists is True
+        assert verified is False
 
     @pytest.mark.asyncio
     async def test_uuid_generation_uniqueness(self):
