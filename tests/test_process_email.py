@@ -790,7 +790,9 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
         )
 
         # Verify successful processing and task deletion
-        _assert_basic_successful_processing(returned_result, expected_handle="delete", expected_message_id="mocked_delete_reply_id")
+        _assert_basic_successful_processing(
+            returned_result, expected_handle="delete", expected_message_id="mocked_delete_reply_id"
+        )
 
         # Verify the task is marked as deleted in the database
         with db_connection.get_session() as session:

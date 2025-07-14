@@ -26,6 +26,7 @@ def _get_auto_processor():
     else:
         return AutoProcessor
 
+
 load_dotenv(override=True)
 
 # Configure logger
@@ -96,7 +97,7 @@ def process_images_and_text(image_path: str, query: str, client: InferenceClient
         client: Inference client for the model.
 
     """
-    AutoProcessor = _get_auto_processor() # NOQA: N806
+    AutoProcessor = _get_auto_processor()  # NOQA: N806
 
     messages = [
         {
