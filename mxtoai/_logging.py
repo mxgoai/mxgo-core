@@ -19,10 +19,20 @@ load_dotenv()
 
 # Get the project root directory
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
-LOGS_DIR = PROJECT_ROOT / "logs"
+
+# Allow logs directory to be configured via environment variable
+LOGS_DIR_ENV = os.environ.get("LOGS_DIR")
+LOGS_DIR = Path(LOGS_DIR_ENV) if LOGS_DIR_ENV else PROJECT_ROOT / "logs"
 
 # Create logs directory if it doesn't exist
-LOGS_DIR.mkdir(parents=True, exist_ok=True)
+try:
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+except (PermissionError, OSError):
+    # If we can't create the logs directory, fall back to a writable location
+    import tempfile
+
+    LOGS_DIR = Path(tempfile.gettempdir()) / "mxtoai_logs"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # Get log level from environment or use default
 LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").strip()

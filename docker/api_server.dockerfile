@@ -27,7 +27,7 @@ COPY mxtoai ./mxtoai
 COPY run_api.py .
 
 # Create directories
-RUN mkdir -p /app/attachments
+RUN mkdir -p /app/attachments /app/logs
 
 # Set Python path
 ENV PYTHONPATH=/app

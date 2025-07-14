@@ -658,18 +658,11 @@ def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
     request_data = prepare_suggestions_request_data()
     response = make_suggestions_post_request(request_data)
 
-    assert response.status_code == 200, "Should return 200 with error suggestions"
+    # Should return 403 Forbidden instead of 200 with error suggestions
+    assert response.status_code == 403, "Should return 403 Forbidden for non-whitelisted user"
     response_json = response.json()
-    assert len(response_json) == 1
-
-    # Should contain error suggestion
-    email_response = response_json[0]
-    assert email_response["email_identified"] == "test-email-123"
-    assert len(email_response["suggestions"]) == 1
-
-    error_suggestion = email_response["suggestions"][0]
-    assert error_suggestion["suggestion_title"] == "Access Denied"
-    assert error_suggestion["suggestion_id"] == "error_not_whitelisted"
+    assert "detail" in response_json
+    assert "Email verification required" in response_json["detail"]
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
@@ -683,17 +676,11 @@ def test_suggestions_api_generation_error(mock_generate_suggestions, mock_valida
     request_data = prepare_suggestions_request_data()
     response = make_suggestions_post_request(request_data)
 
-    assert response.status_code == 200, "Should return 200 with error suggestions"
+    # Should return 500 Internal Server Error instead of 200 with error suggestions
+    assert response.status_code == 500, "Should return 500 Internal Server Error for generation failure"
     response_json = response.json()
-    assert len(response_json) == 1
-
-    # Should contain error suggestion
-    email_response = response_json[0]
-    assert len(email_response["suggestions"]) == 1
-
-    error_suggestion = email_response["suggestions"][0]
-    assert error_suggestion["suggestion_title"] == "Processing Error"
-    assert error_suggestion["suggestion_id"] == "error_processing"
+    assert "detail" in response_json
+    assert "Error processing suggestion request" in response_json["detail"]
 
 
 def test_suggestions_api_invalid_request_format():
