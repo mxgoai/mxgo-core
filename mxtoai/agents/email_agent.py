@@ -171,11 +171,6 @@ class EmailAgent:
         # Get allowed tools from processing instructions
         allowed_tools = self.processing_instructions.allowed_tools
 
-        # If no allowed_tools specified, use all tools (backward compatibility)
-        if allowed_tools is None:
-            logger.warning("No allowed_tools specified in processing instructions, using all tools")
-            return self._initialize_all_tools()
-
         # Create a routed model instance for tools that need it
         model = RoutedLiteLLMModel()
 
@@ -217,31 +212,6 @@ class EmailAgent:
             f"Initialized {len(filtered_tools)} allowed tools for handle '{self.processing_instructions.handle}': {[tool.name for tool in filtered_tools]}"
         )
         return filtered_tools
-
-    def _initialize_all_tools(self) -> list[Tool]:
-        """
-        Initialize all available tools (backward compatibility method).
-
-        Returns:
-            list[Tool]: List of all available tools
-
-        """
-        # Create a routed model instance for tools that need it
-        model = RoutedLiteLLMModel()
-
-        # Use centralized tool mapping for consistency
-        tool_mapping = create_tool_mapping(
-            context=self.context,
-            scheduled_tasks_tool_factory=self._create_limited_scheduled_tasks_tool,
-            allowed_python_imports=ALLOWED_PYTHON_IMPORTS,
-            model=model,
-        )
-
-        # Get all available tools (non-None values)
-        all_tools = [tool for tool in tool_mapping.values() if tool is not None]
-
-        logger.info(f"Initialized {len(all_tools)} tools for backward compatibility mode")
-        return all_tools
 
     def _get_required_actions(self, mode: str) -> list[str]:
         """

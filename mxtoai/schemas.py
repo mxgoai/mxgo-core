@@ -239,7 +239,7 @@ class ProcessingInstructions(BaseModel):
     aliases: list[str]
     process_attachments: bool
     deep_research_mandatory: bool
-    allowed_tools: list[ToolName] | None = None  # Tools allowed for this handle
+    allowed_tools: list[ToolName]
     rejection_message: str | None = (
         "This email handle is not supported. Please visit https://mxtoai.com/docs/email-handles to learn about supported email handles."
     )
