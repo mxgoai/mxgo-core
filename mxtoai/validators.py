@@ -12,7 +12,7 @@ from mxtoai._logging import get_logger
 from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import generate_message_id, send_email_reply
-from mxtoai.schemas import RateLimitPlan
+from mxtoai.schemas import UserPlan
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted, trigger_automatic_verification
 
 logger = get_logger(__name__)
@@ -23,16 +23,26 @@ email_provider_domain_set: set[str] = set()  # Still useful for the domain check
 
 # Rate limit settings
 RATE_LIMITS_BY_PLAN = {
-    RateLimitPlan.BETA: {
-        "hour": {"limit": 20, "period_seconds": 3600, "expiry_seconds": 3600 * 2},  # 2hr expiry for 1hr window
-        "day": {"limit": 50, "period_seconds": 86400, "expiry_seconds": 86400 + 3600},  # 25hr expiry for 24hr window
+    UserPlan.BETA: {
+        "hour": {"limit": 10, "period_seconds": 3600, "expiry_seconds": 3600 * 2},  # 2hr expiry for 1hr window
+        "day": {"limit": 30, "period_seconds": 86400, "expiry_seconds": 86400 + 3600},  # 25hr expiry for 24hr window
         "month": {
-            "limit": 300,
+            "limit": 200,
             "period_seconds": 30 * 86400,
             "expiry_seconds": (30 * 86400) + 86400,
         },  # 31day expiry for 30day window
-    }
+    },
+    UserPlan.PRO: {
+        "hour": {"limit": 50, "period_seconds": 3600, "expiry_seconds": 3600 * 2},  # 2hr expiry for 1hr window
+        "day": {"limit": 100, "period_seconds": 86400, "expiry_seconds": 86400 + 3600},  # 25hr expiry for 24hr window
+        "month": {
+            "limit": 1000,
+            "period_seconds": 30 * 86400,
+            "expiry_seconds": (30 * 86400) + 86400,
+        },
+    },
 }
+
 RATE_LIMIT_PER_DOMAIN_HOUR = {  # Consistent structure for domain limits
     "hour": {"limit": 50, "period_seconds": 3600, "expiry_seconds": 3600 * 2}
 }
@@ -182,7 +192,7 @@ MXtoAI Team"""
 
 
 async def validate_rate_limits(
-    from_email: str, to: str, subject: str | None, message_id: str | None, plan: RateLimitPlan
+    from_email: str, to: str, subject: str | None, message_id: str | None, plan: UserPlan
 ) -> Response | None:
     """
     Validate incoming email against defined rate limits based on the plan, using Redis.

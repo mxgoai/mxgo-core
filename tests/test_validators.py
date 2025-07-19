@@ -6,7 +6,7 @@ from fakeredis.aioredis import FakeRedis
 from starlette.responses import Response
 
 from mxtoai import exceptions
-from mxtoai.schemas import RateLimitPlan
+from mxtoai.schemas import UserPlan
 from mxtoai.validators import (
     check_rate_limit_redis,
     get_current_timestamp_for_period,
@@ -160,7 +160,7 @@ class TestRateLimiting:
                 to="ask@mxtoai.com",
                 subject="Test Subject",
                 message_id="test-message-id",
-                plan=RateLimitPlan.BETA,
+                plan=UserPlan.BETA,
             )
 
         assert result is None  # Within limits
@@ -174,7 +174,7 @@ class TestRateLimiting:
                 to="ask@mxtoai.com",
                 subject="Test Subject",
                 message_id="test-message-id",
-                plan=RateLimitPlan.BETA,
+                plan=UserPlan.BETA,
             )
 
         assert result is None  # No Redis, no rate limiting
