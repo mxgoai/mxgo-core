@@ -56,6 +56,7 @@ dependencies = [
     "httpx (>=0.27.0,<1.0.0)",
     "httpx-aiohttp (>=0.1.6,<0.2.0)",
     "transformers (>=4.53.1,<5.0.0)",
+    "pyjwt[crypto] (>=2.8.0,<3.0.0)",
 ]
 
 [tool.ruff]

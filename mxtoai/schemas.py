@@ -50,8 +50,10 @@ class ToolName(str, Enum):
 
 
 # Enum for Rate Limit Plans
-class RateLimitPlan(Enum):
+class UserPlan(Enum):
+    FREE = "free"
     BETA = "beta"
+    PRO = "pro"
 
 
 class EmailAttachment(BaseModel):

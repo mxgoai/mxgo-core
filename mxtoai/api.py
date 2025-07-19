@@ -13,8 +13,9 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, Uploa
 from fastapi.security import APIKeyHeader
 from sqlalchemy import text
 
-from mxtoai import validators
+from mxtoai import user, validators
 from mxtoai._logging import get_logger
+from mxtoai.auth import AuthInfo, get_current_user
 from mxtoai.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
 from mxtoai.db import init_db_connection
 from mxtoai.dependencies import processing_instructions_resolver
@@ -27,7 +28,7 @@ from mxtoai.schemas import (
     EmailRequest,
     EmailSuggestionRequest,
     EmailSuggestionResponse,
-    RateLimitPlan,
+    UserPlan,
 )
 from mxtoai.suggestions import generate_suggestions, get_suggestions_model
 from mxtoai.tasks import process_email_task, rabbitmq_broker
@@ -611,36 +612,44 @@ async def process_email(  # noqa: PLR0912, PLR0915
             media_type="application/json",
         )
     # Validate API key
-    elif (response := await validate_api_key(api_key)) or (
-        response := await validate_rate_limits(from_email, to, subject, message_id, plan=RateLimitPlan.BETA)
-    ):
+    elif response := await validate_api_key(api_key):
         pass  # response already set
     else:
-        # Initialize variables
-        parsed_headers = {}
-        cc_list = []
-
+        # Get actual user plan for rate limiting
         try:
-            # Parse raw headers if provided
-            if raw_headers:
-                try:
-                    parsed_headers = json.loads(raw_headers)
-                    logger.info(f"Received raw headers: {json.dumps(parsed_headers, indent=2)}")
-                except json.JSONDecodeError:
-                    logger.warning(f"Could not parse rawHeaders JSON: {raw_headers}")
-                    # Continue processing even if headers are malformed
+            user_plan = await user.get_user_plan(from_email)
+        except Exception as e:
+            logger.warning(f"Could not determine user plan for {from_email}, falling back to BETA: {e}")
+            user_plan = UserPlan.BETA
 
-            # Validate email whitelist
-            if response := await validate_email_whitelist(from_email, to, subject, message_id):
-                pass  # response already set
-            # Validate email handle
-            handle_result = await validate_email_handle(to, from_email, subject, message_id)
-            response, handle = handle_result
-            if response:
-                pass  # response already set
-            else:
+        # Apply rate limits based on actual user plan
+        if response := await validate_rate_limits(from_email, to, subject, message_id, plan=user_plan):
+            pass  # response already set
+        else:
+            # Initialize variables
+            parsed_headers = {}
+            cc_list = []
+
+            try:
+                # Parse raw headers if provided
+                if raw_headers:
+                    try:
+                        parsed_headers = json.loads(raw_headers)
+                        logger.info(f"Received raw headers: {json.dumps(parsed_headers, indent=2)}")
+                    except json.JSONDecodeError:
+                        logger.warning(f"Could not parse rawHeaders JSON: {raw_headers}")
+                        # Continue processing even if headers are malformed
+
+                # Validate email whitelist
+                if response := await validate_email_whitelist(from_email, to, subject, message_id):
+                    pass  # response already set
+                # Validate email handle
+                handle_result = await validate_email_handle(to, from_email, subject, message_id)
+                response, handle = handle_result
+                if response:
+                    pass  # response already set
                 # Extract CC list from headers if available
-                if parsed_headers:
+                elif parsed_headers:
                     cc_list = extract_cc_from_headers(parsed_headers)
 
                 # Prepare attachment validation and processing
@@ -679,113 +688,122 @@ async def process_email(  # noqa: PLR0912, PLR0915
                 ):
                     pass  # response already set
                 else:
-                    # Check for idempotency (duplicate processing)
-                    idempotency_response = await validate_idempotency(
-                        from_email=from_email,
-                        to=to,
-                        subject=subject or "",
-                        date=date or "",
-                        html_content=html_content or "",
-                        text_content=text_content or "",
-                        files_count=len(files) if files is not None else 0,
-                        message_id=message_id,
-                    )
-                    if idempotency_response:
-                        response_obj, message_id = idempotency_response
-                        if response_obj:
-                            response = response_obj
-                    else:
-                        # If validate_idempotency returns None, extract messageId from the tuple
-                        _, message_id = idempotency_response
-
-                    if not response:
-                        # Log initial email details
-                        logger.info("Received new email request:")
-                        logger.info(f"To: {to} (handle: {handle})")
-                        logger.info(f"Subject: {subject}")
-                        logger.info(f"Message ID: {message_id}")
-                        logger.info(f"Date: {date}")
-                        logger.info(f"Number of attachments: {len(files) if files is not None else 0}")
-
-                        # Create email request object
-                        email_request = EmailRequest(
+                    try:
+                        # Check for idempotency (duplicate processing)
+                        idempotency_response = await validate_idempotency(
                             from_email=from_email,
                             to=to,
-                            subject=subject,
-                            textContent=textContent,
-                            htmlContent=htmlContent,
-                            messageId=message_id,
-                            date=date,
-                            rawHeaders=parsed_headers,
-                            cc=cc_list,
-                            attachments=[],  # Start with empty list, will be updated after saving files
+                            subject=subject or "",
+                            date=date or "",
+                            html_content=html_content or "",
+                            text_content=text_content or "",
+                            files_count=len(files) if files is not None else 0,
+                            message_id=message_id,
                         )
+                        if idempotency_response:
+                            response_obj, message_id = idempotency_response
+                            if response_obj:
+                                response = response_obj
+                        else:
+                            # If validate_idempotency returns None, extract messageId from the tuple
+                            _, message_id = idempotency_response
 
-                        # Generate email ID
-                        email_id = generate_email_id(email_request)
-                        logger.info(f"Generated email ID: {email_id}")
+                        if not response:
+                            # Log initial email details
+                            logger.info("Received new email request:")
+                            logger.info(f"To: {to} (handle: {handle})")
+                            logger.info(f"Subject: {subject}")
+                            logger.info(f"Message ID: {message_id}")
+                            logger.info(f"Date: {date}")
+                            logger.info(f"Number of attachments: {len(files) if files is not None else 0}")
 
-                        # Resolve email instructions for the handle
-                        email_instructions = processing_instructions_resolver(handle)
-
-                        # Handle attachments only if the handle requires it
-                        email_attachments_dir = ""
-                        attachment_info = []
-                        if email_instructions.process_attachments and email_attachments:
-                            email_attachments_dir, attachment_info = await handle_file_attachments(
-                                email_attachments, email_id, email_request
-                            )
-                            logger.info(f"Processed {len(attachment_info)} attachments successfully")
-                            logger.info(f"Attachments directory: {email_attachments_dir}")
-
-                        # Prepare attachment info for processing
-                        processed_attachment_info = []
-                        for info in attachment_info:
-                            processed_info = {
-                                "filename": info.get("filename", ""),
-                                "type": info.get("type", info.get("contentType", "application/octet-stream")),
-                                "path": info.get("path", ""),
-                                "size": info.get("size", 0),
-                            }
-                            processed_attachment_info.append(processed_info)
-                            logger.info(
-                                f"Prepared attachment for processing: {processed_info['filename']} "
-                                f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)"
+                            # Create email request object
+                            email_request = EmailRequest(
+                                from_email=from_email,
+                                to=to,
+                                subject=subject,
+                                textContent=textContent,
+                                htmlContent=htmlContent,
+                                messageId=message_id,
+                                date=date,
+                                rawHeaders=parsed_headers,
+                                cc=cc_list,
+                                attachments=[],  # Start with empty list, will be updated after saving files
                             )
 
-                        # Enqueue the task for async processing
-                        process_email_task.send(
-                            email_request.model_dump(),
-                            email_attachments_dir,
-                            processed_attachment_info,
-                            scheduled_task_id,
-                        )
-                        logger.info(
-                            f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
-                            f"{f' (scheduled task: {scheduled_task_id})' if scheduled_task_id else ''}"
-                        )
+                            # Generate email ID
+                            email_id = generate_email_id(email_request)
+                            logger.info(f"Generated email ID: {email_id}")
 
-                        # Return success response (always dict, not list)
-                        return Response(
-                            content=json.dumps(
-                                {
-                                    "message": "Email received and queued for processing",
-                                    "email_id": email_id,
-                                    "attachments_saved": len(processed_attachment_info),
-                                    "status": "processing",
+                            # Resolve email instructions for the handle
+                            email_instructions = processing_instructions_resolver(handle)
+
+                            # Handle attachments only if the handle requires it
+                            email_attachments_dir = ""
+                            attachment_info = []
+                            if email_instructions.process_attachments and email_attachments:
+                                email_attachments_dir, attachment_info = await handle_file_attachments(
+                                    email_attachments, email_id, email_request
+                                )
+                                logger.info(f"Processed {len(attachment_info)} attachments successfully")
+                                logger.info(f"Attachments directory: {email_attachments_dir}")
+
+                            # Prepare attachment info for processing
+                            processed_attachment_info = []
+                            for info in attachment_info:
+                                processed_info = {
+                                    "filename": info.get("filename", ""),
+                                    "type": info.get("type", info.get("contentType", "application/octet-stream")),
+                                    "path": info.get("path", ""),
+                                    "size": info.get("size", 0),
                                 }
-                            ),
-                            status_code=status.HTTP_200_OK,
-                            media_type="application/json",
+                                processed_attachment_info.append(processed_info)
+                                logger.info(
+                                    f"Prepared attachment for processing: {processed_info['filename']} "
+                                    f"(type: {processed_info['type']}, size: {processed_info['size']} bytes)"
+                                )
+
+                            # Enqueue the task for async processing
+                            process_email_task.send(
+                                email_request.model_dump(),
+                                email_attachments_dir,
+                                processed_attachment_info,
+                                scheduled_task_id,
+                            )
+                            logger.info(
+                                f"Enqueued email {email_id} for processing with {len(processed_attachment_info)} attachments"
+                                f"{f' (scheduled task: {scheduled_task_id})' if scheduled_task_id else ''}"
+                            )
+
+                            # Return success response (always dict, not list)
+                            return Response(
+                                content=json.dumps(
+                                    {
+                                        "message": "Email received and queued for processing",
+                                        "email_id": email_id,
+                                        "attachments_saved": len(processed_attachment_info),
+                                        "status": "processing",
+                                    }
+                                ),
+                                status_code=status.HTTP_200_OK,
+                                media_type="application/json",
+                            )
+
+                    except Exception as e:
+                        logger.error(f"Error processing email request: {e}")
+                        response = create_error_response(
+                            summary="Error processing email",
+                            attachment_info=[],
+                            error=str(e),
                         )
 
-        except Exception as e:
-            logger.error(f"Error processing email request: {e}")
-            response = create_error_response(
-                summary="Error processing email",
-                attachment_info=[],
-                error=str(e),
-            )
+            except Exception as e:
+                logger.error(f"Error in email processing outer block: {e}")
+                response = create_error_response(
+                    summary="Error processing email",
+                    attachment_info=[],
+                    error=str(e),
+                )
 
     # At the end of the function, always return a Response object
     if isinstance(response, Response):
@@ -806,6 +824,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
 async def process_suggestions(
     requests: list[EmailSuggestionRequest],
     api_key: Annotated[str | None, Depends(suggestions_api_auth_scheme)] = None,
+    current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
 ) -> list[EmailSuggestionResponse]:
     """
     Process a batch of email suggestion requests.
@@ -813,11 +832,15 @@ async def process_suggestions(
     Args:
         requests: A list of email suggestion requests.
         api_key: The API key for authentication.
+        current_user: The authenticated user from JWT token.
 
     Returns:
         A list of email suggestion responses.
 
     """
+    # JWT Authentication is handled by dependency injection
+    logger.info(f"JWT authentication successful for user {current_user.email}")
+
     # Check if API key is provided
     if api_key is None:
         raise HTTPException(
