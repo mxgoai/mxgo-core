@@ -23,6 +23,8 @@ Here's a comprehensive overview of all available handles and their primary funct
 *   **`research@mxtoai.com`**: Perform in-depth research based on the email content [Experimental]. Provides comprehensive analysis with external sources.
 *   **`fact-check@mxtoai.com`**: Verify the claims made in the email. Checks facts against reliable sources.
 *   **`background-research@mxtoai.com`**: Get background information on entities, people, or topics mentioned in the email.
+*   **`news@mxtoai.com`**: Get current news and breaking stories related to topics in the email. Provides structured analysis with grouped themes.
+    - **Aliases**: `breaking-news@mxtoai.com`, `latest-news@mxtoai.com`, `news-update@mxtoai.com`, `current-events@mxtoai.com`
 
 ## 🗓️ Scheduling & Task Management Handles
 
