@@ -18,6 +18,11 @@ SEARCH_TOOLS = [
     ToolName.GOOGLE_SEARCH,  # Keep for specialized Google search needs
 ]
 
+# News tools for handles that need news search capabilities
+NEWS_TOOLS = [
+    ToolName.NEWS_SEARCH,
+]
+
 # Research tools for handles that need deep research capabilities
 RESEARCH_TOOLS = [
     ToolName.DEEP_RESEARCH,
@@ -160,5 +165,15 @@ DEFAULT_EMAIL_HANDLES = [
         target_model="gpt-4",
         task_template=template_prompts.DELETE_TEMPLATE,
         output_template=output_prompts.DELETE_OUTPUT_GUIDELINES,
+    ),
+    ProcessingInstructions(
+        handle=HandlerAlias.NEWS.value,
+        aliases=["breaking-news", "latest-news", "news-update", "current-events"],
+        process_attachments=True,
+        deep_research_mandatory=False,
+        allowed_tools=COMMON_TOOLS + NEWS_TOOLS + SEARCH_TOOLS,
+        target_model="gpt-4",
+        task_template=template_prompts.NEWS_TEMPLATE,
+        output_template=output_prompts.NEWS_OUTPUT_GUIDELINES,
     ),
 ]

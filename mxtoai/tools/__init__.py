@@ -18,6 +18,7 @@ from mxtoai.tools.external_data.linkedin.fresh_data import LinkedInFreshDataTool
 from mxtoai.tools.external_data.linkedin.linkedin_data_api import LinkedInDataAPITool
 from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
 from mxtoai.tools.meeting_tool import MeetingTool
+from mxtoai.tools.news_tool import NewsTool
 from mxtoai.tools.pdf_export_tool import PDFExportTool
 from mxtoai.tools.references_generator_tool import ReferencesGeneratorTool
 from mxtoai.tools.scheduled_tasks_tool import ScheduledTasksTool
@@ -37,6 +38,7 @@ __all__ = [
     "LinkedInDataAPITool",
     "LinkedInFreshDataTool",
     "MeetingTool",
+    "NewsTool",
     "OpenAIVisualizerTool",
     "PDFExportTool",
     "ReferencesGeneratorTool",
@@ -52,8 +54,10 @@ def _initialize_search_tools(context: RequestContext) -> dict[ToolName, Tool | N
 
     if os.getenv("BRAVE_SEARCH_API_KEY"):
         tool_mapping[ToolName.BRAVE_SEARCH] = BraveSearchTool(context=context, max_results=5)
+        tool_mapping[ToolName.NEWS_SEARCH] = NewsTool(context=context, max_results=10)
     else:
         tool_mapping[ToolName.BRAVE_SEARCH] = None
+        tool_mapping[ToolName.NEWS_SEARCH] = None
 
     primary_search_tool = tool_mapping.get(ToolName.BRAVE_SEARCH) or tool_mapping.get(ToolName.DDG_SEARCH)
 

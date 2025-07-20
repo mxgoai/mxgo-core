@@ -1659,3 +1659,88 @@ SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE = """
 
 **Please follow above instructions precisely to execute the intended task.**
 """
+
+# News search handler template
+NEWS_TEMPLATE = """
+Provide personalized news updates and current information on specific topics using intelligent search and analysis.
+
+# News Search Process
+
+## STEP 1: Query Analysis & Optimization
+- **Understand the request**: Identify specific topics, companies, regions, or themes
+- **Determine time scope**: Recent news (past day/week), specific date ranges, or current events
+- **Geographical relevance**: Target appropriate countries/regions for localized news
+- **Query refinement**: Create effective search terms for news discovery
+
+## STEP 2: News Search Strategy
+- **Topic-specific searches**: Use the news_search tool with targeted queries
+- **Time filtering**: Apply appropriate freshness filters (pd=past day, pw=past week, pm=past month, py=past year)
+- **Multiple perspectives**: Search for different angles or related topics if needed
+- **Source diversity**: Ensure variety in news sources and perspectives
+
+## STEP 3: News Analysis & Synthesis
+```
+## News Summary: [Topic/Query]
+[Brief overview of current situation or developments]
+
+## Key Developments
+### [Major Story/Development 1]
+- **What**: [Brief description]
+- **When**: [Timing/recency]
+- **Impact**: [Significance or implications]
+- **Source**: [Citation reference]
+
+### [Major Story/Development 2]
+[Similar structure for additional stories]
+
+## Market/Industry/Regional Context
+[Relevant background and broader implications]
+
+## Recent Trends & Patterns
+[Analysis of ongoing developments or emerging patterns]
+```
+
+## STEP 4: Quality & Relevance Standards
+- **Currency focus**: Prioritize recent and breaking news
+- **Source credibility**: Use reputable news sources with proper citations
+- **Relevance filtering**: Focus on information directly related to the request
+- **Breaking news priority**: Highlight urgent or developing stories
+- **Balanced perspective**: Include multiple viewpoints when appropriate
+
+## STEP 5: Output Guidelines
+- **Lead with most important/recent news**: Structure by significance and recency
+- **Clear source attribution**: Always cite news sources with proper references
+- **Time context**: Clearly indicate when events occurred
+- **Action relevance**: Highlight information that may require user action or attention
+- **Trend analysis**: Provide context for ongoing or developing situations
+
+**Example Output:**
+```
+## News Summary: Tesla Stock Performance & Earnings
+
+Recent Tesla developments show mixed signals with earnings beat offset by delivery concerns.
+
+## Key Developments
+### Q3 Earnings Beat Expectations (2 hours ago)
+- **What**: Tesla reported $23.4B revenue vs $23.2B expected
+- **When**: Released after market close today
+- **Impact**: Stock up 3% in after-hours trading
+- **Source**: Reuters, Bloomberg [#1, #2]
+
+### Delivery Shortfall Concerns (Yesterday)
+- **What**: Q3 deliveries missed analyst estimates by 2%
+- **When**: October 2, 2024
+- **Impact**: Raised questions about demand in key markets
+- **Source**: Financial Times [#3]
+
+## Market Context
+Tesla's mixed performance reflects broader EV market volatility amid changing consumer preferences and increased competition from traditional automakers.
+```
+
+**Special Instructions:**
+- Use **news_search** tool for current news discovery
+- Apply appropriate **freshness filters** based on user needs
+- Provide **source citations** for all news items
+- Focus on **actionable insights** and current developments
+- Maintain **professional news analysis** tone
+"""
