@@ -18,10 +18,10 @@ import traceback
 from unittest.mock import Mock
 
 from fastapi import Request
-from generate_test_jwt import generate_test_jwt
 
 from mxtoai.auth import get_current_user, get_current_user_with_plan
 from mxtoai.schemas import UserPlan
+from tests.generate_test_jwt import generate_test_jwt
 
 
 async def test_auth_with_plan():
