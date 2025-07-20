@@ -16,6 +16,10 @@ import mxtoai.validators
 from mxtoai._logging import get_logger
 from mxtoai.api import app
 from mxtoai.schemas import EmailSuggestionResponse, SuggestionDetail
+from tests.generate_test_jwt import generate_test_jwt
+
+# Set environment variables for testing
+os.environ["JWT_SECRET"] = "test_secret_key_for_development_only"  # noqa: S105
 
 client = TestClient(app)  # This client might be overridden by fixtures for specific tests
 API_KEY = os.environ["X_API_KEY"]
@@ -23,11 +27,11 @@ API_KEY = os.environ["X_API_KEY"]
 logger = get_logger(__name__)
 
 
-# Test constants for rate limits to avoid magic numbers in tests, mirroring validators.py
-# These should match what's in mxtoai.validators.py for the BETA plan
-TEST_EMAIL_LIMIT_HOUR = 20
-TEST_EMAIL_LIMIT_DAY = 50
-TEST_EMAIL_LIMIT_MONTH = 300
+# Test constants for rate limits to avoid magic numbers in tests, mirroring config.py
+# These should match what's in mxtoai.config.py for the BETA plan
+TEST_EMAIL_LIMIT_HOUR = 10
+TEST_EMAIL_LIMIT_DAY = 30
+TEST_EMAIL_LIMIT_MONTH = 200
 TEST_DOMAIN_LIMIT_HOUR = 50
 TEST_KNOWN_PROVIDER_DOMAIN = "knownprovider.com"
 TEST_UNKNOWN_DOMAIN = "unknownprovider.com"
@@ -472,7 +476,13 @@ def prepare_suggestions_request_data(**kwargs):
 
 def make_suggestions_post_request(request_data, headers=None):
     """Make a POST request to the suggestions endpoint."""
-    request_headers = {"x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "valid-suggestions-key")}
+    # Generate a valid JWT token
+    jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+    request_headers = {
+        "x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "valid-suggestions-key"),
+        "Authorization": f"Bearer {jwt_token}",
+    }
     if headers:
         # Filter out None values before updating
         filtered_headers = {k: v for k, v in headers.items() if v is not None}
@@ -487,7 +497,13 @@ def make_suggestions_post_request(request_data, headers=None):
 
 def make_suggestions_post_request_with_client(test_client, request_data, headers=None):
     """Make a POST request to the suggestions endpoint with custom client."""
-    request_headers = {"x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "test-suggestions-key")}
+    # Generate a valid JWT token
+    jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+    request_headers = {
+        "x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "test-suggestions-key"),
+        "Authorization": f"Bearer {jwt_token}",
+    }
     if headers is not None:
         request_headers.update(headers)
 
@@ -524,6 +540,7 @@ def assert_suggestions_error_response(response, expected_status=422):
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_validate_whitelist):
@@ -570,6 +587,7 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mock_validate_whitelist):
@@ -616,6 +634,7 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
     assert mock_generate_suggestions.call_count == 3
 
 
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_missing_api_key():
     """Test suggestions API with missing API key."""
     request_data = prepare_suggestions_request_data()
@@ -624,6 +643,7 @@ def test_suggestions_api_missing_api_key():
     assert response.status_code == 422, f"Expected 422 for missing API key, got {response.status_code}"
 
 
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_invalid_api_key():
     """Test suggestions API with invalid API key."""
     request_data = prepare_suggestions_request_data()
@@ -635,6 +655,7 @@ def test_suggestions_api_invalid_api_key():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": ""})  # Missing environment variable
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_missing_env_var():
     """Test suggestions API when SUGGESTIONS_API_KEY environment variable is not set."""
     request_data = prepare_suggestions_request_data()
@@ -647,6 +668,7 @@ def test_suggestions_api_missing_env_var():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
     """Test suggestions API when user is not whitelisted."""
@@ -666,6 +688,7 @@ def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_generation_error(mock_generate_suggestions, mock_validate_whitelist):
@@ -683,6 +706,7 @@ def test_suggestions_api_generation_error(mock_generate_suggestions, mock_valida
     assert "Error processing suggestion request" in response_json["detail"]
 
 
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_invalid_request_format():
     """Test suggestions API with invalid request format."""
     # Missing required fields
@@ -694,6 +718,7 @@ def test_suggestions_api_invalid_request_format():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_empty_request():
     """Test suggestions API with empty request list."""
     response = make_suggestions_post_request(
@@ -707,6 +732,7 @@ def test_suggestions_api_empty_request():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_validate_whitelist):
@@ -756,6 +782,7 @@ def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_valida
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate_whitelist):
@@ -794,6 +821,7 @@ def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
     """Test suggestions API with rate limiting (if rate limits apply to suggestions endpoint)."""
     # Note: This test assumes suggestions endpoint might have its own rate limits
@@ -828,6 +856,7 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_validate_whitelist):
@@ -860,6 +889,7 @@ def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_val
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
+@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
 @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_default_suggestions_always_included(mock_generate_suggestions, mock_validate_whitelist):

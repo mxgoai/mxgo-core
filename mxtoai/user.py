@@ -5,26 +5,18 @@ This module provides functionality to determine user subscription plans
 by integrating with the Dodo Payments API.
 """
 
-import os
 from datetime import datetime
+from email.utils import parseaddr
 from typing import Any
 
 import httpx
-from dotenv import load_dotenv
 
 from mxtoai._logging import get_logger
+from mxtoai.config import DODO_API_BASE_URL, DODO_API_KEY, PRO_PLAN_PRODUCT_ID
 from mxtoai.schemas import UserPlan
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 logger = get_logger(__name__)
-
-# Dodo Payments API configuration
-DODO_API_KEY = os.getenv("DODO_API_KEY")
-PRO_PLAN_PRODUCT_ID = os.getenv("PRO_PLAN_PRODUCT_ID")
-DODO_API_BASE_URL = "https://live.dodopayments.com"
 
 # HTTP client timeout configuration
 REQUEST_TIMEOUT = 30.0
@@ -168,3 +160,31 @@ async def _get_latest_active_subscription(customer_id: str) -> dict[str, Any] | 
     except Exception as e:
         logger.error(f"Error looking up subscriptions for customer {customer_id}: {e}")
         return None
+
+
+def normalize_email(email_address: str) -> str:
+    """Normalize email address by removing +alias and lowercasing domain."""
+    name, addr = parseaddr(email_address)
+    if not addr:
+        return email_address.lower()  # Fallback for unparseable addresses
+
+    # Check if addr contains @
+    if "@" not in addr:
+        return email_address.lower()  # Fallback for invalid addresses
+
+    local_part, domain_part = addr.split("@", 1)
+    domain_part = domain_part.lower()
+
+    # Remove +alias from local_part
+    if "+" in local_part:
+        local_part = local_part.split("+", 1)[0]
+
+    return f"{local_part}@{domain_part}"
+
+
+def get_domain_from_email(email_address: str) -> str:
+    """Extract domain from email address."""
+    try:
+        return email_address.split("@", 1)[1].lower()
+    except IndexError:
+        return ""  # Should not happen for valid emails

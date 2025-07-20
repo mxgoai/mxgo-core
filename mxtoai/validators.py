@@ -2,17 +2,24 @@ import asyncio
 import json
 import os
 from datetime import datetime, timezone
-from email.utils import parseaddr
 
 import redis.asyncio as aioredis
 from fastapi import Response, status
 
 from mxtoai import exceptions
 from mxtoai._logging import get_logger
-from mxtoai.config import MAX_ATTACHMENT_SIZE_MB, MAX_ATTACHMENTS_COUNT, MAX_TOTAL_ATTACHMENTS_SIZE_MB
+from mxtoai.config import (
+    MAX_ATTACHMENT_SIZE_MB,
+    MAX_ATTACHMENTS_COUNT,
+    MAX_TOTAL_ATTACHMENTS_SIZE_MB,
+    PERIOD_EXPIRY,
+    RATE_LIMIT_PER_DOMAIN_HOUR,
+    RATE_LIMITS_BY_PLAN,
+)
 from mxtoai.dependencies import processing_instructions_resolver
 from mxtoai.email_sender import generate_message_id, send_email_reply
 from mxtoai.schemas import UserPlan
+from mxtoai.user import get_domain_from_email, normalize_email
 from mxtoai.whitelist import get_whitelist_signup_url, is_email_whitelisted, trigger_automatic_verification
 
 logger = get_logger(__name__)
@@ -20,39 +27,6 @@ logger = get_logger(__name__)
 # Globals to be initialized from api.py
 redis_client: aioredis.Redis | None = None
 email_provider_domain_set: set[str] = set()  # Still useful for the domain check logic
-
-# Rate limit settings
-RATE_LIMITS_BY_PLAN = {
-    UserPlan.BETA: {
-        "hour": {"limit": 10, "period_seconds": 3600, "expiry_seconds": 3600 * 2},  # 2hr expiry for 1hr window
-        "day": {"limit": 30, "period_seconds": 86400, "expiry_seconds": 86400 + 3600},  # 25hr expiry for 24hr window
-        "month": {
-            "limit": 200,
-            "period_seconds": 30 * 86400,
-            "expiry_seconds": (30 * 86400) + 86400,
-        },  # 31day expiry for 30day window
-    },
-    UserPlan.PRO: {
-        "hour": {"limit": 50, "period_seconds": 3600, "expiry_seconds": 3600 * 2},  # 2hr expiry for 1hr window
-        "day": {"limit": 100, "period_seconds": 86400, "expiry_seconds": 86400 + 3600},  # 25hr expiry for 24hr window
-        "month": {
-            "limit": 1000,
-            "period_seconds": 30 * 86400,
-            "expiry_seconds": (30 * 86400) + 86400,
-        },
-    },
-}
-
-RATE_LIMIT_PER_DOMAIN_HOUR = {  # Consistent structure for domain limits
-    "hour": {"limit": 50, "period_seconds": 3600, "expiry_seconds": 3600 * 2}
-}
-
-# TTLs for different periods (approximate for safety)
-PERIOD_EXPIRY = {
-    "hour": 3600 * 2,  # 2 hours
-    "day": 86400 + 3600,  # 25 hours
-    "month": 30 * 86400 + 86400,  # 31 days
-}
 
 
 def get_current_timestamp_for_period(period_name: str, dt: datetime) -> str:
@@ -131,34 +105,6 @@ async def check_rate_limit_redis(
             return None  # Fail open on Redis error to avoid blocking legitimate requests
 
     return None
-
-
-def normalize_email(email_address: str) -> str:
-    """Normalize email address by removing +alias and lowercasing domain."""
-    name, addr = parseaddr(email_address)
-    if not addr:
-        return email_address.lower()  # Fallback for unparseable addresses
-
-    # Check if addr contains @
-    if "@" not in addr:
-        return email_address.lower()  # Fallback for invalid addresses
-
-    local_part, domain_part = addr.split("@", 1)
-    domain_part = domain_part.lower()
-
-    # Remove +alias from local_part
-    if "+" in local_part:
-        local_part = local_part.split("+", 1)[0]
-
-    return f"{local_part}@{domain_part}"
-
-
-def get_domain_from_email(email_address: str) -> str:
-    """Extract domain from email address."""
-    try:
-        return email_address.split("@", 1)[1].lower()
-    except IndexError:
-        return ""  # Should not happen for valid emails
 
 
 async def send_rate_limit_rejection_email(

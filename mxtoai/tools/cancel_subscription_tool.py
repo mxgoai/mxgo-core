@@ -5,7 +5,6 @@ This tool integrates with Dodo Payments API to provide users with access to thei
 customer portal for subscription management.
 """
 
-import os
 from datetime import datetime
 from typing import Any, ClassVar
 
@@ -13,14 +12,11 @@ import requests
 from smolagents import Tool
 
 from mxtoai._logging import get_logger
+from mxtoai.config import DODO_API_BASE_URL, DODO_API_KEY, PRO_PLAN_PRODUCT_ID
 from mxtoai.schemas import UserPlan
 
 logger = get_logger(__name__)
 
-# Dodo Payments API configuration
-DODO_API_KEY = os.getenv("DODO_API_KEY")
-PRO_PLAN_PRODUCT_ID = os.getenv("PRO_PLAN_PRODUCT_ID")
-DODO_API_BASE_URL = "https://live.dodopayments.com"
 REQUEST_TIMEOUT = 30.0
 HTTP_OK = 200
 

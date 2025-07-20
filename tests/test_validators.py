@@ -7,11 +7,10 @@ from starlette.responses import Response
 
 from mxtoai import exceptions
 from mxtoai.schemas import UserPlan
+from mxtoai.user import get_domain_from_email, normalize_email
 from mxtoai.validators import (
     check_rate_limit_redis,
     get_current_timestamp_for_period,
-    get_domain_from_email,
-    normalize_email,
     send_rate_limit_rejection_email,
     validate_attachments,
     validate_email_handle,

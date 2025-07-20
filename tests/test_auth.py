@@ -251,7 +251,7 @@ class TestJWTAuthentication:
         """Test get_current_user_with_plan with valid token and successful plan lookup."""
         with (
             patch("mxtoai.auth.JWT_SECRET", jwt_secret),
-            patch("user.get_user_plan", return_value=UserPlan.PRO) as mock_get_plan,
+            patch("mxtoai.user.get_user_plan", return_value=UserPlan.PRO) as mock_get_plan,
         ):
             auth_info = await get_current_user_with_plan(mock_request_with_valid_token)
 
@@ -267,7 +267,7 @@ class TestJWTAuthentication:
         """Test get_current_user_with_plan falls back to BETA when plan lookup fails."""
         with (
             patch("mxtoai.auth.JWT_SECRET", jwt_secret),
-            patch("user.get_user_plan", side_effect=Exception("Plan lookup failed")),
+            patch("mxtoai.user.get_user_plan", side_effect=Exception("Plan lookup failed")),
         ):
             auth_info = await get_current_user_with_plan(mock_request_with_valid_token)
 
