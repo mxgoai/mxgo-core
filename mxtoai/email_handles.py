@@ -176,4 +176,14 @@ DEFAULT_EMAIL_HANDLES = [
         task_template=template_prompts.NEWS_TEMPLATE,
         output_template=output_prompts.NEWS_OUTPUT_GUIDELINES,
     ),
+    ProcessingInstructions(
+        handle=HandlerAlias.UNSUBSCRIBE.value,
+        aliases=["cancel-subscription", "cancel-plan", "subscription-cancel"],
+        process_attachments=False,
+        deep_research_mandatory=False,
+        allowed_tools=[ToolName.CANCEL_SUBSCRIPTION_TOOL, *COMMON_TOOLS],
+        target_model="gpt-4",
+        task_template=template_prompts.CANCEL_SUBSCRIPTION_TEMPLATE,
+        output_template=output_prompts.CANCEL_SUBSCRIPTION_OUTPUT_GUIDELINES,
+    ),
 ]

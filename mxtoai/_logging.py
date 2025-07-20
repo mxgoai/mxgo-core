@@ -247,7 +247,7 @@ def setup_stdlib_logging_intercept():
     error_only_loggers = [
         "litellm",
         "httpx",
-        "pika",  # RabbitMQ client
+        # "pika",  # RabbitMQ client
         "azure",
         "openai",
         "transformers",  # HuggingFace transformers

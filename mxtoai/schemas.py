@@ -19,6 +19,7 @@ class HandlerAlias(str, Enum):
     SCHEDULE = "schedule"
     DELETE = "delete"
     NEWS = "news"
+    UNSUBSCRIBE = "unsubscribe"
 
 
 class ToolName(str, Enum):
@@ -49,6 +50,9 @@ class ToolName(str, Enum):
     # External data tools
     LINKEDIN_FRESH_DATA = "linkedin_fresh_data"
     LINKEDIN_DATA_API = "linkedin_data_api"
+
+    # Subscription management tools
+    CANCEL_SUBSCRIPTION_TOOL = "cancel_subscription_tool"
 
 
 # Enum for Rate Limit Plans

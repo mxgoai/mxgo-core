@@ -1661,6 +1661,43 @@ SCHEDULED_TASK_DISTILLED_INSTRUCTIONS_TEMPLATE = """
 """
 
 # News search handler template
+CANCEL_SUBSCRIPTION_TEMPLATE = """
+Process subscription cancellation requests by checking user subscription status and providing appropriate portal access or information.
+
+# Cancellation Process
+
+## STEP 1: User Verification
+- Extract user email from the request
+- Verify the request is from the subscription holder
+
+## STEP 2: Subscription Status Check
+- Use the cancel_subscription_tool with the user's email address
+- **CRITICAL**: Carefully examine the tool output for:
+  - `has_subscription`: true/false
+  - `user_plan`: "beta"/"pro"
+  - `portal_url`: present or null
+- Do NOT assume subscription status - use actual tool results
+
+## STEP 3: Response Based on Tool Output
+**If tool shows has_subscription: false OR user_plan: "beta":**
+- User does NOT have an active PRO subscription
+- Respond with "No Active Subscription Found" message
+- Offer support contact information
+
+**If tool shows has_subscription: true AND portal_url exists:**
+- User HAS an active PRO subscription
+- Provide the customer portal link from tool output
+- Include portal access instructions
+
+## Response Requirements:
+- Base response entirely on tool output, not assumptions
+- Professional and helpful tone
+- Clear next steps for the user
+- Appropriate contact information if needed
+- Acknowledge the cancellation request promptly
+- Provide security-conscious portal links with expiration information when applicable
+"""
+
 NEWS_TEMPLATE = """
 Provide personalized news updates and current information on specific topics using intelligent search and analysis.
 
@@ -1679,19 +1716,27 @@ Provide personalized news updates and current information on specific topics usi
 - **Source diversity**: Ensure variety in news sources and perspectives
 
 ## STEP 3: News Analysis & Synthesis
+**Group Related Stories**: Before formatting output, identify similar news stories and group them under common themes or topics to avoid repetition.
+
 ```
 ## News Summary: [Topic/Query]
 [Brief overview of current situation or developments]
 
 ## Key Developments
-### [Major Story/Development 1]
-- **What**: [Brief description]
-- **When**: [Timing/recency]
-- **Impact**: [Significance or implications]
-- **Source**: [Citation reference]
+### [Major Theme/Topic 1] - [Date Range]
+**Recent Updates:**
+- [Most recent development from Source A]
+- [Related development from Source B]
+- [Additional context from Source C]
 
-### [Major Story/Development 2]
-[Similar structure for additional stories]
+**Key Points:**
+- **What**: [Consolidated description of the theme]
+- **When**: [Timeline of developments]
+- **Impact**: [Combined significance or implications]
+- **Sources**: [All relevant citation references]
+
+### [Major Theme/Topic 2] - [Date Range]
+[Similar grouped structure for related stories]
 
 ## Market/Industry/Regional Context
 [Relevant background and broader implications]
