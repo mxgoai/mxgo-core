@@ -203,3 +203,35 @@ Sample error format:
 [Specific steps user can take to resolve]
 ```
 """
+
+# News handler output guidelines
+NEWS_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Executive Summary: Start with 2-3 sentence overview of key findings
+2. Priortize most recent and significant developments
+3. Include Historical context and relevant background information wherever makes sense
+4. Add Analysis & Implications that user might be insterested in. Always isolate between your analysis and the objective news form the source.
+5. Mention any Upcoming events, expectations, and potential developments
+6. Always include source attribution and verification notes
+
+Structure:
+```
+## News Summary
+[Brief overview of the news landscape for the requested topic]
+
+## Latest Developments
+### [Most Recent Story Title] - [Date]
+[Summary, key points, context, analysis, implications, potential developments]
+
+### [Second Story Title] - [Date]
+[Summary, key points, context, analysis, implications, potential developments]
+
+```
+
+**Important Notes:**
+- Always verify source credibility and note any potential bias
+- Include publication dates and sources for all news items
+- Distinguish between confirmed facts and speculation/analysis
+- Highlight any conflicting reports or uncertainties
+- Use clear headings to separate different news stories or themes
+"""

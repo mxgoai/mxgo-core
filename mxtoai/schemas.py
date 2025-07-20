@@ -18,6 +18,7 @@ class HandlerAlias(str, Enum):
     PDF = "pdf"
     SCHEDULE = "schedule"
     DELETE = "delete"
+    NEWS = "news"
 
 
 class ToolName(str, Enum):
@@ -36,6 +37,7 @@ class ToolName(str, Enum):
     BRAVE_SEARCH = "brave_search"
     GOOGLE_SEARCH = "google_search"
     WEB_SEARCH = "web_search"  # Fallback search tool
+    NEWS_SEARCH = "news_search"
 
     # Specialized tools
     DEEP_RESEARCH = "deep_research"
