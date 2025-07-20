@@ -11,6 +11,7 @@ from mxtoai.routed_litellm_model import RoutedLiteLLMModel
 from mxtoai.schemas import ToolName
 from mxtoai.scripts.visual_qa import AzureVisualizerTool, HuggingFaceVisualizerTool, OpenAIVisualizerTool
 from mxtoai.tools.attachment_processing_tool import AttachmentProcessingTool
+from mxtoai.tools.cancel_subscription_tool import CancelSubscriptionTool
 from mxtoai.tools.citation_aware_visit_tool import CitationAwareVisitTool
 from mxtoai.tools.deep_research_tool import DeepResearchTool
 from mxtoai.tools.delete_scheduled_tasks_tool import DeleteScheduledTasksTool
@@ -28,6 +29,7 @@ __all__ = [
     "AttachmentProcessingTool",
     "AzureVisualizerTool",
     "BraveSearchTool",
+    "CancelSubscriptionTool",
     "CitationAwareVisitTool",
     "DDGSearchTool",
     "DeepResearchTool",
@@ -150,5 +152,6 @@ def create_tool_mapping(
     tool_mapping[ToolName.PDF_EXPORT] = PDFExportTool()
     tool_mapping[ToolName.SCHEDULED_TASKS] = scheduled_tasks_tool_factory()
     tool_mapping[ToolName.DELETE_SCHEDULED_TASKS] = DeleteScheduledTasksTool(context=context)
+    tool_mapping[ToolName.CANCEL_SUBSCRIPTION_TOOL] = CancelSubscriptionTool()
 
     return tool_mapping

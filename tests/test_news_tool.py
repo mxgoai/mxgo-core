@@ -97,14 +97,14 @@ class TestNewsTool:
                     "url": "https://news1.com/story1",
                     "description": "First test news story description",
                     "published": "2024-01-15T10:30:00Z",
-                    "source": {"name": "Test News 1"}
+                    "source": {"name": "Test News 1"},
                 },
                 {
                     "title": "Latest Update: Test Story 2",
                     "url": "https://news2.com/story2",
                     "description": "Second test news story description",
                     "published": "2024-01-15T09:15:00Z",
-                    "source": {"name": "Test News 2"}
+                    "source": {"name": "Test News 2"},
                 },
             ]
         }
@@ -205,11 +205,7 @@ class TestNewsTool:
         mock_response.raise_for_status.return_value = None
         mock_response.json.return_value = {
             "results": [
-                {
-                    "title": "API Integration Test",
-                    "url": "https://test.com",
-                    "description": "Testing API integration"
-                }
+                {"title": "API Integration Test", "url": "https://test.com", "description": "Testing API integration"}
             ]
         }
         mock_get.return_value = mock_response

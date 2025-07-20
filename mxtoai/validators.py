@@ -162,7 +162,7 @@ def get_domain_from_email(email_address: str) -> str:
 
 
 async def send_rate_limit_rejection_email(
-    from_email: str, to: str, subject: str | None, message_id: str | None, limit_type: str
+    from_email: str, to: str, subject: str | None, message_id: str | None, limit_type: str, plan: UserPlan | None = None
 ) -> None:
     """Send a rejection email for rate limit exceeded."""
     rejection_subject = f"Re: {subject}" if subject else "Usage Limit Exceeded"
@@ -174,6 +174,31 @@ MXtoAI Team"""
     html_rejection_text = f"""<p>Your email could not be processed because the usage limit has been exceeded ({limit_type}).</p>
 <p>Please try again after some time.</p>
 <p>Best regards,<br>MXtoAI Team</p>"""
+
+    # Add upgrade message for BETA/FREE users only
+    if plan and plan in [UserPlan.BETA, UserPlan.FREE]:
+        pro_limits = RATE_LIMITS_BY_PLAN.get(UserPlan.PRO, {})
+        upgrade_message = f"""
+
+---
+
+💡 Need more capacity? Upgrade to PRO plan for higher limits:
+• PRO Plan: {pro_limits.get("hour", {}).get("limit", 50)} emails/hour, {pro_limits.get("day", {}).get("limit", 100)} emails/day, {pro_limits.get("month", {}).get("limit", 1000)} emails/month
+• Visit https://mxtoai.com to upgrade
+
+Upgrade now to continue using MXtoAI without interruption!"""
+
+        html_upgrade_message = f"""
+<hr>
+<div style="background: #e8f4fd; border: 1px solid #bee5eb; color: #0c5460; padding: 15px; border-radius: 6px; margin: 20px 0;">
+    <strong>💡 Need more capacity? Upgrade to PRO plan for higher limits:</strong><br>
+    • PRO Plan: {pro_limits.get("hour", {}).get("limit", 50)} emails/hour, {pro_limits.get("day", {}).get("limit", 100)} emails/day, {pro_limits.get("month", {}).get("limit", 1000)} emails/month<br>
+    • Visit <a href="https://mxtoai.com">https://mxtoai.com</a> to upgrade<br><br>
+    <strong>Upgrade now to continue using MXtoAI without interruption!</strong>
+</div>"""
+
+        rejection_text += upgrade_message
+        html_rejection_text += html_upgrade_message
 
     email_dict = {
         "from": from_email,
@@ -219,7 +244,7 @@ async def validate_rate_limits(
         )
         if email_limit_exceeded_period:
             limit_type_msg = f"email {email_limit_exceeded_period} for {plan.value} plan"
-            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg)
+            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg, plan)
             return Response(
                 content=json.dumps(
                     {
@@ -242,7 +267,7 @@ async def validate_rate_limits(
         )
         if domain_limit_exceeded_period:  # This will be "hour" if exceeded
             limit_type_msg = f"domain {domain_limit_exceeded_period}"
-            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg)
+            await send_rate_limit_rejection_email(from_email, to, subject, message_id, limit_type_msg, plan)
             return Response(
                 content=json.dumps(
                     {

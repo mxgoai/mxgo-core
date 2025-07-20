@@ -45,7 +45,7 @@ class NewsTool(Tool):
     inputs: ClassVar[dict] = {
         "query": {
             "type": "string",
-            "description": "The news search query. Be specific (e.g., 'Tesla stock earnings', 'Ukraine conflict latest', 'AI developer tools reviews'). Max 400 chars."
+            "description": "The news search query. Be specific (e.g., 'Tesla stock earnings', 'Ukraine conflict latest', 'AI developer tools reviews'). Max 400 chars.",
         },
         "freshness": {
             "type": "string",
@@ -66,7 +66,7 @@ class NewsTool(Tool):
             "type": "integer",
             "description": "Number of news articles to return (1-20). Default: 10.",
             "nullable": True,
-        }
+        },
     }
     output_type = "object"
 
@@ -168,7 +168,7 @@ class NewsTool(Tool):
                         "total_results": 0,
                         "freshness": freshness,
                         "country": country,
-                    }
+                    },
                 )
                 return json.dumps(result.model_dump())
 
@@ -226,12 +226,7 @@ class NewsTool(Tool):
                     local_citations.add_source(citation)
 
             # Determine freshness description for metadata
-            freshness_map = {
-                "pd": "Past day",
-                "pw": "Past week",
-                "pm": "Past month",
-                "py": "Past year"
-            }
+            freshness_map = {"pd": "Past day", "pw": "Past week", "pm": "Past month", "py": "Past year"}
             freshness_desc = freshness_map.get(freshness, freshness)
 
             result = ToolOutputWithCitations(
@@ -247,10 +242,12 @@ class NewsTool(Tool):
                     "citations_added": citations_added,
                     "search_engine": "Brave News",
                     "api_endpoint": "news/search",
-                }
+                },
             )
 
-            logger.info(f"News search completed successfully: {len(results)} articles found, {citations_added} citations added")
+            logger.info(
+                f"News search completed successfully: {len(results)} articles found, {citations_added} citations added"
+            )
             return json.dumps(result.model_dump())
 
         except requests.RequestException as e:

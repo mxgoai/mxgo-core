@@ -205,33 +205,91 @@ Sample error format:
 """
 
 # News handler output guidelines
+CANCEL_SUBSCRIPTION_OUTPUT_GUIDELINES = """
+Output Format Guidelines:
+1. Start with acknowledgment of cancellation request
+2. Check the cancel_subscription_tool result carefully
+3. Base response on actual subscription status from tool output
+4. Provide appropriate portal link OR no subscription message
+5. Maintain professional, helpful tone
+6. Include contact information for additional support
+
+**IMPORTANT: Use tool output to determine response structure**
+
+Structure for active PRO subscription (has_subscription: true, portal_url present):
+```
+## Subscription Management Portal Access
+
+Hi there,
+
+I've found your active PRO subscription and generated a secure portal link for you to manage your subscription.
+
+🔗 **Manage Your Subscription**: [Portal URL]
+
+Through this portal, you can:
+• Cancel your subscription
+• Update payment methods
+• View billing history
+• Modify subscription settings
+
+The link is secure and personalized for your account. It will expire in 24 hours for security.
+
+If you have any questions or need assistance, please don't hesitate to reach out.
+```
+
+Structure for no active subscription (has_subscription: false OR user_plan: "beta"):
+```
+## No Active Subscription Found
+
+Hi there,
+
+I checked our records and couldn't find an active PRO subscription associated with your email address.
+
+If you believe this is an error or if you have questions about your account, please contact our support team.
+```
+
+**Critical Instructions:**
+- ALWAYS check the tool output for has_subscription and user_plan values
+- If has_subscription is false OR user_plan is "beta", use the "No Active Subscription" response
+- If has_subscription is true AND portal_url exists, use the "Portal Access" response
+- Never assume subscription status - always base response on actual tool output
+"""
+
 NEWS_OUTPUT_GUIDELINES = """
 Output Format Guidelines:
 1. Executive Summary: Start with 2-3 sentence overview of key findings
-2. Priortize most recent and significant developments
-3. Include Historical context and relevant background information wherever makes sense
-4. Add Analysis & Implications that user might be insterested in. Always isolate between your analysis and the objective news form the source.
-5. Mention any Upcoming events, expectations, and potential developments
-6. Always include source attribution and verification notes
+2. Group Related Stories: Combine similar news under common themes instead of repeating them
+3. Prioritize most recent and significant developments within each theme
+4. Include Historical context and relevant background information wherever makes sense
+5. Add Analysis & Implications that user might be interested in. Always isolate between your analysis and the objective news from the source.
+6. Mention any Upcoming events, expectations, and potential developments
+7. Always include source attribution and verification notes
 
 Structure:
 ```
 ## News Summary
 [Brief overview of the news landscape for the requested topic]
 
-## Latest Developments
-### [Most Recent Story Title] - [Date]
-[Summary, key points, context, analysis, implications, potential developments]
+## Key Themes & Developments
 
-### [Second Story Title] - [Date]
-[Summary, key points, context, analysis, implications, potential developments]
+### [Theme/Topic 1] - [Date Range]
+**Latest Updates**: [Consolidated information from multiple related stories]
+**Key Sources**: [List of sources covering this theme]
+**Analysis**: [Your analysis of implications and trends]
+
+### [Theme/Topic 2] - [Date Range]
+**Latest Updates**: [Consolidated information from multiple related stories]
+**Key Sources**: [List of sources covering this theme]
+**Analysis**: [Your analysis of implications and trends]
 
 ```
 
 **Important Notes:**
+- Group related stories under common themes to avoid repetition
 - Always verify source credibility and note any potential bias
 - Include publication dates and sources for all news items
 - Distinguish between confirmed facts and speculation/analysis
 - Highlight any conflicting reports or uncertainties
-- Use clear headings to separate different news stories or themes
+- Use thematic headings to organize similar news stories together
+- Consolidate information from multiple sources when covering the same topic
 """
