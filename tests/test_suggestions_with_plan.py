@@ -6,7 +6,8 @@ Test script for the /suggestions API endpoint with actual PRO user plan.
 import os
 
 import requests
-from generate_test_jwt import generate_test_jwt
+
+from tests.generate_test_jwt import generate_test_jwt
 
 # HTTP status codes
 HTTP_OK = 200

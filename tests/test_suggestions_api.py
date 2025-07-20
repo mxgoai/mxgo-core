@@ -6,7 +6,8 @@ Test script for the /suggestions API endpoint.
 import os
 
 import requests
-from generate_test_jwt import generate_test_jwt
+
+from tests.generate_test_jwt import generate_test_jwt
 
 # HTTP status codes
 HTTP_OK = 200
