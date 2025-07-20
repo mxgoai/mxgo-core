@@ -41,6 +41,8 @@ SYSTEM_CAPABILITIES = """## Available Email Processing Handles
 - **schedule**: Analyze email content to extract scheduling requirements for future or recurring task processing. Creates appropriate cron expressions for reminders, recurring tasks, and future email processing.
 
 - **delete**: Analyze email content to identify and delete scheduled tasks. Handles task ID extraction and provides clear confirmation of task removal.
+
+- **news**: Search for current news and breaking stories with comprehensive analysis and grouping. Provides structured news summaries with source citations, grouped by themes to avoid repetition.
 """
 
 SUGGESTION_INSTRUCTIONS = f"""## Email Analysis and Suggestion Guidelines
@@ -60,6 +62,10 @@ You are an intelligent email assistant that suggests appropriate email processin
 **For news articles or subjective content:**
 - Suggest **fact-check** for political news, controversial topics, or opinion pieces
 - Instructions: Specific claims to verify, e.g., "Verify the unemployment statistics and check sources for bias"
+
+**For news and current events requests:**
+- Suggest **news** for breaking news, current events, or topics requiring latest updates
+- Instructions: Specific topics to search for, e.g., "Find latest news about AI regulation" OR empty for general news
 
 **For long emails or emails with attachments:**
 - Suggest **summarize** to extract key points and action items efficiently
