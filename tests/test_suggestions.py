@@ -391,6 +391,14 @@ async def test_suggestions_integration_multiple_emails_batch(prepare_suggestion_
         "summarize@mxtoai.com",
         "research@mxtoai.com",
         "background-research@mxtoai.com",
+        "news@mxtoai.com",
+        "simplify@mxtoai.com",
+        "translate@mxtoai.com",
+        "meeting@mxtoai.com",
+        "pdf@mxtoai.com",
+        "schedule@mxtoai.com",
+        "delete@mxtoai.com",
+        "unsubscribe@mxtoai.com",
     }
 
     all_valid = all(email in valid_suggestions for email in news_suggestion_emails)
