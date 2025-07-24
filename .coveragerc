@@ -1,12 +1,12 @@
 [run]
-source = mxtoai
+source = mxgo
 omit =
     */tests/*
     */test_*
-    mxtoai/db/alembic/env.py
-    mxtoai/db/alembic/versions/*
-    mxtoai/scheduler_runner.py
-    mxtoai/scripts/run_*.py
+    mxgo/db/alembic/env.py
+    mxgo/db/alembic/versions/*
+    mxgo/scheduler_runner.py
+    mxgo/scripts/run_*.py
     */migrations/*
     */__pycache__/*
     */.*

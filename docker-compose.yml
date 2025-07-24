@@ -3,8 +3,8 @@ services:
     image: postgres:16-alpine
     container_name: postgres
     environment:
-      POSTGRES_DB: ${DB_NAME:-mxtoai}
-      POSTGRES_USER: ${DB_USER:-mxtoai}
+      POSTGRES_DB: ${DB_NAME:-mxgo}
+      POSTGRES_USER: ${DB_USER:-mxgo}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-docker_changeme_123}
     ports:
       - "${DB_PORT:-5432}:5432"
@@ -13,7 +13,7 @@ services:
       - ./docker/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mxtoai} -d ${DB_NAME:-mxtoai}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-mxgo} -d ${DB_NAME:-mxgo}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -125,4 +125,4 @@ volumes:
 
 networks:
   default:
-    name: mxtoai_network
+    name: mxgo_network

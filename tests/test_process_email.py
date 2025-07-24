@@ -10,10 +10,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import select
 
-from mxtoai.db import init_db_connection
-from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
-from mxtoai.models.models import Tasks, TaskStatus
-from mxtoai.schemas import (
+from mxgo.db import init_db_connection
+from mxgo.email_handles import DEFAULT_EMAIL_HANDLES
+from mxgo.models.models import Tasks, TaskStatus
+from mxgo.schemas import (
     AttachmentsProcessingResult,
     DetailedEmailProcessingResult,
     EmailContentDetails,
@@ -21,8 +21,8 @@ from mxtoai.schemas import (
     ProcessingError,
     ProcessingMetadata,
 )
-from mxtoai.tasks import process_email_task
-from mxtoai.tools.pdf_export_tool import MAX_FILENAME_LENGTH, PDFExportTool
+from mxgo.tasks import process_email_task
+from mxgo.tools.pdf_export_tool import MAX_FILENAME_LENGTH, PDFExportTool
 
 AttachmentFileContent = tuple[str, bytes, str]  # (filename, content_bytes, content_type)
 
@@ -30,7 +30,7 @@ AttachmentFileContent = tuple[str, bytes, str]  # (filename, content_bytes, cont
 @pytest.fixture
 def prepare_email_request_data(tmp_path):
     def _prepare(
-        to_email: str = "ask@mxtoai.com",
+        to_email: str = "ask@mxgo.com",
         from_email: str = "sender.test@example.com",
         subject: str = "Test Subject",
         text_content: str = "This is a test email.",
@@ -69,7 +69,7 @@ def prepare_email_request_data(tmp_path):
             "htmlContent": html_content,
             "messageId": message_id,
             "attachments": email_attachments_schema_list,
-            "recipients": [to_email.split("@")[0] + "@mxtoai.com"],  # Simplified recipient
+            "recipients": [to_email.split("@")[0] + "@mxgo.com"],  # Simplified recipient
             "date": "2023-01-01T12:00:00Z",
         }
 
@@ -117,13 +117,13 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
     """
     attachment_content = ("test_attachment.txt", b"This is a test attachment.", "text/plain")
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="ask@mxtoai.com", attachments_data=[attachment_content]
+        to_email="ask@mxgo.com", attachments_data=[attachment_content]
     )
 
     assert Path(email_attachments_dir_str).exists()
     assert (Path(email_attachments_dir_str) / f"0_{attachment_content[0]}").exists()  # Check specific file
 
-    with patch("mxtoai.tasks.EmailSender") as MockEmailSender:  # noqa: N806
+    with patch("mxgo.tasks.EmailSender") as MockEmailSender:  # noqa: N806
         mock_sender_instance = MockEmailSender.return_value
 
         async def mock_async_send_reply(*args, **kwargs):
@@ -155,14 +155,14 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
     future_content = "Remind me to book a doctor's appointment next Monday at 10 AM."
 
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="remind@mxtoai.com",
+        to_email="remind@mxgo.com",
         subject="Doctor Appointment Reminder",
         text_content=future_content,
     )
 
     with (
-        patch("mxtoai.tasks.EmailSender") as MockEmailSender,  # noqa: N806
-        patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_scheduled_job,
+        patch("mxgo.tasks.EmailSender") as MockEmailSender,  # noqa: N806
+        patch("mxgo.scheduling.scheduler.Scheduler.add_job") as mock_add_scheduled_job,
     ):
         mock_add_scheduled_job.return_value = None
         mock_sender_instance = MockEmailSender.return_value
@@ -229,7 +229,7 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
 # --- New Test Cases ---
 def test_process_email_task_unsupported_handle(prepare_email_request_data):
     """Tests behavior when an unsupported email handle is provided."""
-    unsupported_handle = "nonexistenthandle@mxtoai.com"
+    unsupported_handle = "nonexistenthandle@mxgo.com"
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email=unsupported_handle)
 
     # No mocks needed as it should fail before agent or sender
@@ -253,7 +253,7 @@ def test_process_email_task_unsupported_handle(prepare_email_request_data):
 
 def test_process_email_task_agent_exception(prepare_email_request_data):
     """Tests behavior when EmailAgent.process_email returns a result indicating an internal error."""
-    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxtoai.com")
+    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxgo.com")
     now_iso = datetime.now(timezone.utc).isoformat()  # For constructing mock error response
 
     # Prepare a mock error response that EmailAgent.process_email would return
@@ -275,10 +275,8 @@ def test_process_email_task_agent_exception(prepare_email_request_data):
     )
 
     with (
-        patch(
-            "mxtoai.tasks.EmailAgent.process_email", return_value=mock_agent_error_result
-        ) as mock_agent_process_email,
-        patch("mxtoai.tasks.EmailSender") as mock_email_sender_class,
+        patch("mxgo.tasks.EmailAgent.process_email", return_value=mock_agent_error_result) as mock_agent_process_email,
+        patch("mxgo.tasks.EmailSender") as mock_email_sender_class,
     ):
         mock_sender_instance = mock_email_sender_class.return_value
 
@@ -374,7 +372,7 @@ def _test_single_handle(handle_name: str, prepare_email_request_data):
         pytest.fail(f"Handle '{handle_name}' not found in DEFAULT_EMAIL_HANDLES")
 
     # Use the same logic as the parametrized test
-    to_email_address = f"{handle_instructions.handle}@mxtoai.com"
+    to_email_address = f"{handle_instructions.handle}@mxgo.com"
 
     attachments_for_test: list[AttachmentFileContent] | None = None
     is_schedule_handle = handle_instructions.handle == "schedule"
@@ -418,7 +416,7 @@ def _test_single_handle(handle_name: str, prepare_email_request_data):
     # that the pipeline for each handle type runs and attempts a reply.
 
     with (
-        patch("mxtoai.tasks.EmailSender") as mock_email_sender,
+        patch("mxgo.tasks.EmailSender") as mock_email_sender,
         patch.dict(os.environ, {"SKIP_EMAIL_DELIVERY": ""}),
     ):  # Ensure SKIP_EMAIL_DELIVERY is not set globally for this test run
         mock_sender_instance = mock_email_sender.return_value
@@ -565,7 +563,7 @@ def test_pdf_handle_full_integration():
     """Test the full PDF handle integration with a more comprehensive email."""
     # Create comprehensive test email content
     email_data = {
-        "to": "pdf@mxtoai.com",
+        "to": "pdf@mxgo.com",
         "from_email": "test@example.com",
         "subject": "Weekly AI Newsletter - Export to PDF",
         "textContent": """# Weekly AI Newsletter
@@ -603,7 +601,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 """,
         "messageId": "<test-pdf-message-id>",
         "date": "2024-01-01T12:00:00Z",
-        "recipients": ["pdfå@mxtoai.com"],
+        "recipients": ["pdfå@mxgo.com"],
         "cc": None,
         "bcc": None,
         "references": None,
@@ -615,7 +613,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 
     try:
         with (
-            patch("mxtoai.tasks.EmailSender") as mock_email_sender_class,
+            patch("mxgo.tasks.EmailSender") as mock_email_sender_class,
         ):
             mock_sender_instance = mock_email_sender_class.return_value
 
@@ -767,14 +765,14 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
 
     # Prepare email data for the delete request
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="delete@mxtoai.com",
+        to_email="delete@mxgo.com",
         subject=f"Delete Task: {task_id}",
         text_content=f"Please delete the scheduled task with ID: {task_id}",
     )
 
     with (
-        patch("mxtoai.tasks.EmailSender") as MockEmailSender,  # noqa: N806
-        patch("mxtoai.scheduling.scheduler.Scheduler.remove_job") as mock_remove_job,
+        patch("mxgo.tasks.EmailSender") as MockEmailSender,  # noqa: N806
+        patch("mxgo.scheduling.scheduler.Scheduler.remove_job") as mock_remove_job,
     ):
         mock_remove_job.return_value = None  # Simulate successful job removal
         mock_sender_instance = MockEmailSender.return_value

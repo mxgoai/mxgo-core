@@ -11,7 +11,7 @@ import httpx
 import pytest
 import user
 
-from mxtoai.schemas import UserPlan
+from mxgo.schemas import UserPlan
 
 
 class TestGetUserPlan:

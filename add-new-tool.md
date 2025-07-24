@@ -1,10 +1,10 @@
-# Guide to Adding New Tools in MxToAi
+# Guide to Adding New Tools in MXGo
 
-This guide outlines the process for adding new tools to the MxToAi email assistant. It covers architecture considerations, database integration, testing approaches, and best practices based on real implementation experience.
+This guide outlines the process for adding new tools to the MXGo email assistant. It covers architecture considerations, database integration, testing approaches, and best practices based on real implementation experience.
 
 ## 1. Tool Architecture Overview
 
-MxToAi uses the `smolagents` framework for tool implementation, allowing the AI agent to access specialized functionality. Each tool should:
+MXGo uses the `smolagents` framework for tool implementation, allowing the AI agent to access specialized functionality. Each tool should:
 
 - Have a clear, single responsibility
 - Be properly integrated with the agent's capabilities
@@ -54,16 +54,17 @@ For tools that interact with the database:
 - Use the `DbConnection` class for database access
 
 ```python
-from mxtoai.db import init_db_connection
+from mxgo.db import init_db_connection
 
 # Initialize at module level for reuse
 db_connection = init_db_connection()
 
+
 # In your tool:
 def forward(self, ...):
     with db_connection.get_session() as session:
-        # Perform database operations
-        # ...
+# Perform database operations
+# ...
 ```
 
 ### 2.2 Handling Data Models
@@ -78,7 +79,7 @@ When working with database models:
 # Example of a hybrid approach
 try:
     # Try ORM approach first (good for testing)
-    from mxtoai.models import YourModel
+    from mxgo.models import YourModel
 
     model = YourModel(...)
     session.add(model)
@@ -120,9 +121,10 @@ class ToolInput(BaseModel):
 Implement robust error handling:
 
 ```python
-from mxtoai.utils import get_logger
+from mxgo.utils import get_logger
 
 logger = get_logger(__name__)
+
 
 def forward(self, ...):
     try:
@@ -222,7 +224,7 @@ Ensure your tool integrates properly with the email agent:
 
 ### 7.1 Code Organization
 
-- Keep tool implementation in its own module in the `mxtoai/tools/` directory
+- Keep tool implementation in its own module in the `mxgo/tools/` directory
 - Use clear, descriptive names for classes and methods
 - Document public APIs thoroughly with docstrings
 
@@ -250,7 +252,7 @@ Ensure your tool integrates properly with the email agent:
 
 Here's a simplified version of adding a scheduled tasks tool:
 
-1. **Create the tool file** at `mxtoai/tools/scheduled_tasks_tool.py`
+1. **Create the tool file** at `mxgo/tools/scheduled_tasks_tool.py`
 2. **Implement the tool class** with necessary functionality:
    - Input validation
    - Database operations
@@ -273,7 +275,7 @@ Here's a simplified version of adding a scheduled tasks tool:
 
 ## 10. Conclusion
 
-Adding new tools to MxToAi requires careful planning, implementation, and testing. Following these guidelines will help ensure that your tool integrates smoothly with the existing system and provides reliable functionality.
+Adding new tools to MXGo requires careful planning, implementation, and testing. Following these guidelines will help ensure that your tool integrates smoothly with the existing system and provides reliable functionality.
 
 Remember to:
 - Keep the tool focused on a specific task

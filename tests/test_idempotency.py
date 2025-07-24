@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, patch
 from fastapi import Response, status
 from fastapi.testclient import TestClient
 
-from mxtoai.api import app
-from mxtoai.email_sender import generate_message_id
-from mxtoai.tasks import process_email_task
+from mxgo.api import app
+from mxgo.email_sender import generate_message_id
+from mxgo.tasks import process_email_task
 
 API_KEY = os.environ["X_API_KEY"]
 
@@ -19,7 +19,7 @@ class TestIdempotency:
         # Test with same inputs
         msg_id_1 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxtoai.com",
+            to="ask@mxgo.com",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -29,7 +29,7 @@ class TestIdempotency:
 
         msg_id_2 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxtoai.com",
+            to="ask@mxgo.com",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -39,12 +39,12 @@ class TestIdempotency:
 
         assert msg_id_1 == msg_id_2, "Same inputs should produce same message ID"
         assert msg_id_1.startswith("<"), "Should start with <"
-        assert msg_id_1.endswith("@mxtoai.com>"), "Should end with @mxtoai.com>"
+        assert msg_id_1.endswith("@mxgo.com>"), "Should end with @mxgo.com>"
 
         # Test with different inputs
         msg_id_3 = generate_message_id(
             from_email="different@example.com",  # Changed
-            to="ask@mxtoai.com",
+            to="ask@mxgo.com",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -54,10 +54,10 @@ class TestIdempotency:
 
         assert msg_id_1 != msg_id_3, "Different inputs should produce different message IDs"
 
-    @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-    @patch("mxtoai.api.validate_rate_limits", new_callable=AsyncMock)
-    @patch("mxtoai.api.validate_idempotency", new_callable=AsyncMock)
-    @patch("mxtoai.api.process_email_task")
+    @patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+    @patch("mxgo.api.validate_rate_limits", new_callable=AsyncMock)
+    @patch("mxgo.api.validate_idempotency", new_callable=AsyncMock)
+    @patch("mxgo.api.process_email_task")
     def test_api_idempotency_already_queued(
         self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist
     ):
@@ -76,7 +76,7 @@ class TestIdempotency:
         with TestClient(app) as test_client:
             form_data = {
                 "from_email": "test@example.com",
-                "to": "ask@mxtoai.com",
+                "to": "ask@mxgo.com",
                 "subject": "Test Subject",
                 "textContent": "Test content",
                 "messageId": "<test123@example.com>",
@@ -92,10 +92,10 @@ class TestIdempotency:
         # Task should not be called
         mock_task.send.assert_not_called()
 
-    @patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-    @patch("mxtoai.api.validate_rate_limits", new_callable=AsyncMock)
-    @patch("mxtoai.api.validate_idempotency", new_callable=AsyncMock)
-    @patch("mxtoai.api.process_email_task")
+    @patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+    @patch("mxgo.api.validate_rate_limits", new_callable=AsyncMock)
+    @patch("mxgo.api.validate_idempotency", new_callable=AsyncMock)
+    @patch("mxgo.api.process_email_task")
     def test_api_idempotency_already_processed(
         self, mock_task, mock_validate_idempotency, mock_rate_limits, mock_validate_whitelist
     ):
@@ -114,7 +114,7 @@ class TestIdempotency:
         with TestClient(app) as test_client:
             form_data = {
                 "from_email": "test@example.com",
-                "to": "ask@mxtoai.com",
+                "to": "ask@mxgo.com",
                 "subject": "Test Subject",
                 "textContent": "Test content",
                 "messageId": "<test123@example.com>",
@@ -130,7 +130,7 @@ class TestIdempotency:
         # Task should not be called
         mock_task.send.assert_not_called()
 
-    @patch("mxtoai.tasks.check_task_idempotency")
+    @patch("mxgo.tasks.check_task_idempotency")
     def test_task_idempotency_already_processed(self, mock_check_idempotency):
         """Test task returns early when email already processed."""
         # Setup mock to return True (already processed)
@@ -138,7 +138,7 @@ class TestIdempotency:
 
         email_data = {
             "from_email": "test@example.com",
-            "to": "ask@mxtoai.com",
+            "to": "ask@mxgo.com",
             "subject": "Test Subject",
             "textContent": "Test content",
             "messageId": "<test123@example.com>",
@@ -163,7 +163,7 @@ class TestIdempotency:
         # Test empty/None messageId
         msg_id_1 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxtoai.com",
+            to="ask@mxgo.com",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -173,7 +173,7 @@ class TestIdempotency:
 
         msg_id_2 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxtoai.com",
+            to="ask@mxgo.com",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",

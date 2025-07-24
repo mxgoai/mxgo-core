@@ -6,14 +6,14 @@ from unittest.mock import Mock, patch
 import pytest
 from botocore.exceptions import ClientError
 
-from mxtoai.email_sender import (
+from mxgo.email_sender import (
     EmailSender,
     generate_email_id,
     generate_message_id,
     prepare_email_for_ai,
     save_attachments,
 )
-from mxtoai.schemas import EmailRequest
+from mxgo.schemas import EmailRequest
 
 
 class TestEmailSender:
@@ -32,7 +32,7 @@ class TestEmailSender:
         sender = EmailSender()
 
         assert sender.ses_client == mock_ses_client
-        assert sender.default_sender_email == "ai-assistant@mxtoai.com"
+        assert sender.default_sender_email == "ai-assistant@mxgo.com"
         mock_boto_client.assert_called_once_with(
             "ses",
             region_name="us-east-1",
@@ -79,7 +79,7 @@ class TestEmailSender:
         assert result["MessageId"] == "test-message-id"
         mock_ses_client.send_email.assert_called_once()
         call_args = mock_ses_client.send_email.call_args[1]
-        assert call_args["Source"] == "ai-assistant@mxtoai.com"
+        assert call_args["Source"] == "ai-assistant@mxgo.com"
         assert call_args["Destination"]["ToAddresses"] == ["test@example.com"]
         assert call_args["Destination"]["CcAddresses"] == ["cc@example.com"]
         assert call_args["ReplyToAddresses"] == ["reply@example.com"]
@@ -217,7 +217,7 @@ class TestEmailUtilities:
             ],
         )
 
-        with patch("mxtoai.config.ATTACHMENTS_DIR", str(tmp_path)):
+        with patch("mxgo.config.ATTACHMENTS_DIR", str(tmp_path)):
             email_id = "test-email-id"
             attachments_dir, attachment_info = save_attachments(email_data, email_id)
 
@@ -254,7 +254,7 @@ class TestEmailUtilities:
         # This function uses AI, so we'll test the structure
 
         # Mock the AI call to avoid external dependencies
-        with patch("mxtoai.email_sender.get_logger"):
+        with patch("mxgo.email_sender.get_logger"):
             # Since this function makes AI calls, we'll mainly test it doesn't crash
             # In a real scenario, you'd mock the AI service
             pass

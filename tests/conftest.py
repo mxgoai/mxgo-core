@@ -8,8 +8,8 @@ from _pytest.monkeypatch import MonkeyPatch
 from sqlalchemy import create_engine, text
 from sqlmodel import SQLModel
 
-from mxtoai._logging import get_logger
-from mxtoai.db import AsyncDbConnection, DbConnection, init_db_connection
+from mxgo._logging import get_logger
+from mxgo.db import AsyncDbConnection, DbConnection, init_db_connection
 
 # Import all models to ensure they are registered with SQLModel.metadata
 
@@ -88,7 +88,7 @@ def setup_test_database(monkeypatch_session):
     # Run Alembic migrations
     conftest_dir = Path(__file__).parent
     project_root = conftest_dir.parent
-    alembic_cfg_path = project_root / "mxtoai" / "db" / "alembic.ini"
+    alembic_cfg_path = project_root / "mxgo" / "db" / "alembic.ini"
     logger.info(f"Running Alembic migrations with config: {alembic_cfg_path}")
 
     if not alembic_cfg_path.exists():

@@ -1,6 +1,6 @@
-# Contributing to MXtoAI
+# Contributing to MXGo
 
-Thank you for your interest in contributing to mxtoai, an intelligent email assistant that processes emails automatically using AI.
+Thank you for your interest in contributing to mxgo, an intelligent email assistant that processes emails automatically using AI.
 
 ## Setting up the project
 

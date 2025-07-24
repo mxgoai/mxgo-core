@@ -5,18 +5,18 @@ import type * as Preset from '@docusaurus/preset-classic';
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
 const config: Config = {
-  title: 'MXtoAI',
+  title: 'MXGo',
   tagline: 'AI Email Processing That Just Works',
   favicon: 'img/light-logo.ico',
 
   // Set the production url of your site here
-  url: 'https://docs.mxtoai.com',
+  url: 'https://docs.mxgo.ai',
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: '/',
 
   // GitHub pages deployment config (optional but good practice to update).
-  organizationName: 'mxtoai', // Replace with your GitHub org/user name if applicable
+  organizationName: 'mxgo', // Replace with your GitHub org/user name if applicable
   projectName: 'ai-email', // Replace with your repo name if applicable
 
   onBrokenLinks: 'throw',
@@ -68,9 +68,9 @@ const config: Config = {
     // Replace with your project's social card
     image: 'img/docusaurus-social-card.jpg',
     navbar: {
-      title: 'MXtoAI',
+      title: 'MXGo',
       logo: {
-        alt: 'MXtoAI Logo',
+        alt: 'MXGo Logo',
         src: 'img/light-logo.avif',
       },
       items: [
@@ -85,7 +85,7 @@ const config: Config = {
     footer: {
       style: 'dark',
       links: [],
-      copyright: `Copyright © ${new Date().getFullYear()} MXtoAI.`,
+      copyright: `Copyright © ${new Date().getFullYear()} MXGo.`,
     },
     prism: {
       theme: prismThemes.github,

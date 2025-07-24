@@ -5,9 +5,9 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from mxtoai.request_context import RequestContext
-from mxtoai.schemas import EmailRequest
-from mxtoai.tools.news_tool import NewsTool
+from mxgo.request_context import RequestContext
+from mxgo.schemas import EmailRequest
+from mxgo.tools.news_tool import NewsTool
 
 
 # Helper function to create mock context

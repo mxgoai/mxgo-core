@@ -23,7 +23,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
 
 # Copy application code
-COPY mxtoai ./mxtoai
+COPY mxgo ./mxgo
 COPY run_api.py .
 
 # Create directories
@@ -37,4 +37,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8000/health || exit 1
 
 # Run migrations then start the API server
-CMD ["sh", "-c", "cd /app/mxtoai/db && poetry run alembic upgrade head && exec poetry run uvicorn mxtoai.api:app --host 0.0.0.0 --port 8000 --workers 4"]
+CMD ["sh", "-c", "cd /app/mxgo/db && poetry run alembic upgrade head && exec poetry run uvicorn mxgo.api:app --host 0.0.0.0 --port 8000 --workers 4"]

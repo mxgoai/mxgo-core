@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import pytest
 from PIL import Image
 
-from mxtoai.scripts.visual_qa import (
+from mxgo.scripts.visual_qa import (
     AzureVisualizerTool,
     HuggingFaceVisualizerTool,
     OpenAIVisualizerTool,
@@ -139,7 +139,7 @@ class TestHuggingFaceVisualizerTool:
         assert tool.output_type == "string"
         assert hasattr(tool, "client")
 
-    @patch("mxtoai.scripts.visual_qa.process_images_and_text")
+    @patch("mxgo.scripts.visual_qa.process_images_and_text")
     def test_forward_with_question(self, mock_process):
         """Test forward method with a specific question."""
         mock_process.return_value = "This is a test image"
@@ -150,7 +150,7 @@ class TestHuggingFaceVisualizerTool:
         assert result == "This is a test image"
         mock_process.assert_called_once_with("test_image.jpg", "What do you see?", tool.client)
 
-    @patch("mxtoai.scripts.visual_qa.process_images_and_text")
+    @patch("mxgo.scripts.visual_qa.process_images_and_text")
     def test_forward_without_question(self, mock_process):
         """Test forward method without a specific question (auto-caption)."""
         mock_process.return_value = "Auto-generated caption"
@@ -167,8 +167,8 @@ class TestHuggingFaceVisualizerTool:
         call_args = mock_process.call_args
         assert "Please write a detailed caption" in call_args[0][1]
 
-    @patch("mxtoai.scripts.visual_qa.process_images_and_text")
-    @patch("mxtoai.scripts.visual_qa.resize_image")
+    @patch("mxgo.scripts.visual_qa.process_images_and_text")
+    @patch("mxgo.scripts.visual_qa.resize_image")
     def test_forward_payload_too_large_retry(self, mock_resize, mock_process):
         """Test forward method with payload too large error and retry."""
         mock_resize.return_value = "resized_image.jpg"
@@ -209,7 +209,7 @@ class TestOpenAIVisualizerTool:
             tool.forward(None)
 
     @patch("requests.post")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_success(self, mock_encode, mock_post):
         """Test successful OpenAI API call."""
         mock_encode.return_value = "base64_image_data"
@@ -226,7 +226,7 @@ class TestOpenAIVisualizerTool:
         mock_post.assert_called_once()
 
     @patch("requests.post")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_without_question(self, mock_encode, mock_post):
         """Test OpenAI tool without specific question."""
         mock_encode.return_value = "base64_data"
@@ -242,7 +242,7 @@ class TestOpenAIVisualizerTool:
         assert "detailed caption for the image" in result
 
     @patch("requests.post")
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_api_error(self, mock_encode, mock_post):
         """Test OpenAI tool handling API errors."""
         mock_encode.return_value = "base64_data"
@@ -266,7 +266,7 @@ class TestAzureVisualizerTool:
         assert "answer questions about attached images" in tool.description
         assert tool.model == mock_model
 
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_success(self, mock_encode):
         """Test successful Azure OpenAI image analysis."""
         mock_encode.return_value = "base64_image_data"
@@ -292,7 +292,7 @@ class TestAzureVisualizerTool:
         assert messages[0]["content"][0]["type"] == "text"
         assert messages[0]["content"][1]["type"] == "image_url"
 
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_without_question(self, mock_encode):
         """Test Azure visualizer without specific question."""
         mock_encode.return_value = "base64_data"
@@ -308,8 +308,8 @@ class TestAzureVisualizerTool:
         assert "You did not provide a particular question" in result
         assert "detailed caption for the image" in result
 
-    @patch("mxtoai.scripts.visual_qa.encode_image")
-    @patch("mxtoai.scripts.visual_qa.resize_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.resize_image")
     def test_forward_image_too_large_retry(self, mock_resize, mock_encode):
         """Test Azure visualizer handling large image errors."""
         mock_encode.return_value = "base64_data"
@@ -327,7 +327,7 @@ class TestAzureVisualizerTool:
         assert result == "Resized result"
         mock_resize.assert_called_once_with("large_image.jpg")
 
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_empty_response(self, mock_encode):
         """Test Azure visualizer handling empty response."""
         mock_encode.return_value = "base64_data"
@@ -343,7 +343,7 @@ class TestAzureVisualizerTool:
         # The function catches the exception and returns an error message
         assert "Error processing image: Empty response from Azure OpenAI" in result
 
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_api_error(self, mock_encode):
         """Test Azure visualizer handling API errors."""
         mock_encode.return_value = "base64_data"
@@ -356,7 +356,7 @@ class TestAzureVisualizerTool:
 
         assert "Error processing image: API connection failed" in result
 
-    @patch("mxtoai.scripts.visual_qa.encode_image")
+    @patch("mxgo.scripts.visual_qa.encode_image")
     def test_forward_mime_type_detection(self, mock_encode):
         """Test MIME type detection for different image formats."""
         mock_encode.return_value = "base64_data"
@@ -392,7 +392,7 @@ class TestLegacyFunctions:
 
     def test_azure_visualizer_deprecation_warning(self):
         """Test that azure_visualizer function shows deprecation warning."""
-        with patch("mxtoai.scripts.visual_qa.logger") as mock_logger:
+        with patch("mxgo.scripts.visual_qa.logger") as mock_logger:
             result = azure_visualizer("image.jpg", "What's this?")
 
             # Should log deprecation warning
@@ -402,7 +402,7 @@ class TestLegacyFunctions:
             # Should return error message
             assert "Error: azure_visualizer function is deprecated" in result
 
-    @patch("mxtoai.scripts.visual_qa.OpenAIVisualizerTool")
+    @patch("mxgo.scripts.visual_qa.OpenAIVisualizerTool")
     def test_visualizer_backward_compatibility(self, mock_tool_class):
         """Test that visualizer function maintains backward compatibility."""
         mock_tool = Mock()
@@ -438,7 +438,7 @@ class TestIntegrationScenarios:
             temp_path = temp_file.name
 
         try:
-            with patch("mxtoai.scripts.visual_qa.process_images_and_text") as mock_process:
+            with patch("mxgo.scripts.visual_qa.process_images_and_text") as mock_process:
                 mock_process.return_value = "Integration test result"
 
                 result = tool.forward(temp_path, "What color is this image?")

@@ -20,8 +20,8 @@ from unittest.mock import Mock
 import pytest
 from fastapi import Request
 
-from mxtoai.auth import get_current_user, get_current_user_with_plan
-from mxtoai.schemas import UserPlan
+from mxgo.auth import get_current_user, get_current_user_with_plan
+from mxgo.schemas import UserPlan
 from tests.generate_test_jwt import generate_test_jwt
 
 

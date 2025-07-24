@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mxtoai._logging import (
+from mxgo._logging import (
     COMPILED_PATTERNS,
     SENSITIVE_PATTERNS,
     get_smolagents_console,
@@ -174,7 +174,7 @@ class TestLoguruScrubbingFilter:
 class TestRichConsoleScrubbing:
     """Test the Rich console scrubbing integration."""
 
-    @patch("mxtoai._logging.scrub_sensitive_data")
+    @patch("mxgo._logging.scrub_sensitive_data")
     def test_rich_console_applies_scrubbing(self, mock_scrub):
         """Test that Rich console output is ****** before logging."""
         mock_scrub.return_value = "****** content"

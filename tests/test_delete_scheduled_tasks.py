@@ -10,11 +10,11 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from mxtoai.db import init_db_connection
-from mxtoai.models import Tasks, TaskStatus
-from mxtoai.request_context import RequestContext
-from mxtoai.schemas import EmailRequest
-from mxtoai.tools.delete_scheduled_tasks_tool import (
+from mxgo.db import init_db_connection
+from mxgo.models import Tasks, TaskStatus
+from mxgo.request_context import RequestContext
+from mxgo.schemas import EmailRequest
+from mxgo.tools.delete_scheduled_tasks_tool import (
     DeleteScheduledTasksTool,
     DeleteTaskInput,
     extract_task_id_from_text,
@@ -127,7 +127,7 @@ class TestDeleteScheduledTasksTool:
             return task
 
     @requires_database
-    @patch("mxtoai.scheduling.scheduler.Scheduler.remove_job")
+    @patch("mxgo.scheduling.scheduler.Scheduler.remove_job")
     def test_successful_task_deletion(self, mock_remove_job):
         """Test successful task deletion."""
         task_id = str(uuid.uuid4())
@@ -178,7 +178,7 @@ class TestDeleteScheduledTasksTool:
         assert "own tasks" in result["message"]
 
     @requires_database
-    @patch("mxtoai.scheduling.scheduler.Scheduler.remove_job")
+    @patch("mxgo.scheduling.scheduler.Scheduler.remove_job")
     def test_scheduler_removal_failure_continues_deletion(self, mock_remove_job):
         """Test that database deletion continues even if scheduling removal fails."""
         task_id = str(uuid.uuid4())

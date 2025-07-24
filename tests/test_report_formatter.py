@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from mxtoai.scripts.report_formatter import ReportFormatter
+from mxgo.scripts.report_formatter import ReportFormatter
 
 
 class TestReportFormatterMarkdownFixes:
@@ -259,21 +259,21 @@ b. Another action"""
         result_with_signature = formatter.format_report(content, include_signature=True, format_type="html")
         result_without_signature = formatter.format_report(content, include_signature=False, format_type="html")
 
-        assert "MXtoAI Assistant" in result_with_signature
-        assert "MXtoAI Assistant" not in result_without_signature
+        assert "MXGo Assistant" in result_with_signature
+        assert "MXGo Assistant" not in result_without_signature
 
     def test_real_world_calendar_example(self, formatter):
         """Test with the exact example from the user's original issue."""
         markdown_content = """### Event Details
-- **Title:** 30-minute call: Enterprise use cases of MXtoAI with Founders
+- **Title:** 30-minute call: Enterprise use cases of MXGo with Founders
 - **Date & Time:** June 12, 2025, 10:27 AM PDT (UTC-7) / 10:57 PM IST (UTC+5:30)
 - **Duration:** 30 minutes
 - **Location:** Virtual call
-- **Description:** Discussion on enterprise use cases of MXtoAI with the
+- **Description:** Discussion on enterprise use cases of MXGo with the
 founders of the company.
 - **Participants:**
   - Anisha (Organizer): 28gautam97@gmail.com
-  - MXtoAI Founders: founders@mxtoai.com
+  - MXGo Founders: founders@mxgo.com
 ### Calendar Links
 - **[Google Calendar](https://www.google.com/calendar/render?action=TEMPLATE&text=30-minute+call)**
 - **[Outlook Calendar](https://outlook.live.com/calendar/0/deeplink/compose)**

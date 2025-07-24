@@ -1,6 +1,6 @@
 # 🔧 Environment Variables Reference
 
-This document provides a comprehensive guide to all environment variables used in MXTOAI.
+This document provides a comprehensive guide to all environment variables used in MXGo .
 
 ## 📋 Quick Setup Checklist
 
@@ -40,8 +40,8 @@ For a basic working installation, you need:
 |----------|----------|---------|-------------|
 | `DB_HOST` | **Yes** | `postgres` | Database host |
 | `DB_PORT` | No | `5432` | Database port |
-| `DB_NAME` | **Yes** | `mxtoai` | Database name |
-| `DB_USER` | **Yes** | `mxtoai` | Database username |
+| `DB_NAME` | **Yes** | `mxgo` | Database name |
+| `DB_USER` | **Yes** | `mxgo` | Database username |
 | `DB_PASSWORD` | **Yes** | - | Database password |
 
 #### Redis Cache
@@ -116,9 +116,9 @@ For a basic working installation, you need:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `MXTOAI_ENABLE_MCP` | No | `true` | Enable Model Context Protocol tools |
-| `MXTOAI_MCP_CONFIG_PATH` | No | `mcp.toml` | Path to MCP configuration |
-| `MXTOAI_MCP_TIMEOUT` | No | `30` | MCP connection timeout in seconds |
+| `MXGO_ENABLE_MCP` | No | `true` | Enable Model Context Protocol tools |
+| `MXGO_MCP_CONFIG_PATH` | No | `mcp.toml` | Path to MCP configuration |
+| `MXGO_MCP_TIMEOUT` | No | `30` | MCP connection timeout in seconds |
 
 ### 🌐 **Frontend & External URLs**
 
@@ -135,8 +135,8 @@ When using Docker Compose, these services have built-in defaults:
 ```yaml
 # PostgreSQL
 DB_HOST=postgres
-DB_NAME=mxtoai
-DB_USER=mxtoai
+DB_NAME=mxgo
+DB_USER=mxgo
 DB_PASSWORD=docker_changeme_123
 
 # Redis

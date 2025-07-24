@@ -1,4 +1,4 @@
-# Testing Guidelines for mxtoai
+# Testing Guidelines for mxgo
 
 ## Core Principles
 
@@ -19,7 +19,7 @@
 # Use factory fixtures for flexible test data creation
 @pytest.fixture
 def prepare_email_request_data(tmp_path):
-    def _prepare(to_email="ask@mxtoai.com", from_email="test@example.com", ...):
+    def _prepare(to_email="ask@mxgo.com", from_email="test@example.com", ...):
         # Setup logic here
         return email_data, attachments_dir, attachment_info
     return _prepare
@@ -163,6 +163,7 @@ tests/
 ```
 
 ### 18. Import Organization
+
 ```python
 # Standard library imports first
 import os
@@ -173,8 +174,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Local imports
-from mxtoai.schemas import DetailedEmailProcessingResult
-from mxtoai.tasks import process_email_task
+from mxgo.schemas import DetailedEmailProcessingResult
+from mxgo.tasks import process_email_task
 ```
 
 These guidelines ensure tests are maintainable, reliable, and provide good coverage while minimizing fragility through excessive mocking.

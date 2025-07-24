@@ -2,7 +2,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
+from mxgo.tools.fallback_search_tool import FallbackWebSearchTool
 
 
 class TestFallbackWebSearchTool:
@@ -148,7 +148,7 @@ class TestFallbackWebSearchTool:
 
         tool = FallbackWebSearchTool(primary_tool=primary_tool, secondary_tool=secondary_tool)
 
-        with patch("mxtoai.tools.fallback_search_tool.logger") as mock_logger:
+        with patch("mxgo.tools.fallback_search_tool.logger") as mock_logger:
             tool.forward("test query")
 
             mock_logger.debug.assert_any_call("Attempting search with primary tool: google_search")
@@ -167,7 +167,7 @@ class TestFallbackWebSearchTool:
 
         tool = FallbackWebSearchTool(primary_tool=primary_tool, secondary_tool=secondary_tool)
 
-        with patch("mxtoai.tools.fallback_search_tool.logger") as mock_logger:
+        with patch("mxgo.tools.fallback_search_tool.logger") as mock_logger:
             tool.forward("test query")
 
             mock_logger.warning.assert_called_once()
@@ -191,7 +191,7 @@ class TestFallbackWebSearchTool:
 
         tool = FallbackWebSearchTool(primary_tool=primary_tool, secondary_tool=secondary_tool)
 
-        with patch("mxtoai.tools.fallback_search_tool.logger") as mock_logger:
+        with patch("mxgo.tools.fallback_search_tool.logger") as mock_logger:
             with pytest.raises(Exception, match="Both primary and secondary search tools failed"):
                 tool.forward("test query")
 
