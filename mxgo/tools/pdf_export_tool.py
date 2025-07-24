@@ -297,9 +297,9 @@ class PDFExportTool(Tool):
         markdown_parts.append('<hr class="watermark-divider">')
         markdown_parts.append('<div class="watermark-content">')
         markdown_parts.append('<span class="watermark-text">📄 Document generated via </span>')
-        markdown_parts.append('<a href="https://mxgo.ai" class="watermark-link">mxgo.com</a>')
+        markdown_parts.append('<a href="https://mxgo.ai" class="watermark-link">mxgo.ai</a>')
         markdown_parts.append('<span class="watermark-email"> • Email: </span>')
-        markdown_parts.append('<a href="mailto:pdf@mxgo.ai" class="watermark-link">pdf@mxgo.com</a>')
+        markdown_parts.append('<a href="mailto:pdf@mxgo.ai" class="watermark-link">pdf@mxgo.ai</a>')
         markdown_parts.append("</div>")
         markdown_parts.append("</div>")
 

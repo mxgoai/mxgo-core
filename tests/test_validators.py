@@ -137,7 +137,7 @@ class TestRateLimiting:
         with patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
             await send_rate_limit_rejection_email(
                 from_email="user@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
                 limit_type="email hour",
@@ -156,7 +156,7 @@ class TestRateLimiting:
         with patch("mxgo.validators.redis_client", fake_redis):
             result = await validate_rate_limits(
                 from_email="test@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
                 plan=UserPlan.BETA,
@@ -170,7 +170,7 @@ class TestRateLimiting:
         with patch("mxgo.validators.redis_client", None):
             result = await validate_rate_limits(
                 from_email="test@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
                 plan=UserPlan.BETA,
@@ -188,7 +188,7 @@ class TestValidationFunctions:
         with patch("mxgo.validators.is_email_whitelisted", return_value=(True, True)):
             result = await validate_email_whitelist(
                 from_email="whitelisted@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
             )
@@ -206,7 +206,7 @@ class TestValidationFunctions:
         ):
             result = await validate_email_whitelist(
                 from_email="notlisted@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
             )
@@ -222,7 +222,7 @@ class TestValidationFunctions:
             mock_resolver.return_value = "some_instructions"
 
             result, handle = await validate_email_handle(
-                to="ask@mxgo.com", from_email="user@example.com", subject="Test Subject", message_id="test-message-id"
+                to="ask@mxgo.ai", from_email="user@example.com", subject="Test Subject", message_id="test-message-id"
             )
 
             assert result is None
@@ -238,7 +238,7 @@ class TestValidationFunctions:
             mock_resolver.side_effect = exceptions.UnspportedHandleError("Invalid handle")
 
             result, handle = await validate_email_handle(
-                to="invalid@mxgo.com",
+                to="invalid@mxgo.ai",
                 from_email="user@example.com",
                 subject="Test Subject",
                 message_id="test-message-id",
@@ -264,7 +264,7 @@ class TestValidationFunctions:
         result = await validate_attachments(
             attachments=attachments,
             from_email="user@example.com",
-            to="ask@mxgo.com",
+            to="ask@mxgo.ai",
             subject="Test Subject",
             message_id="test-message-id",
         )
@@ -288,7 +288,7 @@ class TestValidationFunctions:
             result = await validate_attachments(
                 attachments=attachments,
                 from_email="user@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
             )
@@ -315,7 +315,7 @@ class TestValidationFunctions:
             result = await validate_attachments(
                 attachments=attachments,
                 from_email="user@example.com",
-                to="ask@mxgo.com",
+                to="ask@mxgo.ai",
                 subject="Test Subject",
                 message_id="test-message-id",
             )

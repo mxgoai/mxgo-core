@@ -79,13 +79,13 @@ async def test_suggestions_integration_promotional_email(prepare_suggestion_requ
 
     # Check for default suggestion
     has_ask_suggestion = any(
-        s.suggestion_to_email == "ask@mxgo.com" and s.suggestion_title == "Ask anything" for s in response.suggestions
+        s.suggestion_to_email == "ask@mxgo.ai" and s.suggestion_title == "Ask anything" for s in response.suggestions
     )
     assert has_ask_suggestion, "Should always include default suggestion"
 
     # For promotional content, expect fact-check or background-research suggestions
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
-    expected_handles = ["fact-check@mxgo.com", "background-research@mxgo.com", "ask@mxgo.com"]
+    expected_handles = ["fact-check@mxgo.ai", "background-research@mxgo.ai", "ask@mxgo.ai"]
     has_relevant_suggestion = any(email in suggestion_emails for email in expected_handles)
     assert has_relevant_suggestion, f"Expected suggestions for promotional email, got: {suggestion_emails}"
 
@@ -137,10 +137,10 @@ async def test_suggestions_integration_meeting_request(prepare_suggestion_reques
 
     # Check for meeting-related suggestion
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
-    assert "meeting@mxgo.com" in suggestion_emails, f"Expected meeting suggestion, got: {suggestion_emails}"
+    assert "meeting@mxgo.ai" in suggestion_emails, f"Expected meeting suggestion, got: {suggestion_emails}"
 
     # Find the meeting suggestion and check it has reasonable instructions
-    meeting_suggestion = next(s for s in response.suggestions if s.suggestion_to_email == "meeting@mxgo.com")
+    meeting_suggestion = next(s for s in response.suggestions if s.suggestion_to_email == "meeting@mxgo.ai")
     # Instructions may be empty (auto-process) or contain specific meeting details
     assert meeting_suggestion.suggestion_title is not None
     assert len(meeting_suggestion.suggestion_title) > 0
@@ -241,7 +241,7 @@ async def test_suggestions_integration_long_email_with_attachments(prepare_sugge
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
 
     # At least one should be summarize or pdf (for document processing)
-    has_content_processing = any(email in suggestion_emails for email in ["summarize@mxgo.com", "pdf@mxgo.com"])
+    has_content_processing = any(email in suggestion_emails for email in ["summarize@mxgo.ai", "pdf@mxgo.ai"])
     assert has_content_processing, f"Expected content processing suggestion for long email, got: {suggestion_emails}"
 
 
@@ -303,14 +303,14 @@ async def test_suggestions_integration_unfamiliar_sender(prepare_suggestion_requ
     # Should suggest background research for unfamiliar business sender
     suggestion_emails = [s.suggestion_to_email for s in response.suggestions]
 
-    has_research_suggestion = "background-research@mxgo.com" in suggestion_emails
+    has_research_suggestion = "background-research@mxgo.ai" in suggestion_emails
     assert has_research_suggestion, (
         f"Expected background research suggestion for unfamiliar sender, got: {suggestion_emails}"
     )
 
     # Check that background research suggestion may have specific instructions
     research_suggestion = next(
-        s for s in response.suggestions if s.suggestion_to_email == "background-research@mxgo.com"
+        s for s in response.suggestions if s.suggestion_to_email == "background-research@mxgo.ai"
     )
     assert research_suggestion.suggestion_title is not None
     assert len(research_suggestion.suggestion_title) > 0
@@ -376,7 +376,7 @@ async def test_suggestions_integration_multiple_emails_batch(prepare_suggestion_
         assert len(response.suggestions) >= 3  # At least 3 suggestions (generated + default)
 
         # Each should have ask suggestion
-        has_ask = any(s.suggestion_to_email == "ask@mxgo.com" for s in response.suggestions)
+        has_ask = any(s.suggestion_to_email == "ask@mxgo.ai" for s in response.suggestions)
         assert has_ask, f"Email {i} missing default ask suggestion"
 
     # News email should likely get fact-check suggestion
@@ -386,19 +386,19 @@ async def test_suggestions_integration_multiple_emails_batch(prepare_suggestion_
     # Due to non-determinism, we can't guarantee specific suggestions,
     # but we can check that it's making reasonable suggestions
     valid_suggestions = {
-        "ask@mxgo.com",
-        "fact-check@mxgo.com",
-        "summarize@mxgo.com",
-        "research@mxgo.com",
-        "background-research@mxgo.com",
-        "news@mxgo.com",
-        "simplify@mxgo.com",
-        "translate@mxgo.com",
-        "meeting@mxgo.com",
-        "pdf@mxgo.com",
-        "schedule@mxgo.com",
-        "delete@mxgo.com",
-        "unsubscribe@mxgo.com",
+        "ask@mxgo.ai",
+        "fact-check@mxgo.ai",
+        "summarize@mxgo.ai",
+        "research@mxgo.ai",
+        "background-research@mxgo.ai",
+        "news@mxgo.ai",
+        "simplify@mxgo.ai",
+        "translate@mxgo.ai",
+        "meeting@mxgo.ai",
+        "pdf@mxgo.ai",
+        "schedule@mxgo.ai",
+        "delete@mxgo.ai",
+        "unsubscribe@mxgo.ai",
     }
 
     all_valid = all(email in valid_suggestions for email in news_suggestion_emails)
@@ -427,5 +427,5 @@ async def test_suggestions_integration_error_handling(prepare_suggestion_request
 
     # Should still return default suggestions even with empty content
     assert len(response.suggestions) >= 1
-    has_ask = any(s.suggestion_to_email == "ask@mxgo.com" for s in response.suggestions)
+    has_ask = any(s.suggestion_to_email == "ask@mxgo.ai" for s in response.suggestions)
     assert has_ask, "Should return default suggestion even for empty content"

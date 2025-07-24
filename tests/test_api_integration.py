@@ -85,7 +85,7 @@ class TestProcessEmailIntegration:
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxgo.com",
+                    "to": "ask@mxgo.ai",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -105,7 +105,7 @@ class TestProcessEmailIntegration:
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxgo.com",
+                    "to": "ask@mxgo.ai",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -128,7 +128,7 @@ class TestProcessEmailIntegration:
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxgo.com",
+                    "to": "ask@mxgo.ai",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -148,7 +148,7 @@ class TestProcessEmailIntegration:
             "/process-email",
             data={
                 "from_email": "test@example.com",
-                "to": "ask@mxgo.com",
+                "to": "ask@mxgo.ai",
                 "subject": "Test email",
                 "textContent": "Test content",
             },
@@ -187,7 +187,7 @@ class TestProcessEmailIntegration:
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxgo.com",
+                    "to": "ask@mxgo.ai",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -409,7 +409,7 @@ class TestBackwardCompatibility:
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxgo.com",
+                    "to": "ask@mxgo.ai",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -425,7 +425,7 @@ class TestBackwardCompatibility:
             "/process-email",
             data={
                 "from_email": "test@example.com",
-                "to": "ask@mxgo.com",
+                "to": "ask@mxgo.ai",
                 "subject": "Test email",
                 "textContent": "Test content",
             },
