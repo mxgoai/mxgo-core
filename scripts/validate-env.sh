@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🔍 MXTOAI Environment Validation"
+echo "🔍 MXGo Environment Validation"
 echo "================================"
 
 # Check if .env exists

@@ -8,8 +8,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from mxtoai.models import TaskRunStatus, TaskStatus
-from mxtoai.scheduling.scheduled_task_executor import (
+from mxgo.models import TaskRunStatus, TaskStatus
+from mxgo.scheduling.scheduled_task_executor import (
     _is_recurring_cron_expression,
     execute_scheduled_task,
     get_task_execution_status,
@@ -40,8 +40,8 @@ class TestScheduledTaskExecutor:
         mock_task.expiry_time = expiry_time
         return mock_task
 
-    @patch("mxtoai.scheduling.scheduled_task_executor._make_process_email_request")
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor._make_process_email_request")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_task_execution_before_start_time(self, mock_init_db, mock_make_request):
         """Test that task execution is skipped when current time is before start_time."""
         task_id = str(uuid.uuid4())
@@ -62,8 +62,8 @@ class TestScheduledTaskExecutor:
         # Verify that the HTTP request was not made (task was skipped)
         mock_make_request.assert_not_called()
 
-    @patch("mxtoai.scheduling.scheduled_task_executor._make_process_email_request")
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor._make_process_email_request")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_task_execution_after_expiry_time(self, mock_init_db, mock_make_request):
         """Test that task is marked as finished when current time is after expiry_time."""
         task_id = str(uuid.uuid4())
@@ -89,8 +89,8 @@ class TestScheduledTaskExecutor:
         # Verify that the HTTP request was not made (task was expired)
         mock_make_request.assert_not_called()
 
-    @patch("mxtoai.scheduling.scheduled_task_executor._make_process_email_request")
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor._make_process_email_request")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_task_execution_within_time_bounds(self, mock_init_db, mock_make_request):
         """Test that task executes normally when within start_time and expiry_time bounds."""
         task_id = str(uuid.uuid4())
@@ -118,7 +118,7 @@ class TestScheduledTaskExecutor:
         # Verify task status was updated to EXECUTING and then back to ACTIVE
         assert mock_session.add.call_count >= 2  # At least 2 calls for status updates
 
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_get_task_execution_status_includes_time_fields(self, mock_init_db):
         """Test that get_task_execution_status includes start_time and expiry_time."""
         task_id = str(uuid.uuid4())
@@ -159,7 +159,7 @@ class TestScheduledTaskExecutor:
         assert _is_recurring_cron_expression("invalid") is False
         assert _is_recurring_cron_expression("0 9 * *") is False  # Wrong number of parts
 
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_task_not_found(self, mock_init_db):
         """Test handling when task is not found in database."""
         task_id = str(uuid.uuid4())
@@ -175,8 +175,8 @@ class TestScheduledTaskExecutor:
         with pytest.raises(ValueError, match=f"Task {task_id} not found"):
             execute_scheduled_task(task_id)
 
-    @patch("mxtoai.scheduling.scheduled_task_executor._make_process_email_request")
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor._make_process_email_request")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_deleted_task_skipped(self, mock_init_db, mock_make_request):
         """Test that deleted tasks are skipped."""
         task_id = str(uuid.uuid4())
@@ -199,7 +199,7 @@ class TestScheduledTaskExecutor:
 class TestTaskExecutionEdgeCases:
     """Test edge cases in task execution."""
 
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_get_task_execution_status_not_found(self, mock_init_db):
         """Test get_task_execution_status when task is not found."""
         task_id = str(uuid.uuid4())
@@ -217,7 +217,7 @@ class TestTaskExecutionEdgeCases:
         # Should return None when task not found
         assert result is None
 
-    @patch("mxtoai.scheduling.scheduled_task_executor.init_db_connection")
+    @patch("mxgo.scheduling.scheduled_task_executor.init_db_connection")
     def test_get_task_execution_status_with_task_run(self, mock_init_db):
         """Test get_task_execution_status includes latest task run information."""
         task_id = str(uuid.uuid4())

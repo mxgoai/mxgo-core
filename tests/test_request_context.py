@@ -2,8 +2,8 @@
 Tests for RequestContext functionality.
 """
 
-from mxtoai.request_context import CitationManager, RequestContext, _sanitize_api_title
-from mxtoai.schemas import EmailAttachment, EmailRequest
+from mxgo.request_context import CitationManager, RequestContext, _sanitize_api_title
+from mxgo.schemas import EmailAttachment, EmailRequest
 
 
 def test_citation_manager_basic():

@@ -24,7 +24,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
 
 # Copy application code
-COPY mxtoai ./mxtoai
+COPY mxgo ./mxgo
 
 # Create directories
 RUN mkdir -p /app/attachments
@@ -37,4 +37,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import psutil; exit(0 if any('dramatiq' in ' '.join(p.info['cmdline'] or []) for p in psutil.process_iter(['cmdline'])) else 1)"
 
 # Start the worker
-CMD ["poetry", "run", "dramatiq", "mxtoai.tasks"]
+CMD ["poetry", "run", "dramatiq", "mxgo.tasks"]

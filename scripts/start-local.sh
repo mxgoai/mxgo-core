@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 Starting MXTOAI Local Development Environment"
+echo "🚀 Starting MXGo Local Development Environment"
 echo "================================================="
 
 # Check if .env exists
@@ -61,7 +61,7 @@ else
 fi
 
 echo ""
-echo "🎉 MXTOAI is now running!"
+echo "🎉 MXGo is now running!"
 echo "   API Server: http://localhost:8000"
 echo "   RabbitMQ Management: http://localhost:15672 (guest/guest)"
 echo ""

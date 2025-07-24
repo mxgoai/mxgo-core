@@ -4,13 +4,13 @@ sidebar_position: 1
 
 # Introduction
 
-Welcome to MXtoAI!
+Welcome to MXGo!
 
-MXtoAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant. It processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
+MXGo is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant. It processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
 
-## 🎯 What is MXtoAI?
+## 🎯 What is MXGo?
 
-MXtoAI automates email workflows by processing users' emails automatically. Users simply forward any email to specialized handles (email addresses) and the appropriate AI-driven actions are taken.
+MXGo automates email workflows by processing users' emails automatically. Users simply forward any email to specialized handles (email addresses) and the appropriate AI-driven actions are taken.
 
 ### ✨ **Core Features**
 
@@ -26,7 +26,7 @@ MXtoAI automates email workflows by processing users' emails automatically. User
 
 ### Option 1: Try It Out for Free (Recommended)
 Get started immediately with our managed service:
-- Simply forward emails to `ask@mxtoai.com` for instant AI processing
+- Simply forward emails to `ask@mxgo.ai` for instant AI processing
 - No setup required - works with any email client
 - Perfect for trying out all features before self-hosting
 - [Getting Started](./getting-started.md) - Quick trial guide
@@ -41,5 +41,5 @@ Get complete control over your data and processing:
 
 Forward emails to our specialized email handles and get intelligent responses:
 
-![Forwarding email to ask@mxtoai.com](/img/mxtoai-ask.gif)
-*Example: Forwarding an email to ask@mxtoai.com with instructions.*
+![Forwarding email to ask@mxgo.ai](/img/mxgo-ask.gif)
+*Example: Forwarding an email to ask@mxgo.ai with instructions.*

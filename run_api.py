@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
     # Run the FastAPI app using uvicorn
     uvicorn.run(
-        "mxtoai.api:app",
+        "mxgo.api:app",
         host="127.0.0.1",
         port=port,
         reload=True,  # Enable auto-reload for development

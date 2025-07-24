@@ -8,16 +8,16 @@ from unittest.mock import MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from mxtoai.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
-from mxtoai.request_context import RequestContext
-from mxtoai.schemas import EmailRequest, HandlerAlias
-from mxtoai.tools.scheduled_tasks_tool import (
+from mxgo.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
+from mxgo.request_context import RequestContext
+from mxgo.schemas import EmailRequest, HandlerAlias
+from mxgo.tools.scheduled_tasks_tool import (
     ScheduledTaskInput,
     ScheduledTasksTool,
     calculate_cron_interval,
     validate_minimum_interval,
 )
-from mxtoai.utils import round_to_nearest_minute, validate_datetime_field
+from mxgo.utils import round_to_nearest_minute, validate_datetime_field
 
 
 class TestScheduledTaskInput:
@@ -221,8 +221,8 @@ class TestScheduledTasksTool:
             textContent="Test content",
         )
 
-    @patch("mxtoai.scheduling.scheduler.Scheduler.add_job")
-    @patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection")
+    @patch("mxgo.scheduling.scheduler.Scheduler.add_job")
+    @patch("mxgo.tools.scheduled_tasks_tool.init_db_connection")
     def test_successful_task_creation(self, mock_init_db_connection, mock_add_job):
         """Test successful scheduled task creation."""
         # Setup mocks
@@ -258,8 +258,8 @@ class TestScheduledTasksTool:
         # Verify scheduling interaction
         mock_add_job.assert_called()
 
-    @patch("mxtoai.scheduling.scheduler.Scheduler.add_job")
-    @patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection")
+    @patch("mxgo.scheduling.scheduler.Scheduler.add_job")
+    @patch("mxgo.tools.scheduled_tasks_tool.init_db_connection")
     def test_task_creation_with_start_and_end_times(self, mock_init_db_connection, mock_add_job):
         """Test task creation with start and end times."""
         # Setup mocks
@@ -296,7 +296,7 @@ class TestScheduledTasksTool:
         tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         # Mock the database connection to prevent actual database calls
-        with patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db:
+        with patch("mxgo.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db:
             mock_session = MagicMock()
             mock_db_connection = MagicMock()
             mock_db_connection.get_session.return_value.__enter__.return_value = mock_session
@@ -336,8 +336,8 @@ class TestScheduledTasksTool:
 
         # Mock the database and scheduling
         with (
-            patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
-            patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
+            patch("mxgo.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
+            patch("mxgo.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
         ):
             mock_session = MagicMock()
             mock_db_connection = MagicMock()
@@ -362,8 +362,8 @@ class TestScheduledTasksTool:
         tool = ScheduledTasksTool(context=RequestContext(email_request))
 
         with (
-            patch("mxtoai.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
-            patch("mxtoai.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
+            patch("mxgo.tools.scheduled_tasks_tool.init_db_connection") as mock_init_db,
+            patch("mxgo.scheduling.scheduler.Scheduler.add_job") as mock_add_job,
         ):
             mock_session = MagicMock()
             mock_db_connection = MagicMock()

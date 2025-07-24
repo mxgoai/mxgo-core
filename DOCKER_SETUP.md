@@ -1,8 +1,8 @@
 # Docker Setup Guide
 
-This guide will help you set up MXTOAI using Docker for easy self-hosting.
+This guide will help you set up MXGo using Docker for easy self-hosting.
 
-MXTOAI uses a simplified Docker architecture with health checks and dependency management built into docker-compose.yml.
+MXGo uses a simplified Docker architecture with health checks and dependency management built into docker-compose.yml.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ MXTOAI uses a simplified Docker architecture with health checks and dependency m
 ```bash
 # Clone the repository
 git clone <your-repo-url>
-cd mxtoai
+cd mxgo
 
 # Run the setup script
 chmod +x scripts/setup-local.sh
@@ -156,7 +156,7 @@ docker-compose logs -f api_server
 ```bash
 # Access running container
 docker exec -it api_server bash
-docker exec -it postgres psql -U mxtoai -d mxtoai
+docker exec -it postgres psql -U mxgo -d mxgo
 
 # Check service status
 docker-compose ps

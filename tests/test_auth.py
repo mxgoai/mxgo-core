@@ -10,14 +10,14 @@ import jwt
 import pytest
 from fastapi import HTTPException, Request
 
-from mxtoai.auth import (
+from mxgo.auth import (
     AuthInfo,
     extract_jwt_from_request,
     get_current_user,
     get_current_user_with_plan,
     validate_jwt_token,
 )
-from mxtoai.schemas import UserPlan
+from mxgo.schemas import UserPlan
 
 
 class TestJWTAuthentication:
@@ -80,7 +80,7 @@ class TestJWTAuthentication:
 
     def test_validate_jwt_token_valid(self, jwt_secret, valid_jwt_payload):
         """Test validate_jwt_token with valid token."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             token = jwt.encode(valid_jwt_payload, jwt_secret, algorithm="HS256")
 
             auth_info = validate_jwt_token(token)
@@ -103,7 +103,7 @@ class TestJWTAuthentication:
 
     def test_validate_jwt_token_expired(self, jwt_secret, expired_jwt_payload):
         """Test validate_jwt_token raises error for expired token."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             token = jwt.encode(expired_jwt_payload, jwt_secret, algorithm="HS256")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -114,7 +114,7 @@ class TestJWTAuthentication:
 
     def test_validate_jwt_token_invalid_signature(self, jwt_secret, valid_jwt_payload):
         """Test validate_jwt_token raises error for invalid signature."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             # Create token with different secret
             token = jwt.encode(valid_jwt_payload, "wrong_secret", algorithm="HS256")
 
@@ -126,7 +126,7 @@ class TestJWTAuthentication:
 
     def test_validate_jwt_token_malformed(self, jwt_secret):
         """Test validate_jwt_token raises error for malformed token."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             with pytest.raises(HTTPException) as exc_info:
                 validate_jwt_token("invalid.token.format")
 
@@ -140,7 +140,7 @@ class TestJWTAuthentication:
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
         }
 
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -156,7 +156,7 @@ class TestJWTAuthentication:
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
         }
 
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -172,7 +172,7 @@ class TestJWTAuthentication:
             "email": "test@example.com",
         }
 
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             token = jwt.encode(payload, jwt_secret, algorithm="HS256")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -219,7 +219,7 @@ class TestJWTAuthentication:
     @pytest.mark.asyncio
     async def test_get_current_user_valid(self, mock_request_with_valid_token, jwt_secret):
         """Test get_current_user with valid JWT token."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             auth_info = await get_current_user(mock_request_with_valid_token)
 
             assert auth_info.is_authenticated is True
@@ -229,7 +229,7 @@ class TestJWTAuthentication:
     @pytest.mark.asyncio
     async def test_get_current_user_expired_token(self, mock_request_with_expired_token, jwt_secret):
         """Test get_current_user raises error for expired token."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user(mock_request_with_expired_token)
 
@@ -250,8 +250,8 @@ class TestJWTAuthentication:
     async def test_get_current_user_with_plan_valid(self, mock_request_with_valid_token, jwt_secret):
         """Test get_current_user_with_plan with valid token and successful plan lookup."""
         with (
-            patch("mxtoai.auth.JWT_SECRET", jwt_secret),
-            patch("mxtoai.user.get_user_plan", return_value=UserPlan.PRO) as mock_get_plan,
+            patch("mxgo.auth.JWT_SECRET", jwt_secret),
+            patch("mxgo.user.get_user_plan", return_value=UserPlan.PRO) as mock_get_plan,
         ):
             auth_info = await get_current_user_with_plan(mock_request_with_valid_token)
 
@@ -266,8 +266,8 @@ class TestJWTAuthentication:
     async def test_get_current_user_with_plan_plan_lookup_fails(self, mock_request_with_valid_token, jwt_secret):
         """Test get_current_user_with_plan falls back to BETA when plan lookup fails."""
         with (
-            patch("mxtoai.auth.JWT_SECRET", jwt_secret),
-            patch("mxtoai.user.get_user_plan", side_effect=Exception("Plan lookup failed")),
+            patch("mxgo.auth.JWT_SECRET", jwt_secret),
+            patch("mxgo.user.get_user_plan", side_effect=Exception("Plan lookup failed")),
         ):
             auth_info = await get_current_user_with_plan(mock_request_with_valid_token)
 
@@ -279,7 +279,7 @@ class TestJWTAuthentication:
     @pytest.mark.asyncio
     async def test_get_current_user_with_plan_invalid_token(self, mock_request_with_expired_token, jwt_secret):
         """Test get_current_user_with_plan raises error for invalid token."""
-        with patch("mxtoai.auth.JWT_SECRET", jwt_secret):
+        with patch("mxgo.auth.JWT_SECRET", jwt_secret):
             with pytest.raises(HTTPException) as exc_info:
                 await get_current_user_with_plan(mock_request_with_expired_token)
 

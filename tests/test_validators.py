@@ -5,10 +5,10 @@ import pytest
 from fakeredis.aioredis import FakeRedis
 from starlette.responses import Response
 
-from mxtoai import exceptions
-from mxtoai.schemas import UserPlan
-from mxtoai.user import get_domain_from_email, normalize_email
-from mxtoai.validators import (
+from mxgo import exceptions
+from mxgo.schemas import UserPlan
+from mxgo.user import get_domain_from_email, normalize_email
+from mxgo.validators import (
     check_rate_limit_redis,
     get_current_timestamp_for_period,
     send_rate_limit_rejection_email,
@@ -85,7 +85,7 @@ class TestRateLimiting:
         """Test rate limit check when within limits."""
         fake_redis = FakeRedis()
 
-        with patch("mxtoai.validators.redis_client", fake_redis):
+        with patch("mxgo.validators.redis_client", fake_redis):
             result = await check_rate_limit_redis(
                 key_type="email",
                 identifier="test@example.com",
@@ -106,7 +106,7 @@ class TestRateLimiting:
         key = "rate_limit:email:test@example.com:beta:hour:2024011514"
         await fake_redis.setex(key, 3600, "15")  # Set count above limit
 
-        with patch("mxtoai.validators.redis_client", fake_redis):
+        with patch("mxgo.validators.redis_client", fake_redis):
             result = await check_rate_limit_redis(
                 key_type="email",
                 identifier="test@example.com",
@@ -120,7 +120,7 @@ class TestRateLimiting:
     @pytest.mark.asyncio
     async def test_check_rate_limit_redis_no_client(self):
         """Test rate limit check with no Redis client."""
-        with patch("mxtoai.validators.redis_client", None):
+        with patch("mxgo.validators.redis_client", None):
             result = await check_rate_limit_redis(
                 key_type="email",
                 identifier="test@example.com",
@@ -134,10 +134,10 @@ class TestRateLimiting:
     @pytest.mark.asyncio
     async def test_send_rate_limit_rejection_email(self):
         """Test sending rate limit rejection email."""
-        with patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
+        with patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
             await send_rate_limit_rejection_email(
                 from_email="user@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
                 limit_type="email hour",
@@ -153,10 +153,10 @@ class TestRateLimiting:
         """Test rate limit validation when within limits."""
         fake_redis = FakeRedis()
 
-        with patch("mxtoai.validators.redis_client", fake_redis):
+        with patch("mxgo.validators.redis_client", fake_redis):
             result = await validate_rate_limits(
                 from_email="test@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
                 plan=UserPlan.BETA,
@@ -167,10 +167,10 @@ class TestRateLimiting:
     @pytest.mark.asyncio
     async def test_validate_rate_limits_no_redis_client(self):
         """Test rate limit validation with no Redis client."""
-        with patch("mxtoai.validators.redis_client", None):
+        with patch("mxgo.validators.redis_client", None):
             result = await validate_rate_limits(
                 from_email="test@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
                 plan=UserPlan.BETA,
@@ -185,10 +185,10 @@ class TestValidationFunctions:
     @pytest.mark.asyncio
     async def test_validate_email_whitelist_whitelisted(self):
         """Test email whitelist validation for whitelisted email."""
-        with patch("mxtoai.validators.is_email_whitelisted", return_value=(True, True)):
+        with patch("mxgo.validators.is_email_whitelisted", return_value=(True, True)):
             result = await validate_email_whitelist(
                 from_email="whitelisted@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
             )
@@ -199,14 +199,14 @@ class TestValidationFunctions:
     async def test_validate_email_whitelist_not_whitelisted(self):
         """Test email whitelist validation for non-whitelisted email."""
         with (
-            patch("mxtoai.validators.is_email_whitelisted", return_value=(False, False)),
-            patch("mxtoai.validators.get_whitelist_signup_url", return_value="https://signup.url"),
-            patch("mxtoai.validators.trigger_automatic_verification", return_value=True),
-            patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
+            patch("mxgo.validators.is_email_whitelisted", return_value=(False, False)),
+            patch("mxgo.validators.get_whitelist_signup_url", return_value="https://signup.url"),
+            patch("mxgo.validators.trigger_automatic_verification", return_value=True),
+            patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
         ):
             result = await validate_email_whitelist(
                 from_email="notlisted@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
             )
@@ -218,11 +218,11 @@ class TestValidationFunctions:
     @pytest.mark.asyncio
     async def test_validate_email_handle_valid_handle(self):
         """Test email handle validation for valid handle."""
-        with patch("mxtoai.validators.processing_instructions_resolver") as mock_resolver:
+        with patch("mxgo.validators.processing_instructions_resolver") as mock_resolver:
             mock_resolver.return_value = "some_instructions"
 
             result, handle = await validate_email_handle(
-                to="ask@mxtoai.com", from_email="user@example.com", subject="Test Subject", message_id="test-message-id"
+                to="ask@mxgo.com", from_email="user@example.com", subject="Test Subject", message_id="test-message-id"
             )
 
             assert result is None
@@ -232,13 +232,13 @@ class TestValidationFunctions:
     async def test_validate_email_handle_invalid_handle(self):
         """Test email handle validation for invalid handle."""
         with (
-            patch("mxtoai.validators.processing_instructions_resolver") as mock_resolver,
-            patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
+            patch("mxgo.validators.processing_instructions_resolver") as mock_resolver,
+            patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send,
         ):
             mock_resolver.side_effect = exceptions.UnspportedHandleError("Invalid handle")
 
             result, handle = await validate_email_handle(
-                to="invalid@mxtoai.com",
+                to="invalid@mxgo.com",
                 from_email="user@example.com",
                 subject="Test Subject",
                 message_id="test-message-id",
@@ -264,7 +264,7 @@ class TestValidationFunctions:
         result = await validate_attachments(
             attachments=attachments,
             from_email="user@example.com",
-            to="ask@mxtoai.com",
+            to="ask@mxgo.com",
             subject="Test Subject",
             message_id="test-message-id",
         )
@@ -284,11 +284,11 @@ class TestValidationFunctions:
             }
         ]
 
-        with patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
+        with patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
             result = await validate_attachments(
                 attachments=attachments,
                 from_email="user@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
             )
@@ -311,11 +311,11 @@ class TestValidationFunctions:
             for i in range(10)
         ]
 
-        with patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
+        with patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
             result = await validate_attachments(
                 attachments=attachments,
                 from_email="user@example.com",
-                to="ask@mxtoai.com",
+                to="ask@mxgo.com",
                 subject="Test Subject",
                 message_id="test-message-id",
             )

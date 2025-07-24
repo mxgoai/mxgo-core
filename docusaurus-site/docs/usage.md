@@ -4,42 +4,42 @@ sidebar_position: 3
 
 # Usage
 
-Using MXtoAI is straightforward. Simply forward an email with instructions to `ask@mxtoai.com` or to one of our specialized email handles.
+Using MXGo is straightforward. Simply forward an email with instructions to `ask@mxgo.ai` or to one of our specialized email handles.
 
 Here's a comprehensive overview of all available handles and their primary functions:
 
 ## 🎯 General Purpose Handle
 
-*   **`ask@mxtoai.com`**: Ask the agent to do anything when sending/forwarding the email, including all the functionalities mentioned below. This is the most versatile handle that can perform any task.
+*   **`ask@mxgo.ai`**: Ask the agent to do anything when sending/forwarding the email, including all the functionalities mentioned below. This is the most versatile handle that can perform any task.
 
 ## 📝 Content Processing Handles
 
-*   **`summarize@mxtoai.com`**: Get a concise summary of the email content. Perfect for long emails or documents.
-*   **`simplify@mxtoai.com`**: Receive a simplified version of complex text. Great for breaking down technical content into easy-to-understand language.
-*   **`translate@mxtoai.com`**: Translate the email content to any language. Just specify the target language in your request.
+*   **`summarize@mxgo.ai`**: Get a concise summary of the email content. Perfect for long emails or documents.
+*   **`simplify@mxgo.ai`**: Receive a simplified version of complex text. Great for breaking down technical content into easy-to-understand language.
+*   **`translate@mxgo.ai`**: Translate the email content to any language. Just specify the target language in your request.
 
 ## 🔍 Research & Analysis Handles
 
-*   **`research@mxtoai.com`**: Perform in-depth research based on the email content [Experimental]. Provides comprehensive analysis with external sources.
-*   **`fact-check@mxtoai.com`**: Verify the claims made in the email. Checks facts against reliable sources.
-*   **`background-research@mxtoai.com`**: Get background information on entities, people, or topics mentioned in the email.
-*   **`news@mxtoai.com`**: Get current news and breaking stories related to topics in the email. Provides structured analysis with grouped themes.
-    - **Aliases**: `breaking-news@mxtoai.com`, `latest-news@mxtoai.com`, `news-update@mxtoai.com`, `current-events@mxtoai.com`
+*   **`research@mxgo.ai`**: Perform in-depth research based on the email content [Experimental]. Provides comprehensive analysis with external sources.
+*   **`fact-check@mxgo.ai`**: Verify the claims made in the email. Checks facts against reliable sources.
+*   **`background-research@mxgo.ai`**: Get background information on entities, people, or topics mentioned in the email.
+*   **`news@mxgo.ai`**: Get current news and breaking stories related to topics in the email. Provides structured analysis with grouped themes.
+    - **Aliases**: `breaking-news@mxgo.ai`, `latest-news@mxgo.ai`, `news-update@mxgo.ai`, `current-events@mxgo.ai`
 
 ## 🗓️ Scheduling & Task Management Handles
 
-*   **`schedule@mxtoai.com`**: Schedule future or recurring tasks, set reminders, or create delayed processing requests.
-    - **Aliases**: `remind@mxtoai.com`, `recurring@mxtoai.com`
+*   **`schedule@mxgo.ai`**: Schedule future or recurring tasks, set reminders, or create delayed processing requests.
+    - **Aliases**: `remind@mxgo.ai`, `recurring@mxgo.ai`
     - **Example uses**: "Remind me about this next week", "Schedule a weekly summary", "Set up recurring reports"
-*   **`meeting@mxtoai.com`**: Extract scheduling information, propose meeting times, or book appointments.
-    - **Aliases**: `meet@mxtoai.com`, `find-time@mxtoai.com`, `calendar@mxtoai.com`
-*   **`delete@mxtoai.com`**: Cancel or delete scheduled tasks and reminders.
-    - **Aliases**: `cancel@mxtoai.com`, `unschedule@mxtoai.com`
+*   **`meeting@mxgo.ai`**: Extract scheduling information, propose meeting times, or book appointments.
+    - **Aliases**: `meet@mxgo.ai`, `find-time@mxgo.ai`, `calendar@mxgo.ai`
+*   **`delete@mxgo.ai`**: Cancel or delete scheduled tasks and reminders.
+    - **Aliases**: `cancel@mxgo.ai`, `unschedule@mxgo.ai`
 
 ## 📄 Document & Export Handles
 
-*   **`pdf@mxtoai.com`**: Export email content as a professional PDF document.
-    - **Aliases**: `export@mxtoai.com`, `convert@mxtoai.com`, `document@mxtoai.com`
+*   **`pdf@mxgo.ai`**: Export email content as a professional PDF document.
+    - **Aliases**: `export@mxgo.ai`, `convert@mxgo.ai`, `document@mxgo.ai`
 
 ## 🎨 Handle Features
 
@@ -68,6 +68,6 @@ All handles can process various types of attachments:
 
 ## 🔗 Self-Hosting
 
-If you're self-hosting MXtoAI, replace `mxtoai.com` with your own domain in all the handles above. For example: `ask@yourdomain.com`, `summarize@yourdomain.com`, etc.
+If you're self-hosting MXGo, replace `mxgo.ai` with your own domain in all the handles above. For example: `ask@yourdomain.com`, `summarize@yourdomain.com`, etc.
 
 For detailed self-hosting instructions, see our [Self-Hosting Guide](./self-hosting).

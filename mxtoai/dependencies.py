@@ -1,5 +1,0 @@
-from mxtoai.email_handles import DEFAULT_EMAIL_HANDLES
-from mxtoai.instruction_resolver import ProcessingInstructionsResolver
-
-# global resolver for processing instructions
-processing_instructions_resolver = ProcessingInstructionsResolver(DEFAULT_EMAIL_HANDLES)

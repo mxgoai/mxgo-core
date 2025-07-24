@@ -1,5 +1,5 @@
 [project]
-name = "mxtoai"
+name = "mxgo"
 version = "0.1.0"
 description = "AI driven email assistant"
 authors = [

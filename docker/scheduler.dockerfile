@@ -23,7 +23,7 @@ COPY pyproject.toml poetry.lock ./
 RUN poetry config virtualenvs.create false && poetry install --no-root --no-interaction --no-ansi
 
 # Copy application code
-COPY mxtoai ./mxtoai
+COPY mxgo ./mxgo
 
 # Set Python path
 ENV PYTHONPATH=/app
@@ -33,4 +33,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD python -c "import psutil; exit(0 if any('scheduler_runner' in ' '.join(p.info['cmdline'] or []) for p in psutil.process_iter(['cmdline'])) else 1)"
 
 # Start the scheduler
-CMD ["poetry", "run", "python", "-m", "mxtoai.scheduler_runner"]
+CMD ["poetry", "run", "python", "-m", "mxgo.scheduler_runner"]

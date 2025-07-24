@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🔧 MXTOAI Local Setup"
+echo "🔧 MXGo Local Setup"
 echo "===================="
 
 # Check for required tools

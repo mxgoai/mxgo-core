@@ -12,10 +12,10 @@ from fastapi import Response
 from fastapi.testclient import TestClient
 from freezegun import freeze_time  # For controlling time in tests
 
-import mxtoai.validators
-from mxtoai._logging import get_logger
-from mxtoai.api import app
-from mxtoai.schemas import EmailSuggestionResponse, SuggestionDetail
+import mxgo.validators
+from mxgo._logging import get_logger
+from mxgo.api import app
+from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail
 from tests.generate_test_jwt import generate_test_jwt
 
 # Set environment variables for testing
@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 
 
 # Test constants for rate limits to avoid magic numbers in tests, mirroring config.py
-# These should match what's in mxtoai.config.py for the BETA plan
+# These should match what's in mxgo.config.py for the BETA plan
 TEST_EMAIL_LIMIT_HOUR = 10
 TEST_EMAIL_LIMIT_DAY = 30
 TEST_EMAIL_LIMIT_MONTH = 200
@@ -54,11 +54,11 @@ def client_with_patched_redis():
     with (
         TestClient(app) as test_client,
         # Patch after the app's lifespan has initialized the real client
-        patch("mxtoai.validators.redis_client", new=fake_redis_instance),
-        patch("mxtoai.validators.email_provider_domain_set", new=test_provider_domains),
+        patch("mxgo.validators.redis_client", new=fake_redis_instance),
+        patch("mxgo.validators.email_provider_domain_set", new=test_provider_domains),
     ):
         # It's important that the fake_redis_instance is used by the application.
-        # The lifespan manager in api.py sets mxtoai.validators.redis_client.
+        # The lifespan manager in api.py sets mxgo.validators.redis_client.
         # We are effectively replacing it here for the test's scope.
         # To ensure our mock is used, we might need to ensure this patching happens
         # *after* the app's startup sequence or that the app's startup uses a
@@ -67,11 +67,11 @@ def client_with_patched_redis():
         # we can assume the patch takes effect before request handling.
 
         # Forcing the global in validators to be our fake instance
-        original_redis_client = mxtoai.validators.redis_client
-        original_domain_set = mxtoai.validators.email_provider_domain_set
+        original_redis_client = mxgo.validators.redis_client
+        original_domain_set = mxgo.validators.email_provider_domain_set
 
-        mxtoai.validators.redis_client = fake_redis_instance
-        mxtoai.validators.email_provider_domain_set = test_provider_domains
+        mxgo.validators.redis_client = fake_redis_instance
+        mxgo.validators.email_provider_domain_set = test_provider_domains
 
         yield test_client  # Test runs here
 
@@ -81,14 +81,14 @@ def client_with_patched_redis():
         # Or, if it's a singleton from fakeredis, you might need fake_redis_instance.client.flushall()
         # For now, assume FakeAsyncRedis instances are independent.
 
-        mxtoai.validators.redis_client = original_redis_client
-        mxtoai.validators.email_provider_domain_set = original_domain_set
+        mxgo.validators.redis_client = original_redis_client
+        mxgo.validators.email_provider_domain_set = original_domain_set
 
 
 def prepare_form_data(**kwargs):
     return {
         "from_email": "test@example.com",
-        "to": "ask@mxtoai.com",
+        "to": "ask@mxgo.com",
         "subject": "Test Subject",
         "textContent": "Test content",
         "htmlContent": "<p>Test content</p>",
@@ -191,13 +191,13 @@ def validate_send_task(
 
 
 # --- Existing Tests (should mostly work, may need client_with_patched_redis if they trigger rate limits unintentionally) ---
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
 def test_process_email_success_no_attachments_ask_handle(
     mock_task_send, mock_validate_email_whitelist, client_with_patched_redis
 ):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(to="ask@mxtoai.com", from_email="pass@example.com")  # Use unique email
+    form_data = prepare_form_data(to="ask@mxgo.com", from_email="pass@example.com")  # Use unique email
 
     response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
     assert_successful_response(response, expected_attachments_saved=0)
@@ -211,15 +211,15 @@ def test_process_email_success_no_attachments_ask_handle(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)  # Still mock this
-@patch("mxtoai.api.process_email_task.send")  # And this
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)  # Mock rejection email
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)  # Still mock this
+@patch("mxgo.api.process_email_task.send")  # And this
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)  # Mock rejection email
 def test_email_hourly_rate_limit_exceeded(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
     mock_validate_whitelist.return_value = None  # Assume email is whitelisted
     test_email = f"hourly_limited_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
 
     for i in range(TEST_EMAIL_LIMIT_HOUR):
         form_data = {**form_data_template, "messageId": f"hourly-ok-{i}-{os.urandom(2).hex()}"}
@@ -241,15 +241,15 @@ def test_email_hourly_rate_limit_exceeded(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)
 def test_email_daily_rate_limit_exceeded(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
     mock_validate_whitelist.return_value = None
     test_email = f"daily_limited_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
 
     # Simulate requests spread over different hours but within the same day
     for i in range(TEST_EMAIL_LIMIT_DAY):
@@ -277,15 +277,15 @@ def test_email_daily_rate_limit_exceeded(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)
 def test_email_monthly_rate_limit_exceeded(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
     mock_validate_whitelist.return_value = None
     test_email = f"monthly_limited_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
 
     for i in range(TEST_EMAIL_LIMIT_MONTH):
         # Simulate requests spread over different days and hours within the same month
@@ -316,9 +316,9 @@ def test_email_monthly_rate_limit_exceeded(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)
 def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
@@ -328,7 +328,7 @@ def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
         # Use different emails from the same unknown domain
         test_email = f"user{i}_{os.urandom(1).hex()}@{TEST_UNKNOWN_DOMAIN}"
         form_data = prepare_form_data(
-            from_email=test_email, to="ask@mxtoai.com", messageId=f"domain-ok-{i}-{os.urandom(2).hex()}"
+            from_email=test_email, to="ask@mxgo.com", messageId=f"domain-ok-{i}-{os.urandom(2).hex()}"
         )
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
         assert_successful_response(response)
@@ -338,7 +338,7 @@ def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
     # Next request from any user on this domain should exceed
     test_email_exceed = f"user_exceed_{os.urandom(1).hex()}@{TEST_UNKNOWN_DOMAIN}"
     form_data_exceed = prepare_form_data(
-        from_email=test_email_exceed, to="ask@mxtoai.com", messageId=f"domain-exceed-{os.urandom(2).hex()}"
+        from_email=test_email_exceed, to="ask@mxgo.com", messageId=f"domain-exceed-{os.urandom(2).hex()}"
     )
     response = make_post_request_with_client(client_with_patched_redis, form_data_exceed, "/process-email")
     assert_rate_limit_exceeded_response(response, "domain hour")
@@ -349,9 +349,9 @@ def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)
 def test_domain_limit_not_applied_for_known_provider(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
@@ -362,7 +362,7 @@ def test_domain_limit_not_applied_for_known_provider(
     for i in range(TEST_DOMAIN_LIMIT_HOUR + 5):  # Go over the general domain limit
         test_email = f"user{i}_{os.urandom(1).hex()}@{TEST_KNOWN_PROVIDER_DOMAIN}"
         form_data = prepare_form_data(
-            from_email=test_email, to="ask@mxtoai.com", messageId=f"known-domain-{i}-{os.urandom(2).hex()}"
+            from_email=test_email, to="ask@mxgo.com", messageId=f"known-domain-{i}-{os.urandom(2).hex()}"
         )
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
 
@@ -377,9 +377,9 @@ def test_domain_limit_not_applied_for_known_provider(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)
 def test_email_normalization_for_rate_limiting(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
@@ -391,7 +391,7 @@ def test_email_normalization_for_rate_limiting(
     email2 = f"{base_email}+alias1@{domain}"
     email3 = f"{base_email}+another.alias@{domain.upper()}"  # Test domain case insensitivity too
 
-    form_data_template = prepare_form_data(to="ask@mxtoai.com")
+    form_data_template = prepare_form_data(to="ask@mxgo.com")
 
     # Send up to the hourly limit using variations of the same base email
     for i in range(TEST_EMAIL_LIMIT_HOUR):
@@ -414,15 +414,15 @@ def test_email_normalization_for_rate_limiting(
 
 
 @freeze_time("2024-01-15 10:00:00 UTC")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.process_email_task.send")
-@patch("mxtoai.validators.send_email_reply", new_callable=AsyncMock)
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.process_email_task.send")
+@patch("mxgo.validators.send_email_reply", new_callable=AsyncMock)
 def test_rate_limits_cleared_after_time_period(
     mock_rejection_email, mock_task_send, mock_validate_whitelist, client_with_patched_redis
 ):
     mock_validate_whitelist.return_value = None
     test_email = f"time_cleared_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxtoai.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
 
     # Exceed hourly limit
     with freeze_time("2024-01-15 10:30:00 UTC") as frozen_time:
@@ -540,9 +540,9 @@ def assert_suggestions_error_response(response, expected_status=422):
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_validate_whitelist):
     """Test successful suggestions API call with single request."""
     mock_validate_whitelist.return_value = None  # User is whitelisted
@@ -556,14 +556,14 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
             SuggestionDetail(
                 suggestion_title="Summarize content",
                 suggestion_id="suggest-1",
-                suggestion_to_email="summarize@mxtoai.com",
+                suggestion_to_email="summarize@mxgo.com",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="",
             ),
             SuggestionDetail(
                 suggestion_title="Ask anything",
                 suggestion_id="suggest-2",
-                suggestion_to_email="ask@mxtoai.com",
+                suggestion_to_email="ask@mxgo.com",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="",
             ),
@@ -587,9 +587,9 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mock_validate_whitelist):
     """Test successful suggestions API call with multiple requests."""
     mock_validate_whitelist.return_value = None
@@ -603,7 +603,7 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
                 SuggestionDetail(
                     suggestion_title="Ask anything",
                     suggestion_id=f"suggest-{i}",
-                    suggestion_to_email="ask@mxtoai.com",
+                    suggestion_to_email="ask@mxgo.com",
                     suggestion_cc_emails=[],
                     suggestion_email_instructions="",
                 ),
@@ -634,7 +634,7 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
     assert mock_generate_suggestions.call_count == 3
 
 
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_missing_api_key():
     """Test suggestions API with missing API key."""
     request_data = prepare_suggestions_request_data()
@@ -643,7 +643,7 @@ def test_suggestions_api_missing_api_key():
     assert response.status_code == 422, f"Expected 422 for missing API key, got {response.status_code}"
 
 
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_invalid_api_key():
     """Test suggestions API with invalid API key."""
     request_data = prepare_suggestions_request_data()
@@ -655,7 +655,7 @@ def test_suggestions_api_invalid_api_key():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": ""})  # Missing environment variable
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_missing_env_var():
     """Test suggestions API when SUGGESTIONS_API_KEY environment variable is not set."""
     request_data = prepare_suggestions_request_data()
@@ -668,8 +668,8 @@ def test_suggestions_api_missing_env_var():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
 def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
     """Test suggestions API when user is not whitelisted."""
     # Mock whitelist validation to return an error response
@@ -688,9 +688,9 @@ def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_generation_error(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API when suggestions generation fails."""
     mock_validate_whitelist.return_value = None
@@ -706,7 +706,7 @@ def test_suggestions_api_generation_error(mock_generate_suggestions, mock_valida
     assert "Error processing suggestion request" in response_json["detail"]
 
 
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_invalid_request_format():
     """Test suggestions API with invalid request format."""
     # Missing required fields
@@ -718,7 +718,7 @@ def test_suggestions_api_invalid_request_format():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_empty_request():
     """Test suggestions API with empty request list."""
     response = make_suggestions_post_request(
@@ -732,9 +732,9 @@ def test_suggestions_api_empty_request():
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API with attachments in request."""
     mock_validate_whitelist.return_value = None
@@ -746,7 +746,7 @@ def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_valida
             SuggestionDetail(
                 suggestion_title="Summarize documents",
                 suggestion_id="suggest-1",
-                suggestion_to_email="summarize@mxtoai.com",
+                suggestion_to_email="summarize@mxgo.com",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="Focus on key findings from the attached reports",
             ),
@@ -782,9 +782,9 @@ def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_valida
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API with CC emails in request."""
     mock_validate_whitelist.return_value = None
@@ -796,7 +796,7 @@ def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate
             SuggestionDetail(
                 suggestion_title="Schedule meeting",
                 suggestion_id="suggest-1",
-                suggestion_to_email="meeting@mxtoai.com",
+                suggestion_to_email="meeting@mxgo.com",
                 suggestion_cc_emails=["manager@company.com"],
                 suggestion_email_instructions="",
             ),
@@ -821,7 +821,7 @@ def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
 def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
     """Test suggestions API with rate limiting (if rate limits apply to suggestions endpoint)."""
     # Note: This test assumes suggestions endpoint might have its own rate limits
@@ -830,8 +830,8 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
     request_data = prepare_suggestions_request_data()
 
     with (
-        patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock) as mock_validate_whitelist,
-        patch("mxtoai.suggestions.generate_suggestions", new_callable=AsyncMock) as mock_generate_suggestions,
+        patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock) as mock_validate_whitelist,
+        patch("mxgo.suggestions.generate_suggestions", new_callable=AsyncMock) as mock_generate_suggestions,
     ):
         mock_validate_whitelist.return_value = None
 
@@ -842,7 +842,7 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
                 SuggestionDetail(
                     suggestion_title="Ask anything",
                     suggestion_id="suggest-1",
-                    suggestion_to_email="ask@mxtoai.com",
+                    suggestion_to_email="ask@mxgo.com",
                     suggestion_cc_emails=[],
                     suggestion_email_instructions="",
                 ),
@@ -856,9 +856,9 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_validate_whitelist):
     """Test suggestions API handles the Subject field alias correctly."""
     mock_validate_whitelist.return_value = None
@@ -869,7 +869,7 @@ def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_val
             SuggestionDetail(
                 suggestion_title="Ask anything",
                 suggestion_id="suggest-1",
-                suggestion_to_email="ask@mxtoai.com",
+                suggestion_to_email="ask@mxgo.com",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="",
             ),
@@ -889,9 +889,9 @@ def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_val
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
-@patch("mxtoai.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxtoai.api.validate_email_whitelist", new_callable=AsyncMock)
-@patch("mxtoai.api.generate_suggestions", new_callable=AsyncMock)
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
 def test_suggestions_api_default_suggestions_always_included(mock_generate_suggestions, mock_validate_whitelist):
     """Test that default suggestions are always included in responses."""
     mock_validate_whitelist.return_value = None
@@ -904,7 +904,7 @@ def test_suggestions_api_default_suggestions_always_included(mock_generate_sugge
             SuggestionDetail(
                 suggestion_title="Fact check claims",
                 suggestion_id="suggest-custom-1",
-                suggestion_to_email="fact-check@mxtoai.com",
+                suggestion_to_email="fact-check@mxgo.com",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="Verify the statistical claims in this email",
             ),

@@ -1,15 +1,15 @@
-# 🤖 MXtoAI - Automate any email workflow with AI
+# 🤖 MXGo - Automate any email workflow with AI
 
-> MXtoAI processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
+> MXGo processes emails with advanced AI, handles attachments, and generates smart responses - all running on your own infrastructure.
 
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue?logo=docker)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-✓-brightgreen)]()
 
 
-## 🎯 What is MXtoAI?
+## 🎯 What is MXGo?
 
-MXtoAI is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
+MXGo is a powerful, self-hostable email processing system that acts as your intelligent email workflow assistant:
 
 ### ✨ **Core Features**
 
@@ -25,7 +25,7 @@ MXtoAI is a powerful, self-hostable email processing system that acts as your in
 - **🔒 Privacy First**: Runs entirely on your infrastructure
 - **🎨 Rich Formatting**: HTML and plain text responses with professional styling
 
-## 🚀 Self-host MXtoAI
+## 🚀 Self-host MXGo
 
 ### Prerequisites
 - [Docker Desktop](https://www.docker.com/products/docker-desktop) installed and running
@@ -36,8 +36,8 @@ MXtoAI is a powerful, self-hostable email processing system that acts as your in
 
 ```bash
 # Clone and start
-git clone https://github.com/mxtoai/mxtoai-core.git
-cd mxtoai
+git clone https://github.com/mxgo/mxgo-core.git
+cd mxgo
 
 # Automated setup and start
 ./scripts/setup-local.sh && ./scripts/start-local.sh
@@ -101,7 +101,7 @@ The system processes emails asynchronously and can send responses via your confi
 
 ### Environment Variables
 
-MXtoAI uses a clean, organized environment configuration system:
+MXGo uses a clean, organized environment configuration system:
 
 #### 🚀 **Quick Setup**
 1. **Copy the template**: `cp .env.example .env`
@@ -233,22 +233,22 @@ cp .env.example .env
 # Edit .env with local service settings
 
 # Run database migrations
-cd mxtoai/db
+cd mxgo/db
 poetry run alembic upgrade head
 cd ../..
 
 # Start services (3 separate terminals)
 poetry run python run_api.py                           # API Server
-poetry run dramatiq mxtoai.tasks --watch ./            # Worker
-poetry run python -m mxtoai.scheduler_runner          # Scheduler
+poetry run dramatiq mxgo.tasks --watch ./            # Worker
+poetry run python -m mxgo.scheduler_runner          # Scheduler
 ```
 
 ## 📁 Repository Structure
 
 ```mermaid
 graph TD
-    A["MXtoAI Repository"] --> B["docker/"]
-    A --> C["mxtoai/"]
+    A["MXGo Repository"] --> B["docker/"]
+    A --> C["mxgo/"]
     A --> D["scripts/"]
     A --> E["tests/"]
     A --> F["docusaurus-site/"]
@@ -290,7 +290,7 @@ graph TD
 | Directory | Purpose | Key Files |
 |-----------|---------|-----------|
 | `🐳 docker/` | Container configurations | Dockerfiles, init scripts |
-| `🤖 mxtoai/` | Core application code | agents, tools, database models |
+| `🤖 mxgo/` | Core application code | agents, tools, database models |
 | `📋 scripts/` | Setup & deployment | setup-local.sh, start-local.sh |
 | `🧪 tests/` | Test suite | Unit tests, load tests |
 | `📖 docusaurus-site/` | Documentation website | Docs, guides, examples |
@@ -308,7 +308,7 @@ graph TD
 
 ### Multiple AI Model Support
 
-MXtoAI supports load balancing across multiple AI providers:
+MXGo supports load balancing across multiple AI providers:
 
 - OpenAI GPT models
 - Azure OpenAI
@@ -381,14 +381,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🌟 Support
 
 - **📖 Documentation**: [DOCKER_SETUP.md](DOCKER_SETUP.md)
-- **🐛 Issues**: [GitHub Issues](https://github.com/your-org/mxtoai/issues)
-- **💬 Discussions**: [GitHub Discussions](https://github.com/your-org/mxtoai/discussions)
+- **🐛 Issues**: [GitHub Issues](https://github.com/your-org/mxgo/issues)
+- **💬 Discussions**: [GitHub Discussions](https://github.com/your-org/mxgo/discussions)
 
 ---
 
 <div align="center">
 
-**⭐ Star this repo if MXtoAI helps you!**
+**⭐ Star this repo if MXGo helps you!**
 
 Made with ❤️ for the open source community
 

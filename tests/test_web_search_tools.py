@@ -5,10 +5,10 @@ from unittest.mock import Mock, patch
 import pytest
 import requests
 
-from mxtoai.request_context import RequestContext
-from mxtoai.schemas import EmailRequest
-from mxtoai.tools.fallback_search_tool import FallbackWebSearchTool
-from mxtoai.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
+from mxgo.request_context import RequestContext
+from mxgo.schemas import EmailRequest
+from mxgo.tools.fallback_search_tool import FallbackWebSearchTool
+from mxgo.tools.web_search import BraveSearchTool, DDGSearchTool, GoogleSearchTool
 
 
 # Helper function to create mock context
@@ -66,7 +66,7 @@ class TestDDGSearchTool:
         assert tool.inputs["query"]["type"] == "string"
         assert tool.output_type == "object"
 
-    @patch("mxtoai.tools.web_search.ddg_search.WebSearchTool")
+    @patch("mxgo.tools.web_search.ddg_search.WebSearchTool")
     def test_forward_success(self, mock_web_search_tool):
         """Test successful DDG search execution."""
         mock_ddg_instance = Mock()
@@ -83,7 +83,7 @@ class TestDDGSearchTool:
         mock_web_search_tool.assert_called_once_with(engine="duckduckgo", max_results=3)
         mock_ddg_instance.forward.assert_called_once_with(query="test query")
 
-    @patch("mxtoai.tools.web_search.ddg_search.WebSearchTool")
+    @patch("mxgo.tools.web_search.ddg_search.WebSearchTool")
     def test_forward_exception_handling(self, mock_web_search_tool):
         """Test that DDG search exceptions are properly raised."""
         mock_ddg_instance = Mock()
@@ -96,8 +96,8 @@ class TestDDGSearchTool:
         with pytest.raises(Exception, match="DDG search failed"):
             tool.forward("test query")
 
-    @patch("mxtoai.tools.web_search.ddg_search.logger")
-    @patch("mxtoai.tools.web_search.ddg_search.WebSearchTool")
+    @patch("mxgo.tools.web_search.ddg_search.logger")
+    @patch("mxgo.tools.web_search.ddg_search.WebSearchTool")
     def test_logging_behavior(self, mock_web_search_tool, mock_logger):
         """Test that appropriate logging occurs during search."""
         mock_ddg_instance = Mock()
@@ -252,7 +252,7 @@ class TestBraveSearchTool:
             tool.forward("test query")
 
     @patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test_api_key"})
-    @patch("mxtoai.tools.web_search.brave_search.logger")
+    @patch("mxgo.tools.web_search.brave_search.logger")
     @patch("requests.get")
     def test_logging_behavior(self, mock_get, mock_logger):
         """Test that appropriate logging occurs during search."""
@@ -290,7 +290,7 @@ class TestGoogleSearchTool:
             assert "Google Search API" in tool.description
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_serpapi_key"})
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_initialization_with_serpapi(self, mock_google_tool):
         """Test GoogleSearchTool initialization with SerpAPI key."""
         mock_instance = Mock()
@@ -303,7 +303,7 @@ class TestGoogleSearchTool:
         mock_google_tool.assert_called_once_with(provider="serpapi")
 
     @patch.dict(os.environ, {"SERPER_API_KEY": "test_serper_key"}, clear=True)
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_initialization_with_serper(self, mock_google_tool):
         """Test GoogleSearchTool initialization with Serper key."""
         mock_instance = Mock()
@@ -316,7 +316,7 @@ class TestGoogleSearchTool:
         mock_google_tool.assert_called_once_with(provider="serper")
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key", "SERPER_API_KEY": "test_key"})
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_initialization_serpapi_priority(self, mock_google_tool):
         """Test that SerpAPI takes priority over Serper when both are available."""
         mock_instance = Mock()
@@ -329,7 +329,7 @@ class TestGoogleSearchTool:
         mock_google_tool.assert_called_once_with(provider="serpapi")
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_initialization_serpapi_failure_fallback(self, mock_google_tool):
         """Test fallback to Serper when SerpAPI initialization fails."""
         # Set both keys to test fallback
@@ -355,7 +355,7 @@ class TestGoogleSearchTool:
                 tool.forward("test query")
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_forward_success(self, mock_google_tool):
         """Test successful Google search execution."""
         mock_instance = Mock()
@@ -372,7 +372,7 @@ class TestGoogleSearchTool:
         mock_instance.forward.assert_called_once_with(query="test query")
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_forward_exception_handling(self, mock_google_tool):
         """Test that Google search exceptions are properly raised."""
         mock_instance = Mock()
@@ -386,8 +386,8 @@ class TestGoogleSearchTool:
             tool.forward("test query")
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
-    @patch("mxtoai.tools.web_search.google_search.logger")
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.logger")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_logging_behavior(self, mock_google_tool, mock_logger):
         """Test that appropriate logging occurs during search."""
         mock_instance = Mock()
@@ -406,8 +406,8 @@ class TestGoogleSearchTool:
         )
 
     @patch.dict(os.environ, {"SERPAPI_API_KEY": "test_key"})
-    @patch("mxtoai.tools.web_search.google_search.logger")
-    @patch("mxtoai.tools.web_search.google_search.SmolagentsGoogleSearchTool")
+    @patch("mxgo.tools.web_search.google_search.logger")
+    @patch("mxgo.tools.web_search.google_search.SmolagentsGoogleSearchTool")
     def test_logging_on_error(self, mock_google_tool, mock_logger):
         """Test logging behavior when search fails."""
         mock_instance = Mock()
@@ -457,7 +457,7 @@ class TestIntegrationScenarios:
         context = create_mock_context()
 
         with (
-            patch("mxtoai.tools.web_search.ddg_search.WebSearchTool", return_value=mock_ddg_instance),
+            patch("mxgo.tools.web_search.ddg_search.WebSearchTool", return_value=mock_ddg_instance),
             patch("requests.get", return_value=mock_brave_response),
             patch.dict(os.environ, {"BRAVE_SEARCH_API_KEY": "test_key"}),
         ):

@@ -1,0 +1,5 @@
+from mxgo.email_handles import DEFAULT_EMAIL_HANDLES
+from mxgo.instruction_resolver import ProcessingInstructionsResolver
+
+# global resolver for processing instructions
+processing_instructions_resolver = ProcessingInstructionsResolver(DEFAULT_EMAIL_HANDLES)

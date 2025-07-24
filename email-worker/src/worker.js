@@ -1,5 +1,5 @@
 // Define the API endpoint as a constant
-const API_ENDPOINT = "https://api.mxtoai.com/process-email";
+const API_ENDPOINT = "https://api.mxgo.ai/process-email";
 // const API_ENDPOINT = "https://f9cb-2401-4900-1f27-802d-9dc8-c5a1-9434-c1f1.ngrok-free.app/process-email"
 import PostalMime from 'postal-mime';
 

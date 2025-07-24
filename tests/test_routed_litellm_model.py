@@ -3,11 +3,11 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from mxtoai.routed_litellm_model import RoutedLiteLLMModel
+from mxgo.routed_litellm_model import RoutedLiteLLMModel
 
 
 @patch.dict(os.environ, {"LITELLM_DEFAULT_MODEL_GROUP": "gpt-4"})
-@patch("mxtoai.routed_litellm_model.LiteLLMRouterModel.__init__")
+@patch("mxgo.routed_litellm_model.LiteLLMRouterModel.__init__")
 @patch("tomllib.load")
 @patch("builtins.open")
 @patch("pathlib.Path.exists", return_value=True)

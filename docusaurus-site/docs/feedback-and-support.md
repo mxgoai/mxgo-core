@@ -6,6 +6,6 @@ sidebar_position: 6
 
 We value your feedback! If you encounter any issues, have suggestions for improvement, or need support, please reach out to us.
 
-*   **Contact Us:** [mailto:discuss@mxtoai.com](mailto:discuss@mxtoai.com)
+*   **Contact Us:** [mailto:discuss@mxgo.ai](mailto:discuss@mxgo.ai)
 
 <!-- Update the links above with actual contact/support channels -->

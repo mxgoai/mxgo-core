@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 import requests
 
-from mxtoai.tools.deep_research_tool import DeepResearchTool
+from mxgo.tools.deep_research_tool import DeepResearchTool
 
 
 class TestDeepResearchToolInitialization:

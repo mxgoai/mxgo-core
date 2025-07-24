@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # Self-Hosting Guide
 
-MXtoAI can be self-hosted on your own infrastructure, giving you complete control over your email processing and data privacy. This guide will walk you through setting up MXtoAI on your own servers.
+MXGo can be self-hosted on your own infrastructure, giving you complete control over your email processing and data privacy. This guide will walk you through setting up MXGo on your own servers.
 
 ## 🚀 Quick Start (5 minutes)
 
@@ -17,8 +17,8 @@ MXtoAI can be self-hosted on your own infrastructure, giving you complete contro
 
 ```bash
 # Clone and start
-git clone https://github.com/mxtoai/mxtoai-core.git
-cd mxtoai
+git clone https://github.com/mxgo/mxgo-core.git
+cd mxgo
 
 # Automated setup and start
 ./scripts/setup-local.sh && ./scripts/start-local.sh
@@ -94,7 +94,7 @@ npm install
 
 Edit `email-worker/wrangler.toml`:
 ```toml
-name = "mxtoai-email-worker"
+name = "mxgo-email-worker"
 main = "src/worker.js"
 compatibility_date = "2023-05-15"
 workers_dev = true
@@ -128,7 +128,7 @@ npx wrangler secret put x_api_key
    - **Catch-all rule**: `*@yourdomain.com` → Send to Worker
 
 3. **Worker Configuration:**
-   - Select your deployed `mxtoai-email-worker`
+   - Select your deployed `mxgo-email-worker`
    - Save the routing rules
 
 ## 📬 Process Your First Email
@@ -140,14 +140,14 @@ With Cloudflare Email Routing set up, you can now process emails by simply forwa
 ```
 To: ask@yourdomain.com
 Subject: Test Email
-Body: Can you help me understand how MXtoAI works?
+Body: Can you help me understand how MXGo works?
 ```
 
 ### What Happens:
 1. Email arrives at Cloudflare Email Routing
 2. Cloudflare Worker processes the email
-3. Worker forwards email data to your MXtoAI API
-4. MXtoAI processes the email with AI
+3. Worker forwards email data to your MXGo API
+4. MXGo processes the email with AI
 5. Response is sent back to the original sender
 
 ## 🔄 Managing the System
@@ -203,7 +203,7 @@ JINA_API_KEY=your_jina_key
 # Database (if not using Docker defaults)
 DB_HOST=localhost
 DB_PORT=5432
-DB_NAME=mxtoai
+DB_NAME=mxgo
 DB_USER=postgres
 DB_PASSWORD=your_password
 ```

@@ -12,8 +12,8 @@ from fakeredis import FakeAsyncRedis
 from fastapi import Response
 from fastapi.testclient import TestClient
 
-from mxtoai.api import app
-from mxtoai.schemas import UserPlan
+from mxgo.api import app
+from mxgo.schemas import UserPlan
 
 
 class TestProcessEmailIntegration:
@@ -28,7 +28,7 @@ class TestProcessEmailIntegration:
     def mock_redis(self):
         """Mock Redis client for all tests in this class."""
         fake_redis = FakeAsyncRedis()
-        with patch("mxtoai.validators.redis_client", fake_redis):
+        with patch("mxgo.validators.redis_client", fake_redis):
             yield fake_redis
 
     @pytest.fixture
@@ -48,7 +48,7 @@ class TestProcessEmailIntegration:
     @pytest.fixture
     def mock_redis_client(self):
         """Mock Redis client for rate limiting."""
-        with patch("mxtoai.validators.redis_client") as mock_redis:
+        with patch("mxgo.validators.redis_client") as mock_redis:
             # Create a proper async context manager mock
             mock_pipeline = AsyncMock()
             mock_pipeline.__aenter__ = AsyncMock(return_value=mock_pipeline)
@@ -60,19 +60,19 @@ class TestProcessEmailIntegration:
     @pytest.fixture
     def mock_email_whitelist(self):
         """Mock email whitelist validation."""
-        with patch("mxtoai.validators.is_email_whitelisted", return_value=(True, True)):
+        with patch("mxgo.validators.is_email_whitelisted", return_value=(True, True)):
             yield
 
     @pytest.fixture
     def mock_email_sender(self):
         """Mock email sender to prevent actual email sending."""
-        with patch("mxtoai.validators.send_email_reply"):
+        with patch("mxgo.validators.send_email_reply"):
             yield
 
     @pytest.fixture
     def mock_task_queue(self):
         """Mock task queue to prevent actual task processing."""
-        with patch("mxtoai.api.process_email_task"):
+        with patch("mxgo.api.process_email_task"):
             yield
 
     def test_process_email_with_pro_user_plan(
@@ -80,12 +80,12 @@ class TestProcessEmailIntegration:
     ):
         """Test /process-email endpoint uses PRO user plan for rate limiting."""
         # Mock get_user_plan to return PRO
-        with patch("mxtoai.user.get_user_plan", return_value=UserPlan.PRO) as mock_get_plan:
+        with patch("mxgo.user.get_user_plan", return_value=UserPlan.PRO) as mock_get_plan:
             response = client.post(
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxtoai.com",
+                    "to": "ask@mxgo.com",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -100,12 +100,12 @@ class TestProcessEmailIntegration:
     ):
         """Test /process-email endpoint uses BETA user plan for rate limiting."""
         # Mock get_user_plan to return BETA
-        with patch("mxtoai.user.get_user_plan", return_value=UserPlan.BETA) as mock_get_plan:
+        with patch("mxgo.user.get_user_plan", return_value=UserPlan.BETA) as mock_get_plan:
             response = client.post(
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxtoai.com",
+                    "to": "ask@mxgo.com",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -121,14 +121,14 @@ class TestProcessEmailIntegration:
         """Test /process-email endpoint falls back to BETA when plan lookup fails."""
         # Mock get_user_plan to raise exception
         with (
-            patch("mxtoai.user.get_user_plan", side_effect=Exception("Plan lookup failed")) as mock_get_plan,
-            patch("mxtoai.api.validate_rate_limits", return_value=None) as mock_rate_limits,
+            patch("mxgo.user.get_user_plan", side_effect=Exception("Plan lookup failed")) as mock_get_plan,
+            patch("mxgo.api.validate_rate_limits", return_value=None) as mock_rate_limits,
         ):
             response = client.post(
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxtoai.com",
+                    "to": "ask@mxgo.com",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -148,7 +148,7 @@ class TestProcessEmailIntegration:
             "/process-email",
             data={
                 "from_email": "test@example.com",
-                "to": "ask@mxtoai.com",
+                "to": "ask@mxgo.com",
                 "subject": "Test email",
                 "textContent": "Test content",
             },
@@ -168,18 +168,18 @@ class TestProcessEmailIntegration:
         )
 
         with (
-            patch("mxtoai.user.get_user_plan", return_value=UserPlan.BETA),
+            patch("mxgo.user.get_user_plan", return_value=UserPlan.BETA),
             patch(
-                "mxtoai.api.validate_rate_limits", return_value=AsyncMock(return_value=mock_response)
+                "mxgo.api.validate_rate_limits", return_value=AsyncMock(return_value=mock_response)
             ) as mock_rate_limits,
-            patch("mxtoai.api.validate_email_handle", return_value=(None, "ask")),
-            patch("mxtoai.api.validate_email_whitelist", return_value=None),
-            patch("mxtoai.api.validate_attachments", return_value=None),
-            patch("mxtoai.api.validate_idempotency", return_value=(None, "test_message_id")),
-            patch("mxtoai.api.validate_api_key", return_value=None),
-            patch("mxtoai.api.process_email_task"),
-            patch("mxtoai.api.generate_email_id", return_value="test_email_id"),
-            patch("mxtoai.api.processing_instructions_resolver") as mock_resolver,
+            patch("mxgo.api.validate_email_handle", return_value=(None, "ask")),
+            patch("mxgo.api.validate_email_whitelist", return_value=None),
+            patch("mxgo.api.validate_attachments", return_value=None),
+            patch("mxgo.api.validate_idempotency", return_value=(None, "test_message_id")),
+            patch("mxgo.api.validate_api_key", return_value=None),
+            patch("mxgo.api.process_email_task"),
+            patch("mxgo.api.generate_email_id", return_value="test_email_id"),
+            patch("mxgo.api.processing_instructions_resolver") as mock_resolver,
         ):
             mock_resolver.return_value.process_attachments = False
 
@@ -187,7 +187,7 @@ class TestProcessEmailIntegration:
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxtoai.com",
+                    "to": "ask@mxgo.com",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -239,26 +239,26 @@ class TestSuggestionsIntegration:
         """Mock environment variables for testing."""
         with (
             patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "test_suggestions_key", "JWT_SECRET": jwt_secret}),
-            patch("mxtoai.auth.JWT_SECRET", jwt_secret),
+            patch("mxgo.auth.JWT_SECRET", jwt_secret),
         ):
             yield
 
     @pytest.fixture
     def mock_email_whitelist(self):
         """Mock email whitelist validation."""
-        with patch("mxtoai.validators.is_email_whitelisted", return_value=(True, True)):
+        with patch("mxgo.validators.is_email_whitelisted", return_value=(True, True)):
             yield
 
     @pytest.fixture
     def mock_suggestions_model(self):
         """Mock suggestions model."""
-        with patch("mxtoai.suggestions.get_suggestions_model"):
+        with patch("mxgo.suggestions.get_suggestions_model"):
             yield
 
     @pytest.fixture
     def mock_generate_suggestions(self):
         """Mock generate_suggestions function."""
-        with patch("mxtoai.api.generate_suggestions") as mock_gen:
+        with patch("mxgo.api.generate_suggestions") as mock_gen:
             mock_gen.return_value = AsyncMock()
             mock_gen.return_value.email_identified = "test_email_123"
             mock_gen.return_value.user_email_id = "test@example.com"
@@ -366,7 +366,7 @@ class TestSuggestionsIntegration:
         self, client, mock_env_vars, valid_jwt_token, sample_suggestion_request, mock_suggestions_model
     ):
         """Test /suggestions endpoint handles non-whitelisted users."""
-        with patch("mxtoai.validators.is_email_whitelisted", return_value=(False, False)):
+        with patch("mxgo.validators.is_email_whitelisted", return_value=(False, False)):
             response = client.post(
                 "/suggestions",
                 json=sample_suggestion_request,
@@ -399,17 +399,17 @@ class TestBackwardCompatibility:
     def test_process_email_without_dodo_integration(self, client, mock_env_vars):
         """Test /process-email endpoint works without Dodo Payments configuration."""
         with (
-            patch("mxtoai.validators.redis_client", None),
-            patch("mxtoai.validators.is_email_whitelisted", return_value=(True, True)),
-            patch("mxtoai.validators.send_email_reply"),
-            patch("mxtoai.api.process_email_task"),
+            patch("mxgo.validators.redis_client", None),
+            patch("mxgo.validators.is_email_whitelisted", return_value=(True, True)),
+            patch("mxgo.validators.send_email_reply"),
+            patch("mxgo.api.process_email_task"),
             patch("user.get_user_plan", return_value=UserPlan.BETA),
         ):
             response = client.post(
                 "/process-email",
                 data={
                     "from_email": "test@example.com",
-                    "to": "ask@mxtoai.com",
+                    "to": "ask@mxgo.com",
                     "subject": "Test email",
                     "textContent": "Test content",
                 },
@@ -425,7 +425,7 @@ class TestBackwardCompatibility:
             "/process-email",
             data={
                 "from_email": "test@example.com",
-                "to": "ask@mxtoai.com",
+                "to": "ask@mxgo.com",
                 "subject": "Test email",
                 "textContent": "Test content",
             },
@@ -437,7 +437,7 @@ class TestBackwardCompatibility:
 
     def test_health_endpoint_unchanged(self, client):
         """Test health endpoint still works as before."""
-        with patch("mxtoai.api.rabbitmq_broker"), patch("mxtoai.api.init_db_connection"):
+        with patch("mxgo.api.rabbitmq_broker"), patch("mxgo.api.init_db_connection"):
             response = client.get("/health")
             assert response.status_code == 200
             assert "status" in response.json()
