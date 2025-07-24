@@ -19,7 +19,7 @@
 # Use factory fixtures for flexible test data creation
 @pytest.fixture
 def prepare_email_request_data(tmp_path):
-    def _prepare(to_email="ask@mxgo.com", from_email="test@example.com", ...):
+    def _prepare(to_email="ask@mxgo.ai", from_email="test@example.com", ...):
         # Setup logic here
         return email_data, attachments_dir, attachment_info
     return _prepare

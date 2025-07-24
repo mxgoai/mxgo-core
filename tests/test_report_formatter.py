@@ -273,7 +273,7 @@ b. Another action"""
 founders of the company.
 - **Participants:**
   - Anisha (Organizer): 28gautam97@gmail.com
-  - MXGo Founders: founders@mxgo.com
+  - MXGo Founders: founders@mxgo.ai
 ### Calendar Links
 - **[Google Calendar](https://www.google.com/calendar/render?action=TEMPLATE&text=30-minute+call)**
 - **[Outlook Calendar](https://outlook.live.com/calendar/0/deeplink/compose)**

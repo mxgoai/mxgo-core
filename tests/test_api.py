@@ -88,7 +88,7 @@ def client_with_patched_redis():
 def prepare_form_data(**kwargs):
     return {
         "from_email": "test@example.com",
-        "to": "ask@mxgo.com",
+        "to": "ask@mxgo.ai",
         "subject": "Test Subject",
         "textContent": "Test content",
         "htmlContent": "<p>Test content</p>",
@@ -197,7 +197,7 @@ def test_process_email_success_no_attachments_ask_handle(
     mock_task_send, mock_validate_email_whitelist, client_with_patched_redis
 ):
     mock_validate_email_whitelist.return_value = None
-    form_data = prepare_form_data(to="ask@mxgo.com", from_email="pass@example.com")  # Use unique email
+    form_data = prepare_form_data(to="ask@mxgo.ai", from_email="pass@example.com")  # Use unique email
 
     response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
     assert_successful_response(response, expected_attachments_saved=0)
@@ -219,7 +219,7 @@ def test_email_hourly_rate_limit_exceeded(
 ):
     mock_validate_whitelist.return_value = None  # Assume email is whitelisted
     test_email = f"hourly_limited_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.ai")
 
     for i in range(TEST_EMAIL_LIMIT_HOUR):
         form_data = {**form_data_template, "messageId": f"hourly-ok-{i}-{os.urandom(2).hex()}"}
@@ -249,7 +249,7 @@ def test_email_daily_rate_limit_exceeded(
 ):
     mock_validate_whitelist.return_value = None
     test_email = f"daily_limited_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.ai")
 
     # Simulate requests spread over different hours but within the same day
     for i in range(TEST_EMAIL_LIMIT_DAY):
@@ -285,7 +285,7 @@ def test_email_monthly_rate_limit_exceeded(
 ):
     mock_validate_whitelist.return_value = None
     test_email = f"monthly_limited_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.ai")
 
     for i in range(TEST_EMAIL_LIMIT_MONTH):
         # Simulate requests spread over different days and hours within the same month
@@ -328,7 +328,7 @@ def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
         # Use different emails from the same unknown domain
         test_email = f"user{i}_{os.urandom(1).hex()}@{TEST_UNKNOWN_DOMAIN}"
         form_data = prepare_form_data(
-            from_email=test_email, to="ask@mxgo.com", messageId=f"domain-ok-{i}-{os.urandom(2).hex()}"
+            from_email=test_email, to="ask@mxgo.ai", messageId=f"domain-ok-{i}-{os.urandom(2).hex()}"
         )
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
         assert_successful_response(response)
@@ -338,7 +338,7 @@ def test_domain_hourly_rate_limit_exceeded_for_unknown_domain(
     # Next request from any user on this domain should exceed
     test_email_exceed = f"user_exceed_{os.urandom(1).hex()}@{TEST_UNKNOWN_DOMAIN}"
     form_data_exceed = prepare_form_data(
-        from_email=test_email_exceed, to="ask@mxgo.com", messageId=f"domain-exceed-{os.urandom(2).hex()}"
+        from_email=test_email_exceed, to="ask@mxgo.ai", messageId=f"domain-exceed-{os.urandom(2).hex()}"
     )
     response = make_post_request_with_client(client_with_patched_redis, form_data_exceed, "/process-email")
     assert_rate_limit_exceeded_response(response, "domain hour")
@@ -362,7 +362,7 @@ def test_domain_limit_not_applied_for_known_provider(
     for i in range(TEST_DOMAIN_LIMIT_HOUR + 5):  # Go over the general domain limit
         test_email = f"user{i}_{os.urandom(1).hex()}@{TEST_KNOWN_PROVIDER_DOMAIN}"
         form_data = prepare_form_data(
-            from_email=test_email, to="ask@mxgo.com", messageId=f"known-domain-{i}-{os.urandom(2).hex()}"
+            from_email=test_email, to="ask@mxgo.ai", messageId=f"known-domain-{i}-{os.urandom(2).hex()}"
         )
         response = make_post_request_with_client(client_with_patched_redis, form_data, "/process-email")
 
@@ -391,7 +391,7 @@ def test_email_normalization_for_rate_limiting(
     email2 = f"{base_email}+alias1@{domain}"
     email3 = f"{base_email}+another.alias@{domain.upper()}"  # Test domain case insensitivity too
 
-    form_data_template = prepare_form_data(to="ask@mxgo.com")
+    form_data_template = prepare_form_data(to="ask@mxgo.ai")
 
     # Send up to the hourly limit using variations of the same base email
     for i in range(TEST_EMAIL_LIMIT_HOUR):
@@ -422,7 +422,7 @@ def test_rate_limits_cleared_after_time_period(
 ):
     mock_validate_whitelist.return_value = None
     test_email = f"time_cleared_{os.urandom(2).hex()}@test.com"
-    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.com")
+    form_data_template = prepare_form_data(from_email=test_email, to="ask@mxgo.ai")
 
     # Exceed hourly limit
     with freeze_time("2024-01-15 10:30:00 UTC") as frozen_time:
@@ -556,14 +556,14 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
             SuggestionDetail(
                 suggestion_title="Summarize content",
                 suggestion_id="suggest-1",
-                suggestion_to_email="summarize@mxgo.com",
+                suggestion_to_email="summarize@mxgo.ai",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="",
             ),
             SuggestionDetail(
                 suggestion_title="Ask anything",
                 suggestion_id="suggest-2",
-                suggestion_to_email="ask@mxgo.com",
+                suggestion_to_email="ask@mxgo.ai",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="",
             ),
@@ -603,7 +603,7 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
                 SuggestionDetail(
                     suggestion_title="Ask anything",
                     suggestion_id=f"suggest-{i}",
-                    suggestion_to_email="ask@mxgo.com",
+                    suggestion_to_email="ask@mxgo.ai",
                     suggestion_cc_emails=[],
                     suggestion_email_instructions="",
                 ),
@@ -746,7 +746,7 @@ def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_valida
             SuggestionDetail(
                 suggestion_title="Summarize documents",
                 suggestion_id="suggest-1",
-                suggestion_to_email="summarize@mxgo.com",
+                suggestion_to_email="summarize@mxgo.ai",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="Focus on key findings from the attached reports",
             ),
@@ -796,7 +796,7 @@ def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate
             SuggestionDetail(
                 suggestion_title="Schedule meeting",
                 suggestion_id="suggest-1",
-                suggestion_to_email="meeting@mxgo.com",
+                suggestion_to_email="meeting@mxgo.ai",
                 suggestion_cc_emails=["manager@company.com"],
                 suggestion_email_instructions="",
             ),
@@ -842,7 +842,7 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
                 SuggestionDetail(
                     suggestion_title="Ask anything",
                     suggestion_id="suggest-1",
-                    suggestion_to_email="ask@mxgo.com",
+                    suggestion_to_email="ask@mxgo.ai",
                     suggestion_cc_emails=[],
                     suggestion_email_instructions="",
                 ),
@@ -869,7 +869,7 @@ def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_val
             SuggestionDetail(
                 suggestion_title="Ask anything",
                 suggestion_id="suggest-1",
-                suggestion_to_email="ask@mxgo.com",
+                suggestion_to_email="ask@mxgo.ai",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="",
             ),
@@ -904,7 +904,7 @@ def test_suggestions_api_default_suggestions_always_included(mock_generate_sugge
             SuggestionDetail(
                 suggestion_title="Fact check claims",
                 suggestion_id="suggest-custom-1",
-                suggestion_to_email="fact-check@mxgo.com",
+                suggestion_to_email="fact-check@mxgo.ai",
                 suggestion_cc_emails=[],
                 suggestion_email_instructions="Verify the statistical claims in this email",
             ),

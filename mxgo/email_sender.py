@@ -77,7 +77,7 @@ class EmailSender:
             msg = f"Could not connect to AWS SES: {error_details}"
             raise ConnectionError(msg)
 
-        self.default_sender_email = os.getenv("SENDER_EMAIL", "ai-assistant@mxgo.com")
+        self.default_sender_email = os.getenv("SENDER_EMAIL", "ai-assistant@mxgo.ai")
         logger.info(f"EmailSender initialized with default sender: {self.default_sender_email}")
 
     async def send_email(
@@ -459,7 +459,7 @@ def generate_message_id(
     # Create a deterministic hash from email components
     hash_input = f"{from_email}|{to}|{subject}|{date}|{html_content}|{text_content}|{files_count}"
     message_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()[:16]
-    return f"<{message_hash}@mxgo.com>"
+    return f"<{message_hash}@mxgo.ai>"
 
 
 def generate_email_id(email_data: EmailRequest) -> str:

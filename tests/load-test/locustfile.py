@@ -75,19 +75,19 @@ EMAIL_SCENARIOS = [
         "weight": 40,  # 40% of requests will use this scenario
         "data": {
             "from_email": "test@example.com",
-            "to": random.choice(["summarise@mxgo.com", "eli5@mxgo.com"]),
+            "to": random.choice(["summarise@mxgo.ai", "eli5@mxgo.ai"]),
             **random.choice(superficial_presets),  # Use random complex topic
         },
     },
     {
         "weight": 15,  # 15% of requests
-        "data": {"from_email": "test@example.com", "to": "translate@mxgo.com", **random.choice(superficial_presets)},
+        "data": {"from_email": "test@example.com", "to": "translate@mxgo.ai", **random.choice(superficial_presets)},
     },
     {
         "weight": 15,  # 15% of requests
         "data": {
             "from_email": "test@example.com",
-            "to": "ask@mxgo.com",
+            "to": "ask@mxgo.ai",
             "subject": "Please find attachments",
             "textContent": random.choice(
                 [
@@ -103,7 +103,7 @@ EMAIL_SCENARIOS = [
     #     "weight": 17,  # 17% deep research without files (increased from 15%)
     #     "data": {
     #         "from_email": "test@example.com",
-    #         "to": "research@mxgo.com",
+    #         "to": "research@mxgo.ai",
     #         **random.choice(research_presets),
     #         "deep_research": True
     #     }
@@ -112,7 +112,7 @@ EMAIL_SCENARIOS = [
     #     "weight": 13,  # 13% deep research with files (increased from 10%)
     #     "data": {
     #         "from_email": "test@example.com",
-    #         "to": "research@mxgo.com",
+    #         "to": "research@mxgo.ai",
     #         "subject": "Research with Attachments",
     #         "textContent": "Please conduct deep research on these documents and provide comprehensive findings.",
     #         "files": get_random_test_files(2),
@@ -210,7 +210,7 @@ class EmailProcessingUser(HttpUser):
         scenario = random.choices(EMAIL_SCENARIOS, weights=[s["weight"] for s in EMAIL_SCENARIOS], k=1)[0]
 
         # For the third scenario, get fresh random files each time
-        if scenario["data"]["to"] == "full-analysis@mxgo.com":
+        if scenario["data"]["to"] == "full-analysis@mxgo.ai":
             scenario["data"]["files"] = get_random_test_files(2)
 
         # Check if this is a deep research request

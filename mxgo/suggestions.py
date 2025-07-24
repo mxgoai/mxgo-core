@@ -103,7 +103,7 @@ Generate {MIN_SUGGESTIONS}-{MAX_SUGGESTIONS} suggestions as a JSON object with t
     "suggestions": [
     {{
         "suggestion_title": "Short, crisp title (e.g., 'Research sender', 'Verify claims', 'Summarize email')",
-      "suggestion_to_email": "appropriate_handle@mxgo.com",
+      "suggestion_to_email": "appropriate_handle@mxgo.ai",
       "suggestion_cc_emails": [],
       "suggestion_email_instructions": "Specific instruction to forward to the handle (optional - can be empty if handle can process automatically)"
     }}
@@ -155,7 +155,7 @@ def get_default_suggestions() -> list[SuggestionDetail]:
         SuggestionDetail(
             suggestion_title="Ask anything",
             suggestion_id=str(uuid.uuid4()),  # Generate fresh ID each time
-            suggestion_to_email="ask@mxgo.com",
+            suggestion_to_email="ask@mxgo.ai",
             suggestion_cc_emails=[],
             suggestion_email_instructions="",  # Empty - ask handle can process any email automatically
         )
@@ -167,15 +167,15 @@ def validate_suggestion_to_email(suggestion_to_email: str) -> str:
     Validate that the suggestion_to_email corresponds to a valid email handle alias.
 
     Args:
-        suggestion_to_email: The email address to validate (e.g., "summarize" from "summarize@mxgo.com")
+        suggestion_to_email: The email address to validate (e.g., "summarize" from "summarize@mxgo.ai")
 
     Returns:
-        str: The validated email address, or "ask@mxgo.com" if invalid
+        str: The validated email address, or "ask@mxgo.ai" if invalid
 
     """
-    # Extract handle from email (e.g., "summarize" from "summarize@mxgo.com")
+    # Extract handle from email (e.g., "summarize" from "summarize@mxgo.ai")
     if "@" not in suggestion_to_email:
-        return "ask@mxgo.com"
+        return "ask@mxgo.ai"
 
     handle_part = suggestion_to_email.split("@")[0]
 
@@ -188,9 +188,9 @@ def validate_suggestion_to_email(suggestion_to_email: str) -> str:
     if handle_part in valid_handles:
         return suggestion_to_email
     logger.warning(
-        f"Invalid handle '{handle_part}' in suggestion_to_email '{suggestion_to_email}', defaulting to ask@mxgo.com"
+        f"Invalid handle '{handle_part}' in suggestion_to_email '{suggestion_to_email}', defaulting to ask@mxgo.ai"
     )
-    return "ask@mxgo.com"
+    return "ask@mxgo.ai"
 
 
 def get_suggestions_model() -> RoutedLiteLLMModel:
@@ -305,7 +305,7 @@ async def generate_suggestions(
             generated_suggestions = []
             for suggestion in suggestions_list:
                 # Validate and potentially correct the suggestion_to_email
-                suggested_email = validate_suggestion_to_email(suggestion.get("suggestion_to_email", "ask@mxgo.com"))
+                suggested_email = validate_suggestion_to_email(suggestion.get("suggestion_to_email", "ask@mxgo.ai"))
 
                 generated_suggestions.append(
                     SuggestionDetail(

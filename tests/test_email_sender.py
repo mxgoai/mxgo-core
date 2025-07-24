@@ -32,7 +32,7 @@ class TestEmailSender:
         sender = EmailSender()
 
         assert sender.ses_client == mock_ses_client
-        assert sender.default_sender_email == "ai-assistant@mxgo.com"
+        assert sender.default_sender_email == "ai-assistant@mxgo.ai"
         mock_boto_client.assert_called_once_with(
             "ses",
             region_name="us-east-1",
@@ -79,7 +79,7 @@ class TestEmailSender:
         assert result["MessageId"] == "test-message-id"
         mock_ses_client.send_email.assert_called_once()
         call_args = mock_ses_client.send_email.call_args[1]
-        assert call_args["Source"] == "ai-assistant@mxgo.com"
+        assert call_args["Source"] == "ai-assistant@mxgo.ai"
         assert call_args["Destination"]["ToAddresses"] == ["test@example.com"]
         assert call_args["Destination"]["CcAddresses"] == ["cc@example.com"]
         assert call_args["ReplyToAddresses"] == ["reply@example.com"]

@@ -19,7 +19,7 @@ class TestIdempotency:
         # Test with same inputs
         msg_id_1 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxgo.com",
+            to="ask@mxgo.ai",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -29,7 +29,7 @@ class TestIdempotency:
 
         msg_id_2 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxgo.com",
+            to="ask@mxgo.ai",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -39,12 +39,12 @@ class TestIdempotency:
 
         assert msg_id_1 == msg_id_2, "Same inputs should produce same message ID"
         assert msg_id_1.startswith("<"), "Should start with <"
-        assert msg_id_1.endswith("@mxgo.com>"), "Should end with @mxgo.com>"
+        assert msg_id_1.endswith("@mxgo.ai>"), "Should end with @mxgo.ai>"
 
         # Test with different inputs
         msg_id_3 = generate_message_id(
             from_email="different@example.com",  # Changed
-            to="ask@mxgo.com",
+            to="ask@mxgo.ai",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -76,7 +76,7 @@ class TestIdempotency:
         with TestClient(app) as test_client:
             form_data = {
                 "from_email": "test@example.com",
-                "to": "ask@mxgo.com",
+                "to": "ask@mxgo.ai",
                 "subject": "Test Subject",
                 "textContent": "Test content",
                 "messageId": "<test123@example.com>",
@@ -114,7 +114,7 @@ class TestIdempotency:
         with TestClient(app) as test_client:
             form_data = {
                 "from_email": "test@example.com",
-                "to": "ask@mxgo.com",
+                "to": "ask@mxgo.ai",
                 "subject": "Test Subject",
                 "textContent": "Test content",
                 "messageId": "<test123@example.com>",
@@ -138,7 +138,7 @@ class TestIdempotency:
 
         email_data = {
             "from_email": "test@example.com",
-            "to": "ask@mxgo.com",
+            "to": "ask@mxgo.ai",
             "subject": "Test Subject",
             "textContent": "Test content",
             "messageId": "<test123@example.com>",
@@ -163,7 +163,7 @@ class TestIdempotency:
         # Test empty/None messageId
         msg_id_1 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxgo.com",
+            to="ask@mxgo.ai",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",
@@ -173,7 +173,7 @@ class TestIdempotency:
 
         msg_id_2 = generate_message_id(
             from_email="test@example.com",
-            to="ask@mxgo.com",
+            to="ask@mxgo.ai",
             subject="Test Subject",
             date="2023-01-01T12:00:00Z",
             html_content="<p>Test HTML</p>",

@@ -30,7 +30,7 @@ AttachmentFileContent = tuple[str, bytes, str]  # (filename, content_bytes, cont
 @pytest.fixture
 def prepare_email_request_data(tmp_path):
     def _prepare(
-        to_email: str = "ask@mxgo.com",
+        to_email: str = "ask@mxgo.ai",
         from_email: str = "sender.test@example.com",
         subject: str = "Test Subject",
         text_content: str = "This is a test email.",
@@ -69,7 +69,7 @@ def prepare_email_request_data(tmp_path):
             "htmlContent": html_content,
             "messageId": message_id,
             "attachments": email_attachments_schema_list,
-            "recipients": [to_email.split("@")[0] + "@mxgo.com"],  # Simplified recipient
+            "recipients": [to_email.split("@")[0] + "@mxgo.ai"],  # Simplified recipient
             "date": "2023-01-01T12:00:00Z",
         }
 
@@ -117,7 +117,7 @@ def test_process_email_task_happy_path_with_attachment(prepare_email_request_dat
     """
     attachment_content = ("test_attachment.txt", b"This is a test attachment.", "text/plain")
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="ask@mxgo.com", attachments_data=[attachment_content]
+        to_email="ask@mxgo.ai", attachments_data=[attachment_content]
     )
 
     assert Path(email_attachments_dir_str).exists()
@@ -155,7 +155,7 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
     future_content = "Remind me to book a doctor's appointment next Monday at 10 AM."
 
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="remind@mxgo.com",
+        to_email="remind@mxgo.ai",
         subject="Doctor Appointment Reminder",
         text_content=future_content,
     )
@@ -229,7 +229,7 @@ def test_process_email_task_future_remind_handle(prepare_email_request_data):
 # --- New Test Cases ---
 def test_process_email_task_unsupported_handle(prepare_email_request_data):
     """Tests behavior when an unsupported email handle is provided."""
-    unsupported_handle = "nonexistenthandle@mxgo.com"
+    unsupported_handle = "nonexistenthandle@mxgo.ai"
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email=unsupported_handle)
 
     # No mocks needed as it should fail before agent or sender
@@ -253,7 +253,7 @@ def test_process_email_task_unsupported_handle(prepare_email_request_data):
 
 def test_process_email_task_agent_exception(prepare_email_request_data):
     """Tests behavior when EmailAgent.process_email returns a result indicating an internal error."""
-    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxgo.com")
+    email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(to_email="ask@mxgo.ai")
     now_iso = datetime.now(timezone.utc).isoformat()  # For constructing mock error response
 
     # Prepare a mock error response that EmailAgent.process_email would return
@@ -372,7 +372,7 @@ def _test_single_handle(handle_name: str, prepare_email_request_data):
         pytest.fail(f"Handle '{handle_name}' not found in DEFAULT_EMAIL_HANDLES")
 
     # Use the same logic as the parametrized test
-    to_email_address = f"{handle_instructions.handle}@mxgo.com"
+    to_email_address = f"{handle_instructions.handle}@mxgo.ai"
 
     attachments_for_test: list[AttachmentFileContent] | None = None
     is_schedule_handle = handle_instructions.handle == "schedule"
@@ -563,7 +563,7 @@ def test_pdf_handle_full_integration():
     """Test the full PDF handle integration with a more comprehensive email."""
     # Create comprehensive test email content
     email_data = {
-        "to": "pdf@mxgo.com",
+        "to": "pdf@mxgo.ai",
         "from_email": "test@example.com",
         "subject": "Weekly AI Newsletter - Export to PDF",
         "textContent": """# Weekly AI Newsletter
@@ -601,7 +601,7 @@ This newsletter provides a comprehensive overview of recent developments in AI r
 """,
         "messageId": "<test-pdf-message-id>",
         "date": "2024-01-01T12:00:00Z",
-        "recipients": ["pdfå@mxgo.com"],
+        "recipients": ["pdfå@mxgo.ai"],
         "cc": None,
         "bcc": None,
         "references": None,
@@ -765,7 +765,7 @@ def test_process_email_task_delete_handle(prepare_email_request_data):
 
     # Prepare email data for the delete request
     email_data, email_attachments_dir_str, attachment_info = prepare_email_request_data(
-        to_email="delete@mxgo.com",
+        to_email="delete@mxgo.ai",
         subject=f"Delete Task: {task_id}",
         text_content=f"Please delete the scheduled task with ID: {task_id}",
     )
