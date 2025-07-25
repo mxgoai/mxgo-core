@@ -107,6 +107,63 @@ async def check_rate_limit_redis(
     return None
 
 
+async def get_current_usage_redis(
+    key_type: str,  # "email" or "domain"
+    identifier: str,
+    plan_or_domain_limits: dict[str, dict[str, int]],
+    current_dt: datetime,
+    plan_name_for_key: str = "",
+) -> dict[str, dict[str, int]]:
+    """
+    Get current usage counts from Redis without incrementing.
+
+    Args:
+        key_type: "email" or "domain".
+        identifier: Normalized email or domain string.
+        plan_or_domain_limits: Dictionary defining limits for "hour", "day", "month".
+        current_dt: Current datetime object (timezone-aware).
+        plan_name_for_key: String representation of the plan for key namespacing.
+
+    Returns:
+        Dictionary with period names as keys and usage info as values.
+        Each value contains: {"current_usage": int, "max_usage_allowed": int}
+
+    """
+    if redis_client is None:
+        logger.error("Redis client not initialized for usage checking.")
+        return {}
+
+    usage_info = {}
+
+    for period_name, config in plan_or_domain_limits.items():
+        limit = config["limit"]
+        time_bucket = get_current_timestamp_for_period(period_name, current_dt)
+
+        redis_key_parts = ["rate_limit", key_type, identifier]
+        if plan_name_for_key:
+            redis_key_parts.append(plan_name_for_key)
+        redis_key_parts.extend([period_name, time_bucket])
+        redis_key = ":".join(redis_key_parts)
+
+        try:
+            current_count = await redis_client.get(redis_key)
+            current_usage = int(current_count) if current_count else 0
+
+            usage_info[period_name] = {"current_usage": current_usage, "max_usage_allowed": limit}
+
+            logger.debug(
+                f"Usage check for {key_type} '{identifier}' (Plan: '{plan_name_for_key if plan_name_for_key else 'N/A'}'): "
+                f"Period '{period_name}', Current usage: {current_usage}/{limit}. Key: {redis_key}"
+            )
+
+        except aioredis.RedisError as e:
+            logger.error(f"Redis error during usage check for key {redis_key}: {e}")
+            # Return zero usage on error to fail gracefully
+            usage_info[period_name] = {"current_usage": 0, "max_usage_allowed": limit}
+
+    return usage_info
+
+
 async def send_rate_limit_rejection_email(
     from_email: str, to: str, subject: str | None, message_id: str | None, limit_type: str, plan: UserPlan | None = None
 ) -> None:

@@ -424,3 +424,27 @@ class ToolOutputWithCitations(BaseModel):
     content: str = Field(description="The main content/result from the tool")
     citations: CitationCollection = Field(default_factory=CitationCollection, description="Collection of citations")
     metadata: dict[str, Any] | None = Field(default=None, description="Additional metadata")
+
+
+class UsagePeriod(BaseModel):
+    """Usage information for a specific time period."""
+
+    period_name: str = Field(description="Time period name (hour, day, month)")
+    max_usage_allowed: int = Field(description="Maximum usage allowed for this period")
+    current_usage: int = Field(description="Current usage count for this period")
+
+
+class UsageInfo(BaseModel):
+    """User usage information across different time periods."""
+
+    hour: UsagePeriod = Field(description="Hourly usage information")
+    day: UsagePeriod = Field(description="Daily usage information")
+    month: UsagePeriod = Field(description="Monthly usage information")
+
+
+class UserInfoResponse(BaseModel):
+    """Response model for user information endpoint."""
+
+    subscription_info: dict[str, Any] = Field(description="Raw subscription info from Dodo Payments API")
+    plan_name: str = Field(description="User's plan name (PRO, BETA, etc.)")
+    usage_info: UsageInfo = Field(description="User's current usage information")
