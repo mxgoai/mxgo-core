@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+import jwt
 import pytest  # For fixtures
 
 # Corrected import for FakeAsyncRedis based on common usage and docs
@@ -15,7 +16,7 @@ from freezegun import freeze_time  # For controlling time in tests
 import mxgo.validators
 from mxgo._logging import get_logger
 from mxgo.api import app
-from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail
+from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail, UserPlan
 from tests.generate_test_jwt import generate_test_jwt
 
 # Set environment variables for testing
@@ -925,3 +926,291 @@ def test_suggestions_api_default_suggestions_always_included(mock_generate_sugge
     # Should have the custom suggestion
     suggestion_titles = [s["suggestion_title"] for s in email_response["suggestions"]]
     assert "Fact check claims" in suggestion_titles
+
+
+# --- User Info API Tests ---
+
+
+def make_user_info_get_request(headers=None):
+    """Make a GET request to the user-info endpoint."""
+    # Generate a valid JWT token for testing
+    jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+    request_headers = {
+        "Authorization": f"Bearer {jwt_token}",
+        "Content-Type": "application/json",
+    }
+    if headers:
+        # Filter out None values before updating
+        filtered_headers = {k: v for k, v in headers.items() if v is not None}
+        request_headers.update(filtered_headers)
+
+        # Handle the case where Authorization was explicitly set to None
+        if "Authorization" in headers and headers["Authorization"] is None:
+            request_headers.pop("Authorization", None)
+
+    return client.get("/user-info", headers=request_headers)
+
+
+def assert_user_info_successful_response(response):
+    """Assert a successful user-info API response."""
+    assert response.status_code == 200, f"Expected status 200, got {response.status_code}. Response: {response.text}"
+    response_json = response.json()
+
+    # Check required fields
+    assert "subscription_info" in response_json
+    assert "plan_name" in response_json
+    assert "usage_info" in response_json
+
+    # Validate subscription_info (should be dict)
+    assert isinstance(response_json["subscription_info"], dict)
+
+    # Validate plan_name
+    assert response_json["plan_name"] in ["beta", "pro", "free"]
+
+    # Validate usage_info structure
+    usage_info = response_json["usage_info"]
+    assert "hour" in usage_info
+    assert "day" in usage_info
+    assert "month" in usage_info
+
+    # Validate each period
+    for period_name in ["hour", "day", "month"]:
+        period_data = usage_info[period_name]
+        assert "period_name" in period_data
+        assert "max_usage_allowed" in period_data
+        assert "current_usage" in period_data
+        assert period_data["period_name"] == period_name
+        assert isinstance(period_data["max_usage_allowed"], int)
+        assert isinstance(period_data["current_usage"], int)
+        assert period_data["max_usage_allowed"] >= 0
+        assert period_data["current_usage"] >= 0
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.user.get_user_plan", new_callable=AsyncMock)
+@patch("mxgo.user._get_customer_id_by_email", new_callable=AsyncMock)
+@patch("mxgo.user._get_latest_active_subscription", new_callable=AsyncMock)
+@patch("mxgo.api.get_current_usage_redis", new_callable=AsyncMock)
+def test_user_info_api_success_beta_plan(
+    mock_get_usage, mock_get_subscription, mock_get_customer_id, mock_get_user_plan
+):
+    """Test successful user-info API call for BETA plan user."""
+    # Mock user plan
+    mock_get_user_plan.return_value = UserPlan.BETA
+
+    # Mock no customer found (typical for BETA users)
+    mock_get_customer_id.return_value = None
+    mock_get_subscription.return_value = None
+
+    # Mock usage data
+    mock_get_usage.return_value = {
+        "hour": {"current_usage": 0, "max_usage_allowed": 10},
+        "day": {"current_usage": 5, "max_usage_allowed": 30},
+        "month": {"current_usage": 15, "max_usage_allowed": 200},
+    }
+
+    response = make_user_info_get_request()
+    assert_user_info_successful_response(response)
+
+    response_json = response.json()
+    assert response_json["plan_name"] == "beta"
+    assert response_json["subscription_info"] == {}
+    assert response_json["usage_info"]["hour"]["current_usage"] == 0
+    assert response_json["usage_info"]["day"]["current_usage"] == 5
+    assert response_json["usage_info"]["month"]["current_usage"] == 15
+
+    # Verify mocks were called
+    mock_get_user_plan.assert_called_once_with("test@example.com")
+    mock_get_customer_id.assert_called_once_with("test@example.com")
+    mock_get_usage.assert_called_once()
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.user.get_user_plan", new_callable=AsyncMock)
+@patch("mxgo.user._get_customer_id_by_email", new_callable=AsyncMock)
+@patch("mxgo.user._get_latest_active_subscription", new_callable=AsyncMock)
+@patch("mxgo.api.get_current_usage_redis", new_callable=AsyncMock)
+def test_user_info_api_success_pro_plan_with_subscription(
+    mock_get_usage, mock_get_subscription, mock_get_customer_id, mock_get_user_plan
+):
+    """Test successful user-info API call for PRO plan user with active subscription."""
+    # Mock user plan
+    mock_get_user_plan.return_value = UserPlan.PRO
+
+    # Mock customer and subscription data
+    mock_get_customer_id.return_value = "cus_test123"
+    mock_subscription_data = {
+        "subscription_id": "sub_test456",
+        "status": "active",
+        "product_id": "pdt_pro_product",
+        "recurring_pre_tax_amount": 100,
+        "currency": "USD",
+        "customer": {"customer_id": "cus_test123", "name": "Test User", "email": "test@example.com"},
+    }
+    mock_get_subscription.return_value = mock_subscription_data
+
+    # Mock usage data for PRO plan
+    mock_get_usage.return_value = {
+        "hour": {"current_usage": 2, "max_usage_allowed": 50},
+        "day": {"current_usage": 8, "max_usage_allowed": 100},
+        "month": {"current_usage": 45, "max_usage_allowed": 1000},
+    }
+
+    response = make_user_info_get_request()
+    assert_user_info_successful_response(response)
+
+    response_json = response.json()
+    assert response_json["plan_name"] == "pro"
+    assert response_json["subscription_info"] == mock_subscription_data
+    assert response_json["usage_info"]["hour"]["max_usage_allowed"] == 50
+    assert response_json["usage_info"]["day"]["max_usage_allowed"] == 100
+    assert response_json["usage_info"]["month"]["max_usage_allowed"] == 1000
+
+    # Verify subscription functions were called
+    mock_get_customer_id.assert_called_once_with("test@example.com")
+    mock_get_subscription.assert_called_once_with("cus_test123")
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+def test_user_info_api_missing_authorization_header():
+    """Test user-info API with missing Authorization header."""
+    response = make_user_info_get_request(headers={"Authorization": None})
+
+    assert response.status_code == 401
+    response_json = response.json()
+    assert "Missing Authorization header" in response_json["detail"]
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+def test_user_info_api_invalid_jwt_token():
+    """Test user-info API with invalid JWT token."""
+    response = make_user_info_get_request(headers={"Authorization": "Bearer invalid_token"})
+
+    assert response.status_code == 401
+    response_json = response.json()
+    assert "Invalid token" in response_json["detail"]
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+def test_user_info_api_expired_jwt_token():
+    """Test user-info API with expired JWT token."""
+    # Generate an expired token (expired 1 hour ago)
+    expired_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+    # Mock the JWT decode to raise ExpiredSignatureError
+    with patch("jwt.decode", side_effect=jwt.ExpiredSignatureError("Token has expired")):
+        response = make_user_info_get_request(headers={"Authorization": f"Bearer {expired_token}"})
+
+    assert response.status_code == 401
+    response_json = response.json()
+    assert "Token has expired" in response_json["detail"]
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.user.get_user_plan", new_callable=AsyncMock)
+def test_user_info_api_user_plan_service_error(mock_get_user_plan):
+    """Test user-info API when user plan service fails."""
+    # Mock user plan service to raise an exception
+    mock_get_user_plan.side_effect = Exception("Dodo API unavailable")
+
+    response = make_user_info_get_request()
+
+    assert response.status_code == 500
+    response_json = response.json()
+    assert "Error retrieving user information" in response_json["detail"]
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.user.get_user_plan", new_callable=AsyncMock)
+@patch("mxgo.user._get_customer_id_by_email", new_callable=AsyncMock)
+@patch("mxgo.user._get_latest_active_subscription", new_callable=AsyncMock)
+@patch("mxgo.api.get_current_usage_redis", new_callable=AsyncMock)
+def test_user_info_api_redis_unavailable(
+    mock_get_usage, mock_get_subscription, mock_get_customer_id, mock_get_user_plan
+):
+    """Test user-info API when Redis is unavailable for usage data."""
+    # Mock successful user plan and subscription calls
+    mock_get_user_plan.return_value = UserPlan.BETA
+    mock_get_customer_id.return_value = None
+    mock_get_subscription.return_value = None
+
+    # Mock Redis unavailable (returns empty dict)
+    mock_get_usage.return_value = {}
+
+    response = make_user_info_get_request()
+    assert_user_info_successful_response(response)
+
+    response_json = response.json()
+    # Should gracefully handle missing usage data with defaults
+    assert response_json["usage_info"]["hour"]["current_usage"] == 0
+    assert response_json["usage_info"]["hour"]["max_usage_allowed"] == 0
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.user.get_user_plan", new_callable=AsyncMock)
+@patch("mxgo.user._get_customer_id_by_email", new_callable=AsyncMock)
+@patch("mxgo.user._get_latest_active_subscription", new_callable=AsyncMock)
+@patch("mxgo.api.get_current_usage_redis", new_callable=AsyncMock)
+def test_user_info_api_customer_exists_but_no_active_subscription(
+    mock_get_usage, mock_get_subscription, mock_get_customer_id, mock_get_user_plan
+):
+    """Test user-info API when customer exists but has no active subscription."""
+    # Mock user plan as BETA (since no active subscription)
+    mock_get_user_plan.return_value = UserPlan.BETA
+
+    # Mock customer exists but no active subscription
+    mock_get_customer_id.return_value = "cus_test123"
+    mock_get_subscription.return_value = None  # No active subscription
+
+    # Mock usage data
+    mock_get_usage.return_value = {
+        "hour": {"current_usage": 1, "max_usage_allowed": 10},
+        "day": {"current_usage": 3, "max_usage_allowed": 30},
+        "month": {"current_usage": 12, "max_usage_allowed": 200},
+    }
+
+    response = make_user_info_get_request()
+    assert_user_info_successful_response(response)
+
+    response_json = response.json()
+    assert response_json["plan_name"] == "beta"
+    assert response_json["subscription_info"] == {}  # Empty since no active subscription
+
+    # Verify subscription lookup was attempted
+    mock_get_customer_id.assert_called_once_with("test@example.com")
+    mock_get_subscription.assert_called_once_with("cus_test123")
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+@patch("mxgo.user.get_user_plan", new_callable=AsyncMock)
+@patch("mxgo.user._get_customer_id_by_email", new_callable=AsyncMock)
+@patch("mxgo.user._get_latest_active_subscription", new_callable=AsyncMock)
+@patch("mxgo.api.get_current_usage_redis", new_callable=AsyncMock)
+def test_user_info_api_different_user_emails(
+    mock_get_usage, mock_get_subscription, mock_get_customer_id, mock_get_user_plan
+):
+    """Test user-info API correctly uses the email from JWT token."""
+    # Generate JWT for a different user
+    jwt_token = generate_test_jwt(email="different@example.com", user_id="different_user_456")
+
+    # Mock responses
+    mock_get_user_plan.return_value = UserPlan.PRO
+    mock_get_customer_id.return_value = None
+    mock_get_subscription.return_value = None
+    mock_get_usage.return_value = {
+        "hour": {"current_usage": 0, "max_usage_allowed": 50},
+        "day": {"current_usage": 0, "max_usage_allowed": 100},
+        "month": {"current_usage": 0, "max_usage_allowed": 1000},
+    }
+
+    # Make request with different user's token
+    response = client.get(
+        "/user-info", headers={"Authorization": f"Bearer {jwt_token}", "Content-Type": "application/json"}
+    )
+
+    assert_user_info_successful_response(response)
+
+    # Verify the correct email was used for lookups
+    mock_get_user_plan.assert_called_once_with("different@example.com")
+    mock_get_customer_id.assert_called_once_with("different@example.com")

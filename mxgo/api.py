@@ -16,7 +16,7 @@ from sqlalchemy import text
 from mxgo import user, validators
 from mxgo._logging import get_logger
 from mxgo.auth import AuthInfo, get_current_user
-from mxgo.config import ATTACHMENTS_DIR, SKIP_EMAIL_DELIVERY
+from mxgo.config import ATTACHMENTS_DIR, RATE_LIMITS_BY_PLAN, SKIP_EMAIL_DELIVERY
 from mxgo.db import init_db_connection
 from mxgo.dependencies import processing_instructions_resolver
 from mxgo.email_sender import (
@@ -28,11 +28,15 @@ from mxgo.schemas import (
     EmailRequest,
     EmailSuggestionRequest,
     EmailSuggestionResponse,
+    UsageInfo,
+    UsagePeriod,
+    UserInfoResponse,
     UserPlan,
 )
 from mxgo.suggestions import generate_suggestions, get_suggestions_model
 from mxgo.tasks import process_email_task, rabbitmq_broker
 from mxgo.validators import (
+    get_current_usage_redis,
     validate_api_key,
     validate_attachments,
     validate_email_handle,
@@ -895,6 +899,80 @@ async def process_suggestions(
             ) from e
 
     return responses
+
+
+@app.get("/user-info")
+async def get_user_info(current_user: Annotated[AuthInfo, Depends(get_current_user)]) -> UserInfoResponse:
+    """
+    Get user information including subscription, plan, and usage details.
+
+    Args:
+        current_user: The authenticated user from JWT token.
+
+    Returns:
+        UserInfoResponse: User's subscription info, plan name, and usage information.
+
+    """
+    # JWT Authentication is handled by dependency injection
+    logger.info(f"JWT authentication successful for user {current_user.email}")
+
+    try:
+        # Get user plan
+        user_plan = await user.get_user_plan(current_user.email)
+        logger.info(f"Retrieved user plan for {current_user.email}: {user_plan.value}")
+
+        # Get customer ID and subscription info
+        customer_id = await user._get_customer_id_by_email(current_user.email)  # noqa: SLF001
+        subscription_info = {}
+
+        if customer_id:
+            subscription_data = await user._get_latest_active_subscription(customer_id)  # noqa: SLF001
+            if subscription_data:
+                subscription_info = subscription_data
+                logger.info(f"Retrieved subscription info for customer {customer_id}")
+            else:
+                logger.info(f"No active subscription found for customer {customer_id}")
+        else:
+            logger.info(f"No customer ID found for email {current_user.email}")
+
+        # Get usage information
+        normalized_user_email = user.normalize_email(current_user.email)
+        current_dt = datetime.now(timezone.utc)
+
+        # Get plan limits configuration
+        plan_limits_config = RATE_LIMITS_BY_PLAN.get(user_plan, RATE_LIMITS_BY_PLAN[UserPlan.BETA])
+
+        # Get current usage from Redis
+        usage_data = await get_current_usage_redis(
+            key_type="email",
+            identifier=normalized_user_email,
+            plan_or_domain_limits=plan_limits_config,
+            current_dt=current_dt,
+            plan_name_for_key=user_plan.value,
+        )
+
+        # Build usage info response
+        usage_periods = {}
+        for period_name in ["hour", "day", "month"]:
+            period_data = usage_data.get(period_name, {"current_usage": 0, "max_usage_allowed": 0})
+            usage_periods[period_name] = UsagePeriod(
+                period_name=period_name,
+                max_usage_allowed=period_data["max_usage_allowed"],
+                current_usage=period_data["current_usage"],
+            )
+
+        usage_info = UsageInfo(hour=usage_periods["hour"], day=usage_periods["day"], month=usage_periods["month"])
+
+        logger.info(f"Successfully retrieved user info for {current_user.email}")
+
+        return UserInfoResponse(subscription_info=subscription_info, plan_name=user_plan.value, usage_info=usage_info)
+
+    except Exception as e:
+        logger.error(f"Error retrieving user info for {current_user.email}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving user information: {e!s}",
+        ) from e
 
 
 if __name__ == "__main__":
