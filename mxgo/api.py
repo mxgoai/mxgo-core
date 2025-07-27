@@ -901,7 +901,7 @@ async def process_suggestions(
     return responses
 
 
-@app.get("/user-info")
+@app.get("/user")
 async def get_user_info(current_user: Annotated[AuthInfo, Depends(get_current_user)]) -> UserInfoResponse:
     """
     Get user information including subscription, plan, and usage details.
