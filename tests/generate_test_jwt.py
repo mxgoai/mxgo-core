@@ -7,9 +7,12 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import jwt
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # JWT configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "test_secret_key_for_development_only")
+JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 
 
@@ -29,4 +32,4 @@ def generate_test_jwt(email: str = "test@example.com", user_id: str = "test_user
 
 
 if __name__ == "__main__":
-    token = generate_test_jwt()
+    token = generate_test_jwt(email="satwikkansal@gmail.com")
