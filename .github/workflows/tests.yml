@@ -42,7 +42,7 @@ jobs:
       LITELLM_DEFAULT_MODEL_GROUP: ${{ secrets.LITELLM_DEFAULT_MODEL_GROUP }}
       # Test database configuration
       TEST_DB_URL: postgresql://testuser:testpassword@localhost:5432/testdb
-      JWT_SECRET_KEY: "test-jwt-secret-key"
+      JWT_SECRET: "test-jwt-secret-key"
 
     steps:
       - name: Checkout repository
