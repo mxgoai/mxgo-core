@@ -121,7 +121,6 @@ api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
 bearer_auth_scheme = HTTPBearer()
 
 
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Docker and load balancers."""
