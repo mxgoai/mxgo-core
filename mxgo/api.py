@@ -800,7 +800,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
 async def process_suggestions(
     requests: list[EmailSuggestionRequest],
     current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
-    _token: str = Depends(bearer_auth_scheme),
+    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
 ) -> list[EmailSuggestionResponse]:
     """
     Process a batch of email suggestion requests.
@@ -863,7 +863,7 @@ async def process_suggestions(
 @app.get("/user")
 async def get_user_info(
     current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
-    _token: str = Depends(bearer_auth_scheme),
+    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
 ) -> UserInfoResponse:
     """
     Get user information including subscription, plan, and usage details.
