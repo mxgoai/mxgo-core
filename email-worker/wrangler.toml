@@ -5,6 +5,3 @@ workers_dev = true
 preview_urls = false
 compatibility_flags = [ "set_forwardable_email_full_headers" ]
 
-
-[observability.logs]
-enabled = true

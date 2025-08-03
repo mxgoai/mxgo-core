@@ -122,7 +122,6 @@ bearer_auth_scheme = HTTPBearer()
 
 
 
-
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Docker and load balancers."""
@@ -816,7 +815,6 @@ async def process_suggestions(
     """
     # JWT Authentication is handled by dependency injection
     logger.info(f"JWT authentication successful for user {current_user.email}")
-
     # Get the suggestions model once for all requests
     suggestions_model = get_suggestions_model()
 
