@@ -59,7 +59,6 @@ SENSITIVE_PATTERNS = [
     r"email",
     r"e-mail",
     r"mail",
-    r"token",
     r"bearer",
 ]
 
@@ -189,7 +188,7 @@ if os.environ.get("LOGFIRE_TOKEN"):
         console=False,
         scrubbing=logfire.ScrubbingOptions(
             # Use default patterns which include the same sensitive data patterns
-            extra_patterns=["email", "e-mail", "mail", "token", "bearer"]  # Add email-specific patterns
+            extra_patterns=["email", "e-mail", "mail", "bearer"]  # Add email-specific patterns
         ),
     )
 
