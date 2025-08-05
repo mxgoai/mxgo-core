@@ -2,6 +2,8 @@
 const API_ENDPOINT = "https://api.mxgo.ai/process-email";
 // const API_ENDPOINT = "https://f9cb-2401-4900-1f27-802d-9dc8-c5a1-9434-c1f1.ngrok-free.app/process-email"
 import PostalMime from 'postal-mime';
+import { EmailMessage } from "cloudflare:email";
+import { createMimeMessage } from "mimetext";
 
 // Helper function to calculate size of base64 string
 function base64Size(base64String) {
@@ -112,6 +114,32 @@ export default {
         responseText = "Your query is being processed.";
       } else if (response.status === 401) {
         responseText = "Please sign up first to use our service.";
+      } else if (response.status === 413) {
+        responseText = "Your email and attachments combined are too large to process. Please try with smaller attachments or contact support.";
+
+        // Send reply email for 413 error
+        try {
+          const replyMsg = createMimeMessage();
+          replyMsg.setHeader("In-Reply-To", message.headers.get("Message-ID"));
+          replyMsg.setSender({ name: "MXGo Support", addr: message.to });
+          replyMsg.setRecipient(message.from);
+          replyMsg.setSubject(`Re: ${subject}`);
+          replyMsg.addMessage({
+            contentType: 'text/plain',
+            data: responseText
+          });
+
+          const replyMessage = new EmailMessage(
+            message.to,
+            message.from,
+            replyMsg.asRaw()
+          );
+
+          await message.reply(replyMessage);
+          console.log("Sent 413 error reply email to:", message.from);
+        } catch (replyError) {
+          console.error("Error sending reply email:", replyError);
+        }
       } else {
         responseText = "There was an error processing your request. Please try again later.";
       }

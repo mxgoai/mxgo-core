@@ -10,7 +10,7 @@ import aiofiles
 import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
-from fastapi.security import APIKeyHeader
+from fastapi.security import APIKeyHeader, HTTPBearer
 from sqlalchemy import text
 
 from mxgo import user, validators
@@ -118,36 +118,7 @@ if os.getenv("IS_PROD", "false").lower() == "true":
     app.openapi_url = None
 
 api_auth_scheme = APIKeyHeader(name="x-api-key", auto_error=True)
-suggestions_api_auth_scheme = APIKeyHeader(name="x-suggestions-api-key", auto_error=False)
-
-
-async def validate_suggestions_api_key(api_key: str) -> Response | None:
-    """
-    Validate the suggestions API key.
-
-    Args:
-        api_key: The suggestions API key to validate
-
-    Returns:
-        Response if validation fails, None if validation succeeds
-
-    """
-    suggestions_api_key = os.getenv("SUGGESTIONS_API_KEY")
-    if not suggestions_api_key:
-        logger.error("SUGGESTIONS_API_KEY environment variable not set")
-        return Response(
-            content=json.dumps({"message": "Server configuration error", "status": "error"}),
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            media_type="application/json",
-        )
-
-    if api_key != suggestions_api_key:
-        return Response(
-            content=json.dumps({"message": "Invalid suggestions API key", "status": "error"}),
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            media_type="application/json",
-        )
-    return None
+bearer_auth_scheme = HTTPBearer()
 
 
 @app.get("/health")
@@ -827,15 +798,14 @@ async def process_email(  # noqa: PLR0912, PLR0915
 @app.post("/suggestions")
 async def process_suggestions(
     requests: list[EmailSuggestionRequest],
-    api_key: Annotated[str | None, Depends(suggestions_api_auth_scheme)] = None,
     current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
+    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
 ) -> list[EmailSuggestionResponse]:
     """
     Process a batch of email suggestion requests.
 
     Args:
         requests: A list of email suggestion requests.
-        api_key: The API key for authentication.
         current_user: The authenticated user from JWT token.
 
     Returns:
@@ -844,18 +814,6 @@ async def process_suggestions(
     """
     # JWT Authentication is handled by dependency injection
     logger.info(f"JWT authentication successful for user {current_user.email}")
-
-    # Check if API key is provided
-    if api_key is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Missing required header: x-suggestions-api-key",
-        )
-
-    # Validate suggestions API key
-    if validation_response := await validate_suggestions_api_key(api_key):
-        return validation_response
-
     # Get the suggestions model once for all requests
     suggestions_model = get_suggestions_model()
 
@@ -902,7 +860,10 @@ async def process_suggestions(
 
 
 @app.get("/user")
-async def get_user_info(current_user: Annotated[AuthInfo, Depends(get_current_user)]) -> UserInfoResponse:
+async def get_user_info(
+    current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
+    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
+) -> UserInfoResponse:
     """
     Get user information including subscription, plan, and usage details.
 

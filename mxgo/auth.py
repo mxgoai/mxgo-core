@@ -54,7 +54,8 @@ def validate_jwt_token(token: str) -> AuthInfo:
 
     try:
         # Decode and validate the JWT token
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM], options={"verify_exp": True})
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM],
+                             options={"verify_exp": True}, audience="authenticated")
 
         # Extract required fields
         user_id = payload.get("sub")
