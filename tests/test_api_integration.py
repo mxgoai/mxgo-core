@@ -220,6 +220,7 @@ class TestSuggestionsIntegration:
             "email": "test@example.com",
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
             "iat": int(datetime.now(timezone.utc).timestamp()),
+            "aud": "authenticated",
         }
         return jwt.encode(payload, jwt_secret, algorithm="HS256")
 
@@ -231,6 +232,7 @@ class TestSuggestionsIntegration:
             "email": "test@example.com",
             "exp": int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()),
             "iat": int((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()),
+            "aud": "authenticated",
         }
         return jwt.encode(payload, jwt_secret, algorithm="HS256")
 
@@ -280,7 +282,7 @@ class TestSuggestionsIntegration:
             }
         ]
 
-    def test_suggestions_with_valid_jwt_and_api_key(
+    def test_suggestions_with_valid_jwt_token(
         self,
         client,
         mock_env_vars,
@@ -290,77 +292,53 @@ class TestSuggestionsIntegration:
         mock_suggestions_model,
         mock_generate_suggestions,
     ):
-        """Test /suggestions endpoint with valid JWT token and API key."""
+        """Test /suggestions endpoint with valid JWT token."""
         response = client.post(
             "/suggestions",
             json=sample_suggestion_request,
-            headers={"Authorization": f"Bearer {valid_jwt_token}", "x-suggestions-api-key": "test_suggestions_key"},
+            headers={"Authorization": f"Bearer {valid_jwt_token}"},
         )
 
         assert response.status_code == 200
         mock_generate_suggestions.assert_called_once()
-
-    def test_suggestions_missing_jwt_token(self, client, mock_env_vars, sample_suggestion_request):
-        """Test /suggestions endpoint rejects requests without JWT token."""
-        response = client.post(
-            "/suggestions", json=sample_suggestion_request, headers={"x-suggestions-api-key": "test_suggestions_key"}
-        )
-
-        assert response.status_code == 401
-        assert "Missing Authorization header" in response.json()["detail"]
 
     def test_suggestions_expired_jwt_token(self, client, mock_env_vars, expired_jwt_token, sample_suggestion_request):
         """Test /suggestions endpoint rejects expired JWT tokens."""
         response = client.post(
             "/suggestions",
             json=sample_suggestion_request,
-            headers={"Authorization": f"Bearer {expired_jwt_token}", "x-suggestions-api-key": "test_suggestions_key"},
+            headers={"Authorization": f"Bearer {expired_jwt_token}"},
         )
 
         assert response.status_code == 401
         assert "Token has expired" in response.json()["detail"]
-
-    def test_suggestions_invalid_jwt_token(self, client, mock_env_vars, sample_suggestion_request):
-        """Test /suggestions endpoint rejects invalid JWT tokens."""
-        response = client.post(
-            "/suggestions",
-            json=sample_suggestion_request,
-            headers={"Authorization": "Bearer invalid.jwt.token", "x-suggestions-api-key": "test_suggestions_key"},
-        )
-
-        assert response.status_code == 401
-        assert "Invalid token" in response.json()["detail"]
 
     def test_suggestions_malformed_auth_header(self, client, mock_env_vars, sample_suggestion_request):
         """Test /suggestions endpoint rejects malformed Authorization header."""
         response = client.post(
             "/suggestions",
             json=sample_suggestion_request,
-            headers={"Authorization": "InvalidFormat token", "x-suggestions-api-key": "test_suggestions_key"},
+            headers={"Authorization": "InvalidFormat token"},
         )
 
         assert response.status_code == 401
         assert "Invalid Authorization header format" in response.json()["detail"]
 
-    def test_suggestions_missing_api_key(self, client, mock_env_vars, valid_jwt_token, sample_suggestion_request):
-        """Test /suggestions endpoint still requires API key alongside JWT."""
-        response = client.post(
-            "/suggestions", json=sample_suggestion_request, headers={"Authorization": f"Bearer {valid_jwt_token}"}
-        )
+    def test_suggestions_missing_jwt_token(self, client, mock_env_vars, sample_suggestion_request):
+        """Test /suggestions endpoint requires JWT token."""
+        response = client.post("/suggestions", json=sample_suggestion_request)
 
-        assert response.status_code == 422
-        assert "Missing required header: x-suggestions-api-key" in response.json()["detail"]
+        assert response.status_code == 401
 
-    def test_suggestions_invalid_api_key(self, client, mock_env_vars, valid_jwt_token, sample_suggestion_request):
-        """Test /suggestions endpoint rejects invalid API key even with valid JWT."""
+    def test_suggestions_invalid_jwt_token(self, client, mock_env_vars, sample_suggestion_request):
+        """Test /suggestions endpoint rejects invalid JWT token."""
         response = client.post(
             "/suggestions",
             json=sample_suggestion_request,
-            headers={"Authorization": f"Bearer {valid_jwt_token}", "x-suggestions-api-key": "invalid_key"},
+            headers={"Authorization": "Bearer invalid_token"},
         )
 
         assert response.status_code == 401
-        assert "Invalid suggestions API key" in response.json()["message"]
 
     def test_suggestions_user_not_whitelisted(
         self, client, mock_env_vars, valid_jwt_token, sample_suggestion_request, mock_suggestions_model
@@ -370,7 +348,7 @@ class TestSuggestionsIntegration:
             response = client.post(
                 "/suggestions",
                 json=sample_suggestion_request,
-                headers={"Authorization": f"Bearer {valid_jwt_token}", "x-suggestions-api-key": "test_suggestions_key"},
+                headers={"Authorization": f"Bearer {valid_jwt_token}"},
             )
 
             assert response.status_code == 403

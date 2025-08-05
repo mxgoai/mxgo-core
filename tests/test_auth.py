@@ -36,6 +36,7 @@ class TestJWTAuthentication:
             "email": "test@example.com",
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
             "iat": int(datetime.now(timezone.utc).timestamp()),
+            "aud": "authenticated",
         }
 
     @pytest.fixture
@@ -46,6 +47,7 @@ class TestJWTAuthentication:
             "email": "test@example.com",
             "exp": int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp()),
             "iat": int((datetime.now(timezone.utc) - timedelta(hours=2)).timestamp()),
+            "aud": "authenticated",
         }
 
     @pytest.fixture
@@ -92,7 +94,10 @@ class TestJWTAuthentication:
 
     def test_validate_jwt_token_no_secret(self, jwt_secret, valid_jwt_payload):
         """Test validate_jwt_token raises error when JWT_SECRET is not configured."""
-        with patch.dict(os.environ, {}, clear=True):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("mxgo.auth.JWT_SECRET", None),
+        ):
             token = jwt.encode(valid_jwt_payload, jwt_secret, algorithm="HS256")
 
             with pytest.raises(HTTPException) as exc_info:
@@ -138,6 +143,7 @@ class TestJWTAuthentication:
         payload = {
             "email": "test@example.com",
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
+            "aud": "authenticated",
         }
 
         with patch("mxgo.auth.JWT_SECRET", jwt_secret):
@@ -154,6 +160,7 @@ class TestJWTAuthentication:
         payload = {
             "sub": "user_123",
             "exp": int((datetime.now(timezone.utc) + timedelta(hours=1)).timestamp()),
+            "aud": "authenticated",
         }
 
         with patch("mxgo.auth.JWT_SECRET", jwt_secret):
@@ -170,6 +177,7 @@ class TestJWTAuthentication:
         payload = {
             "sub": "user_123",
             "email": "test@example.com",
+            "aud": "authenticated",
         }
 
         with patch("mxgo.auth.JWT_SECRET", jwt_secret):

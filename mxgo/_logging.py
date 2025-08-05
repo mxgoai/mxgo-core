@@ -55,6 +55,7 @@ SENSITIVE_PATTERNS = [
     r"(?:\b|_)xsrf(?:\b|_)",
     r"(?:\b|_)jwt(?:\b|_)",
     r"(?:\b|_)ssn(?:\b|_)",
+    r"token",
     # Additional email-specific patterns
     r"email",
     r"e-mail",
