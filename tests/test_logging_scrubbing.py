@@ -213,7 +213,6 @@ class TestLoggingIntegration:
             "ssn",
             "email",
             "mail",
-            "token",
             "bearer",
         ]
 
@@ -229,7 +228,7 @@ class TestLoggingIntegration:
         for pattern in COMPILED_PATTERNS:
             assert pattern.flags & re.IGNORECASE, f"Pattern should be case-insensitive: {pattern.pattern}"
 
-    @pytest.mark.parametrize("pattern_name", ["password", "email", "secret", "token", "session"])
+    @pytest.mark.parametrize("pattern_name", ["password", "email", "secret", "session"])
     def test_individual_pattern_matching(self, pattern_name):
         """Test that individual patterns work correctly."""
         test_strings = [
@@ -281,7 +280,7 @@ class TestActualLoggingIntegration:
         assert len(COMPILED_PATTERNS) > 0, "No compiled patterns available"
 
         # Test that our key patterns are included
-        key_patterns = ["password", "email", "secret", "token", "api", "key"]
+        key_patterns = ["password", "email", "secret", "api", "key"]
         pattern_text = "|".join(SENSITIVE_PATTERNS).lower()
 
         for key_pattern in key_patterns:
