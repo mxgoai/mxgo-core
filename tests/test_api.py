@@ -481,7 +481,6 @@ def make_suggestions_post_request(request_data, headers=None):
     jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
 
     request_headers = {
-        "x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "valid-suggestions-key"),
         "Authorization": f"Bearer {jwt_token}",
     }
     if headers:
@@ -489,9 +488,9 @@ def make_suggestions_post_request(request_data, headers=None):
         filtered_headers = {k: v for k, v in headers.items() if v is not None}
         request_headers.update(filtered_headers)
 
-        # Handle the case where the key was explicitly set to None and should be removed
-        if "x-suggestions-api-key" in headers and headers["x-suggestions-api-key"] is None:
-            request_headers.pop("x-suggestions-api-key", None)
+        # Handle the case where Authorization was explicitly set to None
+        if "Authorization" in headers and headers["Authorization"] is None:
+            request_headers.pop("Authorization", None)
 
     return client.post("/suggestions", json=request_data, headers=request_headers)
 
@@ -502,7 +501,6 @@ def make_suggestions_post_request_with_client(test_client, request_data, headers
     jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
 
     request_headers = {
-        "x-suggestions-api-key": os.environ.get("SUGGESTIONS_API_KEY", "test-suggestions-key"),
         "Authorization": f"Bearer {jwt_token}",
     }
     if headers is not None:
@@ -636,36 +634,23 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
 
 
 @patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
-def test_suggestions_api_missing_api_key():
-    """Test suggestions API with missing API key."""
+def test_suggestions_api_missing_jwt_token():
+    """Test suggestions API with missing JWT token."""
     request_data = prepare_suggestions_request_data()
-    response = make_suggestions_post_request(request_data, headers={"x-suggestions-api-key": None})
+    response = make_suggestions_post_request(request_data, headers={"Authorization": None})
 
-    assert response.status_code == 422, f"Expected 422 for missing API key, got {response.status_code}"
+    assert response.status_code == 401, f"Expected 401 for missing JWT token, got {response.status_code}"
 
 
 @patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
-def test_suggestions_api_invalid_api_key():
-    """Test suggestions API with invalid API key."""
+def test_suggestions_api_invalid_jwt_token():
+    """Test suggestions API with invalid JWT token."""
     request_data = prepare_suggestions_request_data()
-    response = make_suggestions_post_request(request_data, headers={"x-suggestions-api-key": "invalid-key"})
+    response = make_suggestions_post_request(request_data, headers={"Authorization": "Bearer invalid-token"})
 
-    assert response.status_code == 401, f"Expected 401 for invalid API key, got {response.status_code}"
+    assert response.status_code == 401, f"Expected 401 for invalid JWT token, got {response.status_code}"
     response_json = response.json()
-    assert "Invalid suggestions API key" in response_json["message"]
-
-
-@patch.dict(os.environ, {"SUGGESTIONS_API_KEY": ""})  # Missing environment variable
-@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
-def test_suggestions_api_missing_env_var():
-    """Test suggestions API when SUGGESTIONS_API_KEY environment variable is not set."""
-    request_data = prepare_suggestions_request_data()
-    # Provide a valid API key header to test environment variable validation
-    response = make_suggestions_post_request(request_data, headers={"x-suggestions-api-key": "test-key"})
-
-    assert response.status_code == 500, f"Expected 500 for missing env var, got {response.status_code}"
-    response_json = response.json()
-    assert "Server configuration error" in response_json["message"]
+    assert "Invalid token" in response_json["detail"]
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
@@ -949,7 +934,7 @@ def make_user_info_get_request(headers=None):
         if "Authorization" in headers and headers["Authorization"] is None:
             request_headers.pop("Authorization", None)
 
-    return client.get("/user-info", headers=request_headers)
+    return client.get("/user", headers=request_headers)
 
 
 def assert_user_info_successful_response(response):
@@ -1205,9 +1190,7 @@ def test_user_info_api_different_user_emails(
     }
 
     # Make request with different user's token
-    response = client.get(
-        "/user-info", headers={"Authorization": f"Bearer {jwt_token}", "Content-Type": "application/json"}
-    )
+    response = client.get("/user", headers={"Authorization": f"Bearer {jwt_token}", "Content-Type": "application/json"})
 
     assert_user_info_successful_response(response)
 

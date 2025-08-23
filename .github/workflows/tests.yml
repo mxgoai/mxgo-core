@@ -5,10 +5,10 @@ on:
     branches:
       - "*"
     paths:
-      - '**.py'
-      - 'pyproject.toml'
-      - 'poetry.lock'
-      - '.github/actions/test.yml'
+      - "**.py"
+      - "pyproject.toml"
+      - "poetry.lock"
+      - ".github/actions/test.yml"
 
 concurrency:
   group: mxgo-tests
@@ -42,7 +42,8 @@ jobs:
       LITELLM_DEFAULT_MODEL_GROUP: ${{ secrets.LITELLM_DEFAULT_MODEL_GROUP }}
       # Test database configuration
       TEST_DB_URL: postgresql://testuser:testpassword@localhost:5432/testdb
-      JWT_SECRET_KEY: "test-jwt-secret-key"
+      JWT_SECRET: "test-jwt-secret-key"
+      LOG_LEVEL: INFO
 
     steps:
       - name: Checkout repository
@@ -90,7 +91,7 @@ jobs:
           echo "Created litellm_config.toml and set LITELLM_CONFIG_PATH"
 
       - name: Run tests
-        run: poetry run pytest -v --timeout 180 --cov-report=term-missing:skip-covered --cov-report=html:htmlcov --cov=mxgo --log-cli-level=INFO --pytest-durations-min=5
+        run: poetry run pytest -v --timeout 180 --cov-report=term-missing:skip-covered --cov-report=html:htmlcov --cov=mxgo --pytest-durations-min=5
 
       - name: Upload pytest report
         uses: actions/upload-artifact@v4
