@@ -417,6 +417,8 @@ class RiskAnalysisResponse(BaseModel):
     risk_reason: str = Field(default="", description="Optional one-liner explanation for risk score")
     spam_prob_pct: int = Field(ge=0, le=100, description="Spam probability percentage (0-100)")
     spam_reason: str = Field(default="", description="Optional one-liner explanation for spam score")
+    ai_likelihood_pct: int = Field(ge=0, le=100, description="AI authorship likelihood percentage (0-100)")
+    ai_explanation: str = Field(default="", description="Brief explanation for AI likelihood (max 25 words)")
 
 
 class EmailSuggestionResponse(BaseModel):

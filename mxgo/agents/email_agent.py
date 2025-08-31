@@ -14,6 +14,7 @@ from smolagents.monitoring import TokenUsage
 # Monkey patch TokenUsage to handle None values
 original_post_init = TokenUsage.__post_init__
 
+
 def patched_post_init(self):
     # Handle None values by setting them to 0
     if self.input_tokens is None:
@@ -21,6 +22,7 @@ def patched_post_init(self):
     if self.output_tokens is None:
         self.output_tokens = 0
     original_post_init(self)
+
 
 TokenUsage.__post_init__ = patched_post_init
 

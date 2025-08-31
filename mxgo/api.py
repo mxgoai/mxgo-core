@@ -797,7 +797,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
 @app.post("/suggestions")
 async def process_suggestions(
     requests: list[EmailSuggestionRequest],
-    current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
+    current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,  # NOQA: ARG001
     _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
 ) -> list[EmailSuggestionResponse]:
     """
