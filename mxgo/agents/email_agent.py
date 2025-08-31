@@ -266,7 +266,7 @@ class EmailAgent:
             else "No attachments provided."
         )
 
-        email_request_json = email_request.model_dump_json(indent=2)
+        email_request.model_dump_json(indent=2)
 
         # Add scheduled task context if this is a scheduled task execution
         scheduled_context = ""
