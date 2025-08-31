@@ -9,6 +9,20 @@ from dotenv import load_dotenv
 
 # Update imports to use proper classes from smolagents
 from smolagents import Tool, ToolCallingAgent
+from smolagents.monitoring import TokenUsage
+
+# Monkey patch TokenUsage to handle None values
+original_post_init = TokenUsage.__post_init__
+
+def patched_post_init(self):
+    # Handle None values by setting them to 0
+    if self.input_tokens is None:
+        self.input_tokens = 0
+    if self.output_tokens is None:
+        self.output_tokens = 0
+    original_post_init(self)
+
+TokenUsage.__post_init__ = patched_post_init
 
 # Add imports for the new default tools
 from mxgo._logging import get_logger, get_smolagents_console
@@ -268,10 +282,7 @@ class EmailAgent:
     BCC: {email_request.bcc or "N/A"}
     Body: {email_request.textContent or email_request.htmlContent or ""}
 
-    {attachments_info}
-
-Raw Email Request Data (for tool use):
-{email_request_json}"""
+    {attachments_info}"""
 
         if scheduled_context:
             return f"""{scheduled_context}
@@ -790,7 +801,7 @@ Raw Email Request Data (for tool use):
         self,
         email_request: EmailRequest,
         email_instructions: ProcessingInstructions,
-    ) -> DetailedEmailProcessingResult:  # Updated return type annotation
+    ) -> DetailedEmailProcessingResult:
         """
         Process an email using the agent based on the provided email handle instructions.
 
@@ -807,7 +818,7 @@ Raw Email Request Data (for tool use):
             task = self._create_task(email_request, email_instructions)
 
             logger.info("Starting agent execution...")
-            final_answer_obj = self.agent.run(task, additional_args={"email_request": email_request})
+            final_answer_obj = self.agent.run(task)
             logger.info("Agent execution completed.")
 
             agent_steps = list(self.agent.memory.steps)
