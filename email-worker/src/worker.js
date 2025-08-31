@@ -1,6 +1,6 @@
-// Define the API endpoint as a constant
-const API_ENDPOINT = "https://api.mxgo.ai/process-email";
-// const API_ENDPOINT = "https://f9cb-2401-4900-1f27-802d-9dc8-c5a1-9434-c1f1.ngrok-free.app/process-email"
+// Define the base URL as a constant
+const BASE_URL = "https://api.mxgo.ai";
+
 import PostalMime from 'postal-mime';
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
@@ -100,10 +100,16 @@ export default {
         }
       }
 
-      const response = await fetch(API_ENDPOINT, {
+      // Determine which API endpoint and key to use based on recipient
+      const isLocalRequest = recipient.includes('+local');
+      const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : BASE_URL;
+      const selectedEndpoint = `${baseUrl}/process-email`;
+      const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
+
+      const response = await fetch(selectedEndpoint, {
         method: "POST",
         headers: {
-          'x-api-key': env.x_api_key
+          'x-api-key': apiKey
         },
         body: formData
       });
@@ -167,11 +173,16 @@ export default {
         const fallbackHeaders = Object.fromEntries(message.headers);
         formData.append('rawHeaders', JSON.stringify(fallbackHeaders));
 
-        // Still try to send to the API
-        await fetch(API_ENDPOINT, {
+        // Still try to send to the API (use same endpoint and key selection logic)
+        const isLocalRequest = recipient.includes('+local');
+        const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : BASE_URL;
+        const selectedEndpoint = `${baseUrl}/process-email`;
+        const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
+
+        await fetch(selectedEndpoint, {
           method: "POST",
           headers: {
-            'x-api-key': env.x_api_key
+            'x-api-key': apiKey
           },
           body: formData
         });
