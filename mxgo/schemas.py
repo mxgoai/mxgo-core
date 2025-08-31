@@ -455,6 +455,30 @@ class UsageInfo(BaseModel):
     month: UsagePeriod = Field(description="Monthly usage information")
 
 
+class EmailGenerateResponseRequest(BaseModel):
+    """Request model for email response generation."""
+
+    email_identified: str
+    user_email_id: str
+    sender_email: str
+    cc_emails: list[str]
+    subject: str = Field(alias="Subject")
+    email_content: str
+    attachments: list[EmailSuggestionAttachmentSummary]
+    user_instructions: str = Field(default="", description="Optional user instructions for response generation")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ResponseCandidate(BaseModel):
+    """A single response candidate with confidence score."""
+
+    response: str = Field(description="The generated response text")
+    confidence_pct: int = Field(ge=0, le=100, description="Confidence percentage (0-100)")
+    variant: str = Field(description="Type of response variant")
+    rationale: str = Field(description="Brief rationale for the response (≤12 words)")
+
+
 class UserInfoResponse(BaseModel):
     """Response model for user information endpoint."""
 
