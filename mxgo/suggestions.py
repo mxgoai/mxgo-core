@@ -425,6 +425,10 @@ async def generate_suggestions(
         EmailSuggestionResponse: Response containing suggested actions and risk analysis
 
     """
+    # If model is not provided, get the default suggestions model
+    if model is None:
+        model = get_suggestions_model()
+
     try:
         logger.info(f"Generating suggestions and risk analysis for email {request.email_identified}")
 
@@ -473,7 +477,7 @@ async def generate_suggestions(
 
 async def _generate_suggestions_only(
     request: EmailSuggestionRequest,
-    model: RoutedLiteLLMModel,
+    model: RoutedLiteLLMModel | None,
 ) -> tuple[str, list[SuggestionDetail]]:
     """
     Internal function to generate only suggestions (not risk analysis).
@@ -482,6 +486,10 @@ async def _generate_suggestions_only(
         tuple[str, list[SuggestionDetail]]: Overview and suggestions list
 
     """
+    # If model is not provided, get the default suggestions model
+    if model is None:
+        model = get_suggestions_model()
+
     # Build the prompt
     prompt = build_suggestion_prompt(request)
 
@@ -505,9 +513,13 @@ async def _generate_suggestions_only(
     )
 
     # Parse the JSON response
-    suggestions_data = json.loads(response.content)
-    overview = suggestions_data.get("overview", "")
-    suggestions_list = suggestions_data.get("suggestions", [])
+    try:
+        suggestions_data = json.loads(response.content)
+        overview = suggestions_data.get("overview", "")
+        suggestions_list = suggestions_data.get("suggestions", [])
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse JSON from model response: {e}. Response content: {response.content}")
+        return "", get_default_suggestions()
 
     # Convert to SuggestionDetail objects
     generated_suggestions = []
