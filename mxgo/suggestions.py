@@ -48,7 +48,7 @@ SYSTEM_CAPABILITIES = """## Available Email Processing Handles
 
 SUGGESTION_INSTRUCTIONS = f"""## Email Analysis and Suggestion Guidelines
 
-You are an intelligent email assistant that analyzes email content to provide a crisp overview and suggest appropriate processing handles. 
+You are an intelligent email assistant that analyzes email content to provide a crisp overview and suggest appropriate processing handles.
 
 ### Overview Generation:
 Generate a concise 1-2 sentence overview that captures the essence of what's happening in this email thread. Focus on:
@@ -324,6 +324,7 @@ def build_risk_prompt(request: EmailSuggestionRequest) -> str:
 
     Returns:
         str: Complete prompt for risk analysis LLM
+
     """
     # Format attachments as JSON for the risk prompt
     attachments_json = json.dumps([
@@ -334,10 +335,10 @@ def build_risk_prompt(request: EmailSuggestionRequest) -> str:
         }
         for att in request.attachments
     ])
-    
+
     # Format CC emails as JSON
     cc_emails_json = json.dumps(request.cc_emails)
-    
+
     # Build the risk analysis prompt by inserting actual email data
     return f"""{RISK_INSTRUCTIONS}
 
@@ -366,6 +367,7 @@ async def analyse_risk(
 
     Returns:
         RiskAnalysisResponse: Response containing risk and spam analysis
+
     """
     # Build the risk prompt
     prompt = build_risk_prompt(request)
@@ -468,9 +470,10 @@ async def _generate_suggestions_only(
 ) -> tuple[str, list[SuggestionDetail]]:
     """
     Internal function to generate only suggestions (not risk analysis).
-    
+
     Returns:
         tuple[str, list[SuggestionDetail]]: Overview and suggestions list
+
     """
     # Build the prompt
     prompt = build_suggestion_prompt(request)

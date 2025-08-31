@@ -36,4 +36,3 @@ def generate_test_jwt(email: str = "test@example.com", user_id: str = "test_user
 
 if __name__ == "__main__":
     token = generate_test_jwt(email="test@example.com")
-    print(token)
