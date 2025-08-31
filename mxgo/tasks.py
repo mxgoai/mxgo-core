@@ -138,7 +138,14 @@ def process_email_task(  # noqa: PLR0912, PLR0915
         handle = email_request.distilled_alias.value if email_request.distilled_alias else HandlerAlias.ASK.value
         logger.info(f"Processing scheduled task {scheduled_task_id} using distilled alias: {handle}")
     else:
-        handle = email_request.to.split("@")[0].lower()
+        raw_handle = email_request.to.split("@")[0].lower()
+        
+        # Strip everything after '+' if present
+        if '+' in raw_handle:
+            handle = raw_handle.split('+')[0]
+            logger.info(f"Stripped handle suffix: '{raw_handle}' -> '{handle}'")
+        else:
+            handle = raw_handle
         if scheduled_task_id:
             logger.info(f"Processing scheduled task {scheduled_task_id} for handle: {handle}")
         else:

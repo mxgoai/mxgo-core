@@ -606,7 +606,15 @@ async def validate_email_handle(
         tuple[Optional[Response], Optional[str]]: (Error response if validation fails, extracted handle)
 
     """
-    handle = to.split("@")[0].lower()
+    raw_handle = to.split("@")[0].lower()
+    
+    # Strip everything after '+' if present
+    if '+' in raw_handle:
+        handle = raw_handle.split('+')[0]
+        logger.info(f"Stripped handle suffix: '{raw_handle}' -> '{handle}'")
+    else:
+        handle = raw_handle
+    
     try:
         _ = processing_instructions_resolver(handle)
     except exceptions.UnspportedHandleError:

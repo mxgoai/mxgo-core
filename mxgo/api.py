@@ -610,7 +610,6 @@ async def process_email(  # noqa: PLR0912, PLR0915
                 if raw_headers:
                     try:
                         parsed_headers = json.loads(raw_headers)
-                        logger.info(f"Received raw headers: {json.dumps(parsed_headers, indent=2)}")
                     except json.JSONDecodeError:
                         logger.warning(f"Could not parse rawHeaders JSON: {raw_headers}")
                         # Continue processing even if headers are malformed
