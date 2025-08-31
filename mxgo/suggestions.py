@@ -158,25 +158,28 @@ The overview should provide instant situational awareness - what's happening, wh
 
 
 RISK_INSTRUCTIONS = """
-## Risk and Spam Scoring Instructions
+## Risk, Spam, and AI Authorship Analysis Instructions
 
-You are an email risk & spam scorer. Use only the fields provided. Do not invent headers or do network lookups.
-“Risk” = phishing/malware/fraud/BEC likelihood.
-“Spam” = unsolicited/low-value bulk/marketing/scam likelihood.
+You are an email analyzer that evaluates risk, spam likelihood, and AI authorship. Use only the fields provided. Do not invent headers or do network lookups.
+
+"Risk" = phishing/malware/fraud/BEC likelihood.
+"Spam" = unsolicited/low-value bulk/marketing/scam likelihood.
+"AI Authorship" = likelihood the email was written by an AI system vs. human.
+
 Output MUST be JSON only with keys:
-{ "risk_prob_pct": 0-100, "risk_reason": string, "spam_prob_pct": 0-100, "spam_reason": string }
+{ "risk_prob_pct": 0-100, "risk_reason": string, "spam_prob_pct": 0-100, "spam_reason": string, "ai_likelihood_pct": 0-100, "ai_explanation": string }
 No extra text.
 
 Scoring guidance (consistency > creativity):
 - Map signals to bands:
-  • Risk 0–10: benign; 15–35: mildly suspicious; 40–60: unclear but multiple flags;
-    65–85: strong risk; 90–100: obvious phish/malware.
-  • Spam 0–15: transactional/personal; 20–40: unsolicited but relevant; 50–70: typical marketing/bulk; 80–100: scammy bulk.
+  • Risk 0-10: benign; 15-35: mildly suspicious; 40-60: unclear but multiple flags;
+    65-85: strong risk; 90-100: obvious phish/malware.
+  • Spam 0-15: transactional/personal; 20-40: unsolicited but relevant; 50-70: typical marketing/bulk; 80-100: scammy bulk.
 - Prefer one crisp 1-line reason (≤120 chars). If prob <15 or no clear reason, use "".
 - When both risk & spam signals exist, set both independently (e.g., BEC: high risk, low spam).
 
 What to analyze from provided fields:
-- sender_email vs user_email_id: compare domains; if different, that’s normal, but consider impersonation tone.
+- sender_email vs user_email_id: compare domains; if different, that's normal, but consider impersonation tone.
 - cc_emails: large list or many mixed domains → higher spam.
 - subject + email_content:
   • Risky intents: verify/login/password reset, wire/gift cards/invoice payment, secrecy/urgency (“24 hours”, “final notice”).
@@ -187,6 +190,12 @@ What to analyze from provided fields:
   • Dangerous extensions: .exe, .scr, .js, .vbs, .hta, .iso, .img, .lnk, .jar, .ps1, .bat, .cmd
   • Double extensions (e.g., .pdf.exe) are high risk. Archives with “invoice/payment” wording → risk up.
 - De-risking cues: specific prior ticket/order refs, personal context, polite transactional tone; no links/attachments.
+
+AI Authorship Analysis:
+- Focus on original email content; ignore signatures, legal footers, tracking pixels, unsubscribe blocks, and quoted/forwarded history (lines after "-----Original Message-----", "From:", or starting with ">").
+- AI signals: excessive formality/polish, generic or templated phrasing, repetitive sentence structures, lack of personal specifics, abrupt topical shifts, hedging clichés, evenly "smooth" grammar with little idiosyncrasy, shallow personalization.
+- Human signals: mixed sentence lengths, small mistakes, concrete personal/contextual details, distinctive voice.
+- Calibrate: 0 = certainly human; 50 = unclear/mixed; 100 = certainly AI. For very short texts, keep score closer to 50 unless cues are strong.
 
 If information is insufficient for a dimension, keep that probability low and reason "".
 
@@ -202,7 +211,7 @@ User input (JSON):
 }
 
 Return JSON only with:
-{ "risk_prob_pct": int, "risk_reason": string, "spam_prob_pct": int, "spam_reason": string }
+{ "risk_prob_pct": int, "risk_reason": string, "spam_prob_pct": int, "spam_reason": string, "ai_likelihood_pct": int, "ai_explanation": string }
 """
 
 
@@ -327,14 +336,12 @@ def build_risk_prompt(request: EmailSuggestionRequest) -> str:
 
     """
     # Format attachments as JSON for the risk prompt
-    attachments_json = json.dumps([
-        {
-            "filename": att.filename,
-            "file_type": att.file_type,
-            "file_size": att.file_size
-        }
-        for att in request.attachments
-    ])
+    attachments_json = json.dumps(
+        [
+            {"filename": att.filename, "file_type": att.file_type, "file_size": att.file_size}
+            for att in request.attachments
+        ]
+    )
 
     # Format CC emails as JSON
     cc_emails_json = json.dumps(request.cc_emails)
@@ -377,7 +384,7 @@ async def analyse_risk(
     messages = [
         {
             "role": "system",
-            "content": "You are an email risk and spam analyzer. Always respond with valid JSON in the specified format.",
+            "content": "You are an email risk, spam, and AI authorship analyzer. Always respond with valid JSON in the specified format.",
         },
         {
             "role": "user",
@@ -398,6 +405,8 @@ async def analyse_risk(
         risk_reason=risk_data.get("risk_reason", ""),
         spam_prob_pct=risk_data.get("spam_prob_pct", 0),
         spam_reason=risk_data.get("spam_reason", ""),
+        ai_likelihood_pct=risk_data.get("ai_likelihood_pct", 0),
+        ai_explanation=risk_data.get("ai_explanation", ""),
     )
 
 
@@ -424,9 +433,7 @@ async def generate_suggestions(
         risk_task = asyncio.create_task(analyse_risk(request, model))
 
         # Wait for both responses
-        suggestions_result, risk_result = await asyncio.gather(
-            suggestions_task, risk_task, return_exceptions=True
-        )
+        suggestions_result, risk_result = await asyncio.gather(suggestions_task, risk_task, return_exceptions=True)
 
         # Handle suggestion response (with error checking)
         if isinstance(suggestions_result, Exception):
