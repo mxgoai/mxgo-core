@@ -813,7 +813,6 @@ async def process_suggestions(
 
     """
     # JWT Authentication is handled by dependency injection
-    logger.info(f"JWT authentication successful for user {current_user.email}")
     # Get the suggestions model once for all requests
     suggestions_model = get_suggestions_model()
 
@@ -821,22 +820,6 @@ async def process_suggestions(
 
     for request in requests:
         try:
-            # Validate user whitelist against user_email_id
-            whitelist_response = await validate_email_whitelist(
-                from_email=request.user_email_id,
-                to="suggestions@mxgo.ai",  # Dummy handle for whitelist validation
-                subject=request.subject,
-                message_id=request.email_identified,
-            )
-
-            if whitelist_response:
-                # User not whitelisted - raise HTTP exception instead of creating error suggestion
-                logger.warning(f"User {request.user_email_id} not whitelisted for suggestions service")
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Email verification required - check your email for verification instructions",
-                )
-
             # Generate suggestions using the suggestions module
             suggestion_response = await generate_suggestions(request, suggestions_model)
             responses.append(suggestion_response)
@@ -844,10 +827,6 @@ async def process_suggestions(
             logger.info(
                 f"Generated {len(suggestion_response.suggestions)} suggestions for email {request.email_identified}"
             )
-
-        except HTTPException:
-            # Re-raise HTTP exceptions (like 403 Forbidden from whitelist validation)
-            raise
         except Exception as e:
             logger.error(f"Error processing suggestion request {request.email_identified}: {e}")
             # For other exceptions, raise a generic server error
