@@ -410,12 +410,23 @@ class SuggestionDetail(BaseModel):
     suggestion_email_instructions: str
 
 
+class RiskAnalysisResponse(BaseModel):
+    """Response model for email risk and spam analysis."""
+
+    risk_prob_pct: int = Field(ge=0, le=100, description="Risk probability percentage (0-100)")
+    risk_reason: str = Field(default="", description="Optional one-liner explanation for risk score")
+    spam_prob_pct: int = Field(ge=0, le=100, description="Spam probability percentage (0-100)")
+    spam_reason: str = Field(default="", description="Optional one-liner explanation for spam score")
+
+
 class EmailSuggestionResponse(BaseModel):
     """Response model for email suggestions."""
 
     email_identified: str
     user_email_id: str
+    overview: str
     suggestions: list[SuggestionDetail]
+    risk_analysis: RiskAnalysisResponse | None = None
 
 
 class ToolOutputWithCitations(BaseModel):
