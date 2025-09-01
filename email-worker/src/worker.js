@@ -2,6 +2,16 @@ import PostalMime from 'postal-mime';
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
 
+// Helper function to get API endpoint configuration
+function getApiConfig(recipient, env) {
+  const isLocalRequest = recipient.includes('+local');
+  const baseUrl = (isLocalRequest ? env.local_base_url : env.base_url)?.replace(/\/$/, '');
+  const selectedEndpoint = `${baseUrl}/process-email`;
+  const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
+  console.log("Using endpoint:", selectedEndpoint);
+  return { selectedEndpoint, apiKey };
+}
+
 // Helper function to calculate size of base64 string
 function base64Size(base64String) {
   // Calculate size of decoded base64 - each 4 base64 chars represent 3 bytes
@@ -97,11 +107,8 @@ export default {
         }
       }
 
-      // Determine which API endpoint and key to use based on recipient
-      const isLocalRequest = recipient.includes('+local');
-      const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : env.base_url;
-      const selectedEndpoint = `${baseUrl}/process-email`;
-      const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
+      // Get API configuration
+      const { selectedEndpoint, apiKey } = getApiConfig(recipient, env);
 
       const response = await fetch(selectedEndpoint, {
         method: "POST",
@@ -171,10 +178,7 @@ export default {
         formData.append('rawHeaders', JSON.stringify(fallbackHeaders));
 
         // Still try to send to the API (use same endpoint and key selection logic)
-        const isLocalRequest = recipient.includes('+local');
-        const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : env.base_url;
-        const selectedEndpoint = `${baseUrl}/process-email`;
-        const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
+        const { selectedEndpoint, apiKey } = getApiConfig(recipient, env);
 
         await fetch(selectedEndpoint, {
           method: "POST",
