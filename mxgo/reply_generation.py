@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from mxgo._logging import get_logger
-from mxgo.schemas import EmailGenerateResponseRequest, ResponseCandidate
+from mxgo.schemas import GenerateEmailReplyRequest, ReplyCandidate
 from mxgo.suggestions import get_suggestions_model
 
 logger = get_logger(__name__)
@@ -29,22 +29,31 @@ def parse_email_body(email_content: str) -> str:
             continue
 
         # Skip forwarded messages
-        if any(pattern in line_stripped.lower() for pattern in [
-            "forwarded message", "original message", "from:", "sent:", "to:", "subject:"
-        ]) and "-----" in "".join(lines[max(0, len(filtered_lines)-2):len(filtered_lines)+2]):
+        if any(
+            pattern in line_stripped.lower()
+            for pattern in ["forwarded message", "original message", "from:", "sent:", "to:", "subject:"]
+        ) and "-----" in "".join(lines[max(0, len(filtered_lines) - 2) : len(filtered_lines) + 2]):
             continue
 
         # Skip signatures and footers
-        if any(pattern in line_stripped.lower() for pattern in [
-            "unsubscribe", "confidential", "disclaimer", "legal", "privacy policy",
-            "this email was sent", "best regards", "sincerely", "thank you"
-        ]):
+        if any(
+            pattern in line_stripped.lower()
+            for pattern in [
+                "unsubscribe",
+                "confidential",
+                "disclaimer",
+                "legal",
+                "privacy policy",
+                "this email was sent",
+                "best regards",
+                "sincerely",
+                "thank you",
+            ]
+        ):
             continue
 
         # Skip tracking and S/MIME content
-        if any(pattern in line_stripped for pattern in [
-            "http", "utm_", "BEGIN PGP", "BEGIN CERTIFICATE", "SMIME"
-        ]):
+        if any(pattern in line_stripped for pattern in ["http", "utm_", "BEGIN PGP", "BEGIN CERTIFICATE", "SMIME"]):
             continue
 
         filtered_lines.append(line)
@@ -66,11 +75,11 @@ def extract_receiver_style() -> dict[str, Any]:
         "greeting_pattern": "standard",
         "closing_pattern": "standard",
         "emoji_usage": False,
-        "paragraph_length": "medium"
+        "paragraph_length": "medium",
     }
 
 
-def build_response_prompt(request: EmailGenerateResponseRequest) -> str:
+def build_response_prompt(request: GenerateEmailReplyRequest) -> str:
     """Build the prompt for response generation based on the email request."""
     # Parse email content
     parsed_content = parse_email_body(request.email_content)
@@ -78,11 +87,7 @@ def build_response_prompt(request: EmailGenerateResponseRequest) -> str:
     # Format attachments
     attachments_list = []
     for att in request.attachments:
-        attachments_list.append({
-            "filename": att.filename,
-            "file_type": att.file_type,
-            "file_size": att.file_size
-        })
+        attachments_list.append({"filename": att.filename, "file_type": att.file_type, "file_size": att.file_size})
 
     # Build YAML input
     yaml_input = f"""email:
@@ -146,8 +151,7 @@ Task:
 4) Rank and return them as the JSON array, highest confidence first."""
 
 
-
-async def generate_response_candidates(request: EmailGenerateResponseRequest) -> list[ResponseCandidate]:
+async def generate_replies(request: GenerateEmailReplyRequest) -> list[ReplyCandidate]:
     """
     Generate email response candidates using the AI model.
 
@@ -168,11 +172,7 @@ async def generate_response_candidates(request: EmailGenerateResponseRequest) ->
         logger.info(f"Generating response candidates for email {request.email_identified}")
 
         # Call the model
-        response = model(
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=2000
-        )
+        response = model(messages=[{"role": "user", "content": prompt}], temperature=0.7, max_tokens=2000)
 
         # Parse the JSON response
         response_text = response.content.strip()
@@ -189,11 +189,11 @@ async def generate_response_candidates(request: EmailGenerateResponseRequest) ->
         # Convert to ResponseCandidate objects
         candidates = []
         for candidate_data in candidates_json:
-            candidate = ResponseCandidate(
+            candidate = ReplyCandidate(
                 response=candidate_data["response"],
                 confidence_pct=candidate_data["confidence_pct"],
                 variant=candidate_data["variant"],
-                rationale=candidate_data["rationale"]
+                rationale=candidate_data["rationale"],
             )
             candidates.append(candidate)
 

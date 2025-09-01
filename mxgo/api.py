@@ -23,14 +23,14 @@ from mxgo.email_sender import (
     generate_email_id,
     send_email_reply,
 )
-from mxgo.response_generation import generate_response_candidates
+from mxgo.reply_generation import generate_replies
 from mxgo.schemas import (
     EmailAttachment,
-    EmailGenerateResponseRequest,
     EmailRequest,
     EmailSuggestionRequest,
     EmailSuggestionResponse,
-    ResponseCandidate,
+    GenerateEmailReplyRequest,
+    ReplyCandidate,
     UsageInfo,
     UsagePeriod,
     UserInfoResponse,
@@ -841,11 +841,11 @@ async def process_suggestions(
 
 
 @app.post("/replies")
-async def generate_response(
-    request: EmailGenerateResponseRequest,
+async def generate_email_replies(
+    request: GenerateEmailReplyRequest,
     current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
     _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
-) -> list[ResponseCandidate]:
+) -> list[ReplyCandidate]:
     """
     Generate email response candidates.
 
@@ -859,13 +859,7 @@ async def generate_response(
     """
     try:
         # Generate response candidates
-        candidates = await generate_response_candidates(request)
-
-        logger.info(
-            f"Generated {len(candidates)} response candidates for email {request.email_identified}"
-        )
-
-        return candidates
+        return await generate_replies(request)
 
     except Exception as e:
         logger.error(f"Error generating response for email {request.email_identified}: {e}")
