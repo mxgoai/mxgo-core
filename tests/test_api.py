@@ -9,7 +9,6 @@ import pytest  # For fixtures
 
 # Corrected import for FakeAsyncRedis based on common usage and docs
 from fakeredis import FakeAsyncRedis
-from fastapi import Response
 from fastapi.testclient import TestClient
 from freezegun import freeze_time  # For controlling time in tests
 
@@ -540,17 +539,15 @@ def assert_suggestions_error_response(response, expected_status=422):
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
-def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_validate_whitelist):
+def test_suggestions_api_success_single_request(mock_generate_suggestions):
     """Test successful suggestions API call with single request."""
-    mock_validate_whitelist.return_value = None  # User is whitelisted
-
     # Mock the suggestions response
 
     mock_response = EmailSuggestionResponse(
         email_identified="test-email-123",
         user_email_id="test@example.com",
+        overview="Test email requesting content summarization",
         suggestions=[
             SuggestionDetail(
                 suggestion_title="Summarize content",
@@ -574,7 +571,6 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
     response = make_suggestions_post_request(request_data)
 
     assert_suggestions_successful_response(response, expected_num_requests=1)
-    mock_validate_whitelist.assert_called_once()
     mock_generate_suggestions.assert_called_once()
 
     # Verify the response content
@@ -587,17 +583,15 @@ def test_suggestions_api_success_single_request(mock_generate_suggestions, mock_
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
 @patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
-def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mock_validate_whitelist):
+def test_suggestions_api_success_multiple_requests(mock_generate_suggestions):
     """Test successful suggestions API call with multiple requests."""
-    mock_validate_whitelist.return_value = None
-
     # Mock responses for each request
     mock_responses = [
         EmailSuggestionResponse(
             email_identified=f"test-email-{i}",
             user_email_id="test@example.com",
+            overview=f"Test email {i} overview",
             suggestions=[
                 SuggestionDetail(
                     suggestion_title="Ask anything",
@@ -629,7 +623,6 @@ def test_suggestions_api_success_multiple_requests(mock_generate_suggestions, mo
     response = make_suggestions_post_request(request_data)
 
     assert_suggestions_successful_response(response, expected_num_requests=3)
-    assert mock_validate_whitelist.call_count == 3
     assert mock_generate_suggestions.call_count == 3
 
 
@@ -655,22 +648,34 @@ def test_suggestions_api_invalid_jwt_token():
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
 @patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
-@patch("mxgo.api.validate_email_whitelist", new_callable=AsyncMock)
-def test_suggestions_api_user_not_whitelisted(mock_validate_whitelist):
-    """Test suggestions API when user is not whitelisted."""
-    # Mock whitelist validation to return an error response
-    mock_validate_whitelist.return_value = Response(
-        status_code=403, content=json.dumps({"detail": "User not whitelisted"})
+@patch("mxgo.api.generate_suggestions", new_callable=AsyncMock)
+def test_suggestions_api_user_not_whitelisted(mock_generate_suggestions):
+    """Test suggestions API processes normally since whitelist check was removed."""
+    # Mock successful suggestions generation
+    mock_response = EmailSuggestionResponse(
+        email_identified="test-email-123",
+        user_email_id="test@example.com",
+        overview="Test email processed without whitelist check",
+        suggestions=[
+            SuggestionDetail(
+                suggestion_title="Ask anything",
+                suggestion_id="suggest-1",
+                suggestion_to_email="ask@mxgo.ai",
+                suggestion_cc_emails=[],
+                suggestion_email_instructions="",
+            ),
+        ],
     )
+    mock_generate_suggestions.return_value = mock_response
 
     request_data = prepare_suggestions_request_data()
     response = make_suggestions_post_request(request_data)
 
-    # Should return 403 Forbidden instead of 200 with error suggestions
-    assert response.status_code == 403, "Should return 403 Forbidden for non-whitelisted user"
+    # Should return 200 OK since whitelist validation was removed
+    assert response.status_code == 200, "Should return 200 OK since whitelist check removed"
     response_json = response.json()
-    assert "detail" in response_json
-    assert "Email verification required" in response_json["detail"]
+    assert len(response_json) == 1
+    assert response_json[0]["email_identified"] == "test-email-123"
 
 
 @patch.dict(os.environ, {"SUGGESTIONS_API_KEY": "valid-suggestions-key"})
@@ -728,6 +733,7 @@ def test_suggestions_api_with_attachments(mock_generate_suggestions, mock_valida
     mock_response = EmailSuggestionResponse(
         email_identified="test-email-123",
         user_email_id="test@example.com",
+        overview="Email with PDF and Excel attachments requiring document analysis",
         suggestions=[
             SuggestionDetail(
                 suggestion_title="Summarize documents",
@@ -778,6 +784,7 @@ def test_suggestions_api_with_cc_emails(mock_generate_suggestions, mock_validate
     mock_response = EmailSuggestionResponse(
         email_identified="test-email-123",
         user_email_id="test@example.com",
+        overview="Meeting request with CC recipients",
         suggestions=[
             SuggestionDetail(
                 suggestion_title="Schedule meeting",
@@ -824,6 +831,7 @@ def test_suggestions_api_rate_limiting_integration(client_with_patched_redis):
         mock_response = EmailSuggestionResponse(
             email_identified="test-email-123",
             user_email_id="test@example.com",
+            overview="Test email for rate limiting integration",
             suggestions=[
                 SuggestionDetail(
                     suggestion_title="Ask anything",
@@ -851,6 +859,7 @@ def test_suggestions_api_subject_field_alias(mock_generate_suggestions, mock_val
     mock_response = EmailSuggestionResponse(
         email_identified="test-email-123",
         user_email_id="test@example.com",
+        overview="Test email with Subject field alias",
         suggestions=[
             SuggestionDetail(
                 suggestion_title="Ask anything",
@@ -886,6 +895,7 @@ def test_suggestions_api_default_suggestions_always_included(mock_generate_sugge
     mock_response = EmailSuggestionResponse(
         email_identified="test-email-123",
         user_email_id="test@example.com",
+        overview="Email with statistical claims requiring fact verification",
         suggestions=[
             SuggestionDetail(
                 suggestion_title="Fact check claims",

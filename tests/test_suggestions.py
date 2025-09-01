@@ -429,3 +429,163 @@ async def test_suggestions_integration_error_handling(prepare_suggestion_request
     assert len(response.suggestions) >= 1
     has_ask = any(s.suggestion_to_email == "ask@mxgo.ai" for s in response.suggestions)
     assert has_ask, "Should return default suggestion even for empty content"
+
+
+@pytest.mark.asyncio
+async def test_risk_analysis_functionality(prepare_suggestion_request_data):
+    """Test risk analysis functionality in suggestions."""
+    # Test suspicious email content
+    request_data = prepare_suggestion_request_data(
+        email_identified="risky-email-001",
+        user_email_id="victim@company.com",
+        sender_email="attacker@suspicious.com",
+        subject="URGENT: Verify Your Account Now!",
+        email_content="""
+        Dear Customer,
+
+        Your account has been compromised. Click here immediately to verify:
+        https://fake-bank.com/verify-account
+
+        You have 24 hours or your account will be closed permanently.
+
+        Best regards,
+        Security Team
+        """,
+        attachments=[{"filename": "invoice.pdf.exe", "file_type": "application/x-executable", "file_size": 2048000}],
+    )
+
+    request_obj = EmailSuggestionRequest(
+        email_identified=request_data["email_identified"],
+        user_email_id=request_data["user_email_id"],
+        sender_email=request_data["sender_email"],
+        cc_emails=request_data["cc_emails"],
+        Subject=request_data["Subject"],
+        email_content=request_data["email_content"],
+        attachments=[EmailSuggestionAttachmentSummary(**att) for att in request_data["attachments"]],
+    )
+
+    model = get_suggestions_model()
+    response = await generate_suggestions(request_obj, model)
+
+    # Validate basic response structure
+    assert response.email_identified == request_data["email_identified"]
+    assert response.user_email_id == request_data["user_email_id"]
+    assert response.overview is not None
+    assert len(response.overview) > 0
+    assert len(response.suggestions) >= 1
+
+    # Validate risk analysis is present
+    assert response.risk_analysis is not None
+    assert hasattr(response.risk_analysis, "risk_prob_pct")
+    assert hasattr(response.risk_analysis, "spam_prob_pct")
+    assert hasattr(response.risk_analysis, "ai_likelihood_pct")
+    assert 0 <= response.risk_analysis.risk_prob_pct <= 100
+    assert 0 <= response.risk_analysis.spam_prob_pct <= 100
+    assert 0 <= response.risk_analysis.ai_likelihood_pct <= 100
+
+    # For suspicious email, expect higher risk scores
+    # (Note: actual scores depend on LLM, so we just check structure)
+    assert isinstance(response.risk_analysis.risk_reason, str)
+    assert isinstance(response.risk_analysis.spam_reason, str)
+    assert isinstance(response.risk_analysis.ai_explanation, str)
+
+
+@pytest.mark.asyncio
+async def test_risk_analysis_benign_email(prepare_suggestion_request_data):
+    """Test risk analysis with benign email content."""
+    request_data = prepare_suggestion_request_data(
+        email_identified="safe-email-001",
+        user_email_id="employee@company.com",
+        sender_email="colleague@company.com",
+        subject="Weekly team meeting notes",
+        email_content="""
+        Hi team,
+
+        Here are the notes from our weekly meeting:
+
+        1. Project Alpha is on track for Q4 delivery
+        2. New team member Sarah will start Monday
+        3. Budget review scheduled for next Friday
+
+        Let me know if you have any questions.
+
+        Best,
+        John
+        """,
+    )
+
+    request_obj = EmailSuggestionRequest(
+        email_identified=request_data["email_identified"],
+        user_email_id=request_data["user_email_id"],
+        sender_email=request_data["sender_email"],
+        cc_emails=request_data["cc_emails"],
+        Subject=request_data["Subject"],
+        email_content=request_data["email_content"],
+        attachments=[],
+    )
+
+    model = get_suggestions_model()
+    response = await generate_suggestions(request_obj, model)
+
+    # Validate risk analysis structure
+    assert response.risk_analysis is not None
+    assert 0 <= response.risk_analysis.risk_prob_pct <= 100
+    assert 0 <= response.risk_analysis.spam_prob_pct <= 100
+    assert 0 <= response.risk_analysis.ai_likelihood_pct <= 100
+
+    # All reason fields should be strings (may be empty)
+    assert isinstance(response.risk_analysis.risk_reason, str)
+    assert isinstance(response.risk_analysis.spam_reason, str)
+    assert isinstance(response.risk_analysis.ai_explanation, str)
+
+
+@pytest.mark.asyncio
+async def test_overview_generation(prepare_suggestion_request_data):
+    """Test that overview field is properly generated."""
+    request_data = prepare_suggestion_request_data(
+        email_identified="overview-test-001",
+        user_email_id="user@company.com",
+        sender_email="client@external.com",
+        subject="Quarterly Business Review Meeting Request",
+        email_content="""
+        Dear Team,
+
+        I would like to schedule our quarterly business review for next week.
+        Please let me know your availability for Tuesday or Wednesday afternoon.
+
+        We'll need to cover:
+        - Q3 performance analysis
+        - Budget planning for Q4
+        - New client onboarding process
+
+        Thanks,
+        Client
+        """,
+    )
+
+    request_obj = EmailSuggestionRequest(
+        email_identified=request_data["email_identified"],
+        user_email_id=request_data["user_email_id"],
+        sender_email=request_data["sender_email"],
+        cc_emails=request_data["cc_emails"],
+        Subject=request_data["Subject"],
+        email_content=request_data["email_content"],
+        attachments=[],
+    )
+
+    model = get_suggestions_model()
+    response = await generate_suggestions(request_obj, model)
+
+    # Overview should be non-empty and meaningful
+    assert response.overview is not None
+    assert len(response.overview.strip()) > 0
+    assert len(response.overview) <= 500  # Should be reasonably concise
+
+    # Overview should ideally relate to the subject/content
+    # (This is a basic check - actual content quality depends on LLM)
+    overview_lower = response.overview.lower()
+    request_data["Subject"].lower().split()
+
+    # At least some connection to the email content should exist
+    # (This is a weak test since LLM behavior can vary)
+    assert len(overview_lower) > 10  # Not just a few words
