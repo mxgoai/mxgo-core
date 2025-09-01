@@ -840,7 +840,7 @@ async def process_suggestions(
     return responses
 
 
-@app.post("/generate-response")
+@app.post("/replies")
 async def generate_response(
     request: EmailGenerateResponseRequest,
     current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
