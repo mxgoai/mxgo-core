@@ -455,7 +455,7 @@ class UsageInfo(BaseModel):
     month: UsagePeriod = Field(description="Monthly usage information")
 
 
-class EmailGenerateResponseRequest(BaseModel):
+class GenerateEmailReplyRequest(BaseModel):
     """Request model for email response generation."""
 
     email_identified: str
@@ -470,7 +470,7 @@ class EmailGenerateResponseRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
-class ResponseCandidate(BaseModel):
+class ReplyCandidate(BaseModel):
     """A single response candidate with confidence score."""
 
     response: str = Field(description="The generated response text")
