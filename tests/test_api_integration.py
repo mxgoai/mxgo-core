@@ -260,11 +260,25 @@ class TestSuggestionsIntegration:
     @pytest.fixture
     def mock_generate_suggestions(self):
         """Mock generate_suggestions function."""
+        from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail
+
         with patch("mxgo.api.generate_suggestions") as mock_gen:
-            mock_gen.return_value = AsyncMock()
-            mock_gen.return_value.email_identified = "test_email_123"
-            mock_gen.return_value.user_email_id = "test@example.com"
-            mock_gen.return_value.suggestions = []
+            mock_response = EmailSuggestionResponse(
+                email_identified="test_email_123",
+                user_email_id="test@example.com",
+                overview="Test email processed successfully",
+                suggestions=[
+                    SuggestionDetail(
+                        suggestion_title="Ask anything",
+                        suggestion_id="suggest-1",
+                        suggestion_to_email="ask@mxgo.ai",
+                        suggestion_cc_emails=[],
+                        suggestion_email_instructions="",
+                    )
+                ],
+                risk_analysis=None,
+            )
+            mock_gen.return_value = mock_response
             yield mock_gen
 
     @pytest.fixture
@@ -341,9 +355,15 @@ class TestSuggestionsIntegration:
         assert response.status_code == 401
 
     def test_suggestions_user_not_whitelisted(
-        self, client, mock_env_vars, valid_jwt_token, sample_suggestion_request, mock_suggestions_model
+        self,
+        client,
+        mock_env_vars,
+        valid_jwt_token,
+        sample_suggestion_request,
+        mock_suggestions_model,
+        mock_generate_suggestions,
     ):
-        """Test /suggestions endpoint handles non-whitelisted users."""
+        """Test /suggestions endpoint processes normally since whitelist check was removed."""
         with patch("mxgo.validators.is_email_whitelisted", return_value=(False, False)):
             response = client.post(
                 "/suggestions",
@@ -351,8 +371,10 @@ class TestSuggestionsIntegration:
                 headers={"Authorization": f"Bearer {valid_jwt_token}"},
             )
 
-            assert response.status_code == 403
-            assert "Email verification required" in response.json()["detail"]
+            assert response.status_code == 200
+            response_json = response.json()
+            assert len(response_json) == 1
+            assert response_json[0]["email_identified"] == "test_email_123"
 
 
 class TestBackwardCompatibility:

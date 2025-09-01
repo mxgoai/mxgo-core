@@ -10,6 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from sqlmodel import select
 
+# Import email_agent to ensure TokenUsage monkey patch is applied
+import mxgo.agents.email_agent  # noqa: F401
 from mxgo.db import init_db_connection
 from mxgo.email_handles import DEFAULT_EMAIL_HANDLES
 from mxgo.models.models import Tasks, TaskStatus

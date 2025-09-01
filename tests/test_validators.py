@@ -323,3 +323,64 @@ class TestValidationFunctions:
             assert isinstance(result, Response)
             assert result.status_code == 400  # The function returns 400 for all validation failures
             mock_send.assert_called_once()
+
+
+class TestHandleSuffixStripping:
+    """Test handle suffix stripping functionality."""
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_basic(self):
+        """Test basic email handle validation."""
+        result = await validate_email_handle("ask@mxgo.ai", "user@example.com", "Test Subject", "test-message")
+        assert result == (None, "ask")  # No error, handle extracted
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_with_local_suffix(self):
+        """Test email handle with +local suffix gets stripped."""
+        result = await validate_email_handle("ask+local@mxgo.ai", "user@example.com", "Test Subject", "test-message")
+        assert result == (None, "ask")  # +local suffix should be stripped
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_with_other_suffix(self):
+        """Test email handle with other suffix gets stripped."""
+        result = await validate_email_handle(
+            "summarize+test@mxgo.ai", "user@example.com", "Test Subject", "test-message"
+        )
+        assert result == (None, "summarize")  # +test suffix should be stripped
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_complex_suffix(self):
+        """Test email handle with complex suffix gets stripped."""
+        result = await validate_email_handle(
+            "fact-check+user.123@mxgo.ai", "user@example.com", "Test Subject", "test-message"
+        )
+        assert result == (None, "fact-check")  # Complex suffix should be stripped
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_unsupported_with_suffix(self):
+        """Test unsupported handle with suffix still fails validation."""
+        with patch("mxgo.validators.send_email_reply", new_callable=AsyncMock) as mock_send:
+            result = await validate_email_handle(
+                "unsupported+local@mxgo.ai", "user@example.com", "Test Subject", "test-message"
+            )
+
+            # Should return error response since 'unsupported' is not a valid handle
+            error_response, handle = result
+            assert error_response is not None
+            assert error_response.status_code == 400
+            assert handle is None
+            mock_send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_case_insensitive_with_suffix(self):
+        """Test case insensitive handle validation with suffix."""
+        result = await validate_email_handle("ASK+LOCAL@mxgo.ai", "user@example.com", "Test Subject", "test-message")
+        assert result == (None, "ask")  # Should be normalized to lowercase
+
+    @pytest.mark.asyncio
+    async def test_validate_email_handle_multiple_plus_signs(self):
+        """Test handle with multiple + signs (edge case)."""
+        result = await validate_email_handle(
+            "ask+local+test@mxgo.ai", "user@example.com", "Test Subject", "test-message"
+        )
+        assert result == (None, "ask")  # Should strip everything after first +
