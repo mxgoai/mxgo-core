@@ -1,6 +1,3 @@
-// Define the base URL as a constant
-const BASE_URL = "https://api.mxgo.ai";
-
 import PostalMime from 'postal-mime';
 import { EmailMessage } from "cloudflare:email";
 import { createMimeMessage } from "mimetext";
@@ -102,7 +99,7 @@ export default {
 
       // Determine which API endpoint and key to use based on recipient
       const isLocalRequest = recipient.includes('+local');
-      const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : BASE_URL;
+      const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : env.base_url;
       const selectedEndpoint = `${baseUrl}/process-email`;
       const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
 
@@ -175,7 +172,7 @@ export default {
 
         // Still try to send to the API (use same endpoint and key selection logic)
         const isLocalRequest = recipient.includes('+local');
-        const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : BASE_URL;
+        const baseUrl = isLocalRequest ? env.local_base_url?.replace(/\/$/, '') : env.base_url;
         const selectedEndpoint = `${baseUrl}/process-email`;
         const apiKey = isLocalRequest ? env.local_api_key : env.x_api_key;
 
