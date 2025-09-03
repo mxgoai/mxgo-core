@@ -27,7 +27,6 @@ wheels/
 *.egg
 
 # Poetry
-poetry.lock
 .venv/
 venv/
 
