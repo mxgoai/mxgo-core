@@ -85,9 +85,10 @@ def build_response_prompt(request: GenerateEmailReplyRequest) -> str:
     parsed_content = parse_email_body(request.email_content)
 
     # Format attachments
-    attachments_list = []
-    for att in request.attachments:
-        attachments_list.append({"filename": att.filename, "file_type": att.file_type, "file_size": att.file_size})
+    attachments_list = [
+        {"filename": att.filename, "file_type": att.file_type, "file_size": att.file_size}
+        for att in request.attachments
+    ]
 
     # Build YAML input
     yaml_input = f"""email:
@@ -198,7 +199,7 @@ async def generate_replies(request: GenerateEmailReplyRequest) -> list[ReplyCand
             candidates.append(candidate)
 
         logger.info(f"Generated {len(candidates)} response candidates")
-        return candidates
+        return candidates  # noqa: TRY300
 
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse JSON response: {e}")
