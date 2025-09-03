@@ -11,17 +11,22 @@ from dotenv import load_dotenv
 from smolagents import Tool, ToolCallingAgent
 from smolagents.monitoring import TokenUsage
 
-# Monkey patch TokenUsage to handle None values
+# Monkey patch TokenUsage to handle None values robustly
 original_post_init = TokenUsage.__post_init__
 
 
 def patched_post_init(self):
-    # Handle None values by setting them to 0
+    # Handle None values by setting them to 0 before any operations
     if self.input_tokens is None:
         self.input_tokens = 0
     if self.output_tokens is None:
         self.output_tokens = 0
-    original_post_init(self)
+    # Call original post_init which will now work with non-None values
+    try:
+        original_post_init(self)
+    except Exception:
+        # If original post_init still fails, set total_tokens manually
+        self.total_tokens = self.input_tokens + self.output_tokens
 
 
 TokenUsage.__post_init__ = patched_post_init
