@@ -843,7 +843,7 @@ async def process_suggestions(
 @app.post("/replies")
 async def generate_email_replies(
     request: GenerateEmailReplyRequest,
-    current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
+    current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,  # noqa: ARG001
     _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
 ) -> list[ReplyCandidate]:
     """

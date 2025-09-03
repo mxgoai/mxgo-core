@@ -13,7 +13,7 @@ from fastapi import Response
 from fastapi.testclient import TestClient
 
 from mxgo.api import app
-from mxgo.schemas import UserPlan
+from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail, UserPlan
 
 
 class TestProcessEmailIntegration:
@@ -260,8 +260,6 @@ class TestSuggestionsIntegration:
     @pytest.fixture
     def mock_generate_suggestions(self):
         """Mock generate_suggestions function."""
-        from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail
-
         with patch("mxgo.api.generate_suggestions") as mock_gen:
             mock_response = EmailSuggestionResponse(
                 email_identified="test_email_123",
