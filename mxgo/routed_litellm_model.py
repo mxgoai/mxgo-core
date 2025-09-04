@@ -4,12 +4,12 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
 import mxgo.schemas
 from mxgo import exceptions
 from mxgo._logging import get_logger
 from mxgo.schemas import ProcessingInstructions
+from smolagents import ChatMessage, LiteLLMRouterModel, Tool
 
 load_dotenv()
 
