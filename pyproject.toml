@@ -152,7 +152,7 @@ pytest-cov = "^6.2.1"
 pytest-timeout = "^2.4.0"
 pytest-durations = "^1.5.2"
 pytest-retry = "^1.7.0"
-fakeredis = "^2.29.0"
+fakeredis = "^2.32.0"
 freezegun = "^1.5.2"
 
 [tool.pytest.ini_options]
