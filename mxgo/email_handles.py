@@ -47,7 +47,7 @@ DEFAULT_EMAIL_HANDLES = [
         aliases=["deep-research"],
         process_attachments=True,
         deep_research_mandatory=True,
-        allowed_tools=COMMON_TOOLS + SEARCH_TOOLS + RESEARCH_TOOLS,
+        allowed_tools=COMMON_TOOLS + SEARCH_TOOLS + RESEARCH_TOOLS + NEWS_TOOLS,
         add_summary=True,
         target_model="gpt-4",
         task_template=template_prompts.RESEARCH_TEMPLATE,
@@ -70,6 +70,7 @@ DEFAULT_EMAIL_HANDLES = [
         deep_research_mandatory=False,
         allowed_tools=COMMON_TOOLS
         + SEARCH_TOOLS
+        + NEWS_TOOLS
         + RESEARCH_TOOLS
         + [ToolName.MEETING_CREATOR, ToolName.SCHEDULED_TASKS],
         target_model="gpt-4",
@@ -140,7 +141,7 @@ DEFAULT_EMAIL_HANDLES = [
         ],
         process_attachments=True,
         deep_research_mandatory=False,
-        allowed_tools=[*COMMON_TOOLS, ToolName.SCHEDULED_TASKS],
+        allowed_tools=[*COMMON_TOOLS, ToolName.SCHEDULED_TASKS, *NEWS_TOOLS],
         target_model="gpt-4",
         task_template=template_prompts.FUTURE_TEMPLATE,
         output_template=output_prompts.FUTURE_OUTPUT_GUIDELINES,
@@ -171,7 +172,7 @@ DEFAULT_EMAIL_HANDLES = [
         aliases=["breaking-news", "latest-news", "news-update", "current-events"],
         process_attachments=True,
         deep_research_mandatory=False,
-        allowed_tools=COMMON_TOOLS + NEWS_TOOLS + SEARCH_TOOLS,
+        allowed_tools=COMMON_TOOLS + NEWS_TOOLS + SEARCH_TOOLS + [ToolName.SCHEDULED_TASKS],
         target_model="gpt-4",
         task_template=template_prompts.NEWS_TEMPLATE,
         output_template=output_prompts.NEWS_OUTPUT_GUIDELINES,

@@ -126,6 +126,10 @@ class ScheduledTaskInput(BaseModel):
     distilled_future_task_instructions: str = Field(
         ..., description="Distilled and detailed instructions about how the task will be processed in future"
     )
+    future_handle_alias: HandlerAlias | None = Field(
+        None,
+        description="The specific email handle (e.g., 'news', 'summarize') to use for the future task. Defaults to 'ask' if not provided.",
+    )
     start_time: str | None = Field(
         None, description="Start time for the task - task will not execute before this time (ISO format)"
     )
@@ -185,6 +189,11 @@ class ScheduledTasksTool(Tool):
             "type": "string",
             "description": "Distilled and detailed instructions about how the task will be processed in future",
         },
+        "future_handle_alias": {
+            "type": "string",
+            "description": "The specific email handle (e.g., 'news', 'summarize') to use for the future task. Defaults to 'ask' if omitted.",
+            "nullable": True,
+        },
         "start_time": {
             "type": "string",
             "description": "Optional start time for the task in ISO 8601 format - task will not execute before this time",
@@ -215,6 +224,7 @@ class ScheduledTasksTool(Tool):
         self,
         cron_expression: str,
         distilled_future_task_instructions: str,
+        future_handle_alias: str | None = None,
         start_time: str | None = None,
         end_time: str | None = None,
     ) -> dict:
@@ -224,6 +234,7 @@ class ScheduledTasksTool(Tool):
         Args:
             cron_expression: Valid cron expression for task scheduling
             distilled_future_task_instructions: Distilled and detailed instructions about how the task will be processed in future
+            future_handle_alias: The specific email handle to use for the future task.
             start_time: Optional start time for the task in ISO 8601 format
             end_time: Optional end time for the task in ISO 8601 format
 
@@ -233,6 +244,7 @@ class ScheduledTasksTool(Tool):
         """
         logger.info(f"Storing and scheduling task: {distilled_future_task_instructions}")
         logger.info(f"Cron expression: {cron_expression}")
+        logger.info(f"Future handle alias: {future_handle_alias}")
         logger.info(f"Is one-time task: {is_one_time_task(cron_expression) if cron_expression else 'Unknown'}")
 
         # Get email request from context
@@ -253,6 +265,7 @@ class ScheduledTasksTool(Tool):
             input_data = ScheduledTaskInput(
                 cron_expression=cron_expression,
                 distilled_future_task_instructions=distilled_future_task_instructions,
+                future_handle_alias=future_handle_alias,
                 start_time=start_time,
                 end_time=end_time,
             )
@@ -306,8 +319,16 @@ class ScheduledTasksTool(Tool):
             # Save distilled instructions and task description to email request
             email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
             email_request.task_description = distilled_future_task_instructions
-            # TODO: Need an AI driver logic here but for now we'll just redirect to ask
-            email_request.distilled_alias = HandlerAlias.ASK
+            if input_data.future_handle_alias:
+                try:
+                    email_request.distilled_alias = HandlerAlias(input_data.future_handle_alias)
+                    logger.info(f"Using specified handle alias: {input_data.future_handle_alias}")
+                except ValueError:
+                    logger.warning(f"Invalid handle alias '{input_data.future_handle_alias}', defaulting to ASK")
+                    email_request.distilled_alias = HandlerAlias.ASK
+            else:
+                email_request.distilled_alias = HandlerAlias.ASK
+
             email_request.parent_message_id = email_request.messageId
 
             # Store task in database using CRUD
