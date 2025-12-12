@@ -69,7 +69,7 @@ class RoutedLiteLLMModel(LiteLLMRouterModel):
         """
         if not Path(self.config_path).exists():
             msg = f"Model config file not found at {self.config_path}. Please check the path."
-            raise exceptions.ModelConfigFileNotFoundException(msg)
+            raise exceptions.ModelConfigFileNotFoundError(msg)
 
         try:
             with Path(self.config_path).open("rb") as f:
