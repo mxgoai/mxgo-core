@@ -159,6 +159,12 @@ Execute custom tasks and workflows systematically with research, analysis, and p
 - **Determine approach**: What tools and steps are needed to complete this task
 - **Set quality standards**: How should the final output be structured and presented
 
+## Special Handling for Scheduling Requests
+- **Identify Scheduling Intent**: First, check if the user's primary goal is to create a recurring or future task (e.g., "remind me every day", "send me a report next week").
+- **Prioritize Scheduling**: If the main intent is scheduling, your **only** action should be to call the `scheduled_tasks` tool.
+- **Do Not Execute the Task**: CRITICAL: When scheduling, DO NOT perform the underlying task (e.g., do not run a `news_search` or `web_search`) in the same step. Your job is only to set up the future task.
+- **Confirmation-Only Response**: Your final response should be a confirmation of the schedule, using the format and examples from the `FUTURE_TEMPLATE`. It should include the Task ID and next execution time, but NOT the results of the task itself.
+
 ## STEP 2: Systematic Execution
 **Research & Data Gathering:**
 - Use web search for current information and trends
@@ -1127,6 +1133,9 @@ Analyze email content to extract scheduling requirements for future or recurring
 
 ## STEP 2: Cron Expression Generation
 **Generate appropriate cron expressions based on timing requirements:**
+**CRITICAL: All cron expressions MUST be in UTC time.**
+- If the user specifies a timezone (like IST, PST, EST), you MUST convert their requested time to UTC before creating the cron expression.
+- Example: "every day at 2:40 PM IST" (which is UTC+5:30) translates to 9:10 AM UTC, so the cron expression is `10 9 * * *`.
 
 **Cron Format**: `minute hour day month day_of_week`
 - minute (0-59)
@@ -1185,7 +1194,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 - Include start_time and end_time parameters when time bounds are specified
 
 ## STEP 4: Response Format
-**Provide clear confirmation with:**
+**Provide a clear confirmation using the exact structure below. CRITICAL: Do NOT use asterisks (*) or dashes (-) as bullet points for this list. Use only the bolded labels. No Emojis**
 ```
 ## Scheduled Task Confirmation
 
@@ -1703,19 +1712,35 @@ Provide personalized news updates and current information on specific topics usi
 
 # News Search Process
 
-## STEP 1: Query Analysis & Optimization
+## STEP 1: Intent Analysis - Recurring vs. One-Time
+- **Analyze the user's request**: Does the user ask for news "every day", "weekly", "every hour", or use other recurring language?
+- **If recurring**: Your goal is to use the `scheduled_tasks` tool. You must determine the correct cron expression and the `distilled_future_task_instructions`. Proceed to the execution step for recurring tasks.
+- **If one-time**: Your goal is to use the `news_search` tool to get the news immediately. Proceed with the query analysis and search strategy below.
+
+## STEP 2: Query Analysis & Optimization
 - **Understand the request**: Identify specific topics, companies, regions, or themes
 - **Determine time scope**: Recent news (past day/week), specific date ranges, or current events
 - **Geographical relevance**: Target appropriate countries/regions for localized news
 - **Query refinement**: Create effective search terms for news discovery
 
-## STEP 2: News Search Strategy
+## STEP 3: News Search Strategy
+
+### For One-Time News Requests:
 - **Topic-specific searches**: Use the news_search tool with targeted queries
 - **Time filtering**: Apply appropriate freshness filters (pd=past day, pw=past week, pm=past month, py=past year)
 - **Multiple perspectives**: Search for different angles or related topics if needed
 - **Source diversity**: Ensure variety in news sources and perspectives
+- After getting the results, proceed to Step 4 for analysis and synthesis.
 
-## STEP 3: News Analysis & Synthesis
+### For Recurring News Requests:
+- **CRITICAL**: You must convert any user-specified time and timezone (e.g., 10pm IST) to a UTC-based cron expression.
+- Use the `scheduled_tasks` tool with the following parameters:
+  - `cron_expression`: The generated UTC cron expression.
+  - `distilled_future_task_instructions`: A clear command for the future task, e.g., "Search for the latest news about [topic] and send a summary."
+  - `future_handle_alias`: This MUST be set to 'news'.
+- After calling the tool, format the confirmation message as described in the Output Guidelines.
+
+## STEP 4: News Analysis & Synthesis
 **Group Related Stories**: Before formatting output, identify similar news stories and group them under common themes or topics to avoid repetition.
 
 ```
@@ -1745,14 +1770,16 @@ Provide personalized news updates and current information on specific topics usi
 [Analysis of ongoing developments or emerging patterns]
 ```
 
-## STEP 4: Quality & Relevance Standards
+## STEP 5: Quality & Relevance Standards
 - **Currency focus**: Prioritize recent and breaking news
 - **Source credibility**: Use reputable news sources with proper citations
 - **Relevance filtering**: Focus on information directly related to the request
 - **Breaking news priority**: Highlight urgent or developing stories
 - **Balanced perspective**: Include multiple viewpoints when appropriate
 
-## STEP 5: Output Guidelines
+## STEP 6: Output Guidelines
+- **For one-time searches**: Lead with most important/recent news, cite all sources, and provide context using the format from Step 4.
+- **For recurring tasks**: Provide a clear confirmation message that includes the Task ID, the schedule in a human-readable format, and what will be delivered. DO NOT show the raw cron expression.
 - **Lead with most important/recent news**: Structure by significance and recency
 - **Clear source attribution**: Always cite news sources with proper references
 - **Time context**: Clearly indicate when events occurred
@@ -1784,6 +1811,7 @@ Tesla's mixed performance reflects broader EV market volatility amid changing co
 
 **Special Instructions:**
 - Use **news_search** tool for current news discovery
+- Use **scheduled_tasks** for recurring news requests.
 - Apply appropriate **freshness filters** based on user needs
 - Provide **source citations** for all news items
 - Focus on **actionable insights** and current developments
