@@ -1144,6 +1144,13 @@ Analyze email content to extract scheduling requirements for future or recurring
 - month (1-12)
 - day of week (0-7, Sunday=0 or 7)
 
+**CRITICAL: ONE-TIME vs. RECURRING LOGIC**
+- **For Recurring Tasks** (e.g. "Every day"): Use wildcards for day/month.
+  - Example: `0 14 * * *` (Daily at 2 PM UTC)
+- **For ONE-TIME Future Tasks** (e.g. "Tomorrow at 1pm"): You **MUST** calculate the specific Day and Month relative to the current date. **DO NOT** use wildcards `* *`, or it will run every day.
+  - BAD: `0 13 * * *` (Runs every day)
+  - GOOD: `0 13 16 12 *` (Runs ONLY on Dec 16th at 1pm UTC)
+
 **Common Patterns:**
 - **Daily at specific time**: `0 9 * * *` (9 AM daily)
 - **Weekly**: `0 9 * * 1` (9 AM every Monday)
@@ -1712,10 +1719,10 @@ Provide personalized news updates and current information on specific topics usi
 
 # News Search Process
 
-## STEP 1: Intent Analysis - Recurring vs. One-Time
-- **Analyze the user's request**: Does the user ask for news "every day", "weekly", "every hour", or use other recurring language?
-- **If recurring**: Your goal is to use the `scheduled_tasks` tool. You must determine the correct cron expression and the `distilled_future_task_instructions`. Proceed to the execution step for recurring tasks.
-- **If one-time**: Your goal is to use the `news_search` tool to get the news immediately. Proceed with the query analysis and search strategy below.
+## STEP 1: Intent Analysis - Immediate vs. Future Execution
+- **Analyze the user's request**: Does the user want news *now* (e.g., "what's the latest," "give me news from the past day") or at a *future* time (e.g., "tomorrow morning," "every Friday at 5pm," "in 3 hours")?
+- **If for a future time (either one-time or recurring)**: Your goal is to use the `scheduled_tasks` tool. You must determine the correct cron expression.
+- **If for now**: Your goal is to use the `news_search` tool to get the news immediately.
 
 ## STEP 2: Query Analysis & Optimization
 - **Understand the request**: Identify specific topics, companies, regions, or themes
@@ -1725,15 +1732,18 @@ Provide personalized news updates and current information on specific topics usi
 
 ## STEP 3: News Search Strategy
 
-### For One-Time News Requests:
+### For Immediate News Requests:
 - **Topic-specific searches**: Use the news_search tool with targeted queries
 - **Time filtering**: Apply appropriate freshness filters (pd=past day, pw=past week, pm=past month, py=past year)
 - **Multiple perspectives**: Search for different angles or related topics if needed
 - **Source diversity**: Ensure variety in news sources and perspectives
 - After getting the results, proceed to Step 4 for analysis and synthesis.
 
-### For Recurring News Requests:
+### For Future News Requests (One-Time or Recurring):
 - **CRITICAL**: You must convert any user-specified time and timezone (e.g., 10pm IST) to a UTC-based cron expression.
+- **CRON LOGIC**:
+  - If **Recurring** (e.g. "Every day"): Use `* *` for day/month.
+  - If **One-Time Future** (e.g. "Tomorrow"): You **MUST** use the specific Day and Month integers (e.g., `15 12` for Dec 15th). Do NOT use `* *`.
 - Use the `scheduled_tasks` tool with the following parameters:
   - `cron_expression`: The generated UTC cron expression.
   - `distilled_future_task_instructions`: A clear command for the future task, e.g., "Search for the latest news about [topic] and send a summary."
