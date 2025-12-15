@@ -220,6 +220,63 @@ class ScheduledTasksTool(Tool):
         # Create dedicated scheduling instance for this tool
         self.scheduler = Scheduler()
 
+    def _parse_and_validate_times(
+        self, start_time_str: str | None, end_time_str: str | None, task_description: str
+    ) -> tuple[datetime | None, datetime | None, dict | None]:
+        """
+        Parse start/end times and validate that start is before end.
+        """
+        parsed_start_time = None
+        parsed_end_time = None
+
+        if start_time_str:
+            try:
+                parsed_start_time = datetime.fromisoformat(start_time_str)
+                parsed_start_time = round_to_nearest_minute(parsed_start_time)
+            except Exception as e:
+                logger.warning(f"Could not parse start_time: {e}")
+
+        if end_time_str:
+            try:
+                parsed_start_time = datetime.fromisoformat(end_time_str)
+                parsed_start_time = round_to_nearest_minute(parsed_start_time)
+            except Exception as e:
+                logger.warning(f"Could not parse start_time: {e}")
+
+        # Validate that start_time is before end_time if both are provided
+        if parsed_start_time and parsed_end_time and parsed_start_time >= parsed_end_time:
+            return (
+                None,
+                None,
+                {
+                    "success": False,
+                    "error": "Invalid time range",
+                    "message": "start_time must be before end_time",
+                    "task_description": task_description,
+                },
+            )
+
+        return parsed_start_time, parsed_end_time, None
+    
+    def _configure_email_request(self, email_request, input_data: ScheduledTaskInput) -> None:
+        """
+        Configure email request with task instructions and alias.
+        """
+        email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
+        email_request.task_description = input_data.distilled_future_task_instructions
+
+        if input_data.future_handle_alias:
+            try:
+                email_request.distilled_alias = HandlerAlias(input_data.future_handle_alias)
+                logger.info(f"Using specified handle alias: {input_data.future_handle_alias}")
+            except ValueError:
+                logger.warning(f"Invalid handle alias '{input_data.future_handle_alias}', defaulting to ASK")
+                email_request.distilled_alias = HandlerAlias.ASK
+        else:
+            email_request.distilled_alias = HandlerAlias.ASK
+
+        email_request.parent_message_id = email_request.messageId
+
     def forward(
         self,
         cron_expression: str,
@@ -277,37 +334,17 @@ class ScheduledTasksTool(Tool):
                 time_until_execution = next_execution_time - datetime.now(timezone.utc)
                 logger.info(f"One-time task will execute at: {next_execution_time} (in {time_until_execution})")
 
+            # Parse and validate times (Refactored to helper)
+            parsed_start_time, parsed_end_time, time_error = self._parse_and_validate_times(
+                input_data.start_time, input_data.end_time, distilled_future_task_instructions
+            )
+            if time_error:
+                return time_error
+
             db_connection = init_db_connection()
             # Generate unique task ID
             task_id = str(uuid.uuid4())
             email_id = email_request.from_email
-
-            # Parse start_time and end_time if provided
-            parsed_start_time = None
-            parsed_end_time = None
-
-            if input_data.start_time:
-                try:
-                    parsed_start_time = datetime.fromisoformat(input_data.start_time)
-                    parsed_start_time = round_to_nearest_minute(parsed_start_time)
-                except Exception as e:
-                    logger.warning(f"Could not parse start_time: {e}")
-
-            if input_data.end_time:
-                try:
-                    parsed_end_time = datetime.fromisoformat(input_data.end_time)
-                    parsed_end_time = round_to_nearest_minute(parsed_end_time)
-                except Exception as e:
-                    logger.warning(f"Could not parse end_time: {e}")
-
-            # Validate that start_time is before end_time if both are provided
-            if parsed_start_time and parsed_end_time and parsed_start_time >= parsed_end_time:
-                return {
-                    "success": False,
-                    "error": "Invalid time range",
-                    "message": "start_time must be before end_time",
-                    "task_description": distilled_future_task_instructions,
-                }
 
             # Calculate next execution time from cron expression
             cron_iter = croniter(input_data.cron_expression, datetime.now(timezone.utc))
@@ -317,19 +354,7 @@ class ScheduledTasksTool(Tool):
             scheduler_job_id = f"task_{task_id}"
 
             # Save distilled instructions and task description to email request
-            email_request.distilled_processing_instructions = input_data.distilled_future_task_instructions
-            email_request.task_description = distilled_future_task_instructions
-            if input_data.future_handle_alias:
-                try:
-                    email_request.distilled_alias = HandlerAlias(input_data.future_handle_alias)
-                    logger.info(f"Using specified handle alias: {input_data.future_handle_alias}")
-                except ValueError:
-                    logger.warning(f"Invalid handle alias '{input_data.future_handle_alias}', defaulting to ASK")
-                    email_request.distilled_alias = HandlerAlias.ASK
-            else:
-                email_request.distilled_alias = HandlerAlias.ASK
-
-            email_request.parent_message_id = email_request.messageId
+            self._configure_email_request(email_request, input_data)
 
             # Store task in database using CRUD
             try:
