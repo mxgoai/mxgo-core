@@ -257,7 +257,7 @@ class ScheduledTasksTool(Tool):
             )
 
         return parsed_start_time, parsed_end_time, None
-    
+
     def _configure_email_request(self, email_request, input_data: ScheduledTaskInput) -> None:
         """
         Configure email request with task instructions and alias.
