@@ -167,8 +167,8 @@ class ScheduledTasksTool(Tool):
 
         if end_time_str:
             try:
-                parsed_start_time = datetime.fromisoformat(end_time_str)
-                parsed_start_time = round_to_nearest_minute(parsed_start_time)
+                parsed_end_time = datetime.fromisoformat(end_time_str)
+                parsed_end_time = round_to_nearest_minute(parsed_end_time)
             except Exception as e:
                 logger.warning(f"Could not parse start_time: {e}")
 
