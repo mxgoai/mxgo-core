@@ -2,9 +2,11 @@ import json
 import os
 import shutil
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
+import re
 from typing import Annotated, Any
+import uuid
 
 import aiofiles
 import redis.asyncio as aioredis
@@ -13,23 +15,30 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, Uploa
 from fastapi.security import APIKeyHeader, HTTPBearer
 from sqlalchemy import text
 
-from mxgo import user, validators
+from mxgo import crud, user, validators, whitelist
 from mxgo._logging import get_logger
 from mxgo.auth import AuthInfo, get_current_user
-from mxgo.config import ATTACHMENTS_DIR, RATE_LIMITS_BY_PLAN, SKIP_EMAIL_DELIVERY
+from mxgo.config import ATTACHMENTS_DIR, NEWSLETTER_LIMITS_BY_PLAN, RATE_LIMITS_BY_PLAN, SKIP_EMAIL_DELIVERY
 from mxgo.db import init_db_connection
 from mxgo.dependencies import processing_instructions_resolver
 from mxgo.email_sender import (
     generate_email_id,
     send_email_reply,
 )
+from mxgo.models import TaskStatus
 from mxgo.reply_generation import generate_replies
+from mxgo.scheduling.scheduler import Scheduler, is_one_time_task
+from mxgo.scheduling.scheduled_task_executor import execute_scheduled_task
 from mxgo.schemas import (
+    CreateNewsletterRequest,
+    CreateNewsletterResponse,
+    HandlerAlias,
     EmailAttachment,
     EmailRequest,
     EmailSuggestionRequest,
     EmailSuggestionResponse,
     GenerateEmailReplyRequest,
+    NewsletterUsageInfo,
     ReplyCandidate,
     UsageInfo,
     UsagePeriod,
@@ -38,6 +47,7 @@ from mxgo.schemas import (
 )
 from mxgo.suggestions import generate_suggestions, get_suggestions_model
 from mxgo.tasks import process_email_task, rabbitmq_broker
+from mxgo.utils import calculate_cron_interval, convert_schedule_to_cron_list
 from mxgo.validators import (
     get_current_usage_redis,
     validate_api_key,
@@ -869,6 +879,166 @@ async def generate_email_replies(
         ) from e
 
 
+@app.post("/create-newsletter", response_model=CreateNewsletterResponse)
+async def create_newsletter(
+    request: CreateNewsletterRequest,
+    current_user: Annotated[AuthInfo, Depends(get_current_user)],
+    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
+) -> CreateNewsletterResponse:
+    """
+    Create and schedule a recurring newsletter task for the authenticated user.
+
+    Args:
+        request: The email generate response request.
+        current_user: The authenticated user from JWT token.
+
+    Returns:
+        CreateNewsletterResponse: A response object indicating success, whitelist status, and created task IDs.
+    """
+    user_email = current_user.email
+    logger.info(f"Received newsletter creation request for user: {user_email}")
+
+    # Combine all instructions into a single prompt
+    full_instructions = [f"PROMPT: {request.prompt}"]
+    if request.estimated_read_time:
+        full_instructions.append(f"ESTIMATED READ TIME: {request.estimated_read_time} minutes")
+    if request.sources:
+        full_instructions.append(f"SOURCES: {', '.join(request.sources)}")
+    if request.geographic_locations:
+        full_instructions.append(f"GEOGRAPHIC FOCUS: {', '.join(request.geographic_locations)}")
+    if request.formatting_instructions:
+        full_instructions.append(f"FORMATTING INSTRUCTIONS: {request.formatting_instructions}")
+    distilled_instructions = "\n\n".join(full_instructions)
+
+    # Convert schedule options to cron expressions
+    try:
+        cron_expressions = convert_schedule_to_cron_list(request.schedule)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    # Plan and Limit Validation
+    user_plan = await user.get_user_plan(user_email)
+    plan_limits = NEWSLETTER_LIMITS_BY_PLAN.get(user_plan, NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA])
+    min_interval = timedelta(days=plan_limits["min_interval_days"])
+
+    db_connection = init_db_connection()
+    with db_connection.get_session() as session:
+        active_task_count = crud.count_active_tasks_for_user(session, user_email)
+
+    if (active_task_count + len(cron_expressions)) > plan_limits["max_tasks"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Newsletter limit reached for {user_plan.value} plan. "
+            f"You have {active_task_count} active tasks and are trying to add {len(cron_expressions)} more "
+            f"(max: {plan_limits['max_tasks']}).",
+        )
+
+    # Cron Validitiy Check
+    for cron_expr in cron_expressions:
+        try:
+            if not is_one_time_task(cron_expr):
+                interval = calculate_cron_interval(cron_expr)
+                if interval < min_interval:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"Cron interval is too frequent for {user_plan.value} plan. "
+                        f"Minimum interval is {plan_limits['min_interval_days']} days.",
+                    )
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid cron expression: {e}") from e
+
+    # Whitelist Check
+    exists_in_whitelist, is_verified = await whitelist.is_email_whitelisted(user_email)
+    is_whitelisted = exists_in_whitelist and is_verified
+
+    # Task Creation
+    created_task_ids = []
+    scheduler = Scheduler()
+    is_scheduled = False
+
+    for cron_expr in cron_expressions:
+        task_id = str(uuid.uuid4())
+        scheduler_job_id = f"task_{task_id}"
+
+        email_for_task = EmailRequest(
+            from_email=user_email,
+            to="ask@mxgo.ai",
+            subject=f"Newsletter: {request.prompt[:50]}...",
+            distilled_processing_instructions=distilled_instructions,
+            distilled_alias=HandlerAlias.ASK,
+            messageId=f"<newsletter-{task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
+            parent_message_id=f"<newsletter-parent-{task_id}@mxgo.ai>",
+        )
+
+        try:
+            with db_connection.get_session() as session:
+                crud.create_task(
+                    session=session,
+                    task_id=task_id,
+                    email_id=user_email,
+                    cron_expression=cron_expr,
+                    email_request=email_for_task.model_dump(by_alias=True),
+                    scheduler_job_id=scheduler_job_id,
+                    status=TaskStatus.INITIALISED,
+                )
+
+            scheduler.add_job(
+                job_id=scheduler_job_id,
+                cron_expression=cron_expr,
+                func=execute_scheduled_task,
+                args=[task_id],
+            )
+
+            with db_connection.get_session() as session:
+                crud.update_task_status(session, task_id, TaskStatus.ACTIVE)
+
+            created_task_ids.append(task_id)
+            is_scheduled = True
+            logger.info(f"Newsletter task {task_id} for {user_email} scheduled successfully.")
+
+        except Exception as e:
+            logger.error(f"Failed to schedule newsletter task with cron '{cron_expr}' for {user_email}: {e}")
+            with db_connection.get_session() as session:
+                for tid in created_task_ids:
+                    crud.delete_task(session, tid)
+            raise HTTPException(status_code=500, detail="Failed to schedule one or more newsletter tasks.") from e
+
+    # Sample Execution / Whitelist Action
+    sample_email_sent = False
+    if is_whitelisted and created_task_ids[0]:
+        logger.info(f"User {user_email} is whitelisted. Sending sample newsletter.")
+        first_task_id = created_task_ids[0]
+        sample_email_request = EmailRequest(
+            from_email=user_email,
+            to="ask@mxgo.ai",
+            subject=f"[SAMPLE] Newsletter: {request.prompt[:40]}...",
+            distilled_processing_instructions=distilled_instructions,
+            distilled_alias=HandlerAlias.ASK,
+            messageId=f"<newsletter-sample-{first_task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
+            parent_message_id=f"<newsletter-parent-{first_task_id}@mxgo.ai>",
+        )
+        process_email_task.send(
+            sample_email_request.model_dump(),
+            email_attachments_dir="",
+            attachment_info=[],
+            scheduled_task_id=task_id,
+        )
+        sample_email_sent = True
+    elif not is_whitelisted:
+        logger.info(f"User {user_email} is not whitelisted. Triggering verification.")
+        try:
+            await whitelist.trigger_automatic_verification(user_email)
+        except Exception as e:
+            logger.error(f"Error triggering whitelist verification for {user_email}: {e}")
+
+    return CreateNewsletterResponse(
+        is_scheduled=is_scheduled,
+        is_whitelisted=is_whitelisted,
+        sample_email_sent=sample_email_sent,
+        scheduled_task_ids=created_task_ids,
+    )
+
+
 @app.get("/user")
 async def get_user_info(
     current_user: Annotated[AuthInfo, Depends(get_current_user)] = ...,
@@ -906,6 +1076,18 @@ async def get_user_info(
         else:
             logger.info(f"No customer ID found for email {current_user.email}")
 
+        # Get newsletter limits and current usage
+        newsletter_limits_config = NEWSLETTER_LIMITS_BY_PLAN.get(user_plan, NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA])
+        max_newsletters_allowed = newsletter_limits_config["max_tasks"]
+
+        with init_db_connection().get_session() as session:
+            current_newsletter_count = crud.count_active_tasks_for_user(session, current_user.email)
+
+        newsletter_usage = NewsletterUsageInfo(
+            current_count=current_newsletter_count,
+            max_allowed=max_newsletters_allowed
+        )
+
         # Get usage information
         normalized_user_email = user.normalize_email(current_user.email)
         current_dt = datetime.now(timezone.utc)
@@ -936,7 +1118,12 @@ async def get_user_info(
 
         logger.info(f"Successfully retrieved user info for {current_user.email}")
 
-        return UserInfoResponse(subscription_info=subscription_info, plan_name=user_plan.value, usage_info=usage_info)
+        return UserInfoResponse(
+            subscription_info=subscription_info,
+            plan_name=user_plan.value,
+            usage_info=usage_info,
+            newsletter_usage=newsletter_usage
+        )
 
     except Exception as e:
         logger.error(f"Error retrieving user info for {current_user.email}: {e}")

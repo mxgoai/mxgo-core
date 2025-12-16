@@ -26,6 +26,18 @@ MAX_ATTACHMENTS_COUNT = 5
 # Scheduled tasks configuration
 SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS = 1
 SCHEDULED_TASKS_MAX_PER_EMAIL = 5
+
+NEWSLETTER_LIMITS_BY_PLAN = {
+    UserPlan.BETA: {
+        "max_tasks": 3,
+        "min_interval_days": 7,
+    },
+    UserPlan.PRO: {
+        "max_tasks": 20,
+        "min_interval_days": 1,
+    },
+}
+
 RATE_LIMITS_BY_PLAN = {
     UserPlan.BETA: {
         "hour": {"limit": 10, "period_seconds": 3600, "expiry_seconds": 3600 * 2},  # 2hr expiry for 1hr window
