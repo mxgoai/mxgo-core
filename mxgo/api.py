@@ -1,12 +1,11 @@
 import json
 import os
 import shutil
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-import re
-from typing import Annotated, Any
 import uuid
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import Annotated, Any
 
 import aiofiles
 import redis.asyncio as aioredis
@@ -27,17 +26,17 @@ from mxgo.email_sender import (
 )
 from mxgo.models import TaskStatus
 from mxgo.reply_generation import generate_replies
-from mxgo.scheduling.scheduler import Scheduler, is_one_time_task
 from mxgo.scheduling.scheduled_task_executor import execute_scheduled_task
+from mxgo.scheduling.scheduler import Scheduler, is_one_time_task
 from mxgo.schemas import (
     CreateNewsletterRequest,
     CreateNewsletterResponse,
-    HandlerAlias,
     EmailAttachment,
     EmailRequest,
     EmailSuggestionRequest,
     EmailSuggestionResponse,
     GenerateEmailReplyRequest,
+    HandlerAlias,
     NewsletterUsageInfo,
     ReplyCandidate,
     UsageInfo,
@@ -879,26 +878,9 @@ async def generate_email_replies(
         ) from e
 
 
-@app.post("/create-newsletter", response_model=CreateNewsletterResponse)
-async def create_newsletter(
-    request: CreateNewsletterRequest,
-    current_user: Annotated[AuthInfo, Depends(get_current_user)],
-    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
-) -> CreateNewsletterResponse:
-    """
-    Create and schedule a recurring newsletter task for the authenticated user.
-
-    Args:
-        request: The email generate response request.
-        current_user: The authenticated user from JWT token.
-
-    Returns:
-        CreateNewsletterResponse: A response object indicating success, whitelist status, and created task IDs.
-    """
-    user_email = current_user.email
-    logger.info(f"Received newsletter creation request for user: {user_email}")
-
-    # Combine all instructions into a single prompt
+# Helper functions for create_newsletter
+def _build_newsletter_instructions(request: CreateNewsletterRequest) -> str:
+    """Builds the full instruction string from the request."""
     full_instructions = [f"PROMPT: {request.prompt}"]
     if request.estimated_read_time:
         full_instructions.append(f"ESTIMATED READ TIME: {request.estimated_read_time} minutes")
@@ -908,15 +890,11 @@ async def create_newsletter(
         full_instructions.append(f"GEOGRAPHIC FOCUS: {', '.join(request.geographic_locations)}")
     if request.formatting_instructions:
         full_instructions.append(f"FORMATTING INSTRUCTIONS: {request.formatting_instructions}")
-    distilled_instructions = "\n\n".join(full_instructions)
+    return "\n\n".join(full_instructions)
 
-    # Convert schedule options to cron expressions
-    try:
-        cron_expressions = convert_schedule_to_cron_list(request.schedule)
-    except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
-    # Plan and Limit Validation
+async def _validate_newsletter_limits(user_email: str, cron_expressions: list[str]):
+    """Validates the user's plan limits for newsletters."""
     user_plan = await user.get_user_plan(user_email)
     plan_limits = NEWSLETTER_LIMITS_BY_PLAN.get(user_plan, NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA])
     min_interval = timedelta(days=plan_limits["min_interval_days"])
@@ -933,85 +911,63 @@ async def create_newsletter(
             f"(max: {plan_limits['max_tasks']}).",
         )
 
-    # Cron Validitiy Check
     for cron_expr in cron_expressions:
-        try:
-            if not is_one_time_task(cron_expr):
-                interval = calculate_cron_interval(cron_expr)
-                if interval < min_interval:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail=f"Cron interval is too frequent for {user_plan.value} plan. "
-                        f"Minimum interval is {plan_limits['min_interval_days']} days.",
-                    )
-        except ValueError as e:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid cron expression: {e}") from e
-
-    # Whitelist Check
-    exists_in_whitelist, is_verified = await whitelist.is_email_whitelisted(user_email)
-    is_whitelisted = exists_in_whitelist and is_verified
-
-    # Task Creation
-    created_task_ids = []
-    scheduler = Scheduler()
-    is_scheduled = False
-
-    for cron_expr in cron_expressions:
-        task_id = str(uuid.uuid4())
-        scheduler_job_id = f"task_{task_id}"
-
-        email_for_task = EmailRequest(
-            from_email=user_email,
-            to="ask@mxgo.ai",
-            subject=f"Newsletter: {request.prompt[:50]}...",
-            distilled_processing_instructions=distilled_instructions,
-            distilled_alias=HandlerAlias.ASK,
-            messageId=f"<newsletter-{task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
-            parent_message_id=f"<newsletter-parent-{task_id}@mxgo.ai>",
-        )
-
-        try:
-            with db_connection.get_session() as session:
-                crud.create_task(
-                    session=session,
-                    task_id=task_id,
-                    email_id=user_email,
-                    cron_expression=cron_expr,
-                    email_request=email_for_task.model_dump(by_alias=True),
-                    scheduler_job_id=scheduler_job_id,
-                    status=TaskStatus.INITIALISED,
+        if not is_one_time_task(cron_expr):
+            interval = calculate_cron_interval(cron_expr)
+            if interval < min_interval:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cron interval is too frequent for {user_plan.value} plan. "
+                    f"Minimum interval is {plan_limits['min_interval_days']} days.",
                 )
 
-            scheduler.add_job(
-                job_id=scheduler_job_id,
-                cron_expression=cron_expr,
-                func=execute_scheduled_task,
-                args=[task_id],
-            )
 
-            with db_connection.get_session() as session:
-                crud.update_task_status(session, task_id, TaskStatus.ACTIVE)
+def _create_and_schedule_task(user_email: str, cron_expr: str, distilled_instructions: str, prompt: str) -> str:
+    """Creates a single newsletter task and schedules it."""
+    task_id = str(uuid.uuid4())
+    scheduler_job_id = f"task_{task_id}"
+    email_for_task = EmailRequest(
+        from_email=user_email,
+        to="ask@mxgo.ai",
+        subject=f"Newsletter: {prompt[:50]}...",
+        distilled_processing_instructions=distilled_instructions,
+        distilled_alias=HandlerAlias.ASK,
+        messageId=f"<newsletter-{task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
+        parent_message_id=f"<newsletter-parent-{task_id}@mxgo.ai>",
+    )
 
-            created_task_ids.append(task_id)
-            is_scheduled = True
-            logger.info(f"Newsletter task {task_id} for {user_email} scheduled successfully.")
+    db_connection = init_db_connection()
+    with db_connection.get_session() as session:
+        crud.create_task(
+            session=session,
+            task_id=task_id,
+            email_id=user_email,
+            cron_expression=cron_expr,
+            email_request=email_for_task.model_dump(by_alias=True),
+            scheduler_job_id=scheduler_job_id,
+            status=TaskStatus.INITIALISED,
+        )
 
-        except Exception as e:
-            logger.error(f"Failed to schedule newsletter task with cron '{cron_expr}' for {user_email}: {e}")
-            with db_connection.get_session() as session:
-                for tid in created_task_ids:
-                    crud.delete_task(session, tid)
-            raise HTTPException(status_code=500, detail="Failed to schedule one or more newsletter tasks.") from e
+    scheduler = Scheduler()
+    scheduler.add_job(job_id=scheduler_job_id, cron_expression=cron_expr, func=execute_scheduled_task, args=[task_id])
 
-    # Sample Execution / Whitelist Action
-    sample_email_sent = False
-    if is_whitelisted and created_task_ids[0]:
+    with db_connection.get_session() as session:
+        crud.update_task_status(session, task_id, TaskStatus.ACTIVE)
+
+    logger.info(f"Newsletter task {task_id} for {user_email} scheduled successfully.")
+    return task_id
+
+
+async def _handle_post_creation_action(
+    user_email: str, *, is_whitelisted: bool, first_task_id: str, distilled_instructions: str, prompt: str
+):
+    """Sends a sample email if the user is whitelisted, otherwise triggers verification."""
+    if is_whitelisted:
         logger.info(f"User {user_email} is whitelisted. Sending sample newsletter.")
-        first_task_id = created_task_ids[0]
         sample_email_request = EmailRequest(
             from_email=user_email,
             to="ask@mxgo.ai",
-            subject=f"[SAMPLE] Newsletter: {request.prompt[:40]}...",
+            subject=f"[SAMPLE] Newsletter: {prompt[:40]}...",
             distilled_processing_instructions=distilled_instructions,
             distilled_alias=HandlerAlias.ASK,
             messageId=f"<newsletter-sample-{first_task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
@@ -1021,18 +977,69 @@ async def create_newsletter(
             sample_email_request.model_dump(),
             email_attachments_dir="",
             attachment_info=[],
-            scheduled_task_id=task_id,
+            scheduled_task_id=first_task_id,
         )
-        sample_email_sent = True
-    elif not is_whitelisted:
-        logger.info(f"User {user_email} is not whitelisted. Triggering verification.")
-        try:
-            await whitelist.trigger_automatic_verification(user_email)
-        except Exception as e:
-            logger.error(f"Error triggering whitelist verification for {user_email}: {e}")
+        return True
+
+    logger.info(f"User {user_email} is not whitelisted. Triggering verification.")
+    try:
+        await whitelist.trigger_automatic_verification(user_email)
+    except Exception as e:
+        logger.error(f"Error triggering whitelist verification for {user_email}: {e}")
+    return False
+
+
+@app.post("/create-newsletter")
+async def create_newsletter(
+    request: CreateNewsletterRequest,
+    current_user: Annotated[AuthInfo, Depends(get_current_user)],
+    _token: Annotated[str, Depends(bearer_auth_scheme)] = ...,
+) -> CreateNewsletterResponse:
+    """
+    Create and schedule a recurring newsletter task for the authenticated user.
+    """
+    user_email = current_user.email
+    logger.info(f"Received newsletter creation request for user: {user_email}")
+
+    distilled_instructions = _build_newsletter_instructions(request)
+
+    try:
+        cron_expressions = convert_schedule_to_cron_list(request.schedule)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
+
+    await _validate_newsletter_limits(user_email, cron_expressions)
+
+    exists_in_whitelist, is_verified = await whitelist.is_email_whitelisted(user_email)
+    is_whitelisted = exists_in_whitelist and is_verified
+
+    created_task_ids = []
+    try:
+        for cron_expr in cron_expressions:
+            task_id = _create_and_schedule_task(user_email, cron_expr, distilled_instructions, request.prompt)
+            created_task_ids.append(task_id)
+    except Exception as e:
+        logger.error(f"Failed to schedule one or more newsletter tasks for {user_email}: {e}")
+
+        # Rollback created tasks if any failed
+        db_connection = init_db_connection()
+        with db_connection.get_session() as session:
+            for tid in created_task_ids:
+                crud.delete_task(session, tid)
+        raise HTTPException(status_code=500, detail="Failed to schedule one or more newsletter tasks.") from e
+
+    sample_email_sent = False
+    if created_task_ids:
+        sample_email_sent = await _handle_post_creation_action(
+            user_email,
+            is_whitelisted=is_whitelisted,
+            first_task_id=created_task_ids[0],
+            distilled_instructions=distilled_instructions,
+            prompt=request.prompt,
+        )
 
     return CreateNewsletterResponse(
-        is_scheduled=is_scheduled,
+        is_scheduled=bool(created_task_ids),
         is_whitelisted=is_whitelisted,
         sample_email_sent=sample_email_sent,
         scheduled_task_ids=created_task_ids,
@@ -1084,8 +1091,7 @@ async def get_user_info(
             current_newsletter_count = crud.count_active_tasks_for_user(session, current_user.email)
 
         newsletter_usage = NewsletterUsageInfo(
-            current_count=current_newsletter_count,
-            max_allowed=max_newsletters_allowed
+            current_count=current_newsletter_count, max_allowed=max_newsletters_allowed
         )
 
         # Get usage information
@@ -1122,7 +1128,7 @@ async def get_user_info(
             subscription_info=subscription_info,
             plan_name=user_plan.value,
             usage_info=usage_info,
-            newsletter_usage=newsletter_usage
+            newsletter_usage=newsletter_usage,
         )
 
     except Exception as e:

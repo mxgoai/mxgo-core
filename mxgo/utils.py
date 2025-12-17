@@ -1,6 +1,7 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 
 from mxgo.schemas import ScheduleOptions, ScheduleType
+
 
 def round_to_nearest_minute(dt: datetime) -> datetime:
     """
@@ -110,10 +111,7 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:  # noqa: PLR0912
         elif day == "*" and month == "*" and weekday not in {"*", "?"}:
             # If multiple days are specified (e.g., "1-5" or "1,3,5"), the minimum interval is 1 day.
             # Otherwise, it's a single day of the week, so the interval is 7 days.
-            if "," in weekday or "-" in weekday:
-                interval = timedelta(days=1)
-            else:
-                interval = timedelta(weeks=1)
+            interval = timedelta(days=1) if "," in weekday or "-" in weekday else timedelta(weeks=1)
 
         # Monthly pattern (specific day of month)
         elif day != "*" and month == "*":
@@ -142,7 +140,8 @@ def convert_schedule_to_cron_list(schedule: ScheduleOptions) -> list[str]:
     if schedule.type == ScheduleType.SPECIFIC_DATES:
         cron_list = []
         if not schedule.specific_dates:
-            raise ValueError("specific_dates must be provided for SPECIFIC_DATES schedule type.")
+            msg = "specific_dates must be provided for SPECIFIC_DATES schedule type."
+            raise ValueError(msg)
         for dt_str in schedule.specific_dates:
             dt = datetime.fromisoformat(dt_str)
             if dt.tzinfo is None:
@@ -152,12 +151,14 @@ def convert_schedule_to_cron_list(schedule: ScheduleOptions) -> list[str]:
 
     if schedule.type == ScheduleType.RECURRING_WEEKLY:
         if not schedule.recurring_weekly or not schedule.recurring_weekly.days:
-            raise ValueError("recurring_weekly with at least one day must be provided for RECURRING_WEEKLY schedule type.")
+            msg = "recurring_weekly with at least one day must be provided for RECURRING_WEEKLY schedule type."
+            raise ValueError(msg)
 
-        day_map = {'monday': 1, 'tuesday': 2, 'wednesday': 3, 'thursday': 4, 'friday': 5, 'saturday': 6, 'sunday': 0}
+        day_map = {"monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4, "friday": 5, "saturday": 6, "sunday": 0}
         days_of_week = ",".join(str(day_map[day]) for day in schedule.recurring_weekly.days)
-        hour, minute = schedule.recurring_weekly.time.split(':')
+        hour, minute = schedule.recurring_weekly.time.split(":")
 
         return [f"{minute} {hour} * * {days_of_week}"]
 
-    raise ValueError(f"Unsupported schedule type: {schedule.type}")
+    msg = f"Unsupported schedule type: {schedule.type}"
+    raise ValueError(msg)

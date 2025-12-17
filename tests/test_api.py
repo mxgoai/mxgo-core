@@ -1215,17 +1215,18 @@ class TestCreateNewsletter:
     @pytest.fixture
     def mock_dependencies(self):
         """Mocks all external dependencies for the newsletter endpoint."""
-        with patch("mxgo.api.user.get_user_plan", new_callable=AsyncMock) as mock_get_plan, \
-             patch("mxgo.api.crud.count_active_tasks_for_user") as mock_count_tasks, \
-             patch("mxgo.api.whitelist.is_email_whitelisted", new_callable=AsyncMock) as mock_is_whitelisted, \
-             patch("mxgo.api.Scheduler.add_job") as mock_add_job, \
-             patch("mxgo.api.process_email_task.send") as mock_send_task:
-            
+        with (
+            patch("mxgo.api.user.get_user_plan", new_callable=AsyncMock) as mock_get_plan,
+            patch("mxgo.api.crud.count_active_tasks_for_user") as mock_count_tasks,
+            patch("mxgo.api.whitelist.is_email_whitelisted", new_callable=AsyncMock) as mock_is_whitelisted,
+            patch("mxgo.api.Scheduler.add_job") as mock_add_job,
+            patch("mxgo.api.process_email_task.send") as mock_send_task,
+        ):
             # Default happy path mocks
             mock_get_plan.return_value = UserPlan.BETA
             mock_count_tasks.return_value = 0
-            mock_is_whitelisted.return_value = (True, True) # Assume user is whitelisted
-            
+            mock_is_whitelisted.return_value = (True, True)  # Assume user is whitelisted
+
             yield {
                 "get_plan": mock_get_plan,
                 "count_tasks": mock_count_tasks,
@@ -1291,7 +1292,7 @@ class TestCreateNewsletter:
             headers={"Authorization": f"Bearer {jwt_token}"},
             json={
                 "prompt": "Daily newsletter",
-                "schedule": { 
+                "schedule": {
                     "type": "RECURRING_WEEKLY",
                     "recurring_weekly": {"days": ["monday", "tuesday"], "time": "07:00"},
                 },
@@ -1299,7 +1300,7 @@ class TestCreateNewsletter:
         )
         assert response.status_code == 400
         assert "Cron interval is too frequent" in response.json()["detail"]
-        
+
     def test_create_newsletter_not_whitelisted(self, mock_dependencies):
         """Test behavior for a non-whitelisted user."""
         mock_dependencies["is_whitelisted"].return_value = (False, False)

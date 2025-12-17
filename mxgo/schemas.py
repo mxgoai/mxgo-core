@@ -1,6 +1,6 @@
-from enum import Enum
 import re
-from typing import Any, List, Union
+from enum import Enum
+from typing import Any, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -503,29 +503,33 @@ class ScheduleType(str, Enum):
 
 
 class RecurringWeekly(BaseModel):
-    days: List[str] = Field(..., description="List of weekdays, e.g., ['monday', 'wednesday', 'friday']")
+    days: list[str] = Field(..., description="List of weekdays, e.g., ['monday', 'wednesday', 'friday']")
     time: str = Field(..., description="Time in HH:MM format, e.g., '09:30'")
 
-    @field_validator('days')
+    @field_validator("days")
     @classmethod
     def validate_days(cls, v):
-        valid_days = {'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'}
+        valid_days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
         for day in v:
             if day.lower() not in valid_days:
-                raise ValueError(f"Invalid day: {day}. Must be one of {valid_days}")
+                msg = f"Invalid day: {day}. Must be one of {valid_days}"
+                raise ValueError(msg)
         return [day.lower() for day in v]
 
-    @field_validator('time')
+    @field_validator("time")
     @classmethod
     def validate_time(cls, v):
-        if not re.match(r'^\d{2}:\d{2}$', v):
-            raise ValueError("Invalid time format. Must be HH:MM")
+        if not re.match(r"^\d{2}:\d{2}$", v):
+            msg = "Invalid time format. Must be HH:MM"
+            raise ValueError(msg)
         return v
 
 
 class ScheduleOptions(BaseModel):
     type: ScheduleType
-    specific_dates: List[str] | None = Field(None, description="List of ISO 8601 datetime strings for specific, non-recurring schedules.")
+    specific_dates: list[str] | None = Field(
+        None, description="List of ISO 8601 datetime strings for specific, non-recurring schedules."
+    )
     recurring_weekly: RecurringWeekly | None = Field(None, description="Configuration for a recurring weekly schedule.")
 
 
@@ -534,16 +538,18 @@ class CreateNewsletterRequest(BaseModel):
 
     prompt: str = Field(..., description="The main instructions for the newsletter content.")
     estimated_read_time: int | None = Field(None, description="Estimated read time in minutes for the newsletter.")
-    sources: List[str] | None = Field(None, description="A list of source names or URLs to use.")
-    geographic_locations: List[str] | None = Field(None, description="A list of geographic locations to focus on.")
-    formatting_instructions: str | None = Field(None, description="Specific instructions on how to format the newsletter.")
+    sources: list[str] | None = Field(None, description="A list of source names or URLs to use.")
+    geographic_locations: list[str] | None = Field(None, description="A list of geographic locations to focus on.")
+    formatting_instructions: str | None = Field(
+        None, description="Specific instructions on how to format the newsletter."
+    )
     schedule: ScheduleOptions
 
 
 class CreateNewsletterResponse(BaseModel):
     """Response model for creating a newsletter."""
-    
+
     is_scheduled: bool
     is_whitelisted: bool
     sample_email_sent: bool
-    scheduled_task_ids: List[str] = Field(default_factory=list)
+    scheduled_task_ids: list[str] = Field(default_factory=list)
