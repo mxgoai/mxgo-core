@@ -97,6 +97,10 @@ As simple as it sounds, MXGo is very powerful. If you spend more than 10 minutes
 - Forward competitor emails to background@mxgo.ai
 - Get market position, recent moves, customer feedback
 
+**"I want to stay informed with the latest news on a topic"**
+- Forward a topic to news@mxgo.ai (e.g., "Latest AI regulations")
+- Set up recurring news briefings by sending an email to news@mxgo.ai with instructions like "Send me a daily brief on quantum computing"
+
 ## 📄 PDF Export & Document Creation
 
 **"I need to create professional documents from email content"**

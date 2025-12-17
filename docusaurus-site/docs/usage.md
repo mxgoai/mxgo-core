@@ -23,8 +23,9 @@ Here's a comprehensive overview of all available handles and their primary funct
 *   **`research@mxgo.ai`**: Perform in-depth research based on the email content [Experimental]. Provides comprehensive analysis with external sources.
 *   **`fact-check@mxgo.ai`**: Verify the claims made in the email. Checks facts against reliable sources.
 *   **`background-research@mxgo.ai`**: Get background information on entities, people, or topics mentioned in the email.
-*   **`news@mxgo.ai`**: Get current news and breaking stories related to topics in the email. Provides structured analysis with grouped themes.
+*   **`news@mxgo.ai`**: Get personalized news briefings on any topic, with filters for time and location.
     - **Aliases**: `breaking-news@mxgo.ai`, `latest-news@mxgo.ai`, `news-update@mxgo.ai`, `current-events@mxgo.ai`
+    - **Example uses**: "Subject: 'Tesla stock earnings'", "Body: 'freshness: pd, country: DE'", "To: `news+schedule@mxgo.ai` Body: 'Send me a weekly summary'"
 
 ## 🗓️ Scheduling & Task Management Handles
 
