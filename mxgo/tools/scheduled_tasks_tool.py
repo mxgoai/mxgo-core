@@ -10,6 +10,8 @@ from mxgo._logging import get_logger
 from mxgo.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
 from mxgo.crud import create_task, delete_task, update_task_status
 from mxgo.db import init_db_connection
+from mxgo.email_handles import DEFAULT_EMAIL_HANDLES
+from mxgo.instruction_resolver import ProcessingInstructionsResolver
 from mxgo.models import TaskStatus
 from mxgo.request_context import RequestContext
 from mxgo.scheduling.scheduled_task_executor import execute_scheduled_task
@@ -247,11 +249,23 @@ class ScheduledTasksTool(Tool):
             }
 
         try:
+            # Resolve the handle alias before validation
+            resolved_handle_alias = future_handle_alias
+            if future_handle_alias:
+                try:
+                    # Resolve the provided alias (e.g., 'remind') to its canonical handle (e.g., 'schedule')
+                    resolver = ProcessingInstructionsResolver(DEFAULT_EMAIL_HANDLES)
+                    resolved_instructions = resolver(future_handle_alias)
+                    resolved_handle_alias = resolved_instructions.handle
+                    logger.info(f"Resolved future handle alias '{future_handle_alias}' to '{resolved_handle_alias}'")
+                except Exception:
+                    logger.warning(f"Could not resolve handle alias '{future_handle_alias}'. Validation might fail.")
+
             # Validate input using Pydantic
             input_data = ScheduledTaskInput(
                 cron_expression=cron_expression,
                 distilled_future_task_instructions=distilled_future_task_instructions,
-                future_handle_alias=future_handle_alias,
+                future_handle_alias=resolved_handle_alias,
                 start_time=start_time,
                 end_time=end_time,
             )
