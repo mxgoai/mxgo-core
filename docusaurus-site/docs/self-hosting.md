@@ -214,6 +214,7 @@ Your Cloudflare routing supports all these handles:
 - `ask@yourdomain.com` - General purpose
 - `summarize@yourdomain.com` - Email summaries
 - `research@yourdomain.com` - Deep research
+- `news@yourdomain.com` - Personalized news briefings
 - `schedule@yourdomain.com` - Task scheduling
 - `meeting@yourdomain.com` - Meeting scheduling
 - `pdf@yourdomain.com` - PDF export
