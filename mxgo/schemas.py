@@ -503,18 +503,21 @@ class ScheduleType(str, Enum):
 
 
 class RecurringWeekly(BaseModel):
-    days: list[str] = Field(..., description="List of weekdays, e.g., ['monday', 'wednesday', 'friday']")
+    days: list[int] = Field(..., description="List of weekdays as integers (0=Sunday, 1=Monday, ..., 6=Saturday)")
     time: str = Field(..., description="Time in HH:MM format, e.g., '09:30'")
 
     @field_validator("days")
     @classmethod
     def validate_days(cls, v):
-        valid_days = {"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}
+        if len(v) > 7:  # noqa: PLR2004
+            msg = "Cannot specify more than 7 days"
+            raise ValueError(msg)
+
         for day in v:
-            if day.lower() not in valid_days:
-                msg = f"Invalid day: {day}. Must be one of {valid_days}"
+            if not 0 <= day <= 6:  # noqa: PLR2004
+                msg = f"Invalid day: {day}. Must be an integer between 0 and 6."
                 raise ValueError(msg)
-        return [day.lower() for day in v]
+        return v
 
     @field_validator("time")
     @classmethod
@@ -527,15 +530,16 @@ class RecurringWeekly(BaseModel):
 
 class ScheduleOptions(BaseModel):
     type: ScheduleType
-    specific_dates: list[str] | None = Field(
-        None, description="List of ISO 8601 datetime strings for specific, non-recurring schedules."
+    specific_datetime: str | None = Field(
+        None, description="List of ISO 8601 datetime string for a specific, non-recurring schedules."
     )
-    recurring_weekly: RecurringWeekly | None = Field(None, description="Configuration for a recurring weekly schedule.")
+    weekly_schedule: RecurringWeekly | None = Field(None, description="Configuration for a recurring weekly schedule.")
 
 
 class CreateNewsletterRequest(BaseModel):
     """Request model for creating a newsletter based on the new UI mock."""
 
+    request_id: str = Field(..., description="Unique request identifier for idempotency")
     prompt: str = Field(..., description="The main instructions for the newsletter content.")
     estimated_read_time: int | None = Field(None, description="Estimated read time in minutes for the newsletter.")
     sources: list[str] | None = Field(None, description="A list of source names or URLs to use.")

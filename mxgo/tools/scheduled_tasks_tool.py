@@ -260,6 +260,9 @@ class ScheduledTasksTool(Tool):
                     logger.info(f"Resolved future handle alias '{future_handle_alias}' to '{resolved_handle_alias}'")
                 except Exception:
                     logger.warning(f"Could not resolve handle alias '{future_handle_alias}'. Validation might fail.")
+                    resolved_handle_alias = "ask"
+            else:
+                resolved_handle_alias = "ask"
 
             # Validate input using Pydantic
             input_data = ScheduledTaskInput(

@@ -895,10 +895,12 @@ def _build_newsletter_instructions(request: CreateNewsletterRequest) -> str:
 
 async def _validate_newsletter_limits(user_email: str, cron_expressions: list[str]):
     """Validates the user's plan limits for newsletters."""
+    # Get user plan and corresponding limits from config
     user_plan = await user.get_user_plan(user_email)
     plan_limits = NEWSLETTER_LIMITS_BY_PLAN.get(user_plan, NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA])
     min_interval = timedelta(days=plan_limits["min_interval_days"])
 
+    # Check total task count against the plan's max tasks
     db_connection = init_db_connection()
     with db_connection.get_session() as session:
         active_task_count = crud.count_active_tasks_for_user(session, user_email)
@@ -911,7 +913,9 @@ async def _validate_newsletter_limits(user_email: str, cron_expressions: list[st
             f"(max: {plan_limits['max_tasks']}).",
         )
 
+    # Loop through each cron expression to validate its frequency
     for cron_expr in cron_expressions:
+        # One-time tasks don't have a recurring interval, so we skip them
         if not is_one_time_task(cron_expr):
             interval = calculate_cron_interval(cron_expr)
             if interval < min_interval:
@@ -922,14 +926,14 @@ async def _validate_newsletter_limits(user_email: str, cron_expressions: list[st
                 )
 
 
-def _create_and_schedule_task(user_email: str, cron_expr: str, distilled_instructions: str, prompt: str) -> str:
+def _create_and_schedule_task(user_email: str, cron_expr: str, distilled_instructions: str, prompt: str) -> str:  # noqa: ARG001
     """Creates a single newsletter task and schedules it."""
     task_id = str(uuid.uuid4())
     scheduler_job_id = f"task_{task_id}"
     email_for_task = EmailRequest(
         from_email=user_email,
         to="ask@mxgo.ai",
-        subject=f"Newsletter: {prompt[:50]}...",
+        subject="Generate Newsletter as per following Instructions",
         distilled_processing_instructions=distilled_instructions,
         distilled_alias=HandlerAlias.ASK,
         messageId=f"<newsletter-{task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
@@ -959,7 +963,12 @@ def _create_and_schedule_task(user_email: str, cron_expr: str, distilled_instruc
 
 
 async def _handle_post_creation_action(
-    user_email: str, *, is_whitelisted: bool, first_task_id: str, distilled_instructions: str, prompt: str
+    user_email: str,
+    *,
+    is_whitelisted: bool,
+    first_task_id: str,
+    distilled_instructions: str,
+    prompt: str,  # noqa: ARG001
 ):
     """Sends a sample email if the user is whitelisted, otherwise triggers verification."""
     if is_whitelisted:
@@ -967,7 +976,7 @@ async def _handle_post_creation_action(
         sample_email_request = EmailRequest(
             from_email=user_email,
             to="ask@mxgo.ai",
-            subject=f"[SAMPLE] Newsletter: {prompt[:40]}...",
+            subject="[SAMPLE] Generate Newsletter as per following Instructions",
             distilled_processing_instructions=distilled_instructions,
             distilled_alias=HandlerAlias.ASK,
             messageId=f"<newsletter-sample-{first_task_id}-{datetime.now(timezone.utc).isoformat()}@mxgo.ai>",
@@ -1001,6 +1010,27 @@ async def create_newsletter(
     user_email = current_user.email
     logger.info(f"Received newsletter creation request for user: {user_email}")
 
+    if validators.redis_client:
+        redis_key = f"newsletter_request:{request.request_id}"
+        existing_task_ids_json = await validators.redis_client.get(redis_key)
+        if existing_task_ids_json:
+            logger.info(
+                f"Duplicate request_id {request.request_id} detected for {user_email}, returning existing tasks from Redis"
+            )
+            existing_task_ids = json.loads(existing_task_ids_json)
+            return Response(
+                content=json.dumps(
+                    {
+                        "message": "This request has already been processed.",
+                        "status": "duplicate",
+                        "request_id": request.request_id,
+                        "scheduled_task_ids": existing_task_ids,
+                    }
+                ),
+                status_code=status.HTTP_409_CONFLICT,
+                media_type="application/json",
+            )
+
     distilled_instructions = _build_newsletter_instructions(request)
 
     try:
@@ -1022,10 +1052,18 @@ async def create_newsletter(
         logger.error(f"Failed to schedule one or more newsletter tasks for {user_email}: {e}")
 
         # Rollback created tasks if any failed
+        scheduler = Scheduler()
         db_connection = init_db_connection()
         with db_connection.get_session() as session:
             for tid in created_task_ids:
                 crud.delete_task(session, tid)
+
+                try:
+                    scheduler.remove_job(f"task_{tid}")
+                    logger.info(f"Removed scheduler job for rolled-back task {tid}")
+                except Exception as scheduler_e:
+                    logger.error(f"Failed to remove scheduler job for task {tid}: {scheduler_e}")
+
         raise HTTPException(status_code=500, detail="Failed to schedule one or more newsletter tasks.") from e
 
     sample_email_sent = False
@@ -1037,6 +1075,11 @@ async def create_newsletter(
             distilled_instructions=distilled_instructions,
             prompt=request.prompt,
         )
+
+    if validators.redis_client and created_task_ids:
+        redis_key = f"newsletter_request:{request.request_id}"
+        # Store for 24 hours
+        await validators.redis_client.setex(redis_key, 86400, json.dumps(created_task_ids))
 
     return CreateNewsletterResponse(
         is_scheduled=bool(created_task_ids),

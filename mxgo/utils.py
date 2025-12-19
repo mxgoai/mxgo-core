@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+from croniter import croniter
+
 from mxgo.schemas import ScheduleOptions, ScheduleType
 
 
@@ -107,11 +109,28 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:  # noqa: PLR0912
         # Daily pattern (specific hour and minute, every day)
         elif day == "*" and month == "*" and (weekday in {"*", "?"}):
             interval = timedelta(days=1)
-        # Weekly pattern (specific weekday)
+        # Weekly pattern with multiple days
         elif day == "*" and month == "*" and weekday not in {"*", "?"}:
-            # If multiple days are specified (e.g., "1-5" or "1,3,5"), the minimum interval is 1 day.
-            # Otherwise, it's a single day of the week, so the interval is 7 days.
-            interval = timedelta(days=1) if "," in weekday or "-" in weekday else timedelta(weeks=1)
+            # This handles cases like "1,3,5" (Mon, Wed, Fri)
+            if "," in weekday:
+                days_of_week = sorted([int(d) for d in weekday.split(",")])
+                if len(days_of_week) <= 1:
+                    return timedelta(weeks=1)
+
+                min_diff = 7
+                # Calculate interval between consecutive days
+                for i in range(1, len(days_of_week)):
+                    diff = days_of_week[i] - days_of_week[i - 1]
+                    min_diff = min(min_diff, diff)
+
+                # Calculate wrap-around interval (e.g., from Friday to Monday)
+                wrap_around_diff = (days_of_week[0] + 7) - days_of_week[-1]
+                min_diff = min(min_diff, wrap_around_diff)
+
+                return timedelta(days=min_diff)
+
+            # Single day of the week
+            return timedelta(weeks=1)
 
         # Monthly pattern (specific day of month)
         elif day != "*" and month == "*":
@@ -131,34 +150,67 @@ def calculate_cron_interval(cron_expression: str) -> timedelta:  # noqa: PLR0912
 
 
 def convert_schedule_to_cron_list(schedule: ScheduleOptions) -> list[str]:
-    """Converts schedule options from the newsletter request into a list of cron expressions."""
+    """
+    Converts schedule options from the newsletter request into a list of valid cron expressions.
+
+    Raises:
+        ValueError: If the schedule configuration is invalid or results in an invalid cron expression.
+
+    """
+    cron_expressions = []
+
     if schedule.type == ScheduleType.IMMEDIATE:
-        # Schedule for 1 minute in the future to be executed ASAP
+        # Schedule for 1 minute in the future to be executed as soon as possible.
         now = datetime.now(timezone.utc) + timedelta(minutes=1)
-        return [f"{now.minute} {now.hour} {now.day} {now.month} *"]
+        cron_str = f"{now.minute} {now.hour} {now.day} {now.month} *"
+        cron_expressions.append(cron_str)
 
-    if schedule.type == ScheduleType.SPECIFIC_DATES:
-        cron_list = []
-        if not schedule.specific_dates:
-            msg = "specific_dates must be provided for SPECIFIC_DATES schedule type."
-            raise ValueError(msg)
-        for dt_str in schedule.specific_dates:
-            dt = datetime.fromisoformat(dt_str)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)  # Assume UTC if naive
-            cron_list.append(f"{dt.minute} {dt.hour} {dt.day} {dt.month} *")
-        return cron_list
-
-    if schedule.type == ScheduleType.RECURRING_WEEKLY:
-        if not schedule.recurring_weekly or not schedule.recurring_weekly.days:
-            msg = "recurring_weekly with at least one day must be provided for RECURRING_WEEKLY schedule type."
+    elif schedule.type == ScheduleType.SPECIFIC_DATES:
+        if not schedule.specific_datetime:
+            msg = "specific_datetime must be provided for SPECIFIC_DATES schedule type."
             raise ValueError(msg)
 
-        day_map = {"monday": 1, "tuesday": 2, "wednesday": 3, "thursday": 4, "friday": 5, "saturday": 6, "sunday": 0}
-        days_of_week = ",".join(str(day_map[day]) for day in schedule.recurring_weekly.days)
-        hour, minute = schedule.recurring_weekly.time.split(":")
+        dt = datetime.fromisoformat(schedule.specific_datetime)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)  # Assume UTC if timezone is not specified
 
-        return [f"{minute} {hour} * * {days_of_week}"]
+        # Ensure the scheduled time is not in the past
+        if dt <= datetime.now(timezone.utc):
+            msg = "Specific datetime for a one-time schedule must be in the future."
+            raise ValueError(msg)
 
-    msg = f"Unsupported schedule type: {schedule.type}"
-    raise ValueError(msg)
+        cron_str = f"{dt.minute} {dt.hour} {dt.day} {dt.month} *"
+        cron_expressions.append(cron_str)
+
+    elif schedule.type == ScheduleType.RECURRING_WEEKLY:
+        if not schedule.weekly_schedule or not schedule.weekly_schedule.days:
+            msg = "weekly_schedule with at least one day must be provided for RECURRING_WEEKLY type."
+            raise ValueError(msg)
+
+        # Days are now expected to be integers (0=Sunday, 1=Monday, ..., 6=Saturday)
+        days_of_week = ",".join(map(str, sorted(schedule.weekly_schedule.days)))
+
+        try:
+            hour, minute = schedule.weekly_schedule.time.split(":")
+            # Basic validation for time format
+            if not (0 <= int(hour) <= 23 and 0 <= int(minute) <= 59):  # noqa: PLR2004
+                msg = "Invalid time format."
+                raise ValueError(msg)
+        except ValueError as e:
+            msg = f"Invalid time format in weekly_schedule: {schedule.weekly_schedule.time}"
+            raise ValueError(msg) from e
+
+        cron_str = f"{minute} {hour} * * {days_of_week}"
+        cron_expressions.append(cron_str)
+
+    else:
+        msg = f"Unsupported schedule type: {schedule.type}"
+        raise ValueError(msg)
+
+    # Validate all generated cron expressions before returning
+    for cron_expr in cron_expressions:
+        if not croniter.is_valid(cron_expr):
+            msg = f"Generated an invalid cron expression: '{cron_expr}'"
+            raise ValueError(msg)
+
+    return cron_expressions

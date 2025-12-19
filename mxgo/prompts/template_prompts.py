@@ -1177,6 +1177,14 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be. **CRITICAL: If the original email contains attachments, you MUST include detailed context about the attachments in these instructions since attachments will not be available during scheduled execution. Include attachment names, types, sizes, and any relevant content or context from the attachments.**
 - **start_time**: (Optional) Start time for the task in ISO 8601 format - task will not execute before this time (e.g., "2024-09-01T00:00:00Z")
 - **end_time**: (Optional) End time for the task in ISO 8601 format - task will not execute after this time (e.g., "2024-12-31T23:59:59Z")
+- **future_handle_alias**: The specific email handle to use for the future task. Select one of the following based on the user's instructions:
+    - **`ask`**: (Default) For general questions, custom tasks, or when no other handle fits.
+    - **`news`**: For fetching the latest news on a specific topic (e.g., "send me the news on AI every Friday").
+    - **`research`**: For conducting in-depth research on a topic at a later time.
+    - **`summarize`**: For summarizing the content of the email at a future date.
+    - **`fact-check`**: For verifying claims in the email content later.
+    - **`simplify`**: For explaining the content of the email in simple terms at a scheduled time.
+    - **`translate`**: For translating the email content at a future time.
 
 **Response (Successful Scheduling):**
 1. Confirmation message with:

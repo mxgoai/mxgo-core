@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -1221,11 +1222,13 @@ class TestCreateNewsletter:
             patch("mxgo.api.whitelist.is_email_whitelisted", new_callable=AsyncMock) as mock_is_whitelisted,
             patch("mxgo.api.Scheduler.add_job") as mock_add_job,
             patch("mxgo.api.process_email_task.send") as mock_send_task,
+            patch("mxgo.api._create_and_schedule_task") as mock_create_task,
         ):
             # Default happy path mocks
             mock_get_plan.return_value = UserPlan.BETA
             mock_count_tasks.return_value = 0
             mock_is_whitelisted.return_value = (True, True)  # Assume user is whitelisted
+            mock_create_task.return_value = "test-task-uuid"
 
             yield {
                 "get_plan": mock_get_plan,
@@ -1233,20 +1236,22 @@ class TestCreateNewsletter:
                 "is_whitelisted": mock_is_whitelisted,
                 "add_job": mock_add_job,
                 "send_task": mock_send_task,
+                "create_task": mock_create_task,
             }
 
-    def test_create_newsletter_success_whitelisted(self, mock_dependencies):
+    def test_create_newsletter_success_whitelisted(self, mock_dependencies, client_with_patched_redis):
         """Test successful newsletter creation for a whitelisted BETA user."""
         jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
 
-        response = client.post(
+        response = client_with_patched_redis.post(
             "/create-newsletter",
             headers={"Authorization": f"Bearer {jwt_token}"},
             json={
+                "request_id": str(uuid.uuid4()),
                 "prompt": "Weekly AI news",
                 "schedule": {
                     "type": "RECURRING_WEEKLY",
-                    "recurring_weekly": {"days": ["friday"], "time": "10:00"},
+                    "weekly_schedule": {"days": [5], "time": "10:00"},
                 },
             },
         )
@@ -1258,7 +1263,7 @@ class TestCreateNewsletter:
         assert len(data["scheduled_task_ids"]) == 1
         mock_dependencies["send_task"].assert_called_once()
 
-    def test_create_newsletter_task_limit_exceeded(self, mock_dependencies):
+    def test_create_newsletter_task_limit_exceeded(self, mock_dependencies, client_with_patched_redis):
         """Test that newsletter creation fails if the task limit is reached."""
         mock_dependencies["get_plan"].return_value = UserPlan.BETA
 
@@ -1267,54 +1272,57 @@ class TestCreateNewsletter:
         # Set current tasks to the max allowed for BETA plan using the config variable
         mock_dependencies["count_tasks"].return_value = NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA]["max_tasks"]
 
-        response = client.post(
+        response = client_with_patched_redis.post(
             "/create-newsletter",
             headers={"Authorization": f"Bearer {jwt_token}"},
             json={
+                "request_id": str(uuid.uuid4()),
                 "prompt": "Another newsletter",
                 "schedule": {
                     "type": "RECURRING_WEEKLY",
-                    "recurring_weekly": {"days": ["monday"], "time": "08:00"},
+                    "weekly_schedule": {"days": [1], "time": "08:00"},
                 },
             },
         )
         assert response.status_code == 403
         assert "Newsletter limit" in response.json()["detail"]
 
-    def test_create_newsletter_interval_too_frequent(self, mock_dependencies):
+    def test_create_newsletter_interval_too_frequent(self, mock_dependencies, client_with_patched_redis):
         """Test that creation fails if the cron interval is too short for the user's plan."""
         mock_dependencies["get_plan"].return_value = UserPlan.BETA
 
         jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
 
-        response = client.post(
+        response = client_with_patched_redis.post(
             "/create-newsletter",
             headers={"Authorization": f"Bearer {jwt_token}"},
             json={
+                "request_id": str(uuid.uuid4()),
                 "prompt": "Daily newsletter",
                 "schedule": {
                     "type": "RECURRING_WEEKLY",
-                    "recurring_weekly": {"days": ["monday", "tuesday"], "time": "07:00"},
+                    "weekly_schedule": {"days": [1, 2], "time": "07:00"},
                 },
             },
         )
         assert response.status_code == 400
         assert "Cron interval is too frequent" in response.json()["detail"]
 
-    def test_create_newsletter_not_whitelisted(self, mock_dependencies):
+    def test_create_newsletter_not_whitelisted(self, mock_dependencies, client_with_patched_redis):
         """Test behavior for a non-whitelisted user."""
         mock_dependencies["is_whitelisted"].return_value = (False, False)
         jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
 
         with patch("mxgo.api.whitelist.trigger_automatic_verification", new_callable=AsyncMock) as mock_trigger_verify:
-            response = client.post(
+            response = client_with_patched_redis.post(
                 "/create-newsletter",
                 headers={"Authorization": f"Bearer {jwt_token}"},
                 json={
+                    "request_id": str(uuid.uuid4()),
                     "prompt": "A test newsletter",
                     "schedule": {
                         "type": "RECURRING_WEEKLY",
-                        "recurring_weekly": {"days": ["saturday"], "time": "12:00"},
+                        "weekly_schedule": {"days": [6], "time": "12:00"},
                     },
                 },
             )
