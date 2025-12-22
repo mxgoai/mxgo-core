@@ -25,6 +25,7 @@ from mxgo.email_sender import (
     send_email_reply,
 )
 from mxgo.models import TaskStatus
+from mxgo.prompts.template_prompts import NEWSLETTER_TEMPLATE
 from mxgo.reply_generation import generate_replies
 from mxgo.scheduling.scheduled_task_executor import execute_scheduled_task
 from mxgo.scheduling.scheduler import Scheduler, is_one_time_task
@@ -880,17 +881,34 @@ async def generate_email_replies(
 
 # Helper functions for create_newsletter
 def _build_newsletter_instructions(request: CreateNewsletterRequest) -> str:
-    """Builds the full instruction string from the request."""
-    full_instructions = [f"PROMPT: {request.prompt}"]
+    """Builds the full instruction string from the request using the NEWSLETTER template."""
+    user_instructions = []
     if request.estimated_read_time:
-        full_instructions.append(f"ESTIMATED READ TIME: {request.estimated_read_time} minutes")
+        user_instructions.append(
+            f"- **Target Read Time**: The newsletter should be concise enough to be read in approximately {request.estimated_read_time} minutes."
+        )
     if request.sources:
-        full_instructions.append(f"SOURCES: {', '.join(request.sources)}")
+        user_instructions.append(
+            f"- **Prioritize Sources**: When researching, give priority to information from the following sources: {', '.join(request.sources)}."
+        )
     if request.geographic_locations:
-        full_instructions.append(f"GEOGRAPHIC FOCUS: {', '.join(request.geographic_locations)}")
+        user_instructions.append(
+            f"- **Geographic Focus**: The content should be primarily relevant to the following locations: {', '.join(request.geographic_locations)}."
+        )
     if request.formatting_instructions:
-        full_instructions.append(f"FORMATTING INSTRUCTIONS: {request.formatting_instructions}")
-    return "\n\n".join(full_instructions)
+        user_instructions.append(
+            f"- **Formatting Rules**: Strictly follow these formatting instructions: {request.formatting_instructions}."
+        )
+
+    if user_instructions:
+        user_instructions_section = "\n".join(user_instructions)
+    else:
+        user_instructions_section = (
+            "No specific user instructions were provided. Use your best judgment to create a high-quality newsletter."
+        )
+
+    # This becomes the detailed, distilled instructions for the agent.
+    return NEWSLETTER_TEMPLATE.format(prompt=request.prompt, user_instructions_section=user_instructions_section)
 
 
 async def _validate_newsletter_limits(user_email: str, cron_expressions: list[str]):
@@ -953,7 +971,16 @@ def _create_and_schedule_task(user_email: str, cron_expr: str, distilled_instruc
         )
 
     scheduler = Scheduler()
-    scheduler.add_job(job_id=scheduler_job_id, cron_expression=cron_expr, func=execute_scheduled_task, args=[task_id])
+    try:
+        scheduler.add_job(
+            job_id=scheduler_job_id, cron_expression=cron_expr, func=execute_scheduled_task, args=[task_id]
+        )
+    except Exception as e:
+        logger.error(f"Failed to schedule task {task_id}: {e}")
+
+        with db_connection.get_session() as session:
+            crud.delete_task(session, task_id)
+        raise
 
     with db_connection.get_session() as session:
         crud.update_task_status(session, task_id, TaskStatus.ACTIVE)
@@ -983,7 +1010,7 @@ async def _handle_post_creation_action(
             parent_message_id=f"<newsletter-parent-{first_task_id}@mxgo.ai>",
         )
         process_email_task.send(
-            sample_email_request.model_dump(),
+            sample_email_request.model_dump(by_alias=True),
             email_attachments_dir="",
             attachment_info=[],
             scheduled_task_id=first_task_id,
@@ -1018,17 +1045,14 @@ async def create_newsletter(
                 f"Duplicate request_id {request.request_id} detected for {user_email}, returning existing tasks from Redis"
             )
             existing_task_ids = json.loads(existing_task_ids_json)
-            return Response(
-                content=json.dumps(
-                    {
-                        "message": "This request has already been processed.",
-                        "status": "duplicate",
-                        "request_id": request.request_id,
-                        "scheduled_task_ids": existing_task_ids,
-                    }
-                ),
+            raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                media_type="application/json",
+                detail={
+                    "message": "This request has already been processed.",
+                    "status": "duplicate",
+                    "request_id": request.request_id,
+                    "scheduled_task_ids": existing_task_ids,
+                },
             )
 
     distilled_instructions = _build_newsletter_instructions(request)
@@ -1064,7 +1088,10 @@ async def create_newsletter(
                 except Exception as scheduler_e:
                     logger.error(f"Failed to remove scheduler job for task {tid}: {scheduler_e}")
 
-        raise HTTPException(status_code=500, detail="Failed to schedule one or more newsletter tasks.") from e
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to schedule one or more newsletter tasks.",
+        ) from e
 
     sample_email_sent = False
     if created_task_ids:

@@ -26,9 +26,6 @@ RUN poetry config virtualenvs.create false && poetry install --no-root --no-inte
 # Copy application code
 COPY mxgo ./mxgo
 
-# Copy test code into the container
-COPY ./tests /app/tests 
-
 # Create directories
 RUN mkdir -p /app/attachments
 

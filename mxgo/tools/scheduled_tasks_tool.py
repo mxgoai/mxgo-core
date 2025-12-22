@@ -175,7 +175,7 @@ class ScheduledTasksTool(Tool):
                 logger.warning(f"Could not parse start_time: {e}")
 
         # Validate that start_time is before end_time if both are provided
-        if parsed_start_time and parsed_end_time and parsed_start_time >= parsed_end_time:
+        if parsed_start_time and parsed_end_time and parsed_start_time > parsed_end_time:
             return (
                 None,
                 None,
@@ -250,7 +250,6 @@ class ScheduledTasksTool(Tool):
 
         try:
             # Resolve the handle alias before validation
-            resolved_handle_alias = future_handle_alias
             if future_handle_alias:
                 try:
                     # Resolve the provided alias (e.g., 'remind') to its canonical handle (e.g., 'schedule')

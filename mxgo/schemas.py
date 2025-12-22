@@ -503,7 +503,9 @@ class ScheduleType(str, Enum):
 
 
 class RecurringWeekly(BaseModel):
-    days: list[int] = Field(..., description="List of weekdays as integers (0=Sunday, 1=Monday, ..., 6=Saturday)")
+    days: list[int] = Field(
+        ..., min_length=1, description="List of weekdays as integers (0=Sunday, 1=Monday, ..., 6=Saturday)"
+    )
     time: str = Field(..., description="Time in HH:MM format, e.g., '09:30'")
 
     @field_validator("days")
@@ -531,7 +533,7 @@ class RecurringWeekly(BaseModel):
 class ScheduleOptions(BaseModel):
     type: ScheduleType
     specific_datetime: str | None = Field(
-        None, description="List of ISO 8601 datetime string for a specific, non-recurring schedules."
+        None, description="ISO 8601 datetime string for a specific, non-recurring schedule."
     )
     weekly_schedule: RecurringWeekly | None = Field(None, description="Configuration for a recurring weekly schedule.")
 

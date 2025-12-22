@@ -48,7 +48,7 @@ class ProcessingInstructionsResolver:
             for name in all_names:
                 if name in self.handle_map and not overwrite:
                     msg = f"Handle or alias '{name}' already registered. Use `overwrite=True` to replace."
-                    raise exceptions.HandleAlreadyExistsException(msg)
+                    raise exceptions.HandleAlreadyExistsError(msg)
                 self.handle_map[name] = instructions
 
     def add_custom_handle(self, custom_instruction: ProcessingInstructions, *, overwrite: bool = False):
