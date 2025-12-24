@@ -1179,7 +1179,7 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be. **CRITICAL: If the original email contains attachments, you MUST include detailed context about the attachments in these instructions since attachments will not be available during scheduled execution. Include attachment names, types, sizes, and any relevant content or context from the attachments.**
 - **start_time**: (Optional) Start time for the task in ISO 8601 format - task will not execute before this time (e.g., "2024-09-01T00:00:00Z")
 - **end_time**: (Optional) End time for the task in ISO 8601 format - task will not execute after this time (e.g., "2024-12-31T23:59:59Z")
-- **future_handle_alias**: The specific email handle to use for the future task. Select one of the available email processing handles based on the user's instructions:
+- **future_handle_alias**: The specific email handle to use for the future task. If the user's intent is unclear or does not perfectly match a specific handle, you MUST use `ask` as the default. Select one of the available email processing handles based on the user's instructions.
     {SYSTEM_CAPABILITIES}
 
 **Response (Successful Scheduling):**
