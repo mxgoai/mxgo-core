@@ -5,6 +5,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from mxgo._logging import get_logger
+from mxgo.config import SYSTEM_CAPABILITIES
 from mxgo.email_handles import DEFAULT_EMAIL_HANDLES
 from mxgo.routed_litellm_model import RoutedLiteLLMModel
 from mxgo.schemas import EmailSuggestionRequest, EmailSuggestionResponse, RiskAnalysisResponse, SuggestionDetail
@@ -17,34 +18,6 @@ logger = get_logger(__name__)
 # Constants for suggestion limits
 MIN_SUGGESTIONS = 3
 MAX_SUGGESTIONS = 7
-
-# System capabilities - extracted from email handles and their templates
-SYSTEM_CAPABILITIES = """## Available Email Processing Handles
-
-- **summarize**: Systematically analyze and summarize content from all sources with clear structure and action focus. Processes email content, attachments, and external references to provide executive summaries, main points, action items, and additional context.
-
-- **research**: Conduct comprehensive research and provide detailed analysis with proper sections and citations. Uses deep research tools to gather current information, analyze findings, and provide supporting evidence with academic tone.
-
-- **simplify**: Transform complex content into clear, accessible explanations using simple language and relatable examples. Breaks down technical jargon, adds helpful analogies, and makes content understandable to general audiences.
-
-- **ask**: Execute custom tasks and workflows systematically with research, analysis, and professional presentation. Handles any custom request, research needs, content creation, and provides comprehensive solutions with proper formatting.
-
-- **fact-check**: Systematically verify claims and statements with comprehensive source validation and transparent uncertainty handling. Extracts all verifiable claims, searches for evidence, cross-references multiple sources, and provides clear verification status.
-
-- **background-research**: Conduct comprehensive business intelligence research on individuals and organizations. Provides strategic insights for business decisions, company analysis, professional profiles, and competitive context.
-
-- **translate**: Provide accurate translations with cultural context preservation and clear explanation of translation decisions. Detects source language, chooses appropriate translation approach, and provides cultural adaptations.
-
-- **meeting**: Intelligently extract, research, and schedule meetings or appointments with proper validation. Handles participant research, time resolution, and generates calendar invitations with comprehensive meeting details.
-
-- **pdf**: Intelligently analyze email content and create professional PDF document exports. Removes email metadata, preserves content structure, and generates clean, formatted documents for sharing or archiving.
-
-- **schedule**: Analyze email content to extract scheduling requirements for future or recurring task processing. Creates appropriate cron expressions for reminders, recurring tasks, and future email processing.
-
-- **delete**: Analyze email content to identify and delete scheduled tasks. Handles task ID extraction and provides clear confirmation of task removal.
-
-- **news**: Search for current news and breaking stories with comprehensive analysis and grouping. Provides structured news summaries with source citations, grouped by themes to avoid repetition.
-"""
 
 SUGGESTION_INSTRUCTIONS = f"""## Email Analysis and Suggestion Guidelines
 

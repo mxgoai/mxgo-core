@@ -9,3 +9,19 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    groups:
+      python-dependencies:
+        # A name for the group has to be provided. The name will be used in PR titles and branch names.
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Group all GitHub Actions updates into a single PR.
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+

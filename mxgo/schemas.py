@@ -1,7 +1,8 @@
+import re
 from enum import Enum
 from typing import Any, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class HandlerAlias(str, Enum):
@@ -479,9 +480,82 @@ class ReplyCandidate(BaseModel):
     rationale: str = Field(description="Brief rationale for the response (≤12 words)")
 
 
+class NewsletterUsageInfo(BaseModel):
+    """Usage information for the newsletter feature."""
+
+    current_count: int = Field(description="Current number of active newsletters/tasks.")
+    max_allowed: int = Field(description="Maximum number of active newsletters/tasks allowed for the user's plan.")
+
+
 class UserInfoResponse(BaseModel):
     """Response model for user information endpoint."""
 
     subscription_info: dict[str, Any] = Field(description="Raw subscription info from Dodo Payments API")
     plan_name: str = Field(description="User's plan name (PRO, BETA, etc.)")
-    usage_info: UsageInfo = Field(description="User's current usage information")
+    usage_info: UsageInfo = Field(description="User's current usage information for email processing.")
+    newsletter_usage: NewsletterUsageInfo = Field(description="User's current usage for the newsletter feature.")
+
+
+class ScheduleType(str, Enum):
+    IMMEDIATE = "IMMEDIATE"
+    SPECIFIC_DATES = "SPECIFIC_DATES"
+    RECURRING_WEEKLY = "RECURRING_WEEKLY"
+
+
+class RecurringWeekly(BaseModel):
+    days: list[int] = Field(
+        ..., min_length=1, description="List of weekdays as integers (0=Sunday, 1=Monday, ..., 6=Saturday)"
+    )
+    time: str = Field(..., description="Time in HH:MM format, e.g., '09:30'")
+
+    @field_validator("days")
+    @classmethod
+    def validate_days(cls, v):
+        if len(v) > 7:  # noqa: PLR2004
+            msg = "Cannot specify more than 7 days"
+            raise ValueError(msg)
+
+        for day in v:
+            if not 0 <= day <= 6:  # noqa: PLR2004
+                msg = f"Invalid day: {day}. Must be an integer between 0 and 6."
+                raise ValueError(msg)
+        return v
+
+    @field_validator("time")
+    @classmethod
+    def validate_time(cls, v):
+        if not re.match(r"^\d{2}:\d{2}$", v):
+            msg = "Invalid time format. Must be HH:MM"
+            raise ValueError(msg)
+        return v
+
+
+class ScheduleOptions(BaseModel):
+    type: ScheduleType
+    specific_datetime: str | None = Field(
+        None, description="ISO 8601 datetime string for a specific, non-recurring schedule."
+    )
+    weekly_schedule: RecurringWeekly | None = Field(None, description="Configuration for a recurring weekly schedule.")
+
+
+class CreateNewsletterRequest(BaseModel):
+    """Request model for creating a newsletter based on the new UI mock."""
+
+    request_id: str = Field(..., description="Unique request identifier for idempotency")
+    prompt: str = Field(..., description="The main instructions for the newsletter content.")
+    estimated_read_time: int | None = Field(None, description="Estimated read time in minutes for the newsletter.")
+    sources: list[str] | None = Field(None, description="A list of source names or URLs to use.")
+    geographic_locations: list[str] | None = Field(None, description="A list of geographic locations to focus on.")
+    formatting_instructions: str | None = Field(
+        None, description="Specific instructions on how to format the newsletter."
+    )
+    schedule: ScheduleOptions
+
+
+class CreateNewsletterResponse(BaseModel):
+    """Response model for creating a newsletter."""
+
+    is_scheduled: bool
+    is_whitelisted: bool
+    sample_email_sent: bool
+    scheduled_task_ids: list[str] = Field(default_factory=list)

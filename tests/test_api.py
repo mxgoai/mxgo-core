@@ -1,5 +1,6 @@
 import json
 import os
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
@@ -15,6 +16,7 @@ from freezegun import freeze_time  # For controlling time in tests
 import mxgo.validators
 from mxgo._logging import get_logger
 from mxgo.api import app
+from mxgo.config import NEWSLETTER_LIMITS_BY_PLAN
 from mxgo.schemas import EmailSuggestionResponse, SuggestionDetail, UserPlan
 from tests.generate_test_jwt import generate_test_jwt
 
@@ -1207,3 +1209,127 @@ def test_user_info_api_different_user_emails(
     # Verify the correct email was used for lookups
     mock_get_user_plan.assert_called_once_with("different@example.com")
     mock_get_customer_id.assert_called_once_with("different@example.com")
+
+
+@patch("mxgo.auth.JWT_SECRET", "test_secret_key_for_development_only")
+class TestCreateNewsletter:
+    @pytest.fixture
+    def mock_dependencies(self):
+        """Mocks all external dependencies for the newsletter endpoint."""
+        with (
+            patch("mxgo.api.user.get_user_plan", new_callable=AsyncMock) as mock_get_plan,
+            patch("mxgo.api.crud.count_active_tasks_for_user") as mock_count_tasks,
+            patch("mxgo.api.whitelist.is_email_whitelisted", new_callable=AsyncMock) as mock_is_whitelisted,
+            patch("mxgo.api.Scheduler.add_job") as mock_add_job,
+            patch("mxgo.api.process_email_task.send") as mock_send_task,
+            patch("mxgo.api._create_and_schedule_task") as mock_create_task,
+        ):
+            # Default happy path mocks
+            mock_get_plan.return_value = UserPlan.BETA
+            mock_count_tasks.return_value = 0
+            mock_is_whitelisted.return_value = (True, True)  # Assume user is whitelisted
+            mock_create_task.return_value = "test-task-uuid"
+
+            yield {
+                "get_plan": mock_get_plan,
+                "count_tasks": mock_count_tasks,
+                "is_whitelisted": mock_is_whitelisted,
+                "add_job": mock_add_job,
+                "send_task": mock_send_task,
+                "create_task": mock_create_task,
+            }
+
+    def test_create_newsletter_success_whitelisted(self, mock_dependencies, client_with_patched_redis):
+        """Test successful newsletter creation for a whitelisted BETA user."""
+        jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+        response = client_with_patched_redis.post(
+            "/create-newsletter",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            json={
+                "request_id": str(uuid.uuid4()),
+                "prompt": "Weekly AI news",
+                "schedule": {
+                    "type": "RECURRING_WEEKLY",
+                    "weekly_schedule": {"days": [5], "time": "10:00"},
+                },
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["is_scheduled"] is True
+        assert data["is_whitelisted"] is True
+        assert data["sample_email_sent"] is True
+        assert len(data["scheduled_task_ids"]) == 1
+        mock_dependencies["send_task"].assert_called_once()
+
+    def test_create_newsletter_task_limit_exceeded(self, mock_dependencies, client_with_patched_redis):
+        """Test that newsletter creation fails if the task limit is reached."""
+        mock_dependencies["get_plan"].return_value = UserPlan.BETA
+
+        jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+        # Set current tasks to the max allowed for BETA plan using the config variable
+        mock_dependencies["count_tasks"].return_value = NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA]["max_tasks"]
+
+        response = client_with_patched_redis.post(
+            "/create-newsletter",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            json={
+                "request_id": str(uuid.uuid4()),
+                "prompt": "Another newsletter",
+                "schedule": {
+                    "type": "RECURRING_WEEKLY",
+                    "weekly_schedule": {"days": [1], "time": "08:00"},
+                },
+            },
+        )
+        assert response.status_code == 403
+        assert "Newsletter limit" in response.json()["detail"]
+
+    def test_create_newsletter_interval_too_frequent(self, mock_dependencies, client_with_patched_redis):
+        """Test that creation fails if the cron interval is too short for the user's plan."""
+        mock_dependencies["get_plan"].return_value = UserPlan.BETA
+
+        jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+        response = client_with_patched_redis.post(
+            "/create-newsletter",
+            headers={"Authorization": f"Bearer {jwt_token}"},
+            json={
+                "request_id": str(uuid.uuid4()),
+                "prompt": "Daily newsletter",
+                "schedule": {
+                    "type": "RECURRING_WEEKLY",
+                    "weekly_schedule": {"days": [1, 2], "time": "07:00"},
+                },
+            },
+        )
+        assert response.status_code == 400
+        assert "Cron interval is too frequent" in response.json()["detail"]
+
+    def test_create_newsletter_not_whitelisted(self, mock_dependencies, client_with_patched_redis):
+        """Test behavior for a non-whitelisted user."""
+        mock_dependencies["is_whitelisted"].return_value = (False, False)
+        jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
+
+        with patch("mxgo.api.whitelist.trigger_automatic_verification", new_callable=AsyncMock) as mock_trigger_verify:
+            response = client_with_patched_redis.post(
+                "/create-newsletter",
+                headers={"Authorization": f"Bearer {jwt_token}"},
+                json={
+                    "request_id": str(uuid.uuid4()),
+                    "prompt": "A test newsletter",
+                    "schedule": {
+                        "type": "RECURRING_WEEKLY",
+                        "weekly_schedule": {"days": [6], "time": "12:00"},
+                    },
+                },
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["is_scheduled"] is True
+            assert data["is_whitelisted"] is False
+            assert data["sample_email_sent"] is False
+            mock_dependencies["send_task"].assert_not_called()
+            mock_trigger_verify.assert_called_once()

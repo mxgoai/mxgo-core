@@ -10,85 +10,16 @@ from mxgo._logging import get_logger
 from mxgo.config import SCHEDULED_TASKS_MINIMUM_INTERVAL_HOURS
 from mxgo.crud import create_task, delete_task, update_task_status
 from mxgo.db import init_db_connection
+from mxgo.email_handles import DEFAULT_EMAIL_HANDLES
+from mxgo.instruction_resolver import ProcessingInstructionsResolver
 from mxgo.models import TaskStatus
 from mxgo.request_context import RequestContext
 from mxgo.scheduling.scheduled_task_executor import execute_scheduled_task
 from mxgo.scheduling.scheduler import Scheduler, is_one_time_task
 from mxgo.schemas import HandlerAlias
-from mxgo.utils import round_to_nearest_minute, validate_datetime_field
+from mxgo.utils import calculate_cron_interval, round_to_nearest_minute, validate_datetime_field
 
 logger = get_logger("scheduled_tasks_tool")
-
-
-def calculate_cron_interval(cron_expression: str) -> timedelta:  # noqa: PLR0912
-    """
-    Calculate the minimum interval between executions for a cron expression.
-
-    Args:
-        cron_expression: The cron expression to analyze
-
-    Returns:
-        timedelta: The minimum interval between executions
-
-    Raises:
-        ValueError: If cron expression is invalid or interval cannot be determined
-
-    """
-    try:
-        # Parse the cron expression
-        parts = cron_expression.strip().split()
-        cron_parts_count = 5
-        if len(parts) != cron_parts_count:
-            msg = "Cron expression must have exactly 5 parts"
-            raise ValueError(msg)
-
-        minute, hour, day, month, weekday = parts
-        interval = None
-
-        # Check for every minute execution (* in minute field)
-        if minute == "*":
-            interval = timedelta(minutes=1)
-        # Check for specific minute intervals (*/n in minute field)
-        elif minute.startswith("*/"):
-            interval_minutes = int(minute[2:])
-            interval = timedelta(minutes=interval_minutes)
-        # Check for minute ranges or lists
-        elif "," in minute or "-" in minute:
-            # For complex minute patterns, assume worst case of every minute
-            interval = timedelta(minutes=1)
-        # Check for every hour execution (* in hour field with specific minute)
-        elif hour == "*":
-            interval = timedelta(hours=1)
-        # Check for specific hour intervals (*/n in hour field)
-        elif hour.startswith("*/"):
-            interval_hours = int(hour[2:])
-            interval = timedelta(hours=interval_hours)
-        # Check for hour ranges or lists
-        elif "," in hour or "-" in hour:
-            # For complex hour patterns, assume worst case of every hour
-            interval = timedelta(hours=1)
-        # If we get here, it's likely a daily, weekly, monthly, or yearly pattern
-        # Daily pattern (specific hour and minute, every day)
-        elif day == "*" and month == "*" and (weekday in {"*", "?"}):
-            interval = timedelta(days=1)
-        # Weekly pattern (specific weekday)
-        elif day == "*" and month == "*" and weekday not in {"*", "?"}:
-            interval = timedelta(weeks=1)
-        # Monthly pattern (specific day of month)
-        elif day != "*" and month == "*":
-            interval = timedelta(days=30)  # Approximate monthly interval
-        # Yearly pattern (specific month and day)
-        elif day != "*" and month != "*":
-            interval = timedelta(days=365)  # Yearly interval
-        else:
-            # Default to daily if we can't determine the pattern
-            interval = timedelta(days=1)
-
-    except Exception as e:
-        msg = f"Could not calculate interval for cron expression '{cron_expression}': {e}"
-        raise ValueError(msg) from e
-    else:
-        return interval
 
 
 def validate_minimum_interval(cron_expression: str) -> None:
@@ -244,7 +175,7 @@ class ScheduledTasksTool(Tool):
                 logger.warning(f"Could not parse start_time: {e}")
 
         # Validate that start_time is before end_time if both are provided
-        if parsed_start_time and parsed_end_time and parsed_start_time >= parsed_end_time:
+        if parsed_start_time and parsed_end_time and parsed_start_time > parsed_end_time:
             return (
                 None,
                 None,
@@ -318,11 +249,25 @@ class ScheduledTasksTool(Tool):
             }
 
         try:
+            # Resolve the handle alias before validation
+            if future_handle_alias:
+                try:
+                    # Resolve the provided alias (e.g., 'remind') to its canonical handle (e.g., 'schedule')
+                    resolver = ProcessingInstructionsResolver(DEFAULT_EMAIL_HANDLES)
+                    resolved_instructions = resolver(future_handle_alias)
+                    resolved_handle_alias = resolved_instructions.handle
+                    logger.info(f"Resolved future handle alias '{future_handle_alias}' to '{resolved_handle_alias}'")
+                except Exception:
+                    logger.warning(f"Could not resolve handle alias '{future_handle_alias}'. Validation might fail.")
+                    resolved_handle_alias = "ask"
+            else:
+                resolved_handle_alias = "ask"
+
             # Validate input using Pydantic
             input_data = ScheduledTaskInput(
                 cron_expression=cron_expression,
                 distilled_future_task_instructions=distilled_future_task_instructions,
-                future_handle_alias=future_handle_alias,
+                future_handle_alias=resolved_handle_alias,
                 start_time=start_time,
                 end_time=end_time,
             )
@@ -364,7 +309,7 @@ class ScheduledTasksTool(Tool):
                         task_id=task_id,
                         email_id=email_id,
                         cron_expression=input_data.cron_expression,
-                        email_request=email_request.model_dump(),
+                        email_request=email_request.model_dump(by_alias=True),
                         scheduler_job_id=scheduler_job_id,
                         start_time=parsed_start_time,
                         expiry_time=parsed_end_time,

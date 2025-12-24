@@ -2,6 +2,8 @@
 Template prompts for different email processing handlers.
 """
 
+from mxgo.config import SYSTEM_CAPABILITIES
+
 # Summarize email handler template
 SUMMARIZE_TEMPLATE = """
 Systematically analyze and summarize content from all available sources with clear structure and action focus.
@@ -1108,7 +1110,7 @@ The PDF is attached to this email for your use.
 """
 
 # Future handler template
-FUTURE_TEMPLATE = """
+FUTURE_TEMPLATE = f"""
 Analyze email content to extract scheduling requirements for future or recurring task processing and create appropriate cron expressions.
 
 # Future Task Scheduling Process
@@ -1177,6 +1179,8 @@ Analyze email content to extract scheduling requirements for future or recurring
 - **distilled_future_task_instructions**: Clear, detailed instructions about how the task should be processed when executed in the future. This should include the processing approach, any specific requirements, and what the expected outcome should be. **CRITICAL: If the original email contains attachments, you MUST include detailed context about the attachments in these instructions since attachments will not be available during scheduled execution. Include attachment names, types, sizes, and any relevant content or context from the attachments.**
 - **start_time**: (Optional) Start time for the task in ISO 8601 format - task will not execute before this time (e.g., "2024-09-01T00:00:00Z")
 - **end_time**: (Optional) End time for the task in ISO 8601 format - task will not execute after this time (e.g., "2024-12-31T23:59:59Z")
+- **future_handle_alias**: The specific email handle to use for the future task. If the user's intent is unclear or does not perfectly match a specific handle, you MUST use `ask` as the default. Select one of the available email processing handles based on the user's instructions.
+    {SYSTEM_CAPABILITIES}
 
 **Response (Successful Scheduling):**
 1. Confirmation message with:
@@ -1433,7 +1437,7 @@ scheduled_tasks(
 3. **Detailed processing instructions** - create comprehensive distilled_future_task_instructions
 4. **User-friendly confirmation** - explain what was scheduled and when it will happen
 5. **Error handling** - validate timing requests and provide alternatives if invalid
-"""
+"""  # noqa: S608
 
 # Delete handler template
 DELETE_TEMPLATE = """
@@ -1826,4 +1830,35 @@ Tesla's mixed performance reflects broader EV market volatility amid changing co
 - Provide **source citations** for all news items
 - Focus on **actionable insights** and current developments
 - Maintain **professional news analysis** tone
+"""
+
+NEWSLETTER_TEMPLATE = """
+## Primary Goal: Generate a high-quality, engaging, and well-researched newsletter.
+
+## STEP 1: Deconstruct the Request & Plan the Outline
+- **Analyze the Core Topic**: Identify the central theme from the user's prompt: **"{prompt}"**.
+- **Review Specific Instructions**: Carefully read all user-provided instructions below regarding sources, formatting, and geographic focus.
+- **Create a Research Outline**: Based on the topic, generate a logical 3-5 section outline for the newsletter. This will be your plan for research. The outline should be more than just keywords; it should represent the narrative flow of the newsletter.
+
+## STEP 2: Conduct Comprehensive Research (Per Section)
+- For EACH section in your outline, use the `web_search` tool to gather detailed, current, and authoritative information.
+- **Prioritize Sources**: If the user has specified sources, you MUST prioritize them in your search.
+- **Data & Evidence**: Focus on finding specific data, statistics, expert quotes, and verifiable facts. Avoid vague generalizations.
+
+## STEP 3: Synthesize and Draft the Newsletter
+- **Introduction**: Write a compelling opening that introduces the topic and hooks the reader.
+- **Body**: Draft each section from your outline, synthesizing the research findings into a coherent narrative. Do not simply list facts. Weave them together to tell a story or build an argument.
+- **Conclusion**: Write a concise summary or a forward-looking statement to conclude the newsletter.
+- **Adhere to User Instructions**: Ensure the draft meets all specific user instructions.
+
+## STEP 4: Final Review and Formatting
+- **Apply Markdown**: Format the entire newsletter using professional Markdown, including headings (`###`), bullet points, and bold/italic text for emphasis.
+- **Check for Quality**: Review the draft for clarity, accuracy, and engagement. Ensure it directly addresses the user's core prompt.
+- **Source Attribution**: The system will handle the final "References" section. You do not need to add manual citations in the text.
+
+---
+
+## Specific Instructions for This Newsletter
+You MUST adhere to the following user-provided instructions:
+{user_instructions_section}
 """
