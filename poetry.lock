@@ -2778,14 +2778,14 @@ testing = ["pytest"]
 
 [[package]]
 name = "mammoth"
-version = "1.10.0"
+version = "1.11.0"
 description = "Convert Word documents from docx to simple and clean HTML and Markdown"
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "mammoth-1.10.0-py2.py3-none-any.whl", hash = "sha256:a1c87d5b98ca30230394267f98614b58b14b50f8031dc33ac9a535c6ab04eb99"},
-    {file = "mammoth-1.10.0.tar.gz", hash = "sha256:cb6fbba41ccf8b5502859c457177d87a833fef0e0b1d4e6fd23ec372fe892c30"},
+    {file = "mammoth-1.11.0-py2.py3-none-any.whl", hash = "sha256:c077ab0d450bd7c0c6ecd529a23bf7e0fa8190c929e28998308ff4eada3f063b"},
+    {file = "mammoth-1.11.0.tar.gz", hash = "sha256:a0f59e442f34d5b6447f4b0999306cbf3e67aaabfa8cb516f878fb1456744637"},
 ]
 
 [package.dependencies]
