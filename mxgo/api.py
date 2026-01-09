@@ -540,6 +540,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
     messageId: Annotated[str | None, Form()] = None,  # noqa: N803
     date: Annotated[str | None, Form()] = None,
     rawHeaders: Annotated[str | None, Form()] = None,  # noqa: N803
+    distilled_processing_instructions: Annotated[str | None, Form()] = None,
     scheduled_task_id: Annotated[str | None, Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: Annotated[str, Depends(api_auth_scheme)] = ...,
@@ -556,6 +557,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
         messageId (str): Unique identifier for the email message
         date (str): Date when the email was sent
         rawHeaders (str): Raw headers of the email in JSON format
+        distilled_processing_instructions: Specific instructions required for a task
         scheduled_task_id (str, optional): ID of the scheduled task if this is a scheduled email
         files (list[UploadFile] | None): List of uploaded files as attachments
         api_key (str): API key for authentication
@@ -716,6 +718,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
                                 rawHeaders=parsed_headers,
                                 cc=cc_list,
                                 attachments=[],  # Start with empty list, will be updated after saving files
+                                distilled_processing_instructions=distilled_processing_instructions,
                             )
 
                             # Generate email ID
