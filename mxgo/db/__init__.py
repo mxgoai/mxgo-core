@@ -106,7 +106,7 @@ class AsyncDbConnection:
                 await session.close()
 
     async def _create_engine(self) -> AsyncEngine:
-        db_url = self.db_uri
+        db_url = self.get_db_uri_from_env()
         AsyncDbConnection._engine = create_async_engine(db_url, pool_pre_ping=True, echo=False)
         return AsyncDbConnection._engine
 
