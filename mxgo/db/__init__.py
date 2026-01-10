@@ -14,7 +14,7 @@ class DbConnection:
     _engine = None
 
     def __init__(self) -> None:
-        self.db_uri = self.get_db_uri_from_env()
+        pass
 
     @classmethod
     def get_db_uri_from_env(cls) -> str:
@@ -22,28 +22,28 @@ class DbConnection:
 
     def init_connection(self) -> None:
         """Initialize the database connection."""
-        if self._engine is None:
+        if DbConnection._engine is None:
             self._create_engine()
 
     def close_connection(self) -> None:
         """Close the database connection."""
-        if self._engine is not None:
-            self._engine.dispose()
+        if DbConnection._engine is not None:
+            DbConnection._engine.dispose()
+            DbConnection._engine = None
 
     def get_connection(self):
         """Get the database connection engine."""
-        if self._engine is None:
-            msg = "DB session isn't initialized"
+        if DbConnection._engine is None:
+            msg = "DB session isn't initialized. Call init_db_connection() at application startup."
             raise ConnectionError(msg)
-        return self._engine
+        return DbConnection._engine
 
     @contextmanager
     def get_session(self) -> Generator[Session]:
         """Get a synchronous database session."""
-        if self._engine is None:
-            self.init_connection()
+        engine = self.get_connection()
 
-        session = Session(self._engine)
+        session = Session(engine)
         try:
             yield session
             session.commit()
@@ -55,9 +55,9 @@ class DbConnection:
 
     def _create_engine(self):
         """Create a synchronous SQLAlchemy engine."""
-        db_url = self.db_uri
-        self._engine = create_engine(db_url, pool_pre_ping=True, echo=False)
-        return self._engine
+        db_url = self.get_db_uri_from_env()
+        DbConnection._engine = create_engine(db_url, pool_pre_ping=True, echo=False)
+        return DbConnection._engine
 
 
 class AsyncDbConnection:
@@ -66,25 +66,26 @@ class AsyncDbConnection:
     _engine: AsyncEngine | None = None
 
     def __init__(self) -> None:
-        self.db_uri = self.get_db_uri_from_env()
+        pass
 
     @classmethod
     def get_db_uri_from_env(cls) -> str:
         return f"postgresql+asyncpg://{os.environ['DB_USER']}:{os.environ['DB_PASSWORD']}@{os.environ['DB_HOST']}:{os.environ['DB_PORT']}/{os.environ['DB_NAME']}"
 
     async def init_connection(self) -> None:
-        if self._engine is None:
+        if AsyncDbConnection._engine is None:
             await self._create_engine()
 
     async def close_connection(self) -> None:
-        if self._engine is not None:
-            await self._engine.dispose()
+        if AsyncDbConnection._engine is not None:
+            await AsyncDbConnection._engine.dispose()
+            AsyncDbConnection._engine = None
 
     def get_connection(self) -> AsyncEngine:
-        if self._engine is None:
+        if AsyncDbConnection._engine is None:
             msg = "Async DB session isn't initialized"
             raise ConnectionError(msg)
-        return self._engine
+        return AsyncDbConnection._engine
 
     @asynccontextmanager
     async def get_session(self) -> AsyncGenerator[AsyncSession]:
@@ -106,19 +107,21 @@ class AsyncDbConnection:
 
     async def _create_engine(self) -> AsyncEngine:
         db_url = self.db_uri
-        self._engine = create_async_engine(db_url, pool_pre_ping=True, echo=False)
-        return self._engine
+        AsyncDbConnection._engine = create_async_engine(db_url, pool_pre_ping=True, echo=False)
+        return AsyncDbConnection._engine
+
+
+db_connection = DbConnection()
+async_db_connection = AsyncDbConnection()
 
 
 def init_db_connection() -> DbConnection:
     """Initialize a synchronous database connection."""
-    db_connection = DbConnection()
     db_connection.init_connection()
     return db_connection
 
 
 async def init_async_db_connection() -> AsyncDbConnection:
     """Initialize an asynchronous database connection for future use."""
-    db_connection = AsyncDbConnection()
-    await db_connection.init_connection()
-    return db_connection
+    await async_db_connection.init_connection()
+    return async_db_connection

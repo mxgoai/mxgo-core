@@ -11,6 +11,7 @@ import aiofiles
 import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader, HTTPBearer
 from sqlalchemy import text
 
@@ -127,6 +128,29 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+IS_PROD = os.getenv("IS_PROD", "false").lower() == "true"
+
+ALLOWED_ORIGINS_PROD = [
+    "https://mxgo.ai",
+]
+
+ALLOWED_ORIGINS_DEV = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://127.0.0.1",
+    "http://127.0.0.1:8080",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS_PROD if IS_PROD else ALLOWED_ORIGINS_DEV,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+
 if os.getenv("IS_PROD", "false").lower() == "true":
     app.openapi_url = None
 
