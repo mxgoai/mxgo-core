@@ -131,9 +131,7 @@ app = FastAPI(lifespan=lifespan)
 
 IS_PROD = os.getenv("IS_PROD", "false").lower() == "true"
 
-ALLOWED_ORIGINS_PROD = [
-    "https://mxgo.ai",
-]
+ALLOWED_ORIGINS_PROD = ["https://mxgo.ai", "https://knowsletter.com"]
 
 ALLOWED_ORIGINS_DEV = [
     "http://localhost",
