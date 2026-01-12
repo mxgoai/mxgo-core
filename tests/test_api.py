@@ -1313,7 +1313,7 @@ class TestCreateNewsletter:
         mock_dependencies["is_whitelisted"].return_value = (False, False)
         jwt_token = generate_test_jwt(email="test@example.com", user_id="test_user_123")
 
-        with patch("mxgo.api.whitelist.trigger_automatic_verification", new_callable=AsyncMock) as mock_trigger_verify:
+        with patch("mxgo.api.whitelist.trigger_newsletter_verification", new_callable=AsyncMock) as mock_trigger_verify:
             response = client_with_patched_redis.post(
                 "/create-newsletter",
                 headers={"Authorization": f"Bearer {jwt_token}"},
