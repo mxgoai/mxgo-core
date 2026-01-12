@@ -256,6 +256,164 @@ https://mxgo.ai"""
         return True
 
 
+async def trigger_newsletter_verification(email: str) -> bool:
+    """
+    Automatically trigger email verification for non-whitelisted newsletter users.
+
+    This function is a variant of trigger_automatic_verification but uses
+    Knowsletter branding for the verification email.
+
+    Args:
+        email: The email address to verify.
+
+    Returns:
+        bool: True if the verification process was successfully triggered, False otherwise.
+
+    """
+    try:
+        if not supabase:
+            init_supabase()
+
+        verification_token = str(uuid.uuid4())
+        current_time = datetime.now(timezone.utc).isoformat()
+
+        existing_response = supabase.table("whitelisted_emails").select("*").eq("email", email).execute()
+
+        if hasattr(existing_response, "data") and len(existing_response.data) > 0:
+            update_response = (
+                supabase.table("whitelisted_emails")
+                .update({"verification_token": verification_token, "verified": False, "updated_at": current_time})
+                .eq("email", email)
+                .execute()
+            )
+            if not (hasattr(update_response, "data") and len(update_response.data) > 0):
+                logger.error(f"Failed to update verification token for {email}")
+                return False
+        else:
+            insert_response = (
+                supabase.table("whitelisted_emails")
+                .insert(
+                    {
+                        "email": email,
+                        "verified": False,
+                        "verification_token": verification_token,
+                        "created_at": current_time,
+                        "updated_at": current_time,
+                    }
+                )
+                .execute()
+            )
+            if not (hasattr(insert_response, "data") and len(insert_response.data) > 0):
+                logger.error(f"Failed to insert verification record for {email}")
+                return False
+
+        verification_sent = await send_newsletter_verification_email(email, verification_token)
+
+        if verification_sent:
+            logger.info(f"Successfully triggered newsletter verification for {email}")
+        else:
+            logger.error(f"Failed to send newsletter verification email to {email}")
+
+        return verification_sent  # noqa: TRY300
+    except Exception as e:
+        logger.error(f"Error triggering newsletter verification for {email}: {e}")
+        return False
+
+
+async def send_newsletter_verification_email(email: str, verification_token: str) -> bool:
+    """
+    Send verification email using SES email sender with 'Knowsletter' branding.
+    This is a branded version of the standard send_verification_email function.
+    """
+    try:
+        # Get the origin URL for verification links
+        origin = os.getenv("FRONTEND_URL", "https://mxgo.ai")
+        verification_url = f"{origin}/verify?token={verification_token}"
+
+        subject = "Verify your email for Knowsletter"
+        sender_email = "knowsletter@mxgo.ai"
+
+        text_content = f"""Welcome to Knowsletter by MXGo.ai!
+
+To activate your newsletter subscription and start receiving updates, please verify your email address by clicking the link below:
+
+{verification_url}
+
+This verification link will expire in 24 hours for security reasons.
+
+If you didn't request this verification, you can safely ignore this email.
+
+Best regards,
+The Knowsletter Team
+
+---
+Knowsletter by MXGo.ai - Curated news, powered by AI
+https://mxgo.ai"""
+
+        html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Verify your email - Knowsletter by MXGo.ai</title>
+    <style>
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-align: center; padding: 30px 20px; border-radius: 8px 8px 0 0; }}
+        .content {{ background: #ffffff; padding: 30px; border: 1px solid #e1e5e9; border-top: none; }}
+        .button {{ display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 12px 30px; border-radius: 6px; font-weight: 600; margin: 20px 0; }}
+        .footer {{ background: #f8f9fa; color: #6c757d; text-align: center; padding: 20px; border-radius: 0 0 8px 8px; font-size: 14px; }}
+        .warning {{ background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px; border-radius: 6px; margin: 20px 0; }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 style="margin: 0; font-size: 28px;">Welcome to Knowsletter by MXGo.ai!</h1>
+        </div>
+        <div class="content">
+            <h2 style="color: #333; margin-top: 0;">Verify your email address</h2>
+            <p>To activate your newsletter subscription and start receiving updates, please verify your email address by clicking the button below:</p>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{verification_url}" class="button">Verify Email for Knowsletter</a>
+            </div>
+
+            <p>Or copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; background: #f8f9fa; padding: 10px; border-radius: 4px; font-family: monospace;">{verification_url}</p>
+
+            <div class="warning">
+                <strong>⏰ Important:</strong> This verification link will expire in 24 hours for security reasons.
+            </div>
+
+            <p>If you didn't request this verification, you can safely ignore this email.</p>
+
+            <p>Best regards,<br>
+            <strong>The Knowsletter Team</strong></p>
+        </div>
+        <div class="footer">
+            <p><strong>Knowsletter by MXGo.ai</strong> - Curated news, powered by AI</p>
+            <p><a href="https://mxgo.ai" style="color: #667eea;">https://mxgo.ai</a></p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+        # Initialize email sender and send verification email
+        email_sender = EmailSender()
+        response = await email_sender.send_email(
+            to_address=email, subject=subject, body_text=text_content, body_html=html_content, sender_email=sender_email
+        )
+
+        logger.info(
+            f"Knowsletter verification email sent successfully to {email}: {response.get('MessageId', 'Unknown')}"
+        )
+        return True  # noqa: TRY300
+
+    except Exception as e:
+        logger.error(f"Error sending Knowsletter verification email to {email}: {e}")
+        return False
+
+
 def get_whitelist_signup_url() -> str:
     """
     Get the URL where users can sign up to be whitelisted

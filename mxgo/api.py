@@ -1044,7 +1044,7 @@ async def _handle_post_creation_action(
 
     logger.info(f"User {user_email} is not whitelisted. Triggering verification.")
     try:
-        await whitelist.trigger_automatic_verification(user_email)
+        await whitelist.trigger_newsletter_verification(user_email)
     except Exception as e:
         logger.error(f"Error triggering whitelist verification for {user_email}: {e}")
     return False
