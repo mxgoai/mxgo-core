@@ -210,6 +210,8 @@ Execute custom tasks and workflows systematically with research, analysis, and p
 - **Engaging presentation** that's easy to read and understand
 - **Complete execution** of all requested components
 
+**CRITICAL: The following is ONLY an example to show the desired output structure, when generating answer, focus on user's request**
+
 **Example Task: "Prepare a newsletter with top 10 trending HN posts"**
 
 ```

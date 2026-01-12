@@ -11,6 +11,7 @@ import aiofiles
 import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Response, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import APIKeyHeader, HTTPBearer
 from sqlalchemy import text
 
@@ -127,6 +128,27 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+IS_PROD = os.getenv("IS_PROD", "false").lower() == "true"
+
+ALLOWED_ORIGINS_PROD = ["https://mxgo.ai", "https://knowsletter.com"]
+
+ALLOWED_ORIGINS_DEV = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://127.0.0.1",
+    "http://127.0.0.1:8080",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS_PROD if IS_PROD else ALLOWED_ORIGINS_DEV,
+    allow_credentials=True,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
+
+
 if os.getenv("IS_PROD", "false").lower() == "true":
     app.openapi_url = None
 
@@ -540,6 +562,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
     messageId: Annotated[str | None, Form()] = None,  # noqa: N803
     date: Annotated[str | None, Form()] = None,
     rawHeaders: Annotated[str | None, Form()] = None,  # noqa: N803
+    distilled_processing_instructions: Annotated[str | None, Form()] = None,
     scheduled_task_id: Annotated[str | None, Form()] = None,
     files: Annotated[list[UploadFile] | None, File()] = None,
     api_key: Annotated[str, Depends(api_auth_scheme)] = ...,
@@ -556,6 +579,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
         messageId (str): Unique identifier for the email message
         date (str): Date when the email was sent
         rawHeaders (str): Raw headers of the email in JSON format
+        distilled_processing_instructions: Specific instructions required for a task
         scheduled_task_id (str, optional): ID of the scheduled task if this is a scheduled email
         files (list[UploadFile] | None): List of uploaded files as attachments
         api_key (str): API key for authentication
@@ -716,6 +740,7 @@ async def process_email(  # noqa: PLR0912, PLR0915
                                 rawHeaders=parsed_headers,
                                 cc=cc_list,
                                 attachments=[],  # Start with empty list, will be updated after saving files
+                                distilled_processing_instructions=distilled_processing_instructions,
                             )
 
                             # Generate email ID

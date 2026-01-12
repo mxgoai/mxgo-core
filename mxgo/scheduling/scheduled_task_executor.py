@@ -200,7 +200,7 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
 
         # Map email_request fields to the expected form fields
         field_mapping = {
-            "from_email": "from_email",
+            "from": "from_email",
             "to": "to",
             "subject": "subject",
             "textContent": "textContent",
@@ -212,6 +212,7 @@ def _make_process_email_request(task_id: str, email_request: dict[str, Any]) -> 
             "date": "date",
             "rawHeaders": "rawHeaders",
             "raw_headers": "rawHeaders",
+            "distilled_processing_instructions": "distilled_processing_instructions",
         }
 
         # Map fields from email_request to form_data
