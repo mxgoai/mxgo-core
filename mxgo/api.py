@@ -135,9 +135,9 @@ ALLOWED_ORIGINS_PROD = ["https://mxgo.ai", "https://knowsletter.com"]
 
 ALLOWED_ORIGINS_DEV = [
     "http://localhost",
-    "http://localhost:8080",
+    "http://localhost:5173",
     "http://127.0.0.1",
-    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
