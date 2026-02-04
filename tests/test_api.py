@@ -1218,7 +1218,7 @@ class TestCreateNewsletter:
         """Mocks all external dependencies for the newsletter endpoint."""
         with (
             patch("mxgo.api.user.get_user_plan", new_callable=AsyncMock) as mock_get_plan,
-            patch("mxgo.api.crud.count_active_tasks_for_user") as mock_count_tasks,
+            patch("mxgo.api.crud.count_recurring_tasks_for_user") as mock_count_tasks,
             patch("mxgo.api.whitelist.is_email_whitelisted", new_callable=AsyncMock) as mock_is_whitelisted,
             patch("mxgo.api.Scheduler.add_job") as mock_add_job,
             patch("mxgo.api.process_email_task.send") as mock_send_task,

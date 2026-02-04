@@ -546,6 +546,7 @@ class CreateNewsletterRequest(BaseModel):
     estimated_read_time: int | None = Field(None, description="Estimated read time in minutes for the newsletter.")
     sources: list[str] | None = Field(None, description="A list of source names or URLs to use.")
     geographic_locations: list[str] | None = Field(None, description="A list of geographic locations to focus on.")
+    language: str | None = Field(None, description="Language for the newsletter content.")
     formatting_instructions: str | None = Field(
         None, description="Specific instructions on how to format the newsletter."
     )
