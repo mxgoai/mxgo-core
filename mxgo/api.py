@@ -28,6 +28,7 @@ from mxgo.email_sender import (
 from mxgo.models import TaskStatus
 from mxgo.prompts.template_prompts import NEWSLETTER_TEMPLATE
 from mxgo.reply_generation import generate_replies
+from mxgo.routed_litellm_model import RoutedLiteLLMModel
 from mxgo.scheduling.scheduled_task_executor import execute_scheduled_task
 from mxgo.scheduling.scheduler import Scheduler, is_one_time_task
 from mxgo.schemas import (
@@ -51,6 +52,7 @@ from mxgo.suggestions import generate_suggestions, get_suggestions_model
 from mxgo.tasks import process_email_task, rabbitmq_broker
 from mxgo.utils import calculate_cron_interval, convert_schedule_to_cron_list
 from mxgo.validators import (
+    check_rate_limit_redis,
     get_current_usage_redis,
     validate_api_key,
     validate_attachments,
@@ -919,7 +921,6 @@ async def _generate_newsletter_subject(prompt: str, *, is_sample: bool = False) 
 
     """
     try:
-        from mxgo.routed_litellm_model import RoutedLiteLLMModel
 
         model = RoutedLiteLLMModel(
             target_model=os.getenv("LITELLM_SUGGESTIONS_MODEL_GROUP", "gpt-4"),
@@ -927,15 +928,10 @@ async def _generate_newsletter_subject(prompt: str, *, is_sample: bool = False) 
         )
 
         response = model(
-            messages=[{"role": "user", "content": f"Generate a concise, single line email subject prefixed with \"Newsletter:\" for a newsletter based on these instructions: {prompt}"}],
+            messages=[{"role": "user", "content": f'Generate a concise, single line email subject prefixed with "Newsletter:" for a newsletter based on these instructions: {prompt}'}],
             temperature=0.3,
         )
         subject = response.content
-
-        if is_sample:
-            return f"[SAMPLE] {subject}"
-        return subject
-
     except Exception as e:
         logger.warning(f"Failed to generate newsletter subject via LLM: {e}")
         # Fallback to generic prompt
@@ -943,6 +939,10 @@ async def _generate_newsletter_subject(prompt: str, *, is_sample: bool = False) 
         if is_sample:
             return f"[SAMPLE] Newsletter: {fallback}"
         return f"Newsletter: {fallback}"
+    else:
+        if is_sample:
+            return f"[SAMPLE] {subject}"
+        return subject
 
 
 def _build_newsletter_instructions(request: CreateNewsletterRequest) -> str:
@@ -987,16 +987,42 @@ def _build_newsletter_instructions(request: CreateNewsletterRequest) -> str:
     return NEWSLETTER_TEMPLATE.format(prompt=request.prompt, user_instructions_section=user_instructions_section)
 
 
-async def _validate_newsletter_limits(user_email: str, cron_expressions: list[str]):
-    """Validates the user's plan limits for newsletters."""
-    # Get user plan and corresponding limits from config
+async def _validate_newsletter_limits(
+    user_email: str,
+    schedule_type: ScheduleType,
+    cron_expressions: list[str],
+):
+    """
+    Validates the user's plan limits for newsletters.
+    - IMMEDIATE: Checks global rate limits (hourly/daily/monthly email quota)
+    - RECURRING/SPECIFIC_DATES: Checks newsletter-specific limits (max_tasks, min_interval)
+    """
     user_plan = await user.get_user_plan(user_email)
+
+    if schedule_type == ScheduleType.IMMEDIATE:
+        # For immediate newsletters, check global rate limits
+        plan_limits = RATE_LIMITS_BY_PLAN.get(user_plan, RATE_LIMITS_BY_PLAN[UserPlan.BETA])
+        rate_limit_exceeded = await check_rate_limit_redis(
+            key_type="email",
+            identifier=user.normalize_email(user_email),
+            plan_or_domain_limits=plan_limits,
+            current_dt=datetime.now(timezone.utc),
+            plan_name_for_key=user_plan.value,
+        )
+        if rate_limit_exceeded:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Rate limit exceeded ({rate_limit_exceeded}). Please try again later.",
+            )
+        return
+
+    # For RECURRING/SPECIFIC_DATES, check newsletter-specific limits
     plan_limits = NEWSLETTER_LIMITS_BY_PLAN.get(user_plan, NEWSLETTER_LIMITS_BY_PLAN[UserPlan.BETA])
     min_interval = timedelta(days=plan_limits["min_interval_days"])
 
     # Count only recurring tasks for max_tasks limit (one-time tasks don't count)
     recurring_cron_count = sum(1 for expr in cron_expressions if not is_one_time_task(expr))
-    
+
     db_connection = init_db_connection()
     with db_connection.get_session() as session:
         recurring_task_count = crud.count_recurring_tasks_for_user(session, user_email)
@@ -1134,23 +1160,26 @@ async def create_newsletter(
     user_email = current_user.email
     logger.info(f"Received newsletter creation request for user: {user_email}")
 
-    if validators.redis_client:
-        redis_key = f"newsletter_request:{request.request_id}"
-        existing_task_ids_json = await validators.redis_client.get(redis_key)
-        if existing_task_ids_json:
-            logger.info(
-                f"Duplicate request_id {request.request_id} detected for {user_email}, returning existing tasks from Redis"
-            )
-            existing_task_ids = json.loads(existing_task_ids_json)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail={
-                    "message": "This request has already been processed.",
-                    "status": "duplicate",
-                    "request_id": request.request_id,
-                    "scheduled_task_ids": existing_task_ids,
-                },
-            )
+    async def check_duplicate():
+        if validators.redis_client:
+            redis_key = f"newsletter_request:{request.request_id}"
+            existing_task_ids_json = await validators.redis_client.get(redis_key)
+            if existing_task_ids_json:
+                logger.info(
+                    f"Duplicate request_id {request.request_id} detected for {user_email}, returning existing tasks from Redis"
+                )
+                existing_task_ids = json.loads(existing_task_ids_json)
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail={
+                        "message": "This request has already been processed.",
+                        "status": "duplicate",
+                        "request_id": request.request_id,
+                        "scheduled_task_ids": existing_task_ids,
+                    },
+                )
+
+    await check_duplicate()
 
     distilled_instructions = _build_newsletter_instructions(request)
 
@@ -1159,7 +1188,7 @@ async def create_newsletter(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e)) from e
 
-    await _validate_newsletter_limits(user_email, cron_expressions)
+    await _validate_newsletter_limits(user_email, request.schedule.type, cron_expressions)
 
     exists_in_whitelist, is_verified = await whitelist.is_email_whitelisted(user_email)
     is_whitelisted = exists_in_whitelist and is_verified
@@ -1205,31 +1234,36 @@ async def create_newsletter(
     # For SPECIFIC_DATES and RECURRING_WEEKLY, proceed with scheduling
     subject = await _generate_newsletter_subject(request.prompt, is_sample=False)
 
-    created_task_ids = []
-    try:
-        for cron_expr in cron_expressions:
-            task_id = _create_and_schedule_task(user_email, cron_expr, distilled_instructions, subject)
-            created_task_ids.append(task_id)
-    except Exception as e:
-        logger.error(f"Failed to schedule one or more newsletter tasks for {user_email}: {e}")
+    def schedule_tasks():
+        created_task_ids = []
+        try:
+            for cron_expr in cron_expressions:
+                task_id = _create_and_schedule_task(user_email, cron_expr, distilled_instructions, subject)
+                created_task_ids.append(task_id)
+        except Exception as e:
+            logger.error(f"Failed to schedule one or more newsletter tasks for {user_email}: {e}")
 
-        # Rollback created tasks if any failed
-        scheduler = Scheduler()
-        db_connection = init_db_connection()
-        with db_connection.get_session() as session:
-            for tid in created_task_ids:
-                crud.delete_task(session, tid)
+            # Rollback created tasks if any failed
+            scheduler = Scheduler()
+            db_connection = init_db_connection()
+            with db_connection.get_session() as session:
+                for tid in created_task_ids:
+                    crud.delete_task(session, tid)
 
-                try:
-                    scheduler.remove_job(f"task_{tid}")
-                    logger.info(f"Removed scheduler job for rolled-back task {tid}")
-                except Exception as scheduler_e:
-                    logger.error(f"Failed to remove scheduler job for task {tid}: {scheduler_e}")
+                    try:
+                        scheduler.remove_job(f"task_{tid}")
+                        logger.info(f"Removed scheduler job for rolled-back task {tid}")
+                    except Exception as scheduler_e:
+                        logger.error(f"Failed to remove scheduler job for task {tid}: {scheduler_e}")
 
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to schedule one or more newsletter tasks.",
-        ) from e
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to schedule one or more newsletter tasks.",
+            ) from e
+        else:
+            return created_task_ids
+
+    created_task_ids = schedule_tasks()
 
     sample_email_sent = False
     if created_task_ids:

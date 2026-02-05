@@ -20,6 +20,7 @@ from mxgo.models import (
     TaskStatus,
     clear_task_data_if_terminal,
 )
+from mxgo.scheduling.scheduler import is_one_time_task
 
 logger = get_logger("crud")
 
@@ -242,8 +243,6 @@ def count_recurring_tasks_for_user(session: Session, user_email: str) -> int:
         Number of active recurring tasks
 
     """
-    from mxgo.scheduling.scheduler import is_one_time_task
-
     statement = (
         select(Tasks)
         .where(Tasks.email_request.op("->>")("from") == user_email)
