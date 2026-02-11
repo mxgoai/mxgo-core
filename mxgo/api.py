@@ -135,9 +135,9 @@ ALLOWED_ORIGINS_PROD = ["https://mxgo.ai", "https://knowsletter.com"]
 
 ALLOWED_ORIGINS_DEV = [
     "http://localhost",
-    "http://localhost:8080",
+    "http://localhost:5173",
     "http://127.0.0.1",
-    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
 ]
 
 app.add_middleware(
@@ -1044,7 +1044,7 @@ async def _handle_post_creation_action(
 
     logger.info(f"User {user_email} is not whitelisted. Triggering verification.")
     try:
-        await whitelist.trigger_automatic_verification(user_email)
+        await whitelist.trigger_newsletter_verification(user_email)
     except Exception as e:
         logger.error(f"Error triggering whitelist verification for {user_email}: {e}")
     return False
