@@ -29,11 +29,11 @@ SCHEDULED_TASKS_MAX_PER_EMAIL = 5
 
 NEWSLETTER_LIMITS_BY_PLAN = {
     UserPlan.BETA: {
-        "max_tasks": 3,
+        "max_tasks": 6,
         "min_interval_days": 7,
     },
     UserPlan.PRO: {
-        "max_tasks": 20,
+        "max_tasks": 40,
         "min_interval_days": 1,
     },
 }
