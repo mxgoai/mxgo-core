@@ -20,6 +20,7 @@ from mxgo.models import (
     TaskStatus,
     clear_task_data_if_terminal,
 )
+from mxgo.scheduling.scheduler import is_one_time_task
 
 logger = get_logger("crud")
 
@@ -225,6 +226,30 @@ def count_active_tasks_for_user(session: Session, user_email: str) -> int:
     )
     tasks = session.exec(statement).all()
     return len(tasks)
+
+
+def count_recurring_tasks_for_user(session: Session, user_email: str) -> int:
+    """
+    Count active recurring tasks for a user (excludes one-time tasks).
+
+    This is used for newsletter rate limiting where only recurring tasks
+    should count toward the max_tasks limit.
+
+    Args:
+        session: Database session
+        user_email: Email address to count tasks for
+
+    Returns:
+        Number of active recurring tasks
+
+    """
+    statement = (
+        select(Tasks)
+        .where(Tasks.email_request.op("->>")("from") == user_email)
+        .where(Tasks.status.in_(ACTIVE_TASK_STATUSES))
+    )
+    tasks = session.exec(statement).all()
+    return sum(1 for task in tasks if task.cron_expression and not is_one_time_task(task.cron_expression))
 
 
 # TaskRun CRUD operations
