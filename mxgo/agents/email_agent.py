@@ -434,9 +434,14 @@ class EmailAgent:
             else ""
         )
 
+        # Add current date and time context
+        now_utc = datetime.now(timezone.utc)
+        current_datetime = f"**Current Date & Time (UTC):** {now_utc.strftime('%B %d, %Y at %H:%M UTC')}"
+
         # Merge the task components into a single string by listing the sections
         sections = [
             f"Process this email according to the '{handle}' instruction type.\n",
+            current_datetime,
             email_context,
             distilled_section,
             RESEARCH_GUIDELINES["mandatory"]

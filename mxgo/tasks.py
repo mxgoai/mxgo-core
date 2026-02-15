@@ -26,6 +26,9 @@ from mxgo.schemas import (
     ProcessingInstructions,
     ProcessingMetadata,
 )
+from mxgo.crud import get_task_by_id
+from mxgo.db import init_db_connection
+from mxgo.scheduling.scheduler import is_one_time_task
 from mxgo.validators import check_task_idempotency, mark_email_as_processed
 
 # Load environment variables
@@ -201,11 +204,32 @@ def process_email_task(  # noqa: PLR0912, PLR0915
 
     processing_result = email_agent.process_email(email_request, email_instructions)
 
-    # Add task ID to email content if this is a scheduled task
+    # Add Knowsletter-branded footer to email content if this is a scheduled task
     if scheduled_task_id and processing_result.email_content:
-        # Append task ID to both text and HTML content
-        task_id_note = f"\n\n---\nTask ID: {scheduled_task_id}"
-        task_id_note_html = f"<br/><br/><hr/><p><strong>Task ID:</strong> {scheduled_task_id}</p>"
+        # Look up task to determine if recurring
+        is_recurring = False
+        try:
+            db_connection = init_db_connection()
+            with db_connection.get_session() as session:
+                task = get_task_by_id(session, scheduled_task_id)
+                if task and task.cron_expression:
+                    is_recurring = not is_one_time_task(task.cron_expression)
+        except Exception:
+            logger.warning(f"Could not determine if task {scheduled_task_id} is recurring")
+
+        # Build footer
+        delete_hint = "\n(Forward this email to delete@mxgo.ai to delete this recurring task)" if is_recurring else ""
+        task_id_note = f"\n\n---\nEmail sent to you by Knowsletter.com\nTask ID: {scheduled_task_id}{delete_hint}"
+        task_id_note_html = (
+            '<br/><br/><hr/>'
+            '<p>Email sent to you by <a href="https://knowsletter.com">Knowsletter.com</a></p>'
+            f'<p><strong>Task ID:</strong> {scheduled_task_id}'
+            + (
+                ' <em>(Forward this email to <a href="mailto:delete@mxgo.ai">delete@mxgo.ai</a> to delete this recurring task)</em>'
+                if is_recurring else ''
+            )
+            + '</p>'
+        )
 
         if processing_result.email_content.text:
             processing_result.email_content.text += task_id_note
@@ -276,9 +300,17 @@ def process_email_task(  # noqa: PLR0912, PLR0915
                     logger.error(f"Failed to attach PDF file: {pdf_error}")
                     # Continue without the PDF attachment rather than failing the entire email
 
+            # Set sender display name: "Knowsletter" for scheduled tasks, "MXGo" otherwise
+            sender_address = email_request.to
+            if scheduled_task_id:
+                display_name = "Knowsletter"
+            else:
+                display_name = "MXGo"
+            sender_with_name = f'"{display_name}" <{sender_address}>'
+
             original_email_details = {
                 "from": email_request.from_email,
-                "to": email_request.to,
+                "to": sender_with_name,
                 "subject": email_request.subject,
                 "messageId": email_request.messageId,
                 "references": email_request.references,

@@ -949,12 +949,6 @@ def _build_newsletter_instructions(request: CreateNewsletterRequest) -> str:
     """Builds the full instruction string from the request using the NEWSLETTER template."""
     user_instructions = []
 
-    # Add current date context for time-sensitive queries
-    today = datetime.now(timezone.utc).strftime("%B %d, %Y")
-    user_instructions.append(
-        f"- **Current Date**: Today is {today}. When the user mentions 'latest', 'recent', 'this year', etc., focus on the most current information available."
-    )
-
     if request.estimated_read_time:
         user_instructions.append(
             f"- **Target Read Time**: The newsletter should be concise enough to be read in approximately {request.estimated_read_time} minutes."
