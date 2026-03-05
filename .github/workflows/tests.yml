@@ -94,13 +94,13 @@ jobs:
         run: poetry run pytest -v --timeout 180 --cov-report=term-missing:skip-covered --cov-report=html:htmlcov --cov=mxgo --pytest-durations-min=5
 
       - name: Upload pytest report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pytest-report
           path: pytest.xml
 
       - name: Upload coverage report
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: htmlcov/
